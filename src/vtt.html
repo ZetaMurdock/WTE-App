@@ -125,7 +125,7 @@ body{background:var(--bg);color:var(--ink);font-family:'Georgia',serif;font-size
   <button class="tbtn gmonly" onclick="exportMap()">Export</button>
   <span class="spacer"></span>
   <button class="tbtn" id="connect-btn" onclick="openConnect()">Connect</button>
-  <button class="tbtn" onclick="centerOnMyToken()" title="Center on your token">My Token</button>
+  <button class="tbtn" onclick="centerOnMyToken(event)" title="Warp to one of your tokens">My Token &#9662;</button>
   <button class="tbtn" onclick="fitView()">Fit</button>
   <span class="zoom" id="zoom-lbl">100%</span>
 </div>
@@ -148,7 +148,7 @@ body{background:var(--bg);color:var(--ink);font-family:'Georgia',serif;font-size
       </span>
       <span class="aim-size" id="aim-size-wrap">Size <input type="number" id="aim-size" min="1" max="60" value="3" onchange="setAimSize(this.value)" oninput="setAimSize(this.value)"><span id="aim-unit">cells</span></span>
       <span class="aim-linger" title="leave a lingering effect that follows a token for N rounds">Linger
-        <select id="aim-follow"><option value="">off</option><option value="self">self</option><option value="target">target</option></select>
+        <select id="aim-follow"><option value="">off</option><option value="self">self</option><option value="target">target</option><option value="ground">ground</option></select>
         <input type="number" id="aim-rounds" min="1" max="20" value="2" style="width:34px;">r</span>
       <span class="aim-count" id="aim-count">0 in area</span>
       <button class="aim-cancel" onclick="cancelAim()">Cancel (Esc)</button>
@@ -173,9 +173,17 @@ body{background:var(--bg);color:var(--ink);font-family:'Georgia',serif;font-size
   <div class="card">
     <div class="card-h"><span>Auto-Walls from Image</span><span class="x" onclick="closeAW()">x</span></div>
     <div class="card-b">
-      <div class="note">Generates vector walls from the background image (dark areas become walls) so Fog of War works automatically. Best on clean line-art / dungeon maps; raise the threshold to catch lighter walls, lower it to catch only the darkest.</div>
+      <div class="note">Generates vector walls so Fog of War works automatically. <b>Standard</b> traces the image's dark lines (best for detailed maps). <b>Fast</b> keeps only long walls — far fewer pieces, so no lag.</div>
       <div class="row"><label>Darkness</label><input type="range" id="aw-thr" min="20" max="220" value="95" style="flex:1;" oninput="document.getElementById('aw-thrv').textContent=this.value"><span id="aw-thrv" style="font-family:Consolas,monospace;font-size:11px;width:30px;text-align:right;">95</span></div>
-      <div style="display:flex;gap:6px;"><button class="tbtn live" onclick="autoWallsDetect()">Detect walls</button><button class="tbtn" onclick="autoWallsClear()">Remove auto walls</button></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button class="tbtn live" onclick="autoWallsDetect('standard')" title="Trace every wall line in the image">Standard (trace)</button>
+        <button class="tbtn live" onclick="autoWallsDetect('fast')" title="Only long walls — few pieces, no lag">Fast (few walls)</button>
+        <button class="tbtn" onclick="autoWallsClear()">Remove auto walls</button>
+      </div>
+      <div class="note" style="margin-top:8px;border-top:1px solid var(--line);padding-top:8px;">Imported a map from <b>Dungeon Alchemist</b>? Load its two exported files for an exact wall layout (no detection needed).</div>
+      <div style="display:flex;gap:6px;"><button class="tbtn" onclick="document.getElementById('da-json').click()">Import Dungeon Alchemist…</button></div>
+      <input type="file" id="da-json" accept=".txt,.json,.dd2vtt,.df2vtt" style="display:none" onchange="daPickJson(this.files[0])">
+      <input type="file" id="da-img" accept="image/*" style="display:none" onchange="daPickImage(this.files[0])">
       <div class="note" id="aw-status"></div>
     </div>
   </div>
@@ -283,11 +291,14 @@ function doDraw(){
   drawPings();
   if(fogOn && map.layers.fog.vis) drawFog(vis||[]);
   ctx.setTransform(view.zoom,0,0,view.zoom,view.panX,view.panY); drawMeasurements();
+  drawFlashes();
   if(VTaim){ ctx.setTransform(view.zoom,0,0,view.zoom,view.panX,view.panY); drawAimPreview(); }
   if(role==='player'&&fogOn&&!map.tokens.some(ownedByMe)){
     ctx.setTransform(1,0,0,1,0,0); ctx.fillStyle='rgba(231,226,216,.65)'; ctx.font='15px Georgia'; ctx.textAlign='center';
     ctx.fillText('No token assigned to you yet — ask your GM', cv.width/2, cv.height/2);
   }
+  // keep animating while flashes / hurt-glows are fading
+  if(flashes.length || map.tokens.some(t=>t._hurt&&t._hurt>Date.now())) render();
   document.getElementById('zoom-lbl').textContent=Math.round(view.zoom*100)+'%';
   document.getElementById('counts').textContent=`${map.tokens.length} tokens · ${map.walls.length} walls · ${map.lights.length} lights`;
 }
@@ -338,6 +349,7 @@ function drawTokens(){
     else { ctx.fillStyle=t.color||'#8a6d3b'; ctx.fill(); }
     ctx.globalAlpha=1;
     ctx.lineWidth=2/view.zoom; ctx.strokeStyle=(sel&&sel.type==='token'&&sel.id===t.id)?getCSS('--sel'):(ownedByMe(t)&&role==='player'?'#3a8050':'#1c1b19'); ctx.stroke();
+    if(t._hurt&&t._hurt>Date.now()){ const k=(t._hurt-Date.now())/1100; ctx.beginPath(); if(t.base==='square')ctx.rect(t.x-rad,t.y-rad,rad*2,rad*2); else ctx.arc(t.x,t.y,rad+3/view.zoom,0,7); ctx.strokeStyle=`rgba(224,60,40,${0.9*k})`; ctx.lineWidth=4/view.zoom; ctx.stroke(); }
     if(t.hpmax>0){ const bw=rad*2,bx=t.x-rad,by=t.y-rad-9/view.zoom,bh=5/view.zoom; ctx.fillStyle='#000';ctx.fillRect(bx,by,bw,bh);
       const pct=Math.max(0,Math.min(1,(t.hp||0)/t.hpmax)); ctx.fillStyle=pct>.5?'#4a8a4a':pct>.25?'#b8922a':'#a83a2a'; ctx.fillRect(bx,by,bw*pct,bh); }
     if(t.label){ ctx.fillStyle='#fff';ctx.font=`${13/view.zoom}px Georgia`;ctx.textAlign='center';ctx.shadowColor='#000';ctx.shadowBlur=3/view.zoom; ctx.fillText(t.label,t.x,t.y+rad+15/view.zoom); ctx.shadowBlur=0; }
@@ -564,10 +576,13 @@ function setBgImg(src){ if(!src){bgImg=null;render();return;} bgImg=new Image();
 // ── AUTO-WALLS: derive vector walls from the background image (dark = wall) ──
 function openAW(){ document.getElementById('awModal').classList.add('open'); }
 function closeAW(){ document.getElementById('awModal').classList.remove('open'); }
-function autoWallsDetect(){
+function autoWallsDetect(mode){
+  mode=mode||'standard';
   if(!bgImg||!bgImg.complete){ toast('Load a background image first'); return; }
   const thr=+document.getElementById('aw-thr').value;
-  const step=Math.max(1,Math.round(Math.max(bgImg.width,bgImg.height)/220));
+  // Fast mode samples coarser and only keeps long runs → drastically fewer walls (no lag).
+  const denom = mode==='fast'?120:300;
+  const step=Math.max(1,Math.round(Math.max(bgImg.width,bgImg.height)/denom));
   const W=Math.max(2,Math.round(bgImg.width/step)), H=Math.max(2,Math.round(bgImg.height/step));
   const tmp=document.createElement('canvas'); tmp.width=W; tmp.height=H;
   const tctx=tmp.getContext('2d'); tctx.drawImage(bgImg,0,0,W,H);
@@ -584,13 +599,42 @@ function autoWallsDetect(){
   const merge=(groups,vert)=>Object.entries(groups).forEach(([k,arr])=>{ arr.sort((a,b)=>a-b); let s=arr[0],p=arr[0];
     for(let i=1;i<=arr.length;i++){ if(i<arr.length&&arr[i]===p+1){p=arr[i];} else { if(vert)segs.push({x1:+k,y1:s,x2:+k,y2:p+1}); else segs.push({x1:s,y1:+k,x2:p+1,y2:+k}); if(i<arr.length){s=arr[i];p=arr[i];} } } });
   merge(vByX,true); merge(hByY,false);
-  const sc=step*map.bg.scale, ox=map.bg.x, oy=map.bg.y, CAP=2000;
+  // drop short segments (sampled-cell length). Fast mode keeps only long structural walls.
+  const sc=step*map.bg.scale, ox=map.bg.x, oy=map.bg.y;
+  const minCells = mode==='fast'?5:2;   // min length in sampled cells
+  const CAP = mode==='fast'?250:1200;
+  const kept=segs.filter(s=>(Math.abs(s.x2-s.x1)+Math.abs(s.y2-s.y1))>=minCells).sort((a,b)=>((Math.abs(b.x2-b.x1)+Math.abs(b.y2-b.y1))-(Math.abs(a.x2-a.x1)+Math.abs(a.y2-a.y1))));
   map.walls=map.walls.filter(w=>!w.auto);
   let n=0;
-  for(const s of segs){ if(n>=CAP)break; map.walls.push({id:uid(),x1:ox+s.x1*sc,y1:oy+s.y1*sc,x2:ox+s.x2*sc,y2:oy+s.y2*sc,blocksVision:true,blocksMovement:true,blocksProjectiles:true,auto:true}); n++; }
+  for(const s of kept){ if(n>=CAP)break; map.walls.push({id:uid(),x1:ox+s.x1*sc,y1:oy+s.y1*sc,x2:ox+s.x2*sc,y2:oy+s.y2*sc,blocksVision:true,blocksMovement:true,blocksProjectiles:true,auto:true}); n++; }
   snapshot(); syncMap(); render();
-  document.getElementById('aw-status').textContent=n+' wall segments generated'+(segs.length>CAP?' (capped — raise threshold for fewer)':'')+'. Switch on Fog to test.';
+  document.getElementById('aw-status').textContent=`${mode==='fast'?'Fast':'Standard'}: ${n} walls`+(kept.length>CAP?` (capped at ${CAP})`:'')+'. Turn Fog on to test.';
   toast(n+' walls generated');
+}
+// ── DUNGEON ALCHEMIST IMPORT — exact walls from the two exported files ──
+let _daPending=null;
+function daPickJson(file){ if(!file)return; const r=new FileReader();
+  r.onload=ev=>{ let txt=ev.target.result; const i=txt.indexOf('{'); if(i>0)txt=txt.slice(i);
+    try{ _daPending=JSON.parse(txt); }catch(e){ toast('Could not read that file as Dungeon Alchemist data'); return; }
+    if(!_daPending.walls){ toast('No walls found in that file'); return; }
+    toast('Now choose the exported map image'); document.getElementById('da-img').click(); };
+  r.readAsText(file); }
+function daPickImage(file){ if(!file||!_daPending){ toast('Pick the DA data file first'); return; } const r=new FileReader();
+  r.onload=ev=>{ applyDungeonAlchemist(_daPending, ev.target.result); _daPending=null; }; r.readAsDataURL(file); }
+function applyDungeonAlchemist(da,imgSrc){
+  const ppt=da.pixelsPerTile||150;
+  map.gridType='square'; map.gridSize=60;
+  const f=map.gridSize/ppt;                 // DA pixels → world pixels (1 DA tile = 1 grid cell)
+  map.bg={src:imgSrc,x:0,y:0,scale:f}; setBgImg(imgSrc);
+  map.walls=map.walls.filter(w=>!w.da&&!w.auto);
+  let n=0;
+  (da.walls||[]).forEach(w=>{ const w3=w.wall3D||{}; const p1=w3.p1&&w3.p1.bottom, p2=w3.p2&&w3.p2.bottom; if(!p1||!p2)return;
+    const solid=(w.type===0);   // type 0 = solid wall; doors/windows let sight through
+    map.walls.push({id:uid(),x1:p1.x*f,y1:p1.y*f,x2:p2.x*f,y2:p2.y*f,blocksVision:solid,blocksMovement:true,blocksProjectiles:true,da:true,auto:true}); n++; });
+  normalizeMap(); ensureExplored(); syncControls(); renderLayers(); select(null); fitView(); snapshot(); syncMap(); render();
+  closeAW();
+  document.getElementById('aw-status').textContent=`Dungeon Alchemist: ${n} walls imported.`;
+  toast('Imported '+n+' DA walls');
 }
 function autoWallsClear(){ const had=map.walls.length; map.walls=map.walls.filter(w=>!w.auto); snapshot(); syncMap(); render(); document.getElementById('aw-status').textContent=(had-map.walls.length)+' auto walls removed'; }
 document.getElementById('awModal').addEventListener('click',e=>{if(e.target.id==='awModal')closeAW();});
@@ -667,57 +711,85 @@ function sendActorAction(){
   const a=VTaim; if(!a)return;
   const follow=((document.getElementById('aim-follow')||{}).value)||'';
   const rounds=Math.max(1,parseInt((document.getElementById('aim-rounds')||{}).value)||a.rounds||2);
+  const src=a.fromActorId?map.tokens.find(t=>t.actor===a.fromActorId):null;
+  const c=VTaimCursor||(src?{x:src.x,y:src.y}:{x:0,y:0});
+  // capture the hitbox geometry now (cursor/direction) before we clear the aim
+  const ox=src?src.x:c.x, oy=src?src.y:c.y; let ddx=c.x-ox,ddy=c.y-oy; const dl=Math.hypot(ddx,ddy)||1;
+  const box={shape:a.shape,cx:c.x,cy:c.y,ox,oy,dx:ddx/dl,dy:ddy/dl,size:a.size,unit:a.unit};
   const hit=aimTargets();
   VTaim=null; VTaimCursor=null; cwrap.classList.remove('aiming'); document.getElementById('hint').textContent='';
   const b=document.getElementById('aim-bar'); if(b)b.classList.remove('show');
-  const src=a.fromActorId?map.tokens.find(t=>t.actor===a.fromActorId):null;
-  // instant application
-  hit.forEach(tok=>{ if(a.fx)applySim(tok,a.fx,src||{label:a.fromName}); });
-  // lingering effect that follows a token for N rounds
-  if(follow==='self'&&src)addFollowEffect(src.id,a,rounds);
-  else if(follow==='target')hit.forEach(tok=>addFollowEffect(tok.id,a,rounds));
-  if(VT.connected&&VT.tableRef&&hit.length){
+  // instant application + red glow on those hit
+  hit.forEach(tok=>{ if(a.fx)applySim(tok,a.fx,src||{label:a.fromName}); markHurt(tok); });
+  // a red hitbox flash everyone briefly sees (non-lingering); lingering shapes persist instead
+  if(!follow) addFlash(box);
+  // lingering effect (follows a token, or stays on the ground)
+  const mkEffects=()=>{ if(follow==='self'&&src)addFollowEffect({tokenId:src.id},a,rounds,box);
+    else if(follow==='target')hit.forEach(tok=>addFollowEffect({tokenId:tok.id},a,rounds,box));
+    else if(follow==='ground')addFollowEffect({x:c.x,y:c.y},a,rounds,box); };
+  if(role==='gm') mkEffects();   // GM owns the map; players route via the event below
+  if(VT.connected&&VT.tableRef){
     const linked=hit.filter(tok=>tok.actor&&VT.actors&&VT.actors[tok.actor]);
-    if(linked.length){ VT.tableRef.child('events').push({type:'action',fromId:VT.clientId,fromName:a.fromName,ability:a.ability,prompts:[a.action],
-      targetId:linked[0].actor,targetName:(VT.actors[linked[0].actor].name||'?'),
+    VT.tableRef.child('events').push({type:'action',fromId:VT.clientId,fromName:a.fromName,ability:a.ability,prompts:[a.action],
+      targetId:linked[0]?linked[0].actor:null,targetName:linked[0]?(VT.actors[linked[0].actor].name||'?'):null,
       targetIds:linked.map(t=>t.actor),targetNames:linked.map(t=>VT.actors[t.actor].name||'?'),
-      meta:{targets:a.meta.targets||null,range:a.meta.range||null,area:a.meta.area||null,duration:follow?rounds:null,attach:follow||null},ts:Date.now()}); }
+      meta:{targets:a.meta.targets||null,range:a.meta.range||null,area:a.meta.area||null,duration:follow?rounds:null,attach:follow||null},
+      hitbox:box, fxText:a.fx, ts:Date.now()});
   }
   if(VT.connected&&role==='gm')syncMap();
   if(!hit.length&&!follow)toast('No targets in area');
-  else toast(a.action.label+' → '+(hit.length?(hit.length>1?hit.length+' targets':((hit[0].label)||'target')):(follow==='self'?'self':'placed'))+(follow?' ('+rounds+'r)':''));
+  else toast(a.action.label+' → '+(hit.length?(hit.length>1?hit.length+' targets':((hit[0].label)||'target')):(follow==='ground'?'ground':follow==='self'?'self':'placed'))+(follow?' ('+rounds+'r)':''));
   if(sel&&sel.type==='token')renderProps();
   render();
 }
-// Attach a lingering, token-following effect with a countdown.
+// ── LINGERING EFFECTS + TRANSIENT FLASHES ──
 function ensureEffects(){ if(!Array.isArray(map.effects))map.effects=[]; }
-function addFollowEffect(tokenId,a,rounds){
-  if(!tokenId)return; ensureEffects();
-  const tags=(typeof analyzeSim==='function')?analyzeSim(a.fx).tags:[];
-  const colorByTag={fire:'#e0532a',lightning:'#e6c424',water:'#4e9fd0',cold:'#86d4e6','null':'#8a857c',eldritch:'#9a52c8',kinetic:'#b8922a'};
-  const shape=['ring','cross'].includes(a.shape)?a.shape:'circle'; // auras render centered; directional shapes fall back to circle
-  map.effects.push({ id:uid(), tokenId, follow:a.follow||'self', shape, size:a.size||2, unit:a.unit||'cells',
-    color:colorByTag[tags[0]]||'#8a6d3b', rounds, total:rounds, label:(a.action&&a.action.label)||a.ability, fx:a.fx, values:(a.meta&&a.meta.values)||[] });
+function fxColor(fxText){ const tags=(typeof analyzeSim==='function')?analyzeSim(fxText||'').tags:[]; const m={fire:'#e0532a',lightning:'#e6c424',water:'#4e9fd0',cold:'#86d4e6','null':'#8a857c',eldritch:'#9a52c8',kinetic:'#b8922a'}; return m[tags[0]]||'#8a6d3b'; }
+// anchor = {tokenId} (follows token) OR {x,y} (stays on the ground)
+function addFollowEffect(anchor,a,rounds,box){
+  ensureEffects(); if(anchor.tokenId===undefined && anchor.x===undefined)return;
+  map.effects.push({ id:uid(), tokenId:(anchor.tokenId!==undefined?anchor.tokenId:null), x:anchor.x, y:anchor.y,
+    shape:a.shape||'circle', size:a.size||2, unit:a.unit||'cells', dx:(box&&box.dx)||1, dy:(box&&box.dy)||0,
+    color:fxColor(a.fx), rounds, total:rounds, label:(a.action&&a.action.label)||a.ability, fx:a.fx, values:(a.meta&&a.meta.values)||[] });
 }
-// Draw lingering effects (they follow their token because we read its live position each frame).
+function effectPos(e){ if(e.tokenId!=null){ const t=map.tokens.find(x=>x.id===e.tokenId); return t?{x:t.x,y:t.y,vis:t.visible}:null; } return {x:e.x,y:e.y,vis:true}; }
+// Build a canvas path for a hitbox shape; returns 'evenodd' when that fill rule is needed.
+function shapePath(shape,px,cx,cy,dx,dy){
+  ctx.beginPath();
+  if(shape==='ring'){ const inner=px*0.55; ctx.arc(cx,cy,px,0,Math.PI*2); ctx.arc(cx,cy,inner,0,Math.PI*2,true); return 'evenodd'; }
+  if(shape==='cross'){ const w=map.gridSize*0.6; ctx.rect(cx-w,cy-px,2*w,2*px); ctx.rect(cx-px,cy-w,2*px,2*w); return; }
+  if(shape==='cone'){ const ang=Math.atan2(dy,dx),h=Math.PI/6; ctx.moveTo(cx,cy); ctx.arc(cx,cy,px,ang-h,ang+h); ctx.closePath(); return; }
+  if(shape==='line'){ const w=map.gridSize*0.5,nx=-dy,ny=dx; ctx.moveTo(cx+nx*w,cy+ny*w); ctx.lineTo(cx+dx*px+nx*w,cy+dy*px+ny*w); ctx.lineTo(cx+dx*px-nx*w,cy+dy*px-ny*w); ctx.lineTo(cx-nx*w,cy-ny*w); ctx.closePath(); return; }
+  if(shape==='wall'){ const wx=-dy,wy=dx,half=px/2,th=map.gridSize*0.5; ctx.moveTo(cx+wx*half+dx*th,cy+wy*half+dy*th); ctx.lineTo(cx-wx*half+dx*th,cy-wy*half+dy*th); ctx.lineTo(cx-wx*half-dx*th,cy-wy*half-dy*th); ctx.lineTo(cx+wx*half-dx*th,cy+wy*half-dy*th); ctx.closePath(); return; }
+  ctx.arc(cx,cy,px,0,Math.PI*2);
+}
+// Lingering effects stay on the map (synced → visible to everyone) and follow their token if attached.
 function drawEffects(){
   if(!map.effects||!map.effects.length)return; ctx.save();
-  map.effects.forEach(e=>{
-    const t=map.tokens.find(x=>x.id===e.tokenId); if(!t)return; if(t.visible===false&&role!=='gm')return;
+  map.effects.forEach(e=>{ const p=effectPos(e); if(!p)return; if(p.vis===false&&role!=='gm')return;
     const px=metaToPixels(e.size||2,e.unit||'cells')||map.gridSize*2; const col=e.color||'#8a6d3b';
-    ctx.lineWidth=2/view.zoom; ctx.strokeStyle=col; ctx.fillStyle=hexA(col,0.14); ctx.beginPath();
-    if(e.shape==='ring'){ const inner=px*0.55; ctx.arc(t.x,t.y,px,0,Math.PI*2); ctx.arc(t.x,t.y,inner,0,Math.PI*2,true); ctx.fill('evenodd'); ctx.beginPath();ctx.arc(t.x,t.y,px,0,Math.PI*2);ctx.stroke(); ctx.beginPath();ctx.arc(t.x,t.y,inner,0,Math.PI*2);ctx.stroke(); }
-    else if(e.shape==='cross'){ const w=map.gridSize*0.6; ctx.rect(t.x-w,t.y-px,2*w,2*px); ctx.rect(t.x-px,t.y-w,2*px,2*w); ctx.fill(); ctx.stroke(); }
-    else { ctx.arc(t.x,t.y,px,0,Math.PI*2); ctx.fill(); ctx.stroke(); }
-    // countdown badge (depleting arc + remaining rounds)
-    const rad=(t.size*map.gridSize)/2, cx=t.x+rad*0.92, cy=t.y-rad*0.92, tr=7/view.zoom;
-    const frac=e.total?Math.max(0,Math.min(1,e.rounds/e.total)):0;
-    ctx.beginPath(); ctx.arc(cx,cy,tr,0,Math.PI*2); ctx.fillStyle='rgba(20,18,16,.85)'; ctx.fill();
-    ctx.beginPath(); ctx.arc(cx,cy,tr,-Math.PI/2,-Math.PI/2+frac*Math.PI*2); ctx.strokeStyle=col; ctx.lineWidth=2.4/view.zoom; ctx.stroke();
-    ctx.fillStyle='#fff'; ctx.font=`bold ${8/view.zoom}px Georgia`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(String(e.rounds),cx,cy); ctx.textBaseline='alphabetic';
+    ctx.lineWidth=2/view.zoom; ctx.strokeStyle=col; ctx.fillStyle=hexA(col,0.16);
+    const rule=shapePath(e.shape,px,p.x,p.y,e.dx||1,e.dy||0); if(rule)ctx.fill(rule); else ctx.fill(); ctx.stroke();
+    const tr=8/view.zoom, frac=e.total?Math.max(0,Math.min(1,e.rounds/e.total)):0; // countdown badge at centre
+    ctx.beginPath(); ctx.arc(p.x,p.y,tr,0,Math.PI*2); ctx.fillStyle='rgba(20,18,16,.85)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(p.x,p.y,tr,-Math.PI/2,-Math.PI/2+frac*Math.PI*2); ctx.strokeStyle=col; ctx.lineWidth=2.6/view.zoom; ctx.stroke();
+    ctx.fillStyle='#fff'; ctx.font=`bold ${9/view.zoom}px Georgia`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(String(e.rounds),p.x,p.y); ctx.textBaseline='alphabetic';
   });
   ctx.restore();
 }
+// Transient red hitbox flashes (wall-clock; local per client) — show where an instant hit landed.
+let flashes=[];
+function addFlash(box){ if(!box||!box.shape)return; flashes.push(Object.assign({until:Date.now()+1400},box)); render(); }
+function drawFlashes(){
+  if(!flashes.length)return; const now=Date.now(); flashes=flashes.filter(f=>f.until>now); if(!flashes.length)return; ctx.save();
+  flashes.forEach(f=>{ const k=(f.until-now)/1400; const px=metaToPixels(f.size||2,f.unit||'cells')||map.gridSize*2;
+    const cx=(f.shape==='cone'||f.shape==='line')?f.ox:f.cx, cy=(f.shape==='cone'||f.shape==='line')?f.oy:f.cy;
+    ctx.lineWidth=3/view.zoom; ctx.strokeStyle=`rgba(224,60,40,${0.85*k})`; ctx.fillStyle=`rgba(224,60,40,${0.28*k})`;
+    const rule=shapePath(f.shape,px,cx,cy,f.dx||1,f.dy||0); if(rule)ctx.fill(rule); else ctx.fill(); ctx.stroke();
+  });
+  ctx.restore();
+}
+function markHurt(tok){ if(tok){ tok._hurt=Date.now()+1100; render(); } }
 // Draw the aiming overlay: range ring + the chosen shape + highlighted targets.
 function drawAimPreview(){
   if(!VTaim)return;
@@ -856,23 +928,31 @@ function syncLinkedTokenHP(){
 function applyNumeric(tok,type,amount){
   if(!tok||amount==null)return; ensureSim(tok); const pc=linkedActor(tok);
   if(type==='heal'){ if(tok.hpmax>0&&!pc)tok.hp=Math.min(tok.hpmax,(tok.hp||0)+amount); tok.sim.integrity=Math.min(100,tok.sim.integrity+amount); }
-  else{ if(tok.hpmax>0&&!pc)tok.hp=Math.max(0,(tok.hp||0)-amount); tok.sim.integrity=Math.max(0,tok.sim.integrity-amount); }
+  else{ if(tok.hpmax>0&&!pc)tok.hp=Math.max(0,(tok.hp||0)-amount); tok.sim.integrity=Math.max(0,tok.sim.integrity-amount); if(typeof markHurt==='function')markHurt(tok); }
   vtSimLog(`${tok.label||'token'} ${type==='heal'?'+':'-'}${amount} ${type==='heal'?'HP':'dmg'}${pc?' (via sheet)':''}`);
 }
-// Resolve an incoming action event on the GM's map: hit linked tokens + AoE, apply numbers.
+// Resolve an incoming action event on the GM's map: hit linked tokens + AoE, apply numbers, place lingering effects.
 function vtApplyActionEvent(e){
   if(role!=='gm')return;
+  // A VTT-aim event from THIS client already applied locally in sendActorAction — don't double up.
+  if(e.fromId===VT.clientId && e.hitbox) return;
   const ids=e.targetIds||(e.targetId?[e.targetId]:[]);
   const primary=[]; ids.forEach(id=>{ const tk=map.tokens.find(t=>t.actor===id); if(tk)primary.push(tk); });
-  if(!primary.length)return;
   let hit=primary.slice();
-  // area of effect → splash to nearby tokens around each primary target
   if(e.meta&&e.meta.area){ const px=metaToPixels(e.meta.area.size||3,e.meta.area.unit||'cells')||map.gridSize*3;
     primary.forEach(p=>tokensInRadius(p.x,p.y,px,p.id).forEach(o=>{ if(!hit.includes(o))hit.push(o); })); }
   hit.forEach(tok=>{
     if(e.apply){ const amt=e.apply.amount!=null?e.apply.amount:rollExprVal(e.apply.expr); applyNumeric(tok,e.apply.type,amt); }
-    else if(e.fx){ applySim(tok,e.fx,{label:e.fromName}); }
+    else if(e.fxText){ applySim(tok,e.fxText,{label:e.fromName}); }
   });
+  // place a lingering effect from this event (player-cast effects sync through the GM here)
+  if(e.meta&&e.meta.duration&&e.meta.attach&&e.hitbox){
+    const a={shape:e.hitbox.shape,size:e.hitbox.size,unit:e.hitbox.unit,fx:e.fxText,action:{label:e.ability},meta:e.meta};
+    const box={dx:e.hitbox.dx,dy:e.hitbox.dy};
+    if(e.meta.attach==='self'){ const ct=map.tokens.find(t=>t.actor===e.fromId); if(ct)addFollowEffect({tokenId:ct.id},a,e.meta.duration,box); }
+    else if(e.meta.attach==='target'){ primary.forEach(tok=>addFollowEffect({tokenId:tok.id},a,e.meta.duration,box)); }
+    else if(e.meta.attach==='ground'){ addFollowEffect({x:e.hitbox.cx,y:e.hitbox.cy},a,e.meta.duration,box); }
+  }
   if(VT.connected)syncMap(); if(sel&&sel.type==='token')renderProps(); render();
 }
 function vtSimLog(t){ addVtLog('SIM: '+t); }
@@ -888,7 +968,7 @@ function applySim(target,text,source,depth){
     else if(tag==='eldritch'){ s.integrity=Math.max(0,s.integrity-10); if(!hasStatus(target,'Corrupted')){addStatus(target,'Corrupted');log.push('corrupted');} }
     else if(tag==='kinetic'){ s.pressure+=40; s.integrity=Math.max(0,s.integrity-10); }
   });
-  if(a.dmgExpr){ const d=rollExprVal(a.dmgExpr); s.integrity=Math.max(0,s.integrity-d); if(typeof target.hpmax==='number'&&target.hpmax>0&&!linkedActor(target))target.hp=Math.max(0,(target.hp||0)-d); log.push(a.dmgExpr+'='+d+' dmg'); }
+  if(a.dmgExpr){ const d=rollExprVal(a.dmgExpr); s.integrity=Math.max(0,s.integrity-d); if(typeof target.hpmax==='number'&&target.hpmax>0&&!linkedActor(target))target.hp=Math.max(0,(target.hp||0)-d); if(typeof markHurt==='function')markHurt(target); log.push(a.dmgExpr+'='+d+' dmg'); }
   // REACTIONS
   if(/ignit|combust|spontaneous|set.{0,6}ablaze|catch.{0,6}fire/i.test(text) && !hasStatus(target,'Soaked') && !hasStatus(target,'Burning')){ addStatus(target,'Burning'); log.push('IGNITED'); }
   if(s.temperature>=100 && target.flammable && !hasStatus(target,'Soaked') && !hasStatus(target,'Burning')){ addStatus(target,'Burning'); log.push('ignited (heat)'); }
@@ -965,7 +1045,10 @@ async function vtConnect(){
   VT._evStart=Date.now();
   VT.tableRef.child('events').on('child_added',s=>{ const e=s.val(); if(!e||(e.ts&&e.ts<VT._evStart))return;
     if(e.type==='roll')addVtLog(`${e.fromName} · ${e.label}: ${e.total}`);
-    else if(e.type==='action'){ const tgts=(e.targetNames&&e.targetNames.length)?e.targetNames.join(', '):e.targetName; const ap=e.apply?` [${e.apply.type} ${e.apply.amount!=null?e.apply.amount:e.apply.expr||''}]`:''; addVtLog(`${e.fromName} → ${e.ability} on ${tgts}${ap}`); vtApplyActionEvent(e); }
+    else if(e.type==='action'){ const tgts=(e.targetNames&&e.targetNames.length)?e.targetNames.join(', '):e.targetName; const ap=e.apply?` [${e.apply.type} ${e.apply.amount!=null?e.apply.amount:e.apply.expr||''}]`:''; addVtLog(`${e.fromName} → ${e.ability} on ${tgts||'—'}${ap}`);
+      // everyone but the caster sees the red hitbox flash + a glow on hit tokens
+      if(e.fromId!==VT.clientId){ if(e.hitbox&&!(e.meta&&e.meta.duration))addFlash(e.hitbox); (e.targetIds||[]).forEach(id=>{ const tk=map.tokens.find(t=>t.actor===id); if(tk)markHurt(tk); }); }
+      vtApplyActionEvent(e); }
     else if(e.type==='log')addVtLog(e.text); });
   // GM pushes current map; player pulls
   if(role==='gm'){ syncMap(true); }
@@ -977,7 +1060,20 @@ async function vtConnect(){
 }
 function vtLeave(){ try{ if(VT.ref){VT.ref.child('map').off();VT.ref.child('tokenPos').off();VT.ref.child('ping').off();VT.ref.child('members').off();VT.ref.child('members/'+VT.clientId).remove();} if(VT.tableRef){VT.tableRef.child('combatants').off();VT.tableRef.child('events').off();} }catch(e){} VT.connected=false;VT.ref=null;VT.tableRef=null;VT.members={};VT.actors={}; role='gm';myName='GM'; applyRoleUI(); renderConnect(); toast('Left table'); }
 function renderOwnerOptions(){ const dl=document.getElementById('owner-options'); if(!dl)return; const names=new Set(); Object.values(VT.members||{}).forEach(m=>{if(m&&m.role==='player'&&m.name)names.add(m.name);}); dl.innerHTML=[...names].map(n=>`<option value="${esc(n)}">`).join(''); }
-function centerOnMyToken(){ const t=map.tokens.find(ownedByMe); if(!t){toast(role==='gm'?'No tokens yet':'No token assigned to you');return;} view.panX=cv.width/2-t.x*view.zoom; view.panY=cv.height/2-t.y*view.zoom; render(); }
+function warpToToken(id){ const t=byId('token',id); if(!t)return; view.panX=cv.width/2-t.x*view.zoom; view.panY=cv.height/2-t.y*view.zoom; select('token',id); render(); }
+// "My Token" → a dropdown of your tokens (GM: all tokens) you can warp the view to.
+function centerOnMyToken(ev){
+  closeActionMenu();
+  const mine=map.tokens.filter(t=>role==='gm'||ownedByMe(t));
+  if(!mine.length){ toast(role==='gm'?'No tokens yet':'No token assigned to you'); return; }
+  if(mine.length===1){ warpToToken(mine[0].id); return; }
+  const m=document.createElement('div'); m.className='act-menu'; m.id='actMenu';
+  m.innerHTML=mine.map((t,i)=>`<button onclick="warpToToken('${t.id}');closeActionMenu()">${esc(t.label||('Token '+(i+1)))}${t.actor&&VT.actors&&VT.actors[t.actor]?` <span style="color:var(--muted);">· ${esc(VT.actors[t.actor].name||'')}</span>`:''}</button>`).join('');
+  document.body.appendChild(m);
+  const r=(ev&&ev.currentTarget?ev.currentTarget:document.getElementById('connect-btn')).getBoundingClientRect();
+  m.style.left=Math.min(r.left,window.innerWidth-180)+'px'; m.style.top=(r.bottom+3)+'px';
+  setTimeout(()=>document.addEventListener('click',closeActionMenu,{once:true}),0);
+}
 function applyRoleUI(){
   const badge=document.getElementById('role-badge');
   badge.textContent=(VT.connected?VT.room+' · ':'Solo · ')+(role==='gm'?'GM':'Player');
