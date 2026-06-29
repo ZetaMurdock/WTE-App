@@ -135,6 +135,7 @@ body{background:var(--bg);color:var(--ink);font-family:'Georgia',serif;font-size
   <button class="tbtn" id="connect-btn" onclick="openConnect()">Connect</button>
   <button class="tbtn" onclick="centerOnMyToken(event)" title="Warp to one of your tokens">My Token &#9662;</button>
   <button class="tbtn" onclick="fitView()">Fit</button>
+  <button class="tbtn" onclick="openStylus()" title="Stylus customization settings">Stylus</button>
   <button class="tbtn" id="theme-btn" onclick="wteToggleTheme()" title="Switch Light / Dark theme">Theme</button>
   <span class="zoom" id="zoom-lbl">100%</span>
 </div>
@@ -194,6 +195,20 @@ body{background:var(--bg);color:var(--ink);font-family:'Georgia',serif;font-size
       <input type="file" id="da-json" accept=".txt,.json,.dd2vtt,.df2vtt" style="display:none" onchange="daPickJson(this.files[0])">
       <input type="file" id="da-img" accept="image/*" style="display:none" onchange="daPickImage(this.files[0])">
       <div class="note" id="aw-status"></div>
+    </div>
+  </div>
+</div>
+
+<!-- STYLUS SETTINGS MODAL -->
+<div class="modal" id="stylusModal">
+  <div class="card">
+    <div class="card-h"><span>Stylus — Customization</span><span class="x" onclick="closeStylus()">x</span></div>
+    <div class="card-b">
+      <div class="note">Theme</div>
+      <div style="display:flex;gap:6px;"><button class="tbtn" onclick="wteSetTheme('dark')">Dark</button><button class="tbtn" onclick="wteSetTheme('light')">Light</button></div>
+      <div class="row"><label>UI Scale</label><input type="range" id="sx-scale" min="80" max="140" step="5" value="100" style="flex:1;" oninput="setStylusScale(this.value)"><span id="sx-scale-v" style="font-family:Consolas,monospace;font-size:11px;width:38px;text-align:right;">100%</span></div>
+      <div class="row"><label>Anim Speed</label><input type="range" id="sx-anim" min="50" max="200" step="10" value="100" style="flex:1;" oninput="setStylusAnim(this.value)"><span id="sx-anim-v" style="font-family:Consolas,monospace;font-size:11px;width:38px;text-align:right;">1.0×</span></div>
+      <div class="note">UI Scale resizes the toolbar &amp; side panel (the map keeps its own zoom). Animation speed feeds the upcoming animation update.</div>
     </div>
   </div>
 </div>
@@ -1116,7 +1131,30 @@ if(!saved)fitView();
 function wteApplyTheme(t){ document.body.classList.toggle('wte-light', t==='light'); const b=document.getElementById('theme-btn'); if(b)b.textContent=(t==='light'?'Dark':'Light'); render&&render(); }
 function wteToggleTheme(){ const t=document.body.classList.contains('wte-light')?'dark':'light'; try{localStorage.setItem('wte-theme',t);}catch(e){} wteApplyTheme(t); }
 wteApplyTheme((function(){try{return localStorage.getItem('wte-theme');}catch(e){return null;}})()||'dark');
-window.addEventListener('storage',e=>{ if(e.key==='wte-theme')wteApplyTheme(e.newValue||'dark'); });
+function wteSetTheme(t){ try{localStorage.setItem('wte-theme',t);}catch(e){} wteApplyTheme(t); }
+
+// ── STYLUS SETTINGS (shared 'wte-stylus' prefs) — scale the chrome (not the canvas) ──
+let wteStylus={scale:1,animSpeed:1};
+function wteLoadStylus(){ try{const s=JSON.parse(localStorage.getItem('wte-stylus')); if(s&&typeof s==='object')wteStylus=Object.assign(wteStylus,s);}catch(e){} }
+function wteSaveStylus(){ try{localStorage.setItem('wte-stylus',JSON.stringify(wteStylus));}catch(e){} }
+function wteApplyStylus(){
+  const z=wteStylus.scale||1; const top=document.querySelector('.top'), side=document.querySelector('.side');
+  if(top)top.style.zoom=z; if(side)side.style.zoom=z;            // canvas keeps its own view.zoom
+  document.documentElement.style.setProperty('--anim-speed',wteStylus.animSpeed||1); window.wteAnimSpeed=wteStylus.animSpeed||1;
+  const sc=document.getElementById('sx-scale'),scv=document.getElementById('sx-scale-v');
+  if(sc)sc.value=Math.round(z*100); if(scv)scv.textContent=Math.round(z*100)+'%';
+  const an=document.getElementById('sx-anim'),anv=document.getElementById('sx-anim-v');
+  if(an)an.value=Math.round((wteStylus.animSpeed||1)*100); if(anv)anv.textContent=(wteStylus.animSpeed||1).toFixed(1)+'×';
+  if(typeof resize==='function')resize();
+}
+function setStylusScale(v){ wteStylus.scale=(parseInt(v)||100)/100; wteSaveStylus(); wteApplyStylus(); }
+function setStylusAnim(v){ wteStylus.animSpeed=(parseInt(v)||100)/100; wteSaveStylus(); wteApplyStylus(); }
+function openStylus(){ wteApplyStylus(); document.getElementById('stylusModal').classList.add('open'); }
+function closeStylus(){ document.getElementById('stylusModal').classList.remove('open'); }
+document.getElementById('stylusModal').addEventListener('click',e=>{if(e.target.id==='stylusModal')closeStylus();});
+wteLoadStylus(); wteApplyStylus();
+
+window.addEventListener('storage',e=>{ if(e.key==='wte-theme')wteApplyTheme(e.newValue||'dark'); else if(e.key==='wte-stylus'){ wteLoadStylus(); wteApplyStylus(); } });
 
 draw();
 </script>

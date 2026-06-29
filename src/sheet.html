@@ -520,6 +520,7 @@ textarea { resize: vertical; border: 1px solid var(--border); }
     <button class="btn" onclick="openLibrary()">Library</button>
     <button class="btn" onclick="clearSheet()">Clear</button>
     <span class="sep">|</span>
+    <button class="btn" onclick="openStylus()" title="Stylus customization settings">Stylus</button>
     <button class="btn" id="theme-btn" onclick="wteToggleTheme()" title="Switch Light / Dark theme">Theme</button>
     <button class="btn" onclick="window.print()">Print</button>
   </div>
@@ -943,6 +944,43 @@ textarea { resize: vertical; border: 1px solid var(--border); }
       <span class="hint">Copy, then paste (Ctrl+V) into a Google Doc &mdash; formatting is preserved.</span>
     </div>
     <div class="modal-body"><div id="exportRender"></div></div>
+  </div>
+</div>
+
+<!-- STYLUS SETTINGS MODAL -->
+<div class="modal-bg" id="stylusModal">
+  <div class="modal-card" style="width:560px;">
+    <div class="modal-head"><span class="mt">Stylus &mdash; Customization</span><span class="mx" onclick="closeStylus()">x</span></div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:16px;">
+      <div>
+        <div class="info-label" style="margin-bottom:5px;">Theme</div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn" onclick="wteSetTheme('dark')">Dark</button>
+          <button class="btn" onclick="wteSetTheme('light')">Light</button>
+        </div>
+      </div>
+      <div>
+        <div class="info-label" style="margin-bottom:5px;">UI Scale &mdash; <span id="sx-scale-v">100%</span></div>
+        <input type="range" id="sx-scale" min="80" max="140" step="5" value="100" style="width:100%;" oninput="setStylusScale(this.value)">
+      </div>
+      <div>
+        <div class="info-label" style="margin-bottom:5px;">Animation Speed &mdash; <span id="sx-anim-v">1.0&times;</span></div>
+        <input type="range" id="sx-anim" min="50" max="200" step="10" value="100" style="width:100%;" oninput="setStylusAnim(this.value)">
+        <div class="formula-note">Controls how fast button &amp; dice animations play (used by the upcoming animation update).</div>
+      </div>
+      <div>
+        <div class="info-label" style="margin-bottom:5px;">Button Icons</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="info-value" id="sx-icon-count" style="font-size:11px;color:var(--muted);"></span>
+          <button class="btn" onclick="resetAllIcons()">Reset all icons</button>
+        </div>
+        <div class="formula-note">Right-click any ability / weapon / cipher / genus button to set a custom PNG, JPG or SVG icon.</div>
+      </div>
+      <div>
+        <div class="info-label" style="margin-bottom:5px;">Coming next</div>
+        <div class="formula-note">Animated button effects (idle / click) and dice-roll success / failure animations arrive in the next Stylus update &mdash; this panel will host their controls.</div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -3021,7 +3059,30 @@ tagRollButtons();
 function wteApplyTheme(t){ document.body.classList.toggle('wte-light', t==='light'); const b=document.getElementById('theme-btn'); if(b)b.textContent=(t==='light'?'Dark':'Light')+' Mode'; }
 function wteToggleTheme(){ const t=document.body.classList.contains('wte-light')?'dark':'light'; try{localStorage.setItem('wte-theme',t);}catch(e){} wteApplyTheme(t); }
 wteApplyTheme((function(){try{return localStorage.getItem('wte-theme');}catch(e){return null;}})()||'dark');
-window.addEventListener('storage',e=>{ if(e.key==='wte-theme')wteApplyTheme(e.newValue||'dark'); });
+function wteSetTheme(t){ try{localStorage.setItem('wte-theme',t);}catch(e){} wteApplyTheme(t); }
+
+// ── STYLUS SETTINGS (shared 'wte-stylus' prefs: UI scale + animation speed) ──
+let wteStylus={scale:1,animSpeed:1};
+function wteLoadStylus(){ try{const s=JSON.parse(localStorage.getItem('wte-stylus')); if(s&&typeof s==='object')wteStylus=Object.assign(wteStylus,s);}catch(e){} }
+function wteSaveStylus(){ try{localStorage.setItem('wte-stylus',JSON.stringify(wteStylus));}catch(e){} }
+function wteApplyStylus(){
+  document.body.style.zoom=wteStylus.scale||1;                          // sheet is pure DOM → whole-page zoom is safe
+  document.documentElement.style.setProperty('--anim-speed',wteStylus.animSpeed||1);
+  window.wteAnimSpeed=wteStylus.animSpeed||1;
+  const sc=document.getElementById('sx-scale'),scv=document.getElementById('sx-scale-v');
+  if(sc){sc.value=Math.round((wteStylus.scale||1)*100);} if(scv){scv.textContent=Math.round((wteStylus.scale||1)*100)+'%';}
+  const an=document.getElementById('sx-anim'),anv=document.getElementById('sx-anim-v');
+  if(an){an.value=Math.round((wteStylus.animSpeed||1)*100);} if(anv){anv.textContent=(wteStylus.animSpeed||1).toFixed(1)+'×';}
+}
+function setStylusScale(v){ wteStylus.scale=(parseInt(v)||100)/100; wteSaveStylus(); wteApplyStylus(); }
+function setStylusAnim(v){ wteStylus.animSpeed=(parseInt(v)||100)/100; wteSaveStylus(); wteApplyStylus(); }
+function openStylus(){ const c=document.getElementById('sx-icon-count'); if(c)c.textContent=Object.keys(customIcons||{}).length+' custom icon(s) set'; wteApplyStylus(); document.getElementById('stylusModal').classList.add('open'); }
+function closeStylus(){ document.getElementById('stylusModal').classList.remove('open'); }
+function resetAllIcons(){ if(!Object.keys(customIcons||{}).length){toast('No custom icons');return;} if(!confirm('Reset ALL custom button icons to default?'))return; customIcons={}; refreshAllIcons(); autosave(); if(typeof publishCombatantDebounced==='function')publishCombatantDebounced(); openStylus(); toast('Icons reset'); }
+document.getElementById('stylusModal').addEventListener('click',e=>{if(e.target.id==='stylusModal')closeStylus();});
+wteLoadStylus(); wteApplyStylus();
+
+window.addEventListener('storage',e=>{ if(e.key==='wte-theme')wteApplyTheme(e.newValue||'dark'); else if(e.key==='wte-stylus'){ wteLoadStylus(); wteApplyStylus(); } });
 </script>
 </body>
 </html>
