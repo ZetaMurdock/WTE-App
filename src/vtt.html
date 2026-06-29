@@ -124,6 +124,7 @@ body{background:var(--bg);color:var(--ink);font-family:'Georgia',serif;font-size
   <button class="tbtn gmonly" onclick="document.getElementById('bg-file').click()">Background…</button>
   <input type="file" id="bg-file" accept="image/*" style="display:none" onchange="loadBg(this.files[0])">
   <button class="tbtn gmonly" onclick="openAW()" title="Generate walls from the map image">Auto-Walls</button>
+  <button class="tbtn gmonly" id="scenes-btn" onclick="openScenesMenu(event)" title="Scenes — independent game areas">Scenes &#9662;</button>
   <span class="sep"></span>
   <button class="tbtn gmonly" onclick="undo()" title="Undo">Undo</button>
   <button class="tbtn gmonly" onclick="redo()" title="Redo">Redo</button>
@@ -671,8 +672,45 @@ function stripMap(){ return {walls:map.walls,tokens:map.tokens,lights:map.lights
 function restore(s){ const d=JSON.parse(s); Object.assign(map,d); setBgImg(map.bg.src); syncControls(); renderLayers(); renderProps(); render(); }
 function undo(){ if(undoStack.length<2)return; redoStack.push(undoStack.pop()); restore(undoStack[undoStack.length-1]); syncMap(); toast('Undo'); }
 function redo(){ if(!redoStack.length)return; const s=redoStack.pop(); undoStack.push(s); restore(s); syncMap(); toast('Redo'); }
-function autosave(){ try{localStorage.setItem('wte-vtt-map',JSON.stringify(map));}catch(e){} }
+function autosave(){ try{localStorage.setItem('wte-vtt-map',JSON.stringify(map));}catch(e){} scenesSaveDebounced(); }
 function saveMap(){ autosave(); toast('Saved to browser'); }
+
+// ════════════════════════════════════════════════ SCENE MANAGER 2.0
+// Each scene is an independent game area with its own map/tokens/lighting/fog/walls/effects.
+// The GM works on the active scene (which IS `map`); switching swaps it in and re-broadcasts.
+let scenes={}, activeScene='';
+function newSceneId(){ return 's'+Date.now().toString(36)+Math.random().toString(36).slice(2,5); }
+function scenesLoad(){
+  try{ const o=JSON.parse(localStorage.getItem('wte-vtt-scenes')); if(o&&o.scenes&&Object.keys(o.scenes).length){ scenes=o.scenes; activeScene=(o.activeId&&scenes[o.activeId])?o.activeId:Object.keys(scenes)[0]; return true; } }catch(e){}
+  return false;
+}
+function scenesSave(){ try{ if(scenes[activeScene])scenes[activeScene].map=map; localStorage.setItem('wte-vtt-scenes',JSON.stringify({activeId:activeScene,scenes})); }catch(e){ /* storage full — large maps; falls back to per-map autosave */ } }
+let _scT=null; function scenesSaveDebounced(){ clearTimeout(_scT); _scT=setTimeout(scenesSave,500); }
+function stashScene(){ if(scenes[activeScene]){ scenes[activeScene].map=map; scenes[activeScene].explored=exploredCv; } }
+function loadActiveScene(keepView){
+  map=Object.assign(blankMap(),scenes[activeScene].map); scenes[activeScene].map=map; normalizeMap();
+  setBgImg(map.bg.src);
+  if(scenes[activeScene].explored){ exploredCv=scenes[activeScene].explored; exploredCtx=exploredCv.getContext('2d'); } else ensureExplored();
+  syncControls(); renderLayers(); select(null); render();
+  if(!keepView)fitView();
+  if(VT.connected&&role==='gm')syncMap(true);
+}
+function switchScene(id){ if(!scenes[id]||id===activeScene)return; stashScene(); activeScene=id; loadActiveScene(false); scenesSave(); toast('Scene: '+(scenes[id].name||'')); }
+function addScene(){ stashScene(); const id=newSceneId(); scenes[id]={name:'Scene '+(Object.keys(scenes).length+1),map:blankMap()}; activeScene=id; loadActiveScene(false); scenesSave(); toast('New scene'); }
+function dupScene(){ stashScene(); const id=newSceneId(); const m=JSON.parse(JSON.stringify(map)); scenes[id]={name:((scenes[activeScene]&&scenes[activeScene].name)||'Scene')+' copy',map:m}; m.name=scenes[id].name; activeScene=id; loadActiveScene(true); scenesSave(); toast('Scene duplicated'); }
+function renameScene(){ const s=scenes[activeScene]; if(!s)return; const n=prompt('Scene name:',s.name||''); if(n!=null){ s.name=n.trim()||s.name; map.name=s.name; scenesSave(); toast('Renamed'); } }
+function delScene(){ if(Object.keys(scenes).length<=1){toast('Keep at least one scene');return;} if(!confirm('Delete scene "'+((scenes[activeScene]&&scenes[activeScene].name)||'')+'"? This cannot be undone.'))return; delete scenes[activeScene]; activeScene=Object.keys(scenes)[0]; loadActiveScene(false); scenesSave(); toast('Scene deleted'); }
+function openScenesMenu(ev){ closeActionMenu();
+  const m=document.createElement('div'); m.className='act-menu'; m.id='actMenu';
+  let h=Object.entries(scenes).map(([id,s])=>`<button onclick="switchScene('${id}');closeActionMenu()">${id===activeScene?'• ':'&nbsp;&nbsp;'}${esc(s.name||'Scene')}</button>`).join('');
+  h+=`<button style="border-top:1px solid var(--line);color:var(--accent);" onclick="addScene();closeActionMenu()">+ New scene</button>`+
+     `<button onclick="dupScene();closeActionMenu()">Duplicate current</button>`+
+     `<button onclick="renameScene();closeActionMenu()">Rename…</button>`+
+     `<button onclick="delScene();closeActionMenu()">Delete current</button>`;
+  m.innerHTML=h; document.body.appendChild(m);
+  const r=ev.currentTarget.getBoundingClientRect(); m.style.left=Math.min(r.left,window.innerWidth-190)+'px'; m.style.top=(r.bottom+3)+'px';
+  setTimeout(()=>document.addEventListener('click',closeActionMenu,{once:true}),0);
+}
 function exportMap(){ const b=new Blob([JSON.stringify(map,null,2)],{type:'application/json'}); const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(map.name||'map').replace(/\s+/g,'_')+'.vtt.json';a.click(); }
 function loadMapFile(file){ if(!file)return; const r=new FileReader(); r.onload=e=>{try{map=Object.assign(blankMap(),JSON.parse(e.target.result));normalizeMap();setBgImg(map.bg.src);ensureExplored();syncControls();renderLayers();select(null);fitView();snapshot();syncMap();toast('Loaded');}catch(err){toast('Invalid map file');}}; r.readAsText(file); }
 function syncControls(){ document.getElementById('grid-type').value=map.gridType;document.getElementById('grid-size').value=map.gridSize;document.getElementById('grid-color').value=map.gridColor;document.getElementById('map-name').value=map.name; }
@@ -1134,12 +1172,16 @@ function pushTokenPos(t){ if(VT.connected&&(role==='gm'||ownedByMe(t))){ try{VT.
 function doPing(p){ if(VT.connected){ try{VT.ref.child('ping').set({x:p.x,y:p.y,by:myName,ts:Date.now()});}catch(e){} } else { pings.push({x:p.x,y:p.y,by:myName,ts:Date.now()}); } render(); }
 
 // ════════════════════════════════════════════════ INIT
-const saved=localStorage.getItem('wte-vtt-map');
-if(saved){ try{ map=Object.assign(blankMap(),JSON.parse(saved)); }catch(e){} }
+let _hadScenes=scenesLoad();
+if(_hadScenes){ map=Object.assign(blankMap(),scenes[activeScene].map); scenes[activeScene].map=map; }
+else { // migrate any single saved map into the first scene
+  let m=blankMap(); const saved=localStorage.getItem('wte-vtt-map'); if(saved){ try{ m=Object.assign(blankMap(),JSON.parse(saved)); }catch(e){} }
+  const id=newSceneId(); scenes={[id]:{name:'Scene 1',map:m}}; activeScene=id; map=m;
+}
 normalizeMap();
 setBgImg(map.bg.src); syncControls(); renderLayers(); resize(); setTool('select'); ensureExplored(); applyRoleUI();
 undoStack.push(JSON.stringify(stripMap()));
-if(!saved)fitView();
+fitView();
 
 // ── THEME (Stylus Update) — shared 'wte-theme' key flips Sheet + VTT + shell together ──
 function wteApplyTheme(t){ document.body.classList.toggle('wte-light', t==='light'); const b=document.getElementById('theme-btn'); if(b)b.textContent=(t==='light'?'Dark':'Light'); render&&render(); }
