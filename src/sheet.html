@@ -125,6 +125,8 @@ textarea { resize: vertical; border: 1px solid var(--border); }
 .action-chips { display:flex; gap:5px; flex-wrap:wrap; align-items:center; margin-top:6px; }
 .act-chips-lbl { font-size:8px; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); margin-right:1px; }
 .act-chip { display:inline-flex; align-items:center; gap:4px; background:var(--accent); color:#fff; border:none; cursor:pointer; font-family:'Georgia',serif; font-size:10px; padding:2px 9px; transition:all .1s; }
+.act-chip img.chip-ico { width:14px; height:14px; object-fit:cover; display:block; }
+.act-chip.has-icon { padding-left:5px; }
 .act-chip:hover { background:#a07f44; }
 .act-chip::before { content:''; }
 /* META BADGES — targeting / range / area / numeric */
@@ -1809,13 +1811,14 @@ function collectAll(){
   const d={
     __asymCount:asymCount, __genusCount:genusCount,
     __varnaAbilityCount:varnaAbilityCount, __cipherCount:cipherCount,
-    __stage:currentStage, __cipher:cipherStatus,
+    __stage:currentStage, __cipher:cipherStatus, __icons:customIcons,
   };
   document.querySelectorAll('input,textarea,select').forEach(el=>{if(el.id)d[el.id]=el.value;});
   document.querySelectorAll('[id^="bg-b"]').forEach(el=>{d[el.id]=el.value;});
   return d;
 }
 function applyAll(d){
+  customIcons=(d.__icons&&typeof d.__icons==='object')?d.__icons:{};   // restore custom button icons before chips render
   const extraAsym=Math.max(0,(d.__asymCount||4)-4);
   for(let i=0;i<extraAsym;i++){asymCount++;document.getElementById('asym-body').appendChild(makeAsymRow(asymCount));}
   const extraGenus=Math.max(0,(d.__genusCount||5)-5);
@@ -1888,6 +1891,7 @@ function resetDynamicRows(){
 }
 // Reset the sheet to a blank rank-0 character (no confirm/toast) — reused by Clear + roster switching.
 function blankSheet(){
+  customIcons={};   // fresh character → no custom button icons
   resetDynamicRows();
   document.querySelectorAll('input:not([readonly]),textarea').forEach(el=>{ if(el.type==='checkbox')el.checked=false; else el.value=''; });
   document.querySelectorAll('select').forEach(el=>el.selectedIndex=0);
@@ -2225,6 +2229,41 @@ function applyHealing(amount,label){
   hpEl.value=hp; calcAll(); autosave(); if(typeof publishCombatantDebounced==='function')publishCombatantDebounced();
   toast(`${label?label+': ':''}+${amount} HP`);
 }
+// ── CUSTOM BUTTON ICONS (Stylus Update) — right-click any action button to set a PNG/JPG/SVG icon ──
+let customIcons = {};   // "Source|Label" -> data URL (raster downscaled to 64px, or SVG kept vector)
+function iconKey(source,label){ return (source||'Ability')+'|'+(label||''); }
+function decorateChip(btn,source,label){
+  const key=iconKey(source,label); btn.dataset.ikey=key; applyChipIcon(btn,key);
+  btn.addEventListener('contextmenu',ev=>{ ev.preventDefault(); ev.stopPropagation(); showIconMenu(ev,key); });
+}
+function applyChipIcon(btn,key){
+  const src=customIcons[key]; let img=btn.querySelector('img.chip-ico');
+  if(src){ if(!img){ img=document.createElement('img'); img.className='chip-ico'; btn.insertBefore(img,btn.firstChild); } img.src=src; btn.classList.add('has-icon'); }
+  else if(img){ img.remove(); btn.classList.remove('has-icon'); }
+}
+function refreshAllIcons(){ document.querySelectorAll('.act-chip[data-ikey]').forEach(b=>applyChipIcon(b,b.dataset.ikey)); }
+let _iconMenuKey=null;
+function showIconMenu(ev,key){
+  closeIconMenu(); _iconMenuKey=key;
+  const m=document.createElement('div'); m.className='tgt-menu'; m.id='iconMenu';
+  const has=!!customIcons[key];
+  m.innerHTML=`<button class="tgt-item" onclick="pickIconFile()">Set icon…</button>`+(has?`<button class="tgt-item" onclick="clearIcon()">Remove / reset icon</button>`:'');
+  document.body.appendChild(m);
+  m.style.left=Math.min(ev.clientX,window.innerWidth-170)+'px'; m.style.top=Math.min(ev.clientY,window.innerHeight-80)+'px';
+  setTimeout(()=>document.addEventListener('click',closeIconMenu,{once:true}),0);
+}
+function closeIconMenu(){ const m=document.getElementById('iconMenu'); if(m)m.remove(); }
+function pickIconFile(){
+  closeIconMenu();
+  const inp=document.createElement('input'); inp.type='file'; inp.accept='image/png,image/jpeg,image/svg+xml,.png,.jpg,.jpeg,.svg';
+  inp.onchange=e=>{ const f=e.target.files[0]; const key=_iconMenuKey; if(!f||!key)return;
+    if(/svg/i.test(f.type)||/\.svg$/i.test(f.name)){ const r=new FileReader(); r.onload=ev=>{ customIcons[key]='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(ev.target.result))); afterIconChange(); }; r.readAsText(f); }
+    else { const r=new FileReader(); r.onload=ev=>{ const img=new Image(); img.onload=()=>{ const max=64; let w=img.naturalWidth,h=img.naturalHeight; const s=Math.min(1,max/Math.max(w,h)); w=Math.round(w*s)||1; h=Math.round(h*s)||1; const c=document.createElement('canvas'); c.width=w;c.height=h; c.getContext('2d').drawImage(img,0,0,w,h); customIcons[key]=c.toDataURL('image/png'); afterIconChange(); }; img.src=ev.target.result; }; r.readAsDataURL(f); }
+  };
+  inp.click();
+}
+function clearIcon(){ closeIconMenu(); if(_iconMenuKey){ delete customIcons[_iconMenuKey]; afterIconChange(); } }
+function afterIconChange(){ refreshAllIcons(); autosave(); if(typeof publishCombatantDebounced==='function')publishCombatantDebounced(); toast('Icon updated'); }
 function renderActions(containerId,actions,prefix,sourceLabel,meta,castSS){
   const el=document.getElementById(containerId); if(!el)return;
   el.innerHTML='';
@@ -2235,19 +2274,19 @@ function renderActions(containerId,actions,prefix,sourceLabel,meta,castSS){
   // Cast chip — spends Synaptic Space when you use a Genus / Cipher
   if(castSS>0){ const b=document.createElement('button');b.type='button';b.className='act-chip';b.style.background='#5a4a8a';
     b.textContent='Cast −'+castSS+' SS'; b.title='Spend '+castSS+' Synaptic Space to use '+(sourceLabel||'this ability');
-    b.addEventListener('click',()=>spendSS(castSS,sourceLabel)); el.appendChild(b); }
+    b.addEventListener('click',()=>spendSS(castSS,sourceLabel)); decorateChip(b,sourceLabel,'Cast'); el.appendChild(b); }
   actions.forEach(a=>{
     const b=document.createElement('button');b.type='button';b.className='act-chip';
     b.textContent=a.label; b.title='Roll '+a.label;
     b.addEventListener('click',()=>fireAction(a));
-    el.appendChild(b);
+    decorateChip(b,sourceLabel,a.label); el.appendChild(b);
   });
   // numeric value chips — roll/apply the ability's damage or healing directly
   if(meta&&meta.values)meta.values.forEach(v=>{
     const b=document.createElement('button');b.type='button';b.className='act-chip value';
     b.textContent=v.label; b.title=(v.type==='heal'?'Roll healing':'Roll damage')+(Table.connected?' (then pick targets)':'');
     b.addEventListener('click',ev=>fireValue(ev,v,sourceLabel,meta));
-    el.appendChild(b);
+    decorateChip(b,sourceLabel,v.label); el.appendChild(b);
   });
   // meta badges — targets / range / area
   if(meta){ const bh=metaBadgesHTML(meta); if(bh){const w=document.createElement('span');w.style.display='inline-flex';w.style.gap='4px';w.innerHTML=bh;el.appendChild(w);} }
@@ -2654,6 +2693,8 @@ function gatherActorAbilities(){
   for(let i=1;i<=4;i++){ const nm=val('w'+i+'-name'),dmg=val('w'+i+'-dmg'); if(!nm)continue; const acts=[]; parseEffectActions(dmg).filter(a=>a.kind==='dice').forEach(a=>acts.push({label:'Damage '+a.expr,kind:'dice',expr:a.expr})); acts.push({label:'Attack (Wpn Mastery)',kind:'spec',stat:'s-wm'}); out.push({name:nm,actions:acts,fx:'attack '+dmg}); }
   const cb=val('c-benefits'); if(cb){ const acts=parseEffectActions(cb); if(acts.length||parseEffectMeta(cb).values.length)out.push({name:val('c-pick')||'Cipher',actions:acts,fx:cb}); }
   for(let i=2;i<=cipherCount;i++){ const fx=val('c'+i+'-benefits'); if(!fx)continue; const acts=parseEffectActions(fx); if(acts.length||parseEffectMeta(fx).values.length)out.push({name:val('c'+i)||('Cipher '+i),actions:acts,fx:fx}); }
+  // attach any custom icons so the VTT shows the same button art
+  out.forEach(g=>{ (g.actions||[]).forEach(a=>{ const ic=customIcons[iconKey(g.name,a.label)]; if(ic)a.icon=ic; }); });
   return out;
 }
 const Table={

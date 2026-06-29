@@ -77,7 +77,9 @@ body{background:var(--bg);color:var(--ink);font-family:'Georgia',serif;font-size
 .chk{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);cursor:pointer;}
 .chk input{accent-color:var(--accent);}
 .toast{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:#000;color:#fff;padding:5px 16px;font-size:11px;letter-spacing:1px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:99;}
-.act-chip{display:inline-flex;align-items:center;background:var(--accent);color:#fff;border:none;cursor:pointer;font-family:'Georgia',serif;font-size:10px;padding:2px 8px;margin:2px 3px 0 0;}
+.act-chip{display:inline-flex;align-items:center;gap:4px;background:var(--accent);color:#fff;border:none;cursor:pointer;font-family:'Georgia',serif;font-size:10px;padding:2px 8px;margin:2px 3px 0 0;}
+.act-chip img.chip-ico{width:14px;height:14px;object-fit:cover;display:block;}
+.act-chip.has-icon{padding-left:5px;}
 .act-chip:hover{background:var(--accent2);}
 .actor-h{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent2);margin:8px 0 2px;border-top:1px solid var(--line);padding-top:7px;}
 .canvas-wrap.aiming #cv{cursor:crosshair;}
@@ -519,7 +521,7 @@ function actorAbilitiesHTML(t){
     if(meta.area)badges.push('AoE '+(meta.area.size?meta.area.size+' ':'')+(meta.pattern||meta.area.shape));
     if(meta.duration)badges.push('Dur '+meta.duration+'r'+(meta.attach?'/'+meta.attach:''));
     h+=`<div style="font-size:9px;color:var(--muted);margin-top:5px;">${esc(grp.name)}${badges.length?` <span style="color:#8a6d3b;">${esc(badges.join(' '))}</span>`:''}</div><div>`;
-    (grp.actions||[]).forEach((act,ai)=>{ h+=`<button class="act-chip" title="roll or aim at a target" onclick="showActionMenu(event,'${t.actor}',${gi},${ai})">${esc(act.label)}</button>`; });
+    (grp.actions||[]).forEach((act,ai)=>{ const ico=act.icon?`<img class="chip-ico" src="${esc(act.icon)}">`:''; h+=`<button class="act-chip${act.icon?' has-icon':''}" title="roll or aim at a target" onclick="showActionMenu(event,'${t.actor}',${gi},${ai})">${ico}${esc(act.label)}</button>`; });
     h+=`</div>`; });
   return h;
 }
