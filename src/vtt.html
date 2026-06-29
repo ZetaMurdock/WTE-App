@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>W.T.E â€” Virtual Tabletop</title>
+<title>W.T.E — Virtual Tabletop</title>
 <style>
 :root{
   --bg:#23211e; --panel:#2c2a26; --panel2:#34322d; --line:#403d37;
@@ -91,7 +91,7 @@ body{background:var(--bg);color:var(--ink);font-family:'Georgia',serif;font-size
 <body>
 
 <div class="top">
-  <span class="brand">W.T.E Â· VTT</span>
+  <span class="brand">W.T.E · VTT</span>
   <button class="tbtn" onclick="if(window.parent&&window.parent.wteTab){window.parent.wteTab('sheet')}else{location.href='sheet.html'}" style="margin-right:4px;" title="Open the character sheet">Sheet</button>
   <button class="tool active" id="t-select" onclick="setTool('select')" title="Select / move (V)">Select</button>
   <button class="tool" id="t-pan" onclick="setTool('pan')" title="Pan (H)">Pan</button>
@@ -102,7 +102,7 @@ body{background:var(--bg);color:var(--ink);font-family:'Georgia',serif;font-size
   <button class="tool" id="t-ping" onclick="setTool('ping')" title="Ping (P)">Ping</button>
   <span class="sep"></span>
   <button class="tbtn gmonly" id="collide-btn" onclick="toggleCollision()" title="Block token movement through walls">Collision: Off</button>
-  <button class="tbtn gmonly" onclick="tickSim()" title="Advance round â€” apply Burning damage & decay">Round</button>
+  <button class="tbtn gmonly" onclick="tickSim()" title="Advance round — apply Burning damage & decay">Round</button>
   <label class="mini">Grid</label>
   <select id="grid-type" onchange="map.gridType=this.value;syncMap();render()">
     <option value="square">Square</option><option value="hex">Hex</option><option value="gridless">Gridless</option>
@@ -111,7 +111,7 @@ body{background:var(--bg);color:var(--ink);font-family:'Georgia',serif;font-size
   <label class="chk" style="margin-left:4px;"><input type="checkbox" id="snap-toggle" checked onchange="snapOn=this.checked"> snap</label>
   <span class="sep"></span>
   <button class="tbtn" id="fog-btn" onclick="toggleFog()" title="Fog of War">Fog: Off</button>
-  <button class="tbtn gmonly" onclick="document.getElementById('bg-file').click()">Backgroundâ€¦</button>
+  <button class="tbtn gmonly" onclick="document.getElementById('bg-file').click()">Background…</button>
   <input type="file" id="bg-file" accept="image/*" style="display:none" onchange="loadBg(this.files[0])">
   <button class="tbtn gmonly" onclick="openAW()" title="Generate walls from the map image">Auto-Walls</button>
   <span class="sep"></span>
@@ -136,16 +136,16 @@ body{background:var(--bg);color:var(--ink);font-family:'Georgia',serif;font-size
     <div class="aim-bar" id="aim-bar">
       <span class="aim-title" id="aim-title">Aiming</span>
       <span class="aim-shapes">
-        <button class="aim-sh" data-sh="single" onclick="setAimShape('single')" title="single target">â—</button>
-        <button class="aim-sh" data-sh="circle" onclick="setAimShape('circle')" title="circle / radius">â—¯</button>
-        <button class="aim-sh" data-sh="cone" onclick="setAimShape('cone')" title="cone">â—£</button>
-        <button class="aim-sh" data-sh="line" onclick="setAimShape('line')" title="line">â–­</button>
+        <button class="aim-sh" data-sh="single" onclick="setAimShape('single')" title="single target">●</button>
+        <button class="aim-sh" data-sh="circle" onclick="setAimShape('circle')" title="circle / radius">◯</button>
+        <button class="aim-sh" data-sh="cone" onclick="setAimShape('cone')" title="cone">◣</button>
+        <button class="aim-sh" data-sh="line" onclick="setAimShape('line')" title="line">▭</button>
       </span>
       <span class="aim-size" id="aim-size-wrap">Size <input type="number" id="aim-size" min="1" max="60" value="3" onchange="setAimSize(this.value)" oninput="setAimSize(this.value)"><span id="aim-unit">cells</span></span>
       <span class="aim-count" id="aim-count">0 in area</span>
-      <button class="aim-cancel" onclick="cancelAim()">Cancel âŽ‹</button>
+      <button class="aim-cancel" onclick="cancelAim()">Cancel ⎋</button>
     </div>
-    <div class="role-badge" id="role-badge">Solo Â· GM</div>
+    <div class="role-badge" id="role-badge">Solo · GM</div>
     <div class="vt-log" id="vt-log"></div>
   </div>
   <div class="side">
@@ -185,7 +185,7 @@ body{background:var(--bg);color:var(--ink);font-family:'Georgia',serif;font-size
 <div class="toast" id="toast"></div>
 
 <script>
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• STATE
+// ════════════════════════════════════════════════ STATE
 const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
 const cwrap=document.getElementById('cwrap');
 const fogCv=document.createElement('canvas'), fogCtx=fogCv.getContext('2d');
@@ -207,13 +207,13 @@ function uid(){return Math.random().toString(36).slice(2,9);}
 function ownedByMe(t){ if(role==='gm')return true; if(!t.owner)return false; return t.owner.trim().toLowerCase()===myName.trim().toLowerCase(); }
 function normalizeMap(){ const def=blankMap(); map.layers=Object.assign({},def.layers,map.layers||{}); ['walls','tokens','lights'].forEach(k=>{if(!Array.isArray(map[k]))map[k]=[];}); if(!map.bg)map.bg=def.bg; if(!map.gridSize)map.gridSize=def.gridSize; if(!map.gridType)map.gridType=def.gridType; }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• COORDS / SNAP
+// ════════════════════════════════════════════════ COORDS / SNAP
 function s2w(sx,sy){return {x:(sx-view.panX)/view.zoom, y:(sy-view.panY)/view.zoom};}
 function snapVertex(p){ if(!snapOn||map.gridType==='gridless')return {x:p.x,y:p.y}; if(map.gridType==='hex')return hexCenter(p); const g=map.gridSize; return {x:Math.round(p.x/g)*g,y:Math.round(p.y/g)*g}; }
 function snapCell(p){ if(!snapOn||map.gridType==='gridless')return {x:p.x,y:p.y}; if(map.gridType==='hex')return hexCenter(p); const g=map.gridSize; return {x:(Math.floor(p.x/g)+0.5)*g,y:(Math.floor(p.y/g)+0.5)*g}; }
 function hexCenter(p){ const s=map.gridSize; let q=(Math.sqrt(3)/3*p.x-1/3*p.y)/s, r=(2/3*p.y)/s; let x=q,z=r,y=-x-z; let rx=Math.round(x),ry=Math.round(y),rz=Math.round(z); const dx=Math.abs(rx-x),dy=Math.abs(ry-y),dz=Math.abs(rz-z); if(dx>dy&&dx>dz)rx=-ry-rz; else if(dy>dz)ry=-rx-rz; else rz=-rx-ry; q=rx;r=rz; return {x:s*(Math.sqrt(3)*q+Math.sqrt(3)/2*r), y:s*(1.5*r)}; }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• VISIBILITY (line of sight)
+// ════════════════════════════════════════════════ VISIBILITY (line of sight)
 function raySeg(px,py,dx,dy,ax,ay,bx,by){
   const sx=bx-ax, sy=by-ay, denom=dx*sy-dy*sx;
   if(Math.abs(denom)<1e-9)return null;
@@ -226,7 +226,7 @@ function computeVisibility(px,py,maxR){
   const segs=[[b.x0,b.y0,b.x1,b.y0],[b.x1,b.y0,b.x1,b.y1],[b.x1,b.y1,b.x0,b.y1],[b.x0,b.y1,b.x0,b.y0]];
   map.walls.forEach(w=>{ if(w.blocksVision!==false){
     if(Math.min(w.x1,w.x2)>b.x1||Math.max(w.x1,w.x2)<b.x0||Math.min(w.y1,w.y2)>b.y1||Math.max(w.y1,w.y2)<b.y0)return;
-    if(w.oneWayVision){ let nx=-(w.y2-w.y1),ny=(w.x2-w.x1); if(w.flip){nx=-nx;ny=-ny;} if((px-w.x1)*nx+(py-w.y1)*ny>0)return; } // viewer on open side â†’ see through
+    if(w.oneWayVision){ let nx=-(w.y2-w.y1),ny=(w.x2-w.x1); if(w.flip){nx=-nx;ny=-ny;} if((px-w.x1)*nx+(py-w.y1)*ny>0)return; } // viewer on open side → see through
     segs.push([w.x1,w.y1,w.x2,w.y2]);
   }});
   const angles=[];
@@ -250,7 +250,7 @@ function viewerVisionPolys(){
   return polys;
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• RENDER
+// ════════════════════════════════════════════════ RENDER
 let needsRender=true;
 function render(){needsRender=true;}
 function resize(){ cv.width=cwrap.clientWidth; cv.height=cwrap.clientHeight; fogCv.width=cv.width; fogCv.height=cv.height; render(); }
@@ -277,10 +277,10 @@ function doDraw(){
   if(VTaim){ ctx.setTransform(view.zoom,0,0,view.zoom,view.panX,view.panY); drawAimPreview(); }
   if(role==='player'&&fogOn&&!map.tokens.some(ownedByMe)){
     ctx.setTransform(1,0,0,1,0,0); ctx.fillStyle='rgba(231,226,216,.65)'; ctx.font='15px Georgia'; ctx.textAlign='center';
-    ctx.fillText('No token assigned to you yet â€” ask your GM', cv.width/2, cv.height/2);
+    ctx.fillText('No token assigned to you yet — ask your GM', cv.width/2, cv.height/2);
   }
   document.getElementById('zoom-lbl').textContent=Math.round(view.zoom*100)+'%';
-  document.getElementById('counts').textContent=`${map.tokens.length} tokens Â· ${map.walls.length} walls Â· ${map.lights.length} lights`;
+  document.getElementById('counts').textContent=`${map.tokens.length} tokens · ${map.walls.length} walls · ${map.lights.length} lights`;
 }
 function visBounds(){ const tl=s2w(0,0),br=s2w(cv.width,cv.height); return {x0:tl.x,y0:tl.y,x1:br.x,y1:br.y}; }
 function drawGrid(){
@@ -387,13 +387,13 @@ function ensureExplored(){
 }
 function resetFog(){ ensureExplored(); render(); toast('Explored memory cleared'); }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• HIT TEST
+// ════════════════════════════════════════════════ HIT TEST
 function tokenAt(p){ for(let i=map.tokens.length-1;i>=0;i--){const t=map.tokens[i];const rad=(t.size*map.gridSize)/2; if(Math.hypot(p.x-t.x,p.y-t.y)<=rad)return t;} return null; }
 function lightAt(p){ for(let i=map.lights.length-1;i>=0;i--){const l=map.lights[i]; if(Math.hypot(p.x-l.x,p.y-l.y)<=10/view.zoom)return l;} return null; }
 function wallAt(p){ const tol=8/view.zoom; for(let i=map.walls.length-1;i>=0;i--){if(distToSeg(p,map.walls[i])<=tol)return map.walls[i];} return null; }
 function distToSeg(p,w){ const dx=w.x2-w.x1,dy=w.y2-w.y1,l2=dx*dx+dy*dy; if(l2===0)return Math.hypot(p.x-w.x1,p.y-w.y1); let t=((p.x-w.x1)*dx+(p.y-w.y1)*dy)/l2;t=Math.max(0,Math.min(1,t)); return Math.hypot(p.x-(w.x1+t*dx),p.y-(w.y1+t*dy)); }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• INPUT
+// ════════════════════════════════════════════════ INPUT
 cv.addEventListener('mousedown',e=>{
   const p=s2w(e.offsetX,e.offsetY);
   if(VTaim){ VTaimCursor=p; if(VTaim.shape==='single'&&!tokenAt(p)){ toast('Click on a target token'); render(); return; } sendActorAction(); return; }
@@ -445,7 +445,7 @@ window.addEventListener('keydown',e=>{
   const tm={v:'select',h:'pan',t:'token',w:'wall',l:'light',p:'ping'}; if(tm[e.key.toLowerCase()])setTool(tm[e.key.toLowerCase()]);
 });
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• MUTATIONS
+// ════════════════════════════════════════════════ MUTATIONS
 function byId(type,id){ const a=type==='token'?map.tokens:type==='wall'?map.walls:map.lights; return a.find(o=>o.id===id); }
 function addToken(p){ const t={id:uid(),x:p.x,y:p.y,size:1,base:'circle',color:'#8a6d3b',label:'',hp:0,hpmax:0,vision:0,owner:'',visible:true}; map.tokens.push(t); select('token',t.id); snapshot(); syncMap(); render(); }
 function addLight(p){ const l={id:uid(),x:p.x,y:p.y,radius:map.gridSize*5,color:'#ffd9a0',intensity:0.7}; map.lights.push(l); select('light',l.id); snapshot(); syncMap(); render(); }
@@ -453,11 +453,11 @@ function addWall(x1,y1,x2,y2){ if(x1===x2&&y1===y2)return; map.walls.push({id:ui
 function delSelected(){ if(!sel||role!=='gm'&&sel.type!=='token')return; const a=sel.type==='token'?'tokens':sel.type==='wall'?'walls':'lights'; map[a]=map[a].filter(o=>o.id!==sel.id); select(null); snapshot(); syncMap(); render(); }
 function select(type,id){ sel=type?{type,id}:null; renderProps(); render(); }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• TOOLS / UI
+// ════════════════════════════════════════════════ TOOLS / UI
 function setTool(t){ if(role==='player'&&['token','wall','light'].includes(t)){toast('Only the GM can edit the map');return;} tool=t; wallDraft=null;
   ['select','pan','token','wall','light','ping','measure'].forEach(x=>{const b=document.getElementById('t-'+x);if(b)b.classList.toggle('active',x===t);});
   cwrap.className='canvas-wrap tool-'+t;
-  document.getElementById('hint').textContent={select:'Drag tokens/walls/lights Â· click empty to pan',pan:'Drag to pan',token:'Click to place a token',wall:'Click points Â· right-click to finish',light:'Click to place a light',ping:'Click to ping (or Alt+click anytime)',measure:'Drag to measure Â· Esc clears measurements'}[t]||'';
+  document.getElementById('hint').textContent={select:'Drag tokens/walls/lights · click empty to pan',pan:'Drag to pan',token:'Click to place a token',wall:'Click points · right-click to finish',light:'Click to place a light',ping:'Click to ping (or Alt+click anytime)',measure:'Drag to measure · Esc clears measurements'}[t]||'';
   render();
 }
 function toggleFog(){ fogOn=!fogOn; if(fogOn)ensureExplored(); document.getElementById('fog-btn').textContent='Fog: '+(fogOn?'On':'Off'); document.getElementById('fog-btn').classList.toggle('on',fogOn); render(); }
@@ -468,9 +468,9 @@ function actorAbilitiesHTML(t){
   a.abilities.forEach((grp,gi)=>{
     const meta=parseEffectMeta(grp.fx||'');
     const badges=[];
-    if(meta.targets)badges.push('ðŸŽ¯'+(meta.targets==='all'?'all':meta.targets));
-    if(meta.range)badges.push('â†”'+meta.range.value+meta.range.unit);
-    if(meta.area)badges.push('â—Ž'+(meta.area.size?meta.area.size:'')+meta.area.shape);
+    if(meta.targets)badges.push('&#127919; '+(meta.targets==='all'?'all':meta.targets));
+    if(meta.range)badges.push('&#8596; '+meta.range.value+meta.range.unit);
+    if(meta.area)badges.push('&#9678; '+(meta.area.size?meta.area.size:'')+meta.area.shape);
     h+=`<div style="font-size:9px;color:var(--muted);margin-top:5px;">${esc(grp.name)}${badges.length?` <span style="color:#8a6d3b;">${esc(badges.join(' '))}</span>`:''}</div><div>`;
     (grp.actions||[]).forEach((act,ai)=>{ h+=`<button class="act-chip" title="roll or aim at a target" onclick="showActionMenu(event,'${t.actor}',${gi},${ai})">${esc(act.label)}</button>`; });
     h+=`</div>`; });
@@ -484,10 +484,12 @@ function renderProps(){
       <div class="row"><label>Size</label><input type="number" step="0.5" min="0.5" value="${t.size}" ${ro?'disabled':''} oninput="upd('size',+this.value||1)"></div>
       <div class="row"><label>Base</label><select ${ro?'disabled':''} onchange="upd('base',this.value)"><option value="circle"${t.base==='circle'?' selected':''}>Circle</option><option value="square"${t.base==='square'?' selected':''}>Square</option></select></div>
       <div class="row"><label>Color</label><input type="color" value="${t.color}" ${ro?'disabled':''} oninput="upd('color',this.value)"></div>
-      <div class="row"><label>HP</label><input type="number" value="${t.hp||0}" oninput="upd('hp',+this.value||0)"><input type="number" title="max" value="${t.hpmax||0}" ${ro?'disabled':''} oninput="upd('hpmax',+this.value||0)"></div>
+      ${linkedActor(t)
+        ? `<div class="row"><label>HP</label><input type="number" value="${t.hp||0}" disabled title="synced from ${esc(linkedActor(t).name||'character')}'s sheet"><span style="font-size:9px;color:var(--muted);align-self:center;">&#8596; synced w/ sheet</span></div>`
+        : `<div class="row"><label>HP</label><input type="number" value="${t.hp||0}" oninput="upd('hp',+this.value||0)"><input type="number" title="max" value="${t.hpmax||0}" ${ro?'disabled':''} oninput="upd('hpmax',+this.value||0)"></div>`}
       <div class="row"><label>Vision (cells)</label><input type="number" min="0" value="${t.vision||0}" ${ro?'disabled':''} oninput="upd('vision',+this.value||0)" title="0 = line-of-sight, no range limit"></div>
       ${role==='gm'?`<div class="row"><label>Owner</label><input type="text" list="owner-options" value="${esc(t.owner||'')}" placeholder="connected player" oninput="upd('owner',this.value)"></div>`:''}
-      ${role==='gm'?`<div class="row"><label>Character</label><select onchange="upd('actor',this.value)"><option value="">â€” none â€”</option>`+Object.entries(VT.actors||{}).map(([id,a])=>`<option value="${id}"${t.actor===id?' selected':''}>${esc(a.name||id)}</option>`).join('')+`</select></div>`:''}
+      ${role==='gm'?`<div class="row"><label>Character</label><select onchange="upd('actor',this.value)"><option value="">${linkedActor(t)?'— unlink —':'— none —'}</option>`+Object.entries(VT.actors||{}).map(([id,a])=>`<option value="${id}"${t.actor===id?' selected':''}>${esc(a.name||id)}</option>`).join('')+`</select>${t.actor&&VT.actors[t.actor]?` <span style="font-size:9px;color:#6fae6f;align-self:center;">auto-linked</span>`:''}</div>`:''}
       ${actorAbilitiesHTML(t)}
       ${simPropsHTML(t)}
       ${ro?'':'<button class="del" onclick="delSelected()" style="margin-top:8px;">Delete token</button>'}`;
@@ -515,10 +517,10 @@ function renderLayers(){
 function toggleLayer(k,prop){ map.layers[k][prop]=!map.layers[k][prop]; renderLayers(); render(); }
 function esc(s){return (s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• BG / VIEW / PERSIST
+// ════════════════════════════════════════════════ BG / VIEW / PERSIST
 function loadBg(file){ if(!file)return; const r=new FileReader(); r.onload=e=>{map.bg.src=e.target.result;setBgImg(map.bg.src);ensureExplored();snapshot();syncMap();}; r.readAsDataURL(file); }
 function setBgImg(src){ if(!src){bgImg=null;render();return;} bgImg=new Image(); bgImg.onload=()=>{ensureExplored();render();}; bgImg.src=src; }
-// â”€â”€ AUTO-WALLS: derive vector walls from the background image (dark = wall) â”€â”€
+// ── AUTO-WALLS: derive vector walls from the background image (dark = wall) ──
 function openAW(){ document.getElementById('awModal').classList.add('open'); }
 function closeAW(){ document.getElementById('awModal').classList.remove('open'); }
 function autoWallsDetect(){
@@ -546,7 +548,7 @@ function autoWallsDetect(){
   let n=0;
   for(const s of segs){ if(n>=CAP)break; map.walls.push({id:uid(),x1:ox+s.x1*sc,y1:oy+s.y1*sc,x2:ox+s.x2*sc,y2:oy+s.y2*sc,blocksVision:true,blocksMovement:true,blocksProjectiles:true,auto:true}); n++; }
   snapshot(); syncMap(); render();
-  document.getElementById('aw-status').textContent=n+' wall segments generated'+(segs.length>CAP?' (capped â€” raise threshold for fewer)':'')+'. Switch on Fog to test.';
+  document.getElementById('aw-status').textContent=n+' wall segments generated'+(segs.length>CAP?' (capped — raise threshold for fewer)':'')+'. Switch on Fog to test.';
   toast(n+' walls generated');
 }
 function autoWallsClear(){ const had=map.walls.length; map.walls=map.walls.filter(w=>!w.auto); snapshot(); syncMap(); render(); document.getElementById('aw-status').textContent=(had-map.walls.length)+' auto walls removed'; }
@@ -564,7 +566,7 @@ function loadMapFile(file){ if(!file)return; const r=new FileReader(); r.onload=
 function syncControls(){ document.getElementById('grid-type').value=map.gridType;document.getElementById('grid-size').value=map.gridSize;document.getElementById('grid-color').value=map.gridColor;document.getElementById('map-name').value=map.name; }
 function toast(m){ const t=document.getElementById('toast');t.textContent=m;t.style.opacity='1';clearTimeout(toast._t);toast._t=setTimeout(()=>t.style.opacity='0',1400); }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• MULTIPLAYER (Firebase)
+// ════════════════════════════════════════════════ MULTIPLAYER (Firebase)
 let VT={connected:false,room:null,db:null,ref:null,tableRef:null,clientId:null,members:{},actors:{},_mapT:null,_centered:false};
 let VTaim=null;
 let VTaimCursor=null; // world-space cursor while aiming
@@ -581,7 +583,7 @@ function aimAction(actorId,gi,ai){ const actor=VT.actors[actorId]; if(!actor||!a
   VTaimCursor=null;
   cwrap.classList.add('aiming');
   showAimBar();
-  document.getElementById('hint').textContent='Aiming "'+act.label+'" â€” move to aim, click to confirm (Esc to cancel)';
+  document.getElementById('hint').textContent='Aiming "'+act.label+'" — move to aim, click to confirm (Esc to cancel)';
   toast('Aim it'); render(); }
 function showAimBar(){ const bar=document.getElementById('aim-bar'); if(!bar||!VTaim)return;
   bar.classList.add('show');
@@ -607,7 +609,7 @@ function aimTargets(){
   if(VTaim.shape==='circle'){ return tokensInRadius(c.x,c.y,px,null); }
   const ox=src?src.x:c.x, oy=src?src.y:c.y;
   let dx=c.x-ox, dy=c.y-oy; const len=Math.hypot(dx,dy)||1; dx/=len; dy/=len;
-  if(VTaim.shape==='cone'){ const half=Math.cos(Math.PI/6); // 60Â° total
+  if(VTaim.shape==='cone'){ const half=Math.cos(Math.PI/6); // 60° total
     return map.tokens.filter(t=>{ const vx=t.x-ox,vy=t.y-oy; const d=Math.hypot(vx,vy); if(d<1||d>px)return false; return (vx*dx+vy*dy)/d>=half; }); }
   if(VTaim.shape==='line'){ const wHalf=map.gridSize*0.5; // 1-cell wide
     return map.tokens.filter(t=>{ const vx=t.x-ox,vy=t.y-oy; const along=vx*dx+vy*dy; if(along<0||along>px)return false; const perp=Math.abs(vx*(-dy)+vy*dx); return perp<=wHalf+t.size*map.gridSize/2; }); }
@@ -628,7 +630,7 @@ function sendActorAction(){
       targetIds:linked.map(t=>t.actor),targetNames:linked.map(t=>VT.actors[t.actor].name||'?'),
       meta:{targets:a.meta.targets||null,range:a.meta.range||null,area:a.meta.area||null},ts:Date.now()}); }
   }
-  toast(a.action.label+' â†’ '+(hit.length>1?hit.length+' targets':((hit[0].label)||'target')));
+  toast(a.action.label+' → '+(hit.length>1?hit.length+' targets':((hit[0].label)||'target')));
   render();
 }
 // Draw the aiming overlay: range ring + the chosen shape + highlighted targets.
@@ -663,7 +665,7 @@ function rollActorAction(actorId,gi,ai){
   else if(act.kind==='dice'){ const m=(act.expr||'').match(/^(\d*)d(\d+)([+-]\d+)?$/); if(!m){toast('Bad dice');return;} const c=+(m[1]||1),s=+m[2],mod=+(m[3]||0); let sum=0,rolls=[]; for(let i=0;i<c;i++){const r=rollDie(s);rolls.push(r);sum+=r;} total=sum+mod; bd=`[${rolls.join(',')}]${mod?(mod>0?'+'+mod:mod):''}`; }
   const name=actor.name||myName;
   if(VT.connected&&VT.tableRef){ VT.tableRef.child('events').push({type:'roll',fromId:VT.clientId,fromName:name,label:`${grp.name}: ${label}`,total,ts:Date.now()}); }
-  else addVtLog(`${name} Â· ${grp.name}: ${label} = ${total} (${bd})`);
+  else addVtLog(`${name} · ${grp.name}: ${label} = ${total} (${bd})`);
   toast(`${label}: ${total}`);
 }
 function showActionMenu(ev,actorId,gi,ai){
@@ -676,7 +678,7 @@ function showActionMenu(ev,actorId,gi,ai){
 }
 function closeActionMenu(){const m=document.getElementById('actMenu');if(m)m.remove();}
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• ENERGY SIMULATION LAYER
+// ════════════════════════════════════════════════ ENERGY SIMULATION LAYER
 const SIM_DEFAULT={matter:'',energy:0,temperature:20,charge:0,pressure:0,integrity:100,element:'',resonance:100,moisture:0};
 const SIM_BADGE={Burning:{c:'#e0532a',l:'F'},Electrified:{c:'#e6c424',l:'E'},Soaked:{c:'#4e9fd0',l:'W'},Corrupted:{c:'#9a52c8',l:'C'},Suppressed:{c:'#8a857c',l:'N'},Frozen:{c:'#86d4e6',l:'I'}};
 const SIM_TAGS=[
@@ -695,7 +697,7 @@ function removeStatus(t,s){ if(t.statuses)t.statuses=t.statuses.filter(x=>x!==s)
 function clearStatus(id,st){ const t=byId('token',id); if(t){removeStatus(t,st); if(VT.connected&&role==='gm')syncMap(); renderProps(); render();} }
 function rollExprVal(expr){ const m=(expr||'').match(/(\d*)d(\d+)([+-]\d+)?/); if(!m)return 0; const c=+(m[1]||1),s=+m[2],mod=+(m[3]||0); let sum=0; for(let i=0;i<c;i++)sum+=rollDie(s); return sum+mod; }
 function analyzeSim(text){ text=text||''; return { tags:SIM_TAGS.filter(t=>t.re.test(text)).map(t=>t.tag), chain:/chain|arcs?\b|spread|propagat/i.test(text), dmgExpr:(text.match(/\d*d\d+([+-]\d+)?/)||[null])[0] }; }
-// â”€â”€ META READER (mirrors the character sheet) â€” targets / range / area / numeric â”€â”€
+// ── META READER (mirrors the character sheet) — targets / range / area / numeric ──
 function vtNormUnit(u){ u=(u||'').toLowerCase(); if(/^m|met/.test(u))return 'm'; if(/^f/.test(u))return 'ft'; return 'cells'; }
 function parseEffectMeta(text){
   const meta={targets:null,range:null,area:null,values:[]};
@@ -721,12 +723,38 @@ function parseEffectMeta(text){
 // Convert a meta range/area size into world-space pixels using the current grid.
 function metaToPixels(value,unit){ const g=map.gridSize; if(!value)return 0; if(unit==='m')return (value/1.5)*g; if(unit==='ft')return (value/5)*g; return value*g; }
 function tokensInRadius(cx,cy,px,excludeId){ return map.tokens.filter(o=>(!excludeId||o.id!==excludeId)&&Math.hypot(o.x-cx,o.y-cy)<=px); }
-// Apply a numeric damage/heal payload directly to a token's HP + simulation integrity.
+// ── TOKEN ↔ CHARACTER LINKING (streamlined) ──
+// A token is a "linked PC" when it points at a character sheet that publishes HP.
+// For those, the sheet is the source of truth: the VTT prompts the player and mirrors HP
+// rather than editing it locally, so the token and the sheet never disagree.
+function linkedActor(tok){ const a=tok&&tok.actor&&VT.actors?VT.actors[tok.actor]:null; return (a&&(+a.hpMax>0||a.hpCur!=null))?a:null; }
+// Auto-bind unlinked tokens to a connected character by matching the token's owner/label to the character's name.
+function autoLinkTokens(){
+  if(role!=='gm'||!VT.actors)return; let changed=false;
+  const byName={}; Object.entries(VT.actors).forEach(([id,a])=>{ if(!a)return; if(a.name)byName[a.name.trim().toLowerCase()]=id; if(a.ownerName)byName[a.ownerName.trim().toLowerCase()]=id; });
+  map.tokens.forEach(t=>{
+    if(t.actor&&VT.actors[t.actor])return;            // already linked & valid
+    const key=(t.owner||t.label||'').trim().toLowerCase();
+    if(key&&byName[key]){ t.actor=byName[key]; if(!t.owner&&VT.actors[byName[key]].ownerName)t.owner=VT.actors[byName[key]].ownerName; changed=true; }
+  });
+  if(changed)syncMap();
+}
+// Mirror each linked character's current HP onto its token.
+function syncLinkedTokenHP(){
+  if(role!=='gm')return; let changed=false;
+  map.tokens.forEach(t=>{ const a=linkedActor(t); if(!a)return;
+    const hpMax=+a.hpMax||0, hpCur=(a.hpCur!=null&&a.hpCur!=='')?+a.hpCur:hpMax;
+    if(hpMax>0&&(t.hpmax!==hpMax||t.hp!==hpCur)){ t.hpmax=hpMax; t.hp=hpCur; changed=true; }
+  });
+  if(changed){ syncMap(); render(); }
+}
+// Apply a numeric damage/heal payload to a token's HP + simulation integrity.
+// Linked PCs keep their HP from the sheet (we still log + adjust sim integrity for feedback).
 function applyNumeric(tok,type,amount){
-  if(!tok||amount==null)return; ensureSim(tok);
-  if(type==='heal'){ if(tok.hpmax>0)tok.hp=Math.min(tok.hpmax,(tok.hp||0)+amount); tok.sim.integrity=Math.min(100,tok.sim.integrity+amount); }
-  else{ if(tok.hpmax>0)tok.hp=Math.max(0,(tok.hp||0)-amount); tok.sim.integrity=Math.max(0,tok.sim.integrity-amount); }
-  vtSimLog(`${tok.label||'token'} ${type==='heal'?'+':'-'}${amount} ${type==='heal'?'HP':'dmg'}`);
+  if(!tok||amount==null)return; ensureSim(tok); const pc=linkedActor(tok);
+  if(type==='heal'){ if(tok.hpmax>0&&!pc)tok.hp=Math.min(tok.hpmax,(tok.hp||0)+amount); tok.sim.integrity=Math.min(100,tok.sim.integrity+amount); }
+  else{ if(tok.hpmax>0&&!pc)tok.hp=Math.max(0,(tok.hp||0)-amount); tok.sim.integrity=Math.max(0,tok.sim.integrity-amount); }
+  vtSimLog(`${tok.label||'token'} ${type==='heal'?'+':'-'}${amount} ${type==='heal'?'HP':'dmg'}${pc?' (via sheet)':''}`);
 }
 // Resolve an incoming action event on the GM's map: hit linked tokens + AoE, apply numbers.
 function vtApplyActionEvent(e){
@@ -735,7 +763,7 @@ function vtApplyActionEvent(e){
   const primary=[]; ids.forEach(id=>{ const tk=map.tokens.find(t=>t.actor===id); if(tk)primary.push(tk); });
   if(!primary.length)return;
   let hit=primary.slice();
-  // area of effect â†’ splash to nearby tokens around each primary target
+  // area of effect → splash to nearby tokens around each primary target
   if(e.meta&&e.meta.area){ const px=metaToPixels(e.meta.area.size||3,e.meta.area.unit||'cells')||map.gridSize*3;
     primary.forEach(p=>tokensInRadius(p.x,p.y,px,p.id).forEach(o=>{ if(!hit.includes(o))hit.push(o); })); }
   hit.forEach(tok=>{
@@ -757,21 +785,21 @@ function applySim(target,text,source,depth){
     else if(tag==='eldritch'){ s.integrity=Math.max(0,s.integrity-10); if(!hasStatus(target,'Corrupted')){addStatus(target,'Corrupted');log.push('corrupted');} }
     else if(tag==='kinetic'){ s.pressure+=40; s.integrity=Math.max(0,s.integrity-10); }
   });
-  if(a.dmgExpr){ const d=rollExprVal(a.dmgExpr); s.integrity=Math.max(0,s.integrity-d); if(typeof target.hpmax==='number'&&target.hpmax>0)target.hp=Math.max(0,(target.hp||0)-d); log.push(a.dmgExpr+'='+d+' dmg'); }
+  if(a.dmgExpr){ const d=rollExprVal(a.dmgExpr); s.integrity=Math.max(0,s.integrity-d); if(typeof target.hpmax==='number'&&target.hpmax>0&&!linkedActor(target))target.hp=Math.max(0,(target.hp||0)-d); log.push(a.dmgExpr+'='+d+' dmg'); }
   // REACTIONS
   if(/ignit|combust|spontaneous|set.{0,6}ablaze|catch.{0,6}fire/i.test(text) && !hasStatus(target,'Soaked') && !hasStatus(target,'Burning')){ addStatus(target,'Burning'); log.push('IGNITED'); }
   if(s.temperature>=100 && target.flammable && !hasStatus(target,'Soaked') && !hasStatus(target,'Burning')){ addStatus(target,'Burning'); log.push('ignited (heat)'); }
   if(hasStatus(target,'Soaked')&&hasStatus(target,'Burning')){ removeStatus(target,'Burning'); log.push('extinguished'); }
-  if(hasStatus(target,'Electrified')){ const R=map.gridSize*1.6; map.tokens.forEach(o=>{ if(o.id===target.id)return; if(Math.hypot(o.x-target.x,o.y-target.y)<=R){ ensureSim(o); if((o.conductive||hasStatus(o,'Soaked'))&&!hasStatus(o,'Electrified')){ addStatus(o,'Electrified'); o.sim.charge+=40; log.push('arcâ†’'+(o.label||'?')); } } }); }
-  if(a.chain && depth<3){ const R=map.gridSize*4; const near=map.tokens.filter(o=>o.id!==target.id && Math.hypot(o.x-target.x,o.y-target.y)<=R).sort((m,n)=>Math.hypot(m.x-target.x,m.y-target.y)-Math.hypot(n.x-target.x,n.y-target.y)).slice(0,1); if(near.length){ log.push('chainsâ†’'+(near[0].label||'?')); applySim(near[0], text.replace(/chain|arcs?|spread/ig,''), target, depth+1); } }
-  vtSimLog(`${(source&&source.label)||'Effect'} â†’ ${target.label||'target'}: [${a.tags.join(', ')||'â€”'}]${log.length?' '+log.join(' Â· '):''}`);
+  if(hasStatus(target,'Electrified')){ const R=map.gridSize*1.6; map.tokens.forEach(o=>{ if(o.id===target.id)return; if(Math.hypot(o.x-target.x,o.y-target.y)<=R){ ensureSim(o); if((o.conductive||hasStatus(o,'Soaked'))&&!hasStatus(o,'Electrified')){ addStatus(o,'Electrified'); o.sim.charge+=40; log.push('arc→'+(o.label||'?')); } } }); }
+  if(a.chain && depth<3){ const R=map.gridSize*4; const near=map.tokens.filter(o=>o.id!==target.id && Math.hypot(o.x-target.x,o.y-target.y)<=R).sort((m,n)=>Math.hypot(m.x-target.x,m.y-target.y)-Math.hypot(n.x-target.x,n.y-target.y)).slice(0,1); if(near.length){ log.push('chains→'+(near[0].label||'?')); applySim(near[0], text.replace(/chain|arcs?|spread/ig,''), target, depth+1); } }
+  vtSimLog(`${(source&&source.label)||'Effect'} → ${target.label||'target'}: [${a.tags.join(', ')||'—'}]${log.length?' '+log.join(' · '):''}`);
   if(VT.connected&&role==='gm')syncMap();
   if(sel&&sel.type==='token'&&sel.id===target.id)renderProps();
   render();
 }
 function tickSim(){
   map.tokens.forEach(t=>{ ensureSim(t);
-    if(hasStatus(t,'Burning')){ const d=rollExprVal('1d6'); t.sim.integrity=Math.max(0,t.sim.integrity-d); if(t.hpmax>0)t.hp=Math.max(0,(t.hp||0)-d); vtSimLog(`${t.label||'token'} burns for ${d}`); }
+    if(hasStatus(t,'Burning')){ const d=rollExprVal('1d6'); t.sim.integrity=Math.max(0,t.sim.integrity-d); if(t.hpmax>0&&!linkedActor(t))t.hp=Math.max(0,(t.hp||0)-d); vtSimLog(`${t.label||'token'} burns for ${d}`); }
     t.sim.temperature += (20 - t.sim.temperature)*0.25;
     if(t.sim.moisture>0)t.sim.moisture=Math.max(0,t.sim.moisture-15);
     if(t.sim.charge>0)t.sim.charge=Math.max(0,t.sim.charge-25);
@@ -780,8 +808,8 @@ function tickSim(){
 }
 function simPropsHTML(t){ ensureSim(t); const s=t.sim;
   return `<div class="actor-h">Simulation</div>
-    <div class="row"><label>Element</label><input type="text" value="${esc(s.element)}" oninput="upd2('element',this.value)" placeholder="Fire / Water / Nullâ€¦"></div>
-    <div class="row"><label>Temp Â°</label><input type="number" value="${Math.round(s.temperature)}" oninput="upd2('temperature',+this.value||0)"><label style="min-width:50px;">Charge</label><input type="number" value="${Math.round(s.charge)}" oninput="upd2('charge',+this.value||0)"></div>
+    <div class="row"><label>Element</label><input type="text" value="${esc(s.element)}" oninput="upd2('element',this.value)" placeholder="Fire / Water / Null…"></div>
+    <div class="row"><label>Temp °</label><input type="number" value="${Math.round(s.temperature)}" oninput="upd2('temperature',+this.value||0)"><label style="min-width:50px;">Charge</label><input type="number" value="${Math.round(s.charge)}" oninput="upd2('charge',+this.value||0)"></div>
     <div class="row"><label>Integrity</label><input type="number" value="${Math.round(s.integrity)}" oninput="upd2('integrity',+this.value||0)"><label style="min-width:50px;">Resonance</label><input type="number" value="${Math.round(s.resonance)}" oninput="upd2('resonance',+this.value||0)"></div>
     <label class="chk"><input type="checkbox" ${t.flammable?'checked':''} onchange="upd('flammable',this.checked)"> Flammable</label>
     <label class="chk"><input type="checkbox" ${t.conductive?'checked':''} onchange="upd('conductive',this.checked)"> Conductive</label>
@@ -799,7 +827,7 @@ document.getElementById('connectModal').addEventListener('click',e=>{if(e.target
 function renderConnect(){
   const b=document.getElementById('connectBody'); const cfg=fbConfig();
   if(VT.connected){ b.innerHTML=`<div class="note">Connected to <b>${VT.room}</b> as ${esc(myName)} (${role.toUpperCase()}).</div><button class="tbtn" onclick="vtLeave()">Leave table</button>`; return; }
-  if(!cfg){ b.innerHTML=`<div class="note">Paste the same Firebase config you use on the character sheet (it shares <b>wte-fb-config</b>). Needs databaseURL &amp; apiKey.</div><textarea id="vt-cfg" placeholder='{ "apiKey":"â€¦","databaseURL":"https://â€¦firebasedatabase.app" }'></textarea><button class="tbtn" onclick="vtSaveCfg()">Save config</button>`; return; }
+  if(!cfg){ b.innerHTML=`<div class="note">Paste the same Firebase config you use on the character sheet (it shares <b>wte-fb-config</b>). Needs databaseURL &amp; apiKey.</div><textarea id="vt-cfg" placeholder='{ "apiKey":"…","databaseURL":"https://…firebasedatabase.app" }'></textarea><button class="tbtn" onclick="vtSaveCfg()">Save config</button>`; return; }
   b.innerHTML=`<div class="row"><label>Name</label><input type="text" id="vt-name" value="${esc(myName==='GM'?'':myName)}" placeholder="your name"></div>
     <div class="row"><label>Role</label><select id="vt-role"><option value="gm">Game Master</option><option value="player">Player</option></select></div>
     <div class="row"><label>Room code</label><input type="text" id="vt-room" placeholder="WTE-XXXX"></div>
@@ -819,11 +847,11 @@ async function vtConnect(){
   VT.ref.child('members').on('value',s=>{ VT.members=s.val()||{}; renderOwnerOptions(); });
   // read characters published by the character sheets (same room) for token linking + abilities
   VT.tableRef=VT.db.ref('tables/'+room);
-  VT.tableRef.child('combatants').on('value',s=>{ VT.actors=s.val()||{}; if(sel&&sel.type==='token')renderProps(); });
+  VT.tableRef.child('combatants').on('value',s=>{ VT.actors=s.val()||{}; autoLinkTokens(); syncLinkedTokenHP(); if(sel&&sel.type==='token')renderProps(); render(); });
   VT._evStart=Date.now();
   VT.tableRef.child('events').on('child_added',s=>{ const e=s.val(); if(!e||(e.ts&&e.ts<VT._evStart))return;
-    if(e.type==='roll')addVtLog(`${e.fromName} Â· ${e.label}: ${e.total}`);
-    else if(e.type==='action'){ const tgts=(e.targetNames&&e.targetNames.length)?e.targetNames.join(', '):e.targetName; const ap=e.apply?` [${e.apply.type} ${e.apply.amount!=null?e.apply.amount:e.apply.expr||''}]`:''; addVtLog(`${e.fromName} â†’ ${e.ability} on ${tgts}${ap}`); vtApplyActionEvent(e); }
+    if(e.type==='roll')addVtLog(`${e.fromName} · ${e.label}: ${e.total}`);
+    else if(e.type==='action'){ const tgts=(e.targetNames&&e.targetNames.length)?e.targetNames.join(', '):e.targetName; const ap=e.apply?` [${e.apply.type} ${e.apply.amount!=null?e.apply.amount:e.apply.expr||''}]`:''; addVtLog(`${e.fromName} → ${e.ability} on ${tgts}${ap}`); vtApplyActionEvent(e); }
     else if(e.type==='log')addVtLog(e.text); });
   // GM pushes current map; player pulls
   if(role==='gm'){ syncMap(true); }
@@ -838,7 +866,7 @@ function renderOwnerOptions(){ const dl=document.getElementById('owner-options')
 function centerOnMyToken(){ const t=map.tokens.find(ownedByMe); if(!t){toast(role==='gm'?'No tokens yet':'No token assigned to you');return;} view.panX=cv.width/2-t.x*view.zoom; view.panY=cv.height/2-t.y*view.zoom; render(); }
 function applyRoleUI(){
   const badge=document.getElementById('role-badge');
-  badge.textContent=(VT.connected?VT.room+' Â· ':'Solo Â· ')+(role==='gm'?'GM':'Player');
+  badge.textContent=(VT.connected?VT.room+' · ':'Solo · ')+(role==='gm'?'GM':'Player');
   badge.classList.toggle('live',VT.connected);
   document.querySelectorAll('.gmonly').forEach(el=>el.style.display=(role==='gm')?'':'none');
   document.getElementById('connect-btn').classList.toggle('live',VT.connected);
@@ -850,7 +878,7 @@ function syncMap(force){ if(!(VT.connected&&role==='gm'))return; clearTimeout(VT
 function pushTokenPos(t){ if(VT.connected&&(role==='gm'||ownedByMe(t))){ try{VT.ref.child('tokenPos/'+t.id).set({x:t.x,y:t.y});}catch(e){} } }
 function doPing(p){ if(VT.connected){ try{VT.ref.child('ping').set({x:p.x,y:p.y,by:myName,ts:Date.now()});}catch(e){} } else { pings.push({x:p.x,y:p.y,by:myName,ts:Date.now()}); } render(); }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• INIT
+// ════════════════════════════════════════════════ INIT
 const saved=localStorage.getItem('wte-vtt-map');
 if(saved){ try{ map=Object.assign(blankMap(),JSON.parse(saved)); }catch(e){} }
 normalizeMap();
@@ -861,4 +889,3 @@ draw();
 </script>
 </body>
 </html>
-

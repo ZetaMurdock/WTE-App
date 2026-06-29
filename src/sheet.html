@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -120,12 +120,12 @@ textarea { resize: vertical; border: 1px solid var(--border); }
 .act-chip { display:inline-flex; align-items:center; gap:4px; background:var(--accent); color:#fff; border:none; cursor:pointer; font-family:'Georgia',serif; font-size:10px; padding:2px 9px; transition:all .1s; }
 .act-chip:hover { background:#a07f44; }
 .act-chip::before { content:''; }
-/* META BADGES â€” targeting / range / area / numeric */
+/* META BADGES — targeting / range / area / numeric */
 .meta-chip { display:inline-flex; align-items:center; gap:3px; background:var(--surface2); border:1px solid var(--border2); color:var(--ink2); font-family:'Georgia',serif; font-size:9px; letter-spacing:.5px; padding:2px 7px; }
 .meta-chip b { color:var(--accent); font-size:9.5px; }
 .act-chip.value { background:#34506b; }
 .act-chip.value:hover { background:#42648a; }
-/* DEFINITION LISTS â€” full skill text under ability chips */
+/* DEFINITION LISTS — full skill text under ability chips */
 .def-list { margin-top:6px; display:flex; flex-direction:column; gap:4px; }
 .def-item { font-size:10.5px; line-height:1.5; color:var(--ink2); border-left:2px solid var(--border2); padding:1px 0 1px 7px; }
 .def-item.variant { border-left-color:var(--accent); }
@@ -155,7 +155,7 @@ textarea { resize: vertical; border: 1px solid var(--border); }
 .stat-table input.mod { width: 40px; font-size: 12px; }
 .bonus-pip { font-size: 9px; color: var(--accent); margin-left: 2px; }
 
-/* DICE ROLL BUTTON â€” tiny circular */
+/* DICE ROLL BUTTON — tiny circular */
 .roll-btn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 15px; height: 15px; border-radius: 50% !important;
@@ -500,6 +500,12 @@ textarea { resize: vertical; border: 1px solid var(--border); }
     <span class="sep">|</span>
     <button class="btn prime" onclick="openExport()">Export</button>
     <button class="btn" onclick="openWiki()">Wiki</button>
+    <span class="sep">|</span>
+    <select id="roster-select" onchange="rosterSwitch(this.value)" title="Switch character" style="background:var(--bg2);color:var(--page-ink);border:1px solid var(--bone);font-family:'Georgia',serif;font-size:10px;letter-spacing:1px;padding:3px 6px;max-width:150px;"></select>
+    <button class="btn" onclick="rosterNew()" title="New blank character">+ Char</button>
+    <button class="btn" onclick="rosterDuplicate()" title="Duplicate current character">Dup</button>
+    <button class="btn" onclick="rosterDelete()" title="Delete current character">Del</button>
+    <span class="sep">|</span>
     <button class="btn" onclick="saveSheet()">Save</button>
     <button class="btn" onclick="loadSheet()">Load</button>
     <button class="btn" onclick="openLibrary()">Library</button>
@@ -845,7 +851,7 @@ textarea { resize: vertical; border: 1px solid var(--border); }
       <div style="font-size:9px;color:var(--muted);margin-bottom:6px;">DNA-locked. Offline TL&le;2.0 &middot; Online TL&ge;3.0. Grows with rank.</div>
       <div class="wpn-type-hint" id="cipher-domain-note">Pick a Paradigm to load its Ciphers.</div>
       <datalist id="cipher-options"></datalist>
-      <div class="field"><label>Cipher (pick from Paradigm)</label><input type="text" id="c-pick" list="cipher-options" autocomplete="off" onfocus="loadCiphersForParadigm()" onchange="onCipherPick()" placeholder="search ciphersâ€¦"></div>
+      <div class="field"><label>Cipher (pick from Paradigm)</label><input type="text" id="c-pick" list="cipher-options" autocomplete="off" onfocus="loadCiphersForParadigm()" onchange="onCipherPick()" placeholder="search ciphers…"></div>
       <div id="cipher-block-note" class="pe-gated-note" style="display:none;">Online Ciphers deactivated by the Curator.</div>
       <div class="cgrid">
         <div class="field"><label>Type</label><select id="c-type" onchange="applyOnlineCipherState()"><option>Offline</option><option>Online</option></select></div>
@@ -970,9 +976,9 @@ textarea { resize: vertical; border: 1px solid var(--border); }
 <div class="toast" id="toast" style="opacity:0;"></div>
 
 <script>
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ════════════════════════════════════════════════════
 // DATA
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ════════════════════════════════════════════════════
 const PARADIGM_DATA = {
   Science:    { weapons:{Light:'Hybrid',Medium:'Exotic',Heavy:'Kinetic'},    domains:['Neutral','Elemental'],           titles:['Intern','Researcher','Scientist','Specialist/Director'] },
   Simulation: { weapons:{Light:'Exotic',Medium:'Kinetic',Heavy:'Hybrid'},    domains:['Kinetic','Null'],                titles:['Sim Intern','Simulator','Simulation Agent','Simulation Engineer'] },
@@ -982,20 +988,20 @@ const PARADIGM_DATA = {
   Warfare:    { weapons:{Light:'Hybrid',Medium:'Exotic',Heavy:'Kinetic'},    domains:['Neutral','Kinetic'],            titles:['Private','Corporal','Captain','Specialist/Director'] },
 };
 
-// SPECIES â€” affinity bonuses (mapped to the 7 sheet attributes), innate abilities, variants
+// SPECIES — affinity bonuses (mapped to the 7 sheet attributes), innate abilities, variants
 const SPECIES_DATA = {
-  Hyomen:    { family:'Humanity', bonus:{}, note:'Balanced â€” specialize by choice', innate:['Prodigal Mind','Indecisive Body','Indomitable Will','Peak Evolution'],
-    variants:{ 'Bio-Engineered Hyomen':['Enhanced Strength (+Â½ Ode Lvl to STR rolls)','Enhanced Anatomy (Adv. on Adaptation)'], 'Spatians':['Space Modulation','Evolved Body (convert non-crit dmg type)'], 'Neo-Humans':['Awakened Visualization (magnetic fields)','Genetic Control (latent mutations 1hr)'] } },
+  Hyomen:    { family:'Humanity', bonus:{}, note:'Balanced — specialize by choice', innate:['Prodigal Mind','Indecisive Body','Indomitable Will','Peak Evolution'],
+    variants:{ 'Bio-Engineered Hyomen':['Enhanced Strength (+½ Ode Lvl to STR rolls)','Enhanced Anatomy (Adv. on Adaptation)'], 'Spatians':['Space Modulation','Evolved Body (convert non-crit dmg type)'], 'Neo-Humans':['Awakened Visualization (magnetic fields)','Genetic Control (latent mutations 1hr)'] } },
   Voaulton:  { family:'Humanity', bonus:{'a-phy':2,'a-end':2}, innate:['Chemical Mastery','Robotic Integration','Adaptive Analysis','Energetic Synergy'],
     variants:{ 'Droid':['Modulation (restructure form)','EMP (40ft pulse, 1 free/enc.)'], 'Cyborg':['Hacking (backfire attacker)','Circuit Transfiguration (Halt/Detonate/Redirect)'], 'N-T1 (Novus-Tauron)':['Forced Control (Nerve Grapple / Neural Override)','Elongation (limbs to 40ft)'] } },
   Mirga:     { family:'Humanity', bonus:{'a-int':2,'a-ap':2}, innate:['Perfect Mimicry','Mimetic Adaptation','Illusory Disguise','Emotional Mimicry'],
     variants:{ 'Chimera':['Multicellular Sentience (detach segments)','Modularity (transform segments, 8/hr)'] } },
-  Oriyu:     { family:'Omenity', bonus:{}, note:'Variable by lineage â€” assign manually', innate:['Energy Manipulation','Energy Absorption','Energy Projection','Energy Shielding'], variants:{} },
+  Oriyu:     { family:'Omenity', bonus:{}, note:'Variable by lineage — assign manually', innate:['Energy Manipulation','Energy Absorption','Energy Projection','Energy Shielding'], variants:{} },
   Insectoid: { family:'Omenity', bonus:{'a-end':2,'a-con':2}, innate:['Regenerative Limbs','Eyeless (non-visual senses)','Reflexive Assurance','Peak Evolution'],
     variants:{ 'Archnida':['Bursting Fracture','Unnerving Presence'], 'Cerioisk':['Augo Consumption (Cocoon Phase)','Corruptive Reproduction'] } },
   SubDermin: { family:'Omenity', bonus:{'a-end':2,'a-dex':2}, innate:['Forsaken Touch','Radioactive Anatomy','Terrestrial Knowledge','Living Planet Merge'],
     variants:{ 'Fractine':['Diamond Form','Crystal Manipulation'], 'Construct':['Physical Fracture (Anchored on overwhelm)','Pressuring Advance'] } },
-  Inderi:    { family:'Asternem', bonus:{'a-wis':2,'a-int':2}, note:'Choose 2 of 4 active â€” other 2 become locked Inceptions', innate:['Eldritch Physiology','Enhanced Regeneration','Perfect Reflex Calibration','True Eye of Solitude'],
+  Inderi:    { family:'Asternem', bonus:{'a-wis':2,'a-int':2}, note:'Choose 2 of 4 active — other 2 become locked Inceptions', innate:['Eldritch Physiology','Enhanced Regeneration','Perfect Reflex Calibration','True Eye of Solitude'],
     variants:{ "AI'N":['Dilation','Replication (1:1 replica, 1/2hr)'] } },
   Seraph:    { family:'Asternem', bonus:{'a-dex':2,'a-wis':2}, innate:['Antimatter Wings','Dance of Displacement','Spatial Rupture','Distant Vision'], variants:{} },
   Stygians:  { family:'Asternem', bonus:{'a-con':2,'a-wis':2}, innate:['Shadow Meld','Umbral Step','Hive Conjugation','Dimensional Flicker'],
@@ -1007,7 +1013,7 @@ const BG_FOCUSED  = [4,2];
 
 const ATTRS = [['a-phy','PHY'],['a-dex','DEX'],['a-end','END'],['a-ap','AP'],['a-wis','WIS'],['a-con','CHA'],['a-int','INT']];
 const SPECS = [['s-ins','Inspiration'],['s-ver','Versatility'],['s-bal','Balance'],['s-wt','Weight'],['s-pre','Precision'],['s-ctrl','Control'],['s-pri','Priority'],['s-wm','Wpn Mastery'],['s-mf','Mental Fort.'],['s-per','Perception'],['s-adp','Adaption'],['s-cun','Cunning']];
-// reducing specialties (Tax Burden contributors) â€” kept in sync with the derived web
+// reducing specialties (Tax Burden contributors) — kept in sync with the derived web
 const REDUCERS = ['s-pre','s-bal','s-adp','s-cun','s-wt','s-ver','s-pri','s-mf','s-ctrl','s-wm','s-per'];
 
 const STAT_OPTIONS = [
@@ -1020,13 +1026,13 @@ const STAT_OPTIONS = [
 ];
 
 const SPEC_TOTAL = 225, SPEC_MAX = 75;
-// â”€â”€ DERIVED-STAT BALANCE KNOBS (tweak these to rebalance build-crafting) â”€â”€
-const RED_DIV = 3;        // reduction harshness: âˆ’1 per this many specialty pts (lower = harsher)
-                          // no safety floor â€” a bad build can drop a derived stat to 0 or negative
+// ── DERIVED-STAT BALANCE KNOBS (tweak these to rebalance build-crafting) ──
+const RED_DIV = 3;        // reduction harshness: −1 per this many specialty pts (lower = harsher)
+                          // no safety floor — a bad build can drop a derived stat to 0 or negative
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ════════════════════════════════════════════════════
 // DYNAMIC ROWS
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ════════════════════════════════════════════════════
 let asymCount = 0, genusCount = 0, varnaAbilityCount = 4, cipherCount = 2;
 
 function makeAsymRow(n) {
@@ -1084,19 +1090,19 @@ function makeCipherRow(n){
   d.style.flexDirection='column';d.style.alignItems='stretch';d.style.gap='3px';
   d.innerHTML=`<div style="display:flex;gap:5px;align-items:center;">
       <span class="anum">${n}.</span>
-      <input type="text" id="c${n}" list="cipher-options" placeholder="search ciphersâ€¦" autocomplete="off" onfocus="loadCiphersForParadigm()" onchange="onAdditionalCipherPick(${n})" oninput="renderActionChips('c${n}-benefits','c${n}-chips','c${n}')" style="flex:1;">
+      <input type="text" id="c${n}" list="cipher-options" placeholder="search ciphers…" autocomplete="off" onfocus="loadCiphersForParadigm()" onchange="onAdditionalCipherPick(${n})" oninput="renderActionChips('c${n}-benefits','c${n}-chips','c${n}')" style="flex:1;">
       <select id="c${n}-type" style="width:80px;"><option>Offline</option><option>Online</option></select>
     </div>
     <textarea id="c${n}-benefits" placeholder="effect / benefits (auto-filled from the wiki, editable)" style="min-height:34px;" oninput="renderActionChips('c${n}-benefits','c${n}-chips','c${n}')"></textarea>
     <div class="action-chips" id="c${n}-chips"></div>`;
   return d;
 }
-// Pick an additional cipher from the paradigm list â†’ fill its effect + type + chips.
+// Pick an additional cipher from the paradigm list → fill its effect + type + chips.
 function onAdditionalCipherPick(n){
   const el=document.getElementById('c'+n); if(!el)return;
   const c=cipherByName[(el.value||'').trim().toLowerCase()];
   if(c){
-    const ben=document.getElementById('c'+n+'-benefits'); if(ben)ben.value=c.name+' â€” '+c.effect;
+    const ben=document.getElementById('c'+n+'-benefits'); if(ben)ben.value=c.name+' — '+c.effect;
     const ty=document.getElementById('c'+n+'-type'); if(ty)ty.value=c.section==='Online'?'Online':'Offline';
   }
   renderActionChips('c'+n+'-benefits','c'+n+'-chips','c'+n);
@@ -1126,10 +1132,10 @@ function updateCipherBtn(){
   btn.disabled=cipherCount>max;
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ════════════════════════════════════════════════════
 // SPECIES
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// â”€â”€ WIKI LIVE-SYNC (Fandom MediaWiki API) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ════════════════════════════════════════════════════
+// ── WIKI LIVE-SYNC (Fandom MediaWiki API) ──────────────────
 // Local SPECIES_DATA is the offline fallback + home of the concrete numbers
 // (bonuses, which aren't on the wiki). At runtime we overlay the wiki's current
 // innate abilities & variants on top so ability text never drifts from canon.
@@ -1143,7 +1149,7 @@ function cleanWiki(s){
     .replace(/\[\[[^\]|]*\|([^\]]*)\]\]/g,'$1')
     .replace(/\[\[([^\]]*)\]\]/g,'$1')
     .replace(/<[^>]+>/g,'')
-    .replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&mdash;/gi,'â€”').replace(/&minus;/gi,'âˆ’')
+    .replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&mdash;/gi,'—').replace(/&minus;/gi,'−')
     .replace(/\s+/g,' ').trim();
 }
 function wSection(wt,heading){
@@ -1180,7 +1186,7 @@ function wParseAbilities(tbl){
     if(r.some(c=>c.hdr)||!r.length)return;
     if(r[0].name){
       const name=cleanWiki(r[0].text);
-      const desc=cleanWiki(r.slice(1).map(c=>c.text).join(' â€” '));
+      const desc=cleanWiki(r.slice(1).map(c=>c.text).join(' — '));
       if(name)out.push({name,desc});
     }
   });
@@ -1210,11 +1216,11 @@ async function fetchSpeciesWiki(name){
 function setSpeciesSync(state){
   const el=document.getElementById('sp-sync'); if(!el)return;
   if(!state){el.textContent='';return;}
-  if(state==='loading'){el.textContent='syncingâ€¦';el.style.color='var(--muted)';}
+  if(state==='loading'){el.textContent='syncing…';el.style.color='var(--muted)';}
   else if(state==='synced'){el.textContent='synced from wiki';el.style.color='#3a8050';}
-  else{el.textContent='offline â€” local data';el.style.color='#b88a20';}
+  else{el.textContent='offline — local data';el.style.color='#b88a20';}
 }
-// Merge local (numbers/fallback) with cached wiki abilities â†’ {label,title}[] chips
+// Merge local (numbers/fallback) with cached wiki abilities → {label,title}[] chips
 function mergedSpecies(sp){
   const local=SPECIES_DATA[sp]; if(!local)return null;
   const live=wikiSpeciesCache[sp];
@@ -1248,7 +1254,7 @@ function renderSpecies(){
   if(prevVariant&&d.variants[prevVariant])varSel.value=prevVariant;
   box.classList.add('visible');
   document.getElementById('sp-family').textContent=d.family;
-  document.getElementById('sp-note').textContent=d.note?('â€” '+d.note):'';
+  document.getElementById('sp-note').textContent=d.note?('— '+d.note):'';
   wikiLink.href=d.url; wikiLink.style.display='inline';
   const bt=document.getElementById('sp-bonus-tags');bt.innerHTML='';
   const labels={'a-phy':'PHY','a-dex':'DEX','a-end':'END','a-ap':'AP','a-wis':'WIS','a-con':'CHA','a-int':'INT'};
@@ -1309,7 +1315,7 @@ function renderAbilityDefs(containerId,abilities,variant){
     const meta=parseEffectMeta(def);
     const bh=metaBadgesHTML(meta);
     const d=document.createElement('div'); d.className='def-item'+(variant?' variant':'');
-    d.innerHTML=`<b>${esc(a.label)}</b>${def?(' â€” '+esc(def)):''}`+(bh?` <span class="def-meta">${bh}</span>`:'');
+    d.innerHTML=`<b>${esc(a.label)}</b>${def?(' — '+esc(def)):''}`+(bh?` <span class="def-meta">${bh}</span>`:'');
     el.appendChild(d);
   });
 }
@@ -1318,7 +1324,7 @@ function getSpeciesBonus(){
   return (sp&&SPECIES_DATA[sp])?SPECIES_DATA[sp].bonus:{};
 }
 
-// â”€â”€ SMART GENUS â€” scraped from the 5 domain pages, gated by paradigm â”€â”€
+// ── SMART GENUS — scraped from the 5 domain pages, gated by paradigm ──
 const GENUS_DOMAINS=['Neutral','Eldritch','Elemental','Null','Kinetic'];
 const genusCache={};   // domain -> [{name,domain,ss,ssText,activation,classification,effect}]
 const genusByName={};  // lowercase name -> genus
@@ -1368,7 +1374,7 @@ async function loadGenusForParadigm(){
   if(_genusLoading)return; _genusLoading=true;
   const doms=paradigmDomains();
   const note=document.getElementById('genus-domain-note');
-  if(doms.some(d=>!genusCache[d])&&note)note.textContent='Loading Genus for '+doms.join(', ')+'â€¦';
+  if(doms.some(d=>!genusCache[d])&&note)note.textContent='Loading Genus for '+doms.join(', ')+'…';
   let ok=0;
   await Promise.all(doms.map(d=>fetchGenusDomain(d).then(()=>ok++).catch(()=>{})));
   _genusLoading=false;
@@ -1376,27 +1382,27 @@ async function loadGenusForParadigm(){
   if(note){
     const total=doms.reduce((n,d)=>n+((genusCache[d]||[]).length),0);
     note.textContent= total
-      ? `Genus suggestions limited to your domains: ${doms.join(', ')} Â· ${total} available (from wiki)`
-      : `Offline â€” type Genus names manually (domains: ${doms.join(', ')})`;
+      ? `Genus suggestions limited to your domains: ${doms.join(', ')} · ${total} available (from wiki)`
+      : `Offline — type Genus names manually (domains: ${doms.join(', ')})`;
   }
 }
 function renderGenusDatalist(){
   const dl=document.getElementById('genus-options'); if(!dl)return;
   const opts=[];
-  paradigmDomains().forEach(d=>(genusCache[d]||[]).forEach(g=>opts.push(`<option value="${(g.name||'').replace(/"/g,'&quot;')}">${g.domain} Â· ${g.ss} SS</option>`)));
+  paradigmDomains().forEach(d=>(genusCache[d]||[]).forEach(g=>opts.push(`<option value="${(g.name||'').replace(/"/g,'&quot;')}">${g.domain} · ${g.ss} SS</option>`)));
   dl.innerHTML=opts.join('');
 }
 function onGenusPick(n){
   const nameEl=document.getElementById('gn-name-'+n); if(!nameEl)return;
   const g=genusByName[(nameEl.value||'').trim().toLowerCase()];
-  if(!g)return; // unknown / freeform â€” leave as typed
+  if(!g)return; // unknown / freeform — leave as typed
   const set=(id,v)=>{const e=document.getElementById(id);if(e)e.value=v;};
   set('gn-dom-'+n,g.domain); set('gn-ss-'+n,g.ss); set('gn-act-'+n,g.activation); set('gn-fx-'+n,g.effect);
   renderActionChips('gn-fx-'+n,'gn-chips-'+n,'gn-name-'+n);
   autosave();
 }
 
-// â”€â”€ CIPHERS â€” scraped per paradigm; Curator can deactivate Online ciphers â”€â”€
+// ── CIPHERS — scraped per paradigm; Curator can deactivate Online ciphers ──
 const cipherCache={};   // paradigm -> [cipher]
 const cipherByName={};  // lowercase name -> cipher
 function parseCipherPage(wt,paradigm){
@@ -1429,27 +1435,27 @@ async function loadCiphersForParadigm(){
   const note=document.getElementById('cipher-domain-note');
   if(!p){ if(note)note.textContent='Pick a Paradigm to load its Ciphers.'; return; }
   if(_cipherLoading)return; _cipherLoading=true;
-  if(!cipherCache[p]&&note)note.textContent='Loading '+p+' Ciphersâ€¦';
+  if(!cipherCache[p]&&note)note.textContent='Loading '+p+' Ciphers…';
   try{ await fetchCipherPage(p); }catch(e){}
   _cipherLoading=false;
   renderCipherDatalist();
   if(note){
     const list=cipherCache[p]||[];
     const n=s=>list.filter(c=>c.section===s).length;
-    note.textContent= list.length ? `${p} Ciphers Â· ${list.length} (Offline ${n('Offline')} Â· Online ${n('Online')} Â· Special ${n('Special')})` : 'Offline â€” enter cipher details manually';
+    note.textContent= list.length ? `${p} Ciphers · ${list.length} (Offline ${n('Offline')} · Online ${n('Online')} · Special ${n('Special')})` : 'Offline — enter cipher details manually';
   }
 }
 function renderCipherDatalist(){
   const dl=document.getElementById('cipher-options'); if(!dl)return;
   const list=cipherCache[document.getElementById('f-paradigm').value]||[];
-  dl.innerHTML=list.map(c=>`<option value="${(c.name||'').replace(/"/g,'&quot;')}">${c.section} Â· ${c.ss} SS</option>`).join('');
+  dl.innerHTML=list.map(c=>`<option value="${(c.name||'').replace(/"/g,'&quot;')}">${c.section} · ${c.ss} SS</option>`).join('');
 }
 function onCipherPick(){
   const el=document.getElementById('c-pick'); if(!el)return;
   const c=cipherByName[(el.value||'').trim().toLowerCase()];
   if(!c)return;
   const set=(id,v)=>{const e=document.getElementById(id);if(e)e.value=v;};
-  set('c-benefits', c.name+' â€” '+c.effect);
+  set('c-benefits', c.name+' — '+c.effect);
   set('c-type', c.section==='Online'?'Online':'Offline');
   set('c-tl', c.section==='Online'?3:2);
   renderActionChipsFromText(c.effect,'cipher-chips',c.name);
@@ -1472,9 +1478,9 @@ function updateCipherToggleBtn(){
   b.className='tp-btn'+(onlineCiphersOff?'':' ghost');
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ════════════════════════════════════════════════════
 // PARADIGM & BACKGROUND
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ════════════════════════════════════════════════════
 function onParadigmChange(){
   const p=document.getElementById('f-paradigm').value;
   const box=document.getElementById('paradigm-box');
@@ -1489,7 +1495,7 @@ function onParadigmChange(){
   document.getElementById('pi-heavy').textContent=d.weapons.Heavy;
   document.getElementById('pi-domains').textContent=d.domains.join(', ');
   document.getElementById('wpn-hint').textContent=
-    `${p} Paradigm â€” Light: ${d.weapons.Light} Â· Medium: ${d.weapons.Medium} Â· Heavy: ${d.weapons.Heavy}`;
+    `${p} Paradigm — Light: ${d.weapons.Light} · Medium: ${d.weapons.Medium} · Heavy: ${d.weapons.Heavy}`;
   const pl=document.getElementById('pi-wiki'); if(pl)pl.href=wikiPageUrl(p);
   loadGenusForParadigm(); loadCiphersForParadigm();
   calcAll(); autosave();
@@ -1504,7 +1510,7 @@ function onBackgroundChange(autoAssign){
   loadBackgroundData().then(()=>{
     const d=BACKGROUND_DATA&&BACKGROUND_DATA[bg];
     if(!d){hideBgMechanic();return;}
-    if(autoAssign){ // user picked this background â€” auto-fill its bonus stats (flat +2/+2/+1/+1)
+    if(autoAssign){ // user picked this background — auto-fill its bonus stats (flat +2/+2/+1/+1)
       document.getElementById('bg-type').value='standard';
       renderBgBonuses();
       d.bonuses.forEach((b,i)=>{ const sel=document.getElementById('bg-b'+i); if(sel&&b.id)sel.value=b.id; });
@@ -1540,9 +1546,9 @@ function getBgBonuses(){
   return bonuses;
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ════════════════════════════════════════════════════
 // RANK
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ════════════════════════════════════════════════════
 const RANK_MULT=[1.00,1.20,1.40,1.45,1.50,1.55,1.60,1.65,1.70,1.75]; // Rank 0..9 (9 = Apex)
 function rankMult(){ const r=Math.max(0,Math.min(9,parseInt(document.getElementById('f-level').value)||0)); return RANK_MULT[r]; }
 function onRankChange(){
@@ -1552,19 +1558,19 @@ function updateRankBar(){
   const rank=parseInt(document.getElementById('f-level').value)||0;
   const paradigm=document.getElementById('f-paradigm').value;
   const d=PARADIGM_DATA[paradigm];
-  const title=d?d.titles[Math.min(rank,d.titles.length-1)]:'â€”';
+  const title=d?d.titles[Math.min(rank,d.titles.length-1)]:'—';
   document.getElementById('rb-rank').textContent=rank;
   document.getElementById('rb-title').textContent=title;
   document.getElementById('rb-genus').textContent=5+rank;
   document.getElementById('rb-ciphers').textContent=1+rank;
-  document.getElementById('rb-hp').textContent=document.getElementById('d-hpmax').value||'â€”';
-  document.getElementById('rb-mult').textContent='Ã—'+rankMult().toFixed(2);
-  document.getElementById('pe-mult').textContent='Ã—'+rankMult().toFixed(2);
+  document.getElementById('rb-hp').textContent=document.getElementById('d-hpmax').value||'—';
+  document.getElementById('rb-mult').textContent='×'+rankMult().toFixed(2);
+  document.getElementById('pe-mult').textContent='×'+rankMult().toFixed(2);
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ════════════════════════════════════════════════════
 // CALCULATIONS
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ════════════════════════════════════════════════════
 function getV(id){return parseInt(document.getElementById(id)?.value)||0;}
 function setRO(id,val){const el=document.getElementById(id);if(el&&el.readOnly)el.value=val;}
 
@@ -1610,11 +1616,11 @@ function calcAll(){
   const spIds=['s-ins','s-ver','s-bal','s-wt','s-pre','s-ctrl','s-pri','s-wm','s-mf','s-per','s-adp','s-cun'];
   spKeys.forEach((k,i)=>{ sm[k]=Math.floor(sp[k]/10)*2; setRO('sm-'+spIds[i].slice(2),sm[k]); });
 
-  const red=(pts)=>Math.floor(pts/RED_DIV);    // reduction: âˆ’1 per RED_DIV pts
-  // DERIVED STAT â€” STEP 1: subtotal = 5 + full value of each contributing stat.
+  const red=(pts)=>Math.floor(pts/RED_DIV);    // reduction: −1 per RED_DIV pts
+  // DERIVED STAT — STEP 1: subtotal = 5 + full value of each contributing stat.
   // STEP 2: maximum = subtotal + 2 per full 10 points of that subtotal.
-  // STEP 3: subtract reductions last â€” NO floor, so it can hit 0 or go negative.
-  //   e.g. END 20 + Weight 25 â†’ subtotal 50 â†’ +10 â†’ 60 max â†’ minus reductions.
+  // STEP 3: subtract reductions last — NO floor, so it can hit 0 or go negative.
+  //   e.g. END 20 + Weight 25 → subtotal 50 → +10 → 60 max → minus reductions.
   const dv=(contribs, reductions)=>{
     const S = 5 + contribs;                    // subtotal incl. base +5
     const max = S + Math.floor(S/10)*2;        // +2 per 10 points of the subtotal
@@ -1633,7 +1639,7 @@ function calcAll(){
   const pr  = dv(raw.wis + sp.per + sp.cun,            red(sp.mf) + red(sp.bal));
 
   const ov=(id)=>parseInt(document.getElementById(id)?.value)||0;
-  // No clamp â€” a badly-built stat shows its true 0 or negative value as a liability.
+  // No clamp — a badly-built stat shows its true 0 or negative value as a liability.
   setRO('d-atk', atk+ov('do-atk'));
   setRO('d-dhp', dhp+ov('do-dhp'));
   setRO('d-mv',  mv +ov('do-mv'));
@@ -1645,7 +1651,7 @@ function calcAll(){
   setRO('d-inf', inf+ov('do-inf'));
   setRO('d-pr',  pr +ov('do-pr'));
 
-  // HP = floor((DHP/2) Ã— rankMult) + END mod (HP itself still bottoms out at 0 = death)
+  // HP = floor((DHP/2) × rankMult) + END mod (HP itself still bottoms out at 0 = death)
   const dhpVal = dhp+ov('do-dhp');
   const hpMax  = Math.floor((dhpVal/2)*rankMult()) + m.end;
   setRO('d-hpmax', hpMax>0?hpMax:0);
@@ -1668,9 +1674,9 @@ function calcAll(){
   publishCombatantDebounced();
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ════════════════════════════════════════════════════
 // STAGE / CIPHER STATUS
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ════════════════════════════════════════════════════
 let currentStage='', cipherStatus='active';
 function setStage(s){
   ['species','lineage','heritage'].forEach(x=>document.getElementById('stage-'+x).classList.toggle('active',x===s));
@@ -1682,9 +1688,9 @@ function setCipherStatus(s){
   autosave();
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ════════════════════════════════════════════════════
 // PRESSURE ENGINE
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ════════════════════════════════════════════════════
 function gateAllows(id){
   if(typeof Table==='undefined'||!Table.connected)return true;
   const g=Table.gates&&Table.gates[Table.clientId];
@@ -1696,7 +1702,7 @@ function buildPESkills(){
   const attrs=ATTRS.filter(a=>gateAllows(a[0]));
   for(let i=1;i<=4;i++){
     const row=document.createElement('div');row.className='pe-skill-row';
-    const spOpts='<option value="">â€” skill â€”</option>'+specs.map(s=>`<option value="${s[0]}">${s[1]}</option>`).join('');
+    const spOpts='<option value="">— skill —</option>'+specs.map(s=>`<option value="${s[0]}">${s[1]}</option>`).join('');
     const atOpts='<option value="">no attr</option>'+attrs.map(a=>`<option value="${a[0]}">${a[1]}</option>`).join('');
     row.innerHTML=`<div class="rl">${i}</div>
       <select id="pe-sp-${i}" onchange="autosave()">${spOpts}</select>
@@ -1721,7 +1727,7 @@ function resolvePE(){
   for(let i=1;i<=4;i++){
     const spId=document.getElementById('pe-sp-'+i).value;
     const out=document.getElementById('pe-r-'+i);
-    if(!spId){ out.textContent='â€”'; continue; }
+    if(!spId){ out.textContent='—'; continue; }
     used++;
     const specPts=getV(spId);
     const atId=document.getElementById('pe-at-'+i).value;
@@ -1748,7 +1754,7 @@ function resolvePE(){
   const o=document.getElementById('pe-outcome');
   o.textContent=band.name; o.style.color=band.color;
   document.getElementById('pe-change').textContent= connected
-    ? ((finalDelta>=0?'+':'')+finalDelta+' â†’ shared BP'+(isAntag?' (antagonist)':''))
+    ? ((finalDelta>=0?'+':'')+finalDelta+' → shared BP'+(isAntag?' (antagonist)':''))
     : ((band.change>=0?'+':'')+band.change+'  ('+band.range+')');
   res.dataset.change=finalDelta;
   res.dataset.outcome=band.name;
@@ -1756,9 +1762,9 @@ function resolvePE(){
   toast(band.name);
 }
 function peBand(diff){
-  if(diff>=6)   return {name:'CRITICAL SUCCESS', color:'#2f7a45', change:-8, range:'âˆ’6 to âˆ’10'};
-  if(diff>=4)   return {name:'SUCCESS',          color:'#4e7fa5', change:-4, range:'âˆ’4'};
-  if(diff>=2)   return {name:'SIMPLE SUCCESS',   color:'#3d3c39', change:-2, range:'âˆ’2'};
+  if(diff>=6)   return {name:'CRITICAL SUCCESS', color:'#2f7a45', change:-8, range:'−6 to −10'};
+  if(diff>=4)   return {name:'SUCCESS',          color:'#4e7fa5', change:-4, range:'−4'};
+  if(diff>=2)   return {name:'SIMPLE SUCCESS',   color:'#3d3c39', change:-2, range:'−2'};
   if(diff>=-1)  return {name:'PARTIAL / STALEMATE', color:'#b88a20', change:0, range:'0'};
   if(diff>=-3)  return {name:'FUMBLE',           color:'#c07030', change:2, range:'+1 to +2'};
   if(diff>=-5)  return {name:'FAILURE',          color:'#a03535', change:4, range:'+3 to +5'};
@@ -1770,7 +1776,7 @@ function applyPEChange(){
   if(typeof Table!=='undefined'&&Table.connected){
     // contribute to the ONE shared BP; the state/bp listener updates everyone's value
     Table.applyPEDelta(ch);
-    Table.log(`${Table.name}${Table.role==='curator'?' (antagonist)':''}: ${res.dataset.outcome||'resolved'} â†’ BP ${ch>=0?'+':''}${ch}`);
+    Table.log(`${Table.name}${Table.role==='curator'?' (antagonist)':''}: ${res.dataset.outcome||'resolved'} → BP ${ch>=0?'+':''}${ch}`);
     res.classList.remove('show');
     toast('Shared BP '+(ch>=0?'+':'')+ch);
     return;
@@ -1779,16 +1785,16 @@ function applyPEChange(){
   const nv=Math.max(0,pe+ch);
   document.getElementById('pe-val').value=nv;
   updatePEState(); res.classList.remove('show'); autosave();
-  toast('PE â†’ '+nv);
+  toast('PE → '+nv);
 }
 function resetPESkills(){
-  for(let i=1;i<=4;i++){ document.getElementById('pe-sp-'+i).value=''; document.getElementById('pe-at-'+i).value=''; document.getElementById('pe-r-'+i).textContent='â€”'; }
+  for(let i=1;i<=4;i++){ document.getElementById('pe-sp-'+i).value=''; document.getElementById('pe-at-'+i).value=''; document.getElementById('pe-r-'+i).textContent='—'; }
   document.getElementById('pe-result').classList.remove('show'); autosave();
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ════════════════════════════════════════════════════
 // SAVE / LOAD / CLEAR
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ════════════════════════════════════════════════════
 function collectAll(){
   const d={
     __asymCount:asymCount, __genusCount:genusCount,
@@ -1834,7 +1840,7 @@ function applyAll(d){
   // pull live cipher/genus data for this paradigm so pickers work after an old-file load
   if(d['f-paradigm']){loadGenusForParadigm();loadCiphersForParadigm();}
 }
-function autosave(){localStorage.setItem('wte-sheet-v6',JSON.stringify(collectAll()));}
+function autosave(){const d=collectAll();localStorage.setItem('wte-sheet-v6',JSON.stringify(d));if(typeof rosterPersistActive==='function')rosterPersistActive(d);}
 document.addEventListener('change',autosave);
 document.addEventListener('input',e=>{
   if(e.target.classList.contains('spec-in')||e.target.id.startsWith('a-')||e.target.id.startsWith('do-'))calcAll();
@@ -1870,8 +1876,8 @@ function resetDynamicRows(){
   document.getElementById('cipher-list').appendChild(makeCipherRow(2));
   cipherCount=2;
 }
-function clearSheet(){
-  if(!confirm('Clear ALL data and reset the sheet to a blank rank-0 character?'))return;
+// Reset the sheet to a blank rank-0 character (no confirm/toast) — reused by Clear + roster switching.
+function blankSheet(){
   resetDynamicRows();
   document.querySelectorAll('input:not([readonly]),textarea').forEach(el=>{ if(el.type==='checkbox')el.checked=false; else el.value=''; });
   document.querySelectorAll('select').forEach(el=>el.selectedIndex=0);
@@ -1883,24 +1889,95 @@ function clearSheet(){
   ['species-box','paradigm-box','bg-bonus-box'].forEach(id=>document.getElementById(id).classList.remove('visible'));
   if(typeof hideBgMechanic==='function')hideBgMechanic();
   if(typeof bgMechanicActive!=='undefined')bgMechanicActive=false;
-  // wipe derived/generated UI bits
   document.querySelectorAll('.action-chips').forEach(c=>c.innerHTML='');
   ['cipher-options','genus-options'].forEach(id=>{const e=document.getElementById(id);if(e)e.innerHTML='';});
   const gd=document.getElementById('genus-domain-note'); if(gd)gd.textContent='Pick a Paradigm to filter Genus by its energy domains.';
   const cd=document.getElementById('cipher-domain-note'); if(cd)cd.textContent='Pick a Paradigm to load its Ciphers.';
   const cb=document.getElementById('cipher-block-note'); if(cb)cb.style.display='none';
   onParadigmChange(); onBackgroundChange(); onSpeciesChange();
-  calcAll();updateGenusBtn();updateCipherBtn();updatePEState();refreshAllActionChips();autosave();
-  toast('Cleared.');
+  calcAll();updateGenusBtn();updateCipherBtn();updatePEState();refreshAllActionChips();
+}
+function clearSheet(){
+  if(!confirm('Clear this character to a blank rank-0 sheet?'))return;
+  blankSheet(); autosave(); toast('Cleared.');
+}
+
+// ════════════════════════════════════════════════════
+// MULTI-CHARACTER ROSTER — many characters in one app
+// ════════════════════════════════════════════════════
+const ROSTER_KEY='wte-roster-v1';
+function rosterLoad(){ try{const r=JSON.parse(localStorage.getItem(ROSTER_KEY));if(r&&r.chars)return r;}catch(e){} return {activeId:'',chars:{}}; }
+function rosterSave(r){ localStorage.setItem(ROSTER_KEY,JSON.stringify(r)); }
+function charKey(id){ return 'wte-chardata-'+id; }
+function newCharId(){ return 'ch'+Date.now().toString(36)+Math.random().toString(36).slice(2,5); }
+// Persist the live sheet into the active character's slot (called from autosave).
+function rosterPersistActive(d){
+  const r=rosterLoad(); if(!r.activeId)return;
+  d=d||collectAll();
+  localStorage.setItem(charKey(r.activeId),JSON.stringify(d));
+  const c=r.chars[r.activeId]; if(c){ const nm=(d['f-name']||'').trim()||'Unnamed'; if(c.name!==nm){c.name=nm; rosterSave(r); renderRosterSelect();} else {c.ts=Date.now(); rosterSave(r);} }
+}
+function renderRosterSelect(){
+  const sel=document.getElementById('roster-select'); if(!sel)return;
+  const r=rosterLoad();
+  const entries=Object.entries(r.chars).sort((a,b)=>(a[1].name||'').localeCompare(b[1].name||''));
+  sel.innerHTML=entries.map(([id,c])=>`<option value="${id}"${id===r.activeId?' selected':''}>${(c.name||'Unnamed').replace(/</g,'&lt;')}</option>`).join('')||'<option>(none)</option>';
+}
+function rosterSwitch(id){
+  const r=rosterLoad(); if(!id||id===r.activeId)return;
+  rosterPersistActive();                 // save current first
+  r.activeId=id; rosterSave(r);
+  const data=(()=>{try{return JSON.parse(localStorage.getItem(charKey(id)));}catch(e){return null;}})();
+  blankSheet();
+  if(data)applyAll(data);
+  renderRosterSelect();
+  toast('Loaded '+((r.chars[id]&&r.chars[id].name)||'character'));
+}
+function rosterNew(){
+  rosterPersistActive();
+  const r=rosterLoad(); const id=newCharId();
+  r.chars[id]={name:'Unnamed',ts:Date.now()}; r.activeId=id; rosterSave(r);
+  blankSheet(); localStorage.setItem(charKey(id),JSON.stringify(collectAll()));
+  renderRosterSelect(); toast('New character');
+}
+function rosterDuplicate(){
+  const r=rosterLoad(); const data=collectAll(); const id=newCharId();
+  data['f-name']=((data['f-name']||'Unnamed')+' (copy)');
+  r.chars[id]={name:data['f-name'],ts:Date.now()}; r.activeId=id; rosterSave(r);
+  localStorage.setItem(charKey(id),JSON.stringify(data));
+  document.getElementById('f-name').value=data['f-name'];
+  renderRosterSelect(); autosave(); toast('Duplicated');
+}
+function rosterDelete(){
+  const r=rosterLoad(); const id=r.activeId;
+  const ids=Object.keys(r.chars);
+  if(ids.length<=1){ toast('Keep at least one character'); return; }
+  if(!confirm('Delete "'+((r.chars[id]&&r.chars[id].name)||'this character')+'"? This cannot be undone.'))return;
+  delete r.chars[id]; localStorage.removeItem(charKey(id));
+  r.activeId=Object.keys(r.chars)[0]; rosterSave(r);
+  const data=(()=>{try{return JSON.parse(localStorage.getItem(charKey(r.activeId)));}catch(e){return null;}})();
+  blankSheet(); if(data)applyAll(data);
+  renderRosterSelect(); toast('Deleted');
+}
+// First-run migration: fold any existing single-character save into the roster.
+function rosterInit(){
+  let r=rosterLoad();
+  if(!r.activeId||!Object.keys(r.chars).length){
+    const legacy=localStorage.getItem('wte-sheet-v6');
+    const id=newCharId(); let name='Unnamed';
+    if(legacy){ try{name=(JSON.parse(legacy)['f-name']||'').trim()||'Unnamed';}catch(e){} localStorage.setItem(charKey(id),legacy); }
+    r={activeId:id,chars:{[id]:{name,ts:Date.now()}}}; rosterSave(r);
+  }
+  renderRosterSelect();
 }
 function toast(msg){
   const t=document.getElementById('toast');t.textContent=msg;t.style.opacity='1';
   setTimeout(()=>t.style.opacity='0',1700);
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ════════════════════════════════════════════════════
 // DICE ROLLER  (with locked auto-roll context)
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ════════════════════════════════════════════════════
 let selectedDie=40, rollHistory=[], lockedRoll=null;
 function toggleDice(){document.getElementById('dicePanel').classList.toggle('open');}
 function closeDice(){
@@ -1932,13 +2009,13 @@ function rollSelected(){
 }
 function rollExpr(){
   const raw=document.getElementById('dExpr').value,p=parseExpr(raw);
-  if(!p){toast('Invalid â€” e.g. 2d6+3');return;}
+  if(!p){toast('Invalid — e.g. 2d6+3');return;}
   performRoll(p.count,p.sides,p.mod,raw,null);
 }
 function openPanelIfClosed(){ if(!document.getElementById('dicePanel').classList.contains('open'))document.getElementById('dicePanel').classList.add('open'); }
 function showLock(name){
   const l=document.getElementById('dLock');
-  document.getElementById('dLockName').textContent='Locked: '+name+' â€” press Roll';
+  document.getElementById('dLockName').textContent='Locked: '+name+' — press Roll';
   l.classList.add('show');
   document.getElementById('dRollBig').textContent='Roll '+name;
 }
@@ -1949,7 +2026,7 @@ function inlineRoll(label,scoreId){
   openPanelIfClosed(); showLock(label);
   runLockedRoll();
 }
-// Specialty check: 1d40 + pts; pts<=25 â†’ -25 untrained penalty (re-reads current pts)
+// Specialty check: 1d40 + pts; pts<=25 → -25 untrained penalty (re-reads current pts)
 function inlineSpecRoll(label,specId){
   if(!gateAllows(specId)){toast('Curator restricted this roll');return;}
   lockedRoll={kind:'spec',label,specId,sides:40};
@@ -2003,20 +2080,20 @@ function renderHistory(){
 }
 function clearHistory(){
   rollHistory=[];renderHistory();
-  document.getElementById('dResultNum').textContent='â€”';
+  document.getElementById('dResultNum').textContent='—';
   document.getElementById('dResultBreak').textContent='';
   document.getElementById('dResultExpr').textContent='';
   document.getElementById('lastRollNote').textContent='';
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// SMART EFFECT ACTIONS â€” read effect text â†’ roll buttons
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ════════════════════════════════════════════════════
+// SMART EFFECT ACTIONS — read effect text → roll buttons
+// ════════════════════════════════════════════════════
 const ATTR_VOCAB={strength:'a-phy',dexterity:'a-dex',endurance:'a-end','action priority':'a-ap',wisdom:'a-wis',charisma:'a-con',intelligence:'a-int',phy:'a-phy',dex:'a-dex',end:'a-end',ap:'a-ap',wis:'a-wis',con:'a-con',int:'a-int'};
 const SPEC_VOCAB={inspiration:'s-ins',versatility:'s-ver',balance:'s-bal',weight:'s-wt',precision:'s-pre',control:'s-ctrl',priority:'s-pri','weapon mastery':'s-wm','mental fortitude':'s-mf',perception:'s-per',adaptation:'s-adp',adaption:'s-adp',cunning:'s-cun'};
 const ATTR_CODE={'a-phy':'PHY','a-dex':'DEX','a-end':'END','a-ap':'AP','a-wis':'WIS','a-con':'CHA','a-int':'INT'};
 function specLabel(id){const f=SPECS.find(s=>s[0]===id);return f?f[1]:id;}
-// Parse free-text effect â†’ [{label, kind:'attr'|'spec'|'dice', stat?/expr?}]
+// Parse free-text effect → [{label, kind:'attr'|'spec'|'dice', stat?/expr?}]
 function parseEffectActions(text){
   if(!text)return[];
   const actions=[],seen=new Set();
@@ -2048,13 +2125,13 @@ function fireAction(a){
   else if(a.kind==='spec')inlineSpecRoll(a.label,a.stat);
   else if(a.kind==='dice')inlineDiceRoll(a.label,a.expr);
 }
-// â”€â”€ META READER â€” targeting, range, area, and numeric values pulled from effect text â”€â”€
+// ── META READER — targeting, range, area, and numeric values pulled from effect text ──
 // Returns {targets:Number|'all'|null, range:{value,unit}|null, area:{shape,size,unit}|null, values:[{type,expr,label}]}
 function parseEffectMeta(text){
   const meta={targets:null,range:null,area:null,values:[]};
   if(!text)return meta;
   const t=' '+text+' ';
-  // TARGETS â€” "up to 3 targets", "two creatures", "all enemies", "single target"
+  // TARGETS — "up to 3 targets", "two creatures", "all enemies", "single target"
   if(/\b(all|each|every)\s+(enem|target|creature|all(y|ies)|individual|foe|hostile)/i.test(t))meta.targets='all';
   else{
     let mt=t.match(/\b(?:up to|targets?|hits?|strikes?|affects?)\s*(\d+)\s*(?:targets?|creatures?|enemies|individuals?|foes?|allies|figures?)?/i)
@@ -2064,14 +2141,14 @@ function parseEffectMeta(text){
     else{ const mw=t.match(/\b(one|two|three|four|five|six)\s+(?:targets?|creatures?|enemies|individuals?|foes?|allies)\b/i); if(mw)meta.targets=words[mw[1].toLowerCase()]; }
     if(/\bsingle\s+target\b/i.test(t)&&!meta.targets)meta.targets=1;
   }
-  // RANGE â€” "within 6 cells", "range 30 ft", "reach 2 squares"
+  // RANGE — "within 6 cells", "range 30 ft", "reach 2 squares"
   const mr=t.match(/\b(?:range|within|reach|up to|out to)\s*(\d+)\s*(cells?|squares?|tiles?|m\b|meters?|metres?|ft\b|feet|foot)/i);
   if(mr)meta.range={value:parseInt(mr[1]),unit:normUnit(mr[2])};
-  // AREA â€” "3-cell radius", "15 ft cone", "line", "burst"
+  // AREA — "3-cell radius", "15 ft cone", "line", "burst"
   const ma=t.match(/(\d+)\s*[- ]?(cells?|squares?|tiles?|m\b|meters?|metres?|ft\b|feet|foot)?\s*(radius|cone|line|burst|blast|sphere|aoe|cube)/i)
         ||t.match(/\b(radius|cone|line|burst|blast|sphere|aoe|cube)\b/i);
   if(ma){ if(ma.length===4)meta.area={shape:ma[3].toLowerCase(),size:parseInt(ma[1])||0,unit:normUnit(ma[2]||'cells')}; else meta.area={shape:ma[1].toLowerCase(),size:0,unit:'cells'}; }
-  // NUMERIC VALUES â€” damage / healing dice or flats
+  // NUMERIC VALUES — damage / healing dice or flats
   const seen=new Set();
   let m,dre=/\b(\d*)d(\d+)([+-]\d+)?\b/gi;
   while((m=dre.exec(text))){ const expr=(m[1]||'1')+'d'+m[2]+(m[3]||''); if(seen.has(expr))continue; seen.add(expr);
@@ -2102,18 +2179,18 @@ function renderActions(containerId,actions,prefix,sourceLabel,meta){
     b.addEventListener('click',()=>fireAction(a));
     el.appendChild(b);
   });
-  // numeric value chips â€” roll/apply the ability's damage or healing directly
+  // numeric value chips — roll/apply the ability's damage or healing directly
   if(meta&&meta.values)meta.values.forEach(v=>{
     const b=document.createElement('button');b.type='button';b.className='act-chip value';
     b.textContent=v.label; b.title=(v.type==='heal'?'Roll healing':'Roll damage')+(Table.connected?' (then pick targets)':'');
     b.addEventListener('click',ev=>fireValue(ev,v,sourceLabel,meta));
     el.appendChild(b);
   });
-  // meta badges â€” targets / range / area
+  // meta badges — targets / range / area
   if(meta){ const bh=metaBadgesHTML(meta); if(bh){const w=document.createElement('span');w.style.display='inline-flex';w.style.gap='4px';w.innerHTML=bh;el.appendChild(w);} }
   if(Table.connected&&sourceLabel&&(actions.length||hasMeta)){
     const sb=document.createElement('button');sb.type='button';sb.className='act-send';
-    sb.textContent=(meta&&(meta.targets==='all'||meta.targets>1||meta.area))?'Use on targetsâ€¦':'Use onâ€¦';
+    sb.textContent=(meta&&(meta.targets==='all'||meta.targets>1||meta.area))?'Use on targets…':'Use on…';
     sb.title='Send these checks to one or more targets at the table';
     sb.addEventListener('click',ev=>showTargetMenu(ev,sourceLabel,actions,meta));
     el.appendChild(sb);
@@ -2121,7 +2198,7 @@ function renderActions(containerId,actions,prefix,sourceLabel,meta){
 }
 // Roll a numeric value (damage/heal); if at a table, offer to apply it to targets directly.
 function fireValue(ev,v,sourceLabel,meta){
-  if(v.expr){ inlineDiceRoll((v.type==='heal'?'Heal':'Damage')+' â€” '+(sourceLabel||''),v.expr); }
+  if(v.expr){ inlineDiceRoll((v.type==='heal'?'Heal':'Damage')+' — '+(sourceLabel||''),v.expr); }
   const amt=v.expr?(window.__lastRollResult?window.__lastRollResult.total:null):v.amount;
   if(Table.connected){ showTargetMenu(ev,sourceLabel,[],meta,{type:v.type,amount:amt,expr:v.expr}); }
   else if(!v.expr&&v.amount!=null){ toast((v.type==='heal'?'Heal ':'Damage ')+v.amount); }
@@ -2150,9 +2227,9 @@ function refreshAllActionChips(){
   refreshCipherChips();
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// EXPORT â€” clean, modular document for Google Docs
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ════════════════════════════════════════════════════
+// EXPORT — clean, modular document for Google Docs
+// ════════════════════════════════════════════════════
 function val(id){const e=document.getElementById(id);return e?(e.value||'').toString().trim():'';}
 function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
@@ -2198,10 +2275,10 @@ function buildExportHTML(){
     html+=`<td style="padding:4px 8px;border:1px solid ${C.line};font-size:11px;"><span style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:${C.mut};display:block;">${d[0]}</span><b style="font-size:14px;">${esc(val(d[1])||'0')}</b></td>`;
     if(i%5===4)html+=`</tr><tr>`;
   });
-  html+=`</tr></table><div style="font-size:11px;color:${C.mut};margin-top:4px;">Max HP ${esc(val('d-hpmax')||'0')} &middot; Current ${esc(val('d-hpcur'))||'â€”'}</div>`;
+  html+=`</tr></table><div style="font-size:11px;color:${C.mut};margin-top:4px;">Max HP ${esc(val('d-hpmax')||'0')} &middot; Current ${esc(val('d-hpcur'))||'—'}</div>`;
 
   // specialties
-  html+=sectionHead('Specialties â€” 225 pts');
+  html+=sectionHead('Specialties — 225 pts');
   html+=`<table style="border-collapse:collapse;width:100%;"><tr>`;
   SPECS.forEach((s,i)=>{
     const pts=val(s[0])||'0', mod=val('sm-'+s[0].slice(2));
@@ -2212,13 +2289,13 @@ function buildExportHTML(){
 
   // species abilities
   if(sp&&SPECIES_DATA[sp]){
-    html+=sectionHead('Incept â€” Species & Abilities');
+    html+=sectionHead('Incept — Species & Abilities');
     html+=`<div style="font-size:12px;line-height:1.7;">`;
     html+=`<b>Family:</b> ${esc(SPECIES_DATA[sp].family)}<br>`;
     html+=`<b>Innate:</b> ${esc(SPECIES_DATA[sp].innate.join(' &middot; '))}<br>`;
     if(variant&&SPECIES_DATA[sp].variants[variant]) html+=`<b>${esc(variant)}:</b> ${esc(SPECIES_DATA[sp].variants[variant].join(' &middot; '))}<br>`;
     if(val('i-wryde'))html+=`<b>Wryde:</b> ${esc(val('i-wryde'))}<br>`;
-    html+=`<b>Stage:</b> ${esc(currentStage||'â€”')} &middot; <b>Expression:</b> ${esc(val('i-expr'))}`;
+    html+=`<b>Stage:</b> ${esc(currentStage||'—')} &middot; <b>Expression:</b> ${esc(val('i-expr'))}`;
     html+=`</div>`;
   }
 
@@ -2242,7 +2319,7 @@ function buildExportHTML(){
 
   // varna
   if(val('v-weapon')||val('vs-path')){
-    html+=sectionHead('Varna â€” Mastery');
+    html+=sectionHead('Varna — Mastery');
     html+=`<table style="border-collapse:collapse;width:100%;"><tr>${cell('Weapon / Technique',val('v-weapon'))}${cell('Proficiency',val('v-prof'))}${cell('Weapon Skill',val('v-skill'))}${cell('Passive',val('v-passive'))}</tr>
       <tr>${cell('Mastery Path',val('vs-path'))}${cell('Save Bonus',val('vs-save'))}${cell('Hit Die',val('vs-hd'))}${cell('',' ')}</tr></table>`;
     let mab=[];for(let i=1;i<=varnaAbilityCount;i++){const v=val('vs-a'+i);if(v)mab.push(v);}
@@ -2281,12 +2358,12 @@ function buildExportHTML(){
 function buildExportText(){
   const L=[];const line=(s='')=>L.push(s);
   const name=val('f-name')||'Unnamed Inquisitor';
-  line('W.T.E Â· INQUISITOR RECORD Â· YEAR 3261');line('='.repeat(50));
+  line('W.T.E · INQUISITOR RECORD · YEAR 3261');line('='.repeat(50));
   line(name.toUpperCase());
-  line(`${val('f-species')}${val('f-variant')?(' â€” '+val('f-variant')):''} Â· ${val('f-paradigm')||'â€”'} Â· Rank ${val('f-level')||'0'}`);line('');
+  line(`${val('f-species')}${val('f-variant')?(' — '+val('f-variant')):''} · ${val('f-paradigm')||'—'} · Rank ${val('f-level')||'0'}`);line('');
   line('IDENTITY');
-  line(`  Background: ${val('f-background')||'â€”'}   CAS: ${val('f-cas')}`);
-  line(`  Family: ${val('f-family')||'â€”'}   Player: ${val('f-player')||'â€”'}`);line('');
+  line(`  Background: ${val('f-background')||'—'}   CAS: ${val('f-cas')}`);
+  line(`  Family: ${val('f-family')||'—'}   Player: ${val('f-player')||'—'}`);line('');
   line('ATTRIBUTES');
   ATTRS.forEach(a=>line(`  ${a[1].padEnd(5)} ${String(val(a[0])||'0').padStart(3)}   mod ${val('m-'+a[0].slice(2))}`));line('');
   line('DERIVED');
@@ -2308,14 +2385,14 @@ function copyExport(){
   const sel=window.getSelection();sel.removeAllRanges();sel.addRange(range);
   let ok=false;try{ok=document.execCommand('copy');}catch(e){}
   sel.removeAllRanges();
-  if(ok){toast('Copied â€” paste into Google Docs');}
+  if(ok){toast('Copied — paste into Google Docs');}
   else{
     // Clipboard API fallback (rich)
     try{
       const blob=new Blob([node.innerHTML],{type:'text/html'});
       const tb=new Blob([buildExportText()],{type:'text/plain'});
-      navigator.clipboard.write([new ClipboardItem({'text/html':blob,'text/plain':tb})]).then(()=>toast('Copied â€” paste into Google Docs')).catch(()=>toast('Copy failed â€” select manually'));
-    }catch(e){toast('Copy failed â€” select manually');}
+      navigator.clipboard.write([new ClipboardItem({'text/html':blob,'text/plain':tb})]).then(()=>toast('Copied — paste into Google Docs')).catch(()=>toast('Copy failed — select manually'));
+    }catch(e){toast('Copy failed — select manually');}
   }
 }
 function copyExportText(){
@@ -2330,9 +2407,9 @@ function fallbackText(txt){
 }
 document.getElementById('exportModal').addEventListener('click',e=>{if(e.target.id==='exportModal')closeExport();});
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// WIKI â†” CHARACTER â€” import a character authored on a wiki page
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ════════════════════════════════════════════════════
+// WIKI ↔ CHARACTER — import a character authored on a wiki page
+// ════════════════════════════════════════════════════
 const META_FIELDS=[['name','f-name'],['player','f-player'],['rank','f-level'],['paradigm','f-paradigm'],['species','f-species'],['variant','f-variant'],['background','f-background'],['cas','f-cas'],['family','f-family'],['session','f-session'],['notes','notes']];
 const STAT_LABELS=[
   ['PHY','a-phy'],['DEX','a-dex'],['END','a-end'],['AP','a-ap'],['WIS','a-wis'],['CON','a-con'],['INT','a-int'],
@@ -2374,7 +2451,7 @@ function parseWikiTemplate(text){
 async function importFromWiki(){
   const page=document.getElementById('wiki-page-input').value.trim();
   if(!page){toast('Enter a wiki page name');return;}
-  toast('Fetching '+page+'â€¦');
+  toast('Fetching '+page+'…');
   try{
     const url=WIKI_BASE+'/api.php?action=parse&prop=wikitext&format=json&origin=*&page='+encodeURIComponent(page);
     const r=await fetch(url); if(!r.ok)throw new Error('HTTP '+r.status);
@@ -2388,13 +2465,13 @@ function openWiki(){ document.getElementById('wiki-template-out').value=buildWik
 function closeWiki(){ document.getElementById('wikiModal').classList.remove('open'); }
 function copyWikiTemplate(){
   const ta=document.getElementById('wiki-template-out'); ta.select();
-  try{ document.execCommand('copy'); toast('Template copied â€” paste onto your wiki page'); }catch(e){ if(navigator.clipboard)navigator.clipboard.writeText(ta.value).then(()=>toast('Template copied')); }
+  try{ document.execCommand('copy'); toast('Template copied — paste onto your wiki page'); }catch(e){ if(navigator.clipboard)navigator.clipboard.writeText(ta.value).then(()=>toast('Template copied')); }
 }
 document.getElementById('wikiModal').addEventListener('click',e=>{if(e.target.id==='wikiModal')closeWiki();});
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// LIBRARY â€” folders of saved character sheets (Bosses / NPCs / Monstersâ€¦)
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ════════════════════════════════════════════════════
+// LIBRARY — folders of saved character sheets (Bosses / NPCs / Monsters…)
+// ════════════════════════════════════════════════════
 function libGet(){ try{return JSON.parse(localStorage.getItem('wte-library')||'{"folders":{}}');}catch(e){return {folders:{}};} }
 function libSet(l){ localStorage.setItem('wte-library',JSON.stringify(l)); }
 function jsq(s){ return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
@@ -2402,7 +2479,7 @@ function openLibrary(){ renderLibrary(); document.getElementById('libraryModal')
 function closeLibrary(){ document.getElementById('libraryModal').classList.remove('open'); }
 function libNewFolder(){ const n=(prompt('Folder name (e.g. Bosses, NPCs, Monsters):')||'').trim(); if(!n)return; const l=libGet(); if(!l.folders[n])l.folders[n]=[]; libSet(l); renderLibrary(); }
 function libDeleteFolder(n){ if(!confirm('Delete folder "'+n+'" and all sheets inside it?'))return; const l=libGet(); delete l.folders[n]; libSet(l); renderLibrary(); }
-function libSaveCurrent(folder){ const l=libGet(); const arr=l.folders[folder]||[]; const name=(document.getElementById('f-name').value||'Unnamed').trim(); const data=collectAll(); const ex=arr.find(e=>e.name.toLowerCase()===name.toLowerCase()); if(ex)ex.data=data; else arr.push({id:Math.random().toString(36).slice(2,9),name,data}); l.folders[folder]=arr; libSet(l); renderLibrary(); toast('Saved "'+name+'" â†’ '+folder); }
+function libSaveCurrent(folder){ const l=libGet(); const arr=l.folders[folder]||[]; const name=(document.getElementById('f-name').value||'Unnamed').trim(); const data=collectAll(); const ex=arr.find(e=>e.name.toLowerCase()===name.toLowerCase()); if(ex)ex.data=data; else arr.push({id:Math.random().toString(36).slice(2,9),name,data}); l.folders[folder]=arr; libSet(l); renderLibrary(); toast('Saved "'+name+'" → '+folder); }
 function libLoad(folder,id){ const l=libGet(); const e=(l.folders[folder]||[]).find(x=>x.id===id); if(!e)return; if(!confirm('Load "'+e.name+'" into the sheet? Current unsaved changes will be replaced.'))return; applyAll(e.data); closeLibrary(); toast('Loaded '+e.name); }
 function libDelete(folder,id){ const l=libGet(); const e=(l.folders[folder]||[]).find(x=>x.id===id); if(e&&!confirm('Remove "'+e.name+'" from '+folder+'?'))return; l.folders[folder]=(l.folders[folder]||[]).filter(x=>x.id!==id); libSet(l); renderLibrary(); }
 function renderLibrary(){
@@ -2422,9 +2499,9 @@ function renderLibrary(){
 }
 document.getElementById('libraryModal').addEventListener('click',e=>{if(e.target.id==='libraryModal')closeLibrary();});
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// BACKGROUND MECHANICS â€” scraped from the Background page
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ════════════════════════════════════════════════════
+// BACKGROUND MECHANICS — scraped from the Background page
+// ════════════════════════════════════════════════════
 let BACKGROUND_DATA=null, bgMechanicActive=false;
 function mapBgStats(text){
   const parts=(text||'').split(/,|;/).map(s=>s.trim()).filter(Boolean);
@@ -2462,8 +2539,8 @@ async function loadBackgroundData(){
 function showBgMechanic(bg,d){
   const box=document.getElementById('bg-mechanic'); if(!box)return;
   box.style.display='block';
-  document.getElementById('bg-mech-trigger').textContent='Trigger: '+(d.trigger||'â€”');
-  document.getElementById('bg-mech-effect').textContent='Effect: '+(d.effect||'â€”');
+  document.getElementById('bg-mech-trigger').textContent='Trigger: '+(d.trigger||'—');
+  document.getElementById('bg-mech-effect').textContent='Effect: '+(d.effect||'—');
   applyBgMechState();
 }
 function hideBgMechanic(){ const b=document.getElementById('bg-mechanic'); if(b)b.style.display='none'; }
@@ -2479,9 +2556,9 @@ function applyBgMechState(){
   if(btn){ btn.textContent=active?'Deactivate':'Activate'; btn.disabled=byCurator; btn.title=byCurator?'Curator confirms the trigger at the table':''; }
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// TABLE â€” real-time multiplayer (Firebase Realtime DB)
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ════════════════════════════════════════════════════
+// TABLE — real-time multiplayer (Firebase Realtime DB)
+// ════════════════════════════════════════════════════
 function randCode(){return 'WTE-'+Math.random().toString(36).slice(2,6).toUpperCase();}
 function clientId(){
   let id=localStorage.getItem('wte-client-id');
@@ -2595,7 +2672,7 @@ const Table={
     const ev={type:'action',fromId:this.clientId,fromName:this.name,ability,prompts:actions||[],
       targetId:valid[0],targetName:names[0],targetIds:valid,targetNames:names,ts:Date.now()};
     if(meta){ ev.meta={targets:meta.targets||null,range:meta.range||null,area:meta.area||null}; }
-    if(apply){ ev.apply=apply; } // {type:'damage'|'heal', amount, expr} â†’ VTT applies numerically
+    if(apply){ ev.apply=apply; } // {type:'damage'|'heal', amount, expr} → VTT applies numerically
     this.evRef.push(ev);
   },
   postRoll(label,total){
@@ -2721,7 +2798,7 @@ function showPrompt(e){
     row.appendChild(b);
   });
   card.appendChild(row);
-  const x=document.createElement('span');x.className='tp-prompt-x';x.textContent='Ã—';x.onclick=()=>card.remove();
+  const x=document.createElement('span');x.className='tp-prompt-x';x.textContent='×';x.onclick=()=>card.remove();
   card.appendChild(x);
   wrap.prepend(card);
   if(!document.getElementById('tablePanel').classList.contains('open'))document.getElementById('tablePanel').classList.add('open');
@@ -2751,11 +2828,11 @@ function showTargetMenu(ev,ability,actions,meta,apply){
     menu.appendChild(hdr);
     list.forEach(([id,c])=>{
       const b=document.createElement('button');b.type='button';b.className='tgt-item';
-      const refresh=()=>{b.textContent=(cs.has(id)?'âœ“ ':'')+(c.name||'?')+(id===Table.clientId?' (you)':'');b.style.background=cs.has(id)?'var(--surface2)':'';};
+      const refresh=()=>{b.textContent=(cs.has(id)?'✓ ':'')+(c.name||'?')+(id===Table.clientId?' (you)':'');b.style.background=cs.has(id)?'var(--surface2)':'';};
       b.onclick=e=>{ e.stopPropagation(); if(cs.has(id))cs.delete(id); else{ if(cs.size>=cap){toast('Target limit reached');return;} cs.add(id);} refresh(); };
       refresh(); menu.appendChild(b);
     });
-    const go=document.createElement('button');go.type='button';go.className='tgt-item';go.style.borderTop='2px solid var(--accent)';go.style.color='var(--accent)';go.textContent='Send to selected â†’';
+    const go=document.createElement('button');go.type='button';go.className='tgt-item';go.style.borderTop='2px solid var(--accent)';go.style.color='var(--accent)';go.textContent='Send to selected →';
     go.onclick=e=>{ e.stopPropagation(); if(!cs.size){toast('Pick at least one target');return;} Table.sendAction(ability,actions,[...cs],meta,apply); closeTargetMenu(); toast('Sent to '+cs.size+' target'+(cs.size>1?'s':'')); };
     menu.appendChild(go);
   }
@@ -2766,7 +2843,7 @@ function showTargetMenu(ev,ability,actions,meta,apply){
   setTimeout(()=>document.addEventListener('click',closeTargetMenu,{once:true}),0);
 }
 
-// â”€â”€ ROLL GATING (Curator-controlled per player) â”€â”€
+// ── ROLL GATING (Curator-controlled per player) ──
 function tagRollButtons(){
   document.querySelectorAll('.roll-btn').forEach(b=>{
     const m=(b.getAttribute('onclick')||'').match(/,\s*'([as]-[a-z]+)'/);
@@ -2813,12 +2890,14 @@ function onPEValInput(){
   if(typeof Table!=='undefined'&&Table.connected&&Table.role==='curator')Table.setBP(document.getElementById('pe-val').value);
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ════════════════════════════════════════════════════
 // INIT
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ════════════════════════════════════════════════════
 buildInitialRows();
 buildPESkills();
-const _saved=localStorage.getItem('wte-sheet-v6');
+rosterInit();  // migrate any legacy save into the roster, populate the switcher
+const _active=rosterLoad().activeId;
+const _saved=_active?localStorage.getItem(charKey(_active)):localStorage.getItem('wte-sheet-v6');
 if(_saved){try{applyAll(JSON.parse(_saved));}catch(e){calcAll();updateGenusBtn();updateCipherBtn();}}
 else{calcAll();updateGenusBtn();updateCipherBtn();}
 selectDie(40);
@@ -2828,4 +2907,3 @@ tagRollButtons();
 </script>
 </body>
 </html>
-
