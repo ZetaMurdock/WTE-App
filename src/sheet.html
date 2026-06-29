@@ -2128,7 +2128,7 @@ function fireAction(a){
 // ── META READER — targeting, range, area, and numeric values pulled from effect text ──
 // Returns {targets:Number|'all'|null, range:{value,unit}|null, area:{shape,size,unit}|null, values:[{type,expr,label}]}
 function parseEffectMeta(text){
-  const meta={targets:null,range:null,area:null,values:[]};
+  const meta={targets:null,range:null,area:null,values:[],pattern:null,duration:null,attach:null};
   if(!text)return meta;
   const t=' '+text+' ';
   // TARGETS — "up to 3 targets", "two creatures", "all enemies", "single target"
@@ -2148,6 +2148,18 @@ function parseEffectMeta(text){
   const ma=t.match(/(\d+)\s*[- ]?(cells?|squares?|tiles?|m\b|meters?|metres?|ft\b|feet|foot)?\s*(radius|cone|line|burst|blast|sphere|aoe|cube)/i)
         ||t.match(/\b(radius|cone|line|burst|blast|sphere|aoe|cube)\b/i);
   if(ma){ if(ma.length===4)meta.area={shape:ma[3].toLowerCase(),size:parseInt(ma[1])||0,unit:normUnit(ma[2]||'cells')}; else meta.area={shape:ma[1].toLowerCase(),size:0,unit:'cells'}; }
+  const md=t.match(/\b(?:for|lasts?|over|during)\s+(\d+)\s*(?:rounds?|turns?)/i)||t.match(/\b(\d+)[- ]?(?:round|turn)s?\b/i);
+  if(md)meta.duration=parseInt(md[1]);
+  if(/\b(on yourself|on self|around you|self-?buff|you gain|grants you|surround[a-z]* you|centered on you|follows you|\baura\b)\b/i.test(t))meta.attach='self';
+  else if(/\b(on (?:the|a|each|your) target|marks? the target|attached to the target|follows (?:the )?target|sticks to)\b/i.test(t))meta.attach='target';
+  let pat=null;
+  if(/\b(ring|annulus|halo)\b/i.test(t))pat='ring';
+  else if(/\b(cross|plus[- ]?shaped|cardinal)\b/i.test(t))pat='cross';
+  else if(/\b(wall|barrier)\b/i.test(t))pat='wall';
+  else if(/\b(cone|spray|fan)\b/i.test(t))pat='cone';
+  else if(/\b(beam|ray|lance)\b/i.test(t)||/\bline\b/i.test(t))pat='line';
+  else if(/\b(nova|burst|blast|explos|sphere)\b/i.test(t))pat='circle';
+  if(pat)meta.pattern=pat;
   // NUMERIC VALUES — damage / healing dice or flats
   const seen=new Set();
   let m,dre=/\b(\d*)d(\d+)([+-]\d+)?\b/gi;
@@ -2164,7 +2176,8 @@ function metaBadgesHTML(meta){
   const out=[];
   if(meta.targets)out.push(`<span class="meta-chip" title="number of targets this ability can affect">Targets <b>${meta.targets==='all'?'ALL':meta.targets}</b></span>`);
   if(meta.range)out.push(`<span class="meta-chip" title="effective range">Range <b>${meta.range.value} ${meta.range.unit}</b></span>`);
-  if(meta.area)out.push(`<span class="meta-chip" title="area of effect">Area <b>${meta.area.size?meta.area.size+' ':''}${meta.area.shape}</b></span>`);
+  if(meta.area)out.push(`<span class="meta-chip" title="area of effect">Area <b>${meta.area.size?meta.area.size+' ':''}${meta.pattern||meta.area.shape}</b></span>`);
+  if(meta.duration)out.push(`<span class="meta-chip" title="how long the effect lasts${meta.attach?' — follows '+meta.attach:''}">Duration <b>${meta.duration}r${meta.attach?' · '+meta.attach:''}</b></span>`);
   return out.join('');
 }
 function renderActions(containerId,actions,prefix,sourceLabel,meta){

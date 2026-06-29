@@ -45,6 +45,8 @@ body{background:var(--bg);color:var(--ink);font-family:'Georgia',serif;font-size
 .aim-sh:hover{border-color:#8a6d3b;}
 .aim-sh.on{background:#8a6d3b;border-color:#8a6d3b;color:#fff;}
 .aim-size input{width:42px;background:#2a2722;border:1px solid #4a463e;color:#e7e2d8;font-size:11px;padding:1px 3px;text-align:center;margin:0 3px;}
+.aim-linger select,.aim-linger input{background:#2a2722;border:1px solid #4a463e;color:#e7e2d8;font-size:10px;padding:1px 2px;margin:0 2px;font-family:Georgia,serif;}
+.aim-linger{color:#cfc8ba;}
 .aim-count{color:#9a958c;font-style:italic;}
 .aim-cancel{border:1px solid #4a463e;background:none;color:#cfc8ba;cursor:pointer;font-size:10px;padding:3px 8px;font-family:Georgia,serif;}
 .aim-cancel:hover{border-color:#b03020;color:#e08070;}
@@ -136,14 +138,20 @@ body{background:var(--bg);color:var(--ink);font-family:'Georgia',serif;font-size
     <div class="aim-bar" id="aim-bar">
       <span class="aim-title" id="aim-title">Aiming</span>
       <span class="aim-shapes">
-        <button class="aim-sh" data-sh="single" onclick="setAimShape('single')" title="single target">●</button>
-        <button class="aim-sh" data-sh="circle" onclick="setAimShape('circle')" title="circle / radius">◯</button>
-        <button class="aim-sh" data-sh="cone" onclick="setAimShape('cone')" title="cone">◣</button>
-        <button class="aim-sh" data-sh="line" onclick="setAimShape('line')" title="line">▭</button>
+        <button class="aim-sh" data-sh="single" onclick="setAimShape('single')" title="single target">Pt</button>
+        <button class="aim-sh" data-sh="circle" onclick="setAimShape('circle')" title="circle / radius">Circ</button>
+        <button class="aim-sh" data-sh="cone" onclick="setAimShape('cone')" title="cone">Cone</button>
+        <button class="aim-sh" data-sh="line" onclick="setAimShape('line')" title="line / beam">Line</button>
+        <button class="aim-sh" data-sh="ring" onclick="setAimShape('ring')" title="ring / halo">Ring</button>
+        <button class="aim-sh" data-sh="cross" onclick="setAimShape('cross')" title="cross / plus">Cross</button>
+        <button class="aim-sh" data-sh="wall" onclick="setAimShape('wall')" title="wall / barrier">Wall</button>
       </span>
       <span class="aim-size" id="aim-size-wrap">Size <input type="number" id="aim-size" min="1" max="60" value="3" onchange="setAimSize(this.value)" oninput="setAimSize(this.value)"><span id="aim-unit">cells</span></span>
+      <span class="aim-linger" title="leave a lingering effect that follows a token for N rounds">Linger
+        <select id="aim-follow"><option value="">off</option><option value="self">self</option><option value="target">target</option></select>
+        <input type="number" id="aim-rounds" min="1" max="20" value="2" style="width:34px;">r</span>
       <span class="aim-count" id="aim-count">0 in area</span>
-      <button class="aim-cancel" onclick="cancelAim()">Cancel ⎋</button>
+      <button class="aim-cancel" onclick="cancelAim()">Cancel (Esc)</button>
     </div>
     <div class="role-badge" id="role-badge">Solo · GM</div>
     <div class="vt-log" id="vt-log"></div>
@@ -201,11 +209,11 @@ let undoStack=[], redoStack=[], pings=[];
 function blankMap(){
   return { name:'Untitled Map', gridType:'square', gridSize:60, gridColor:'#5a564e',
     layers:{bg:{vis:true,lock:false},grid:{vis:true,lock:false},walls:{vis:true,lock:false},lights:{vis:true,lock:false},tokens:{vis:true,lock:false},fog:{vis:true,lock:false},measure:{vis:true,lock:false},sim:{vis:true,lock:false}},
-    bg:{src:'',x:0,y:0,scale:1}, walls:[], tokens:[], lights:[] };
+    bg:{src:'',x:0,y:0,scale:1}, walls:[], tokens:[], lights:[], effects:[] };
 }
 function uid(){return Math.random().toString(36).slice(2,9);}
 function ownedByMe(t){ if(role==='gm')return true; if(!t.owner)return false; return t.owner.trim().toLowerCase()===myName.trim().toLowerCase(); }
-function normalizeMap(){ const def=blankMap(); map.layers=Object.assign({},def.layers,map.layers||{}); ['walls','tokens','lights'].forEach(k=>{if(!Array.isArray(map[k]))map[k]=[];}); if(!map.bg)map.bg=def.bg; if(!map.gridSize)map.gridSize=def.gridSize; if(!map.gridType)map.gridType=def.gridType; }
+function normalizeMap(){ const def=blankMap(); map.layers=Object.assign({},def.layers,map.layers||{}); ['walls','tokens','lights','effects'].forEach(k=>{if(!Array.isArray(map[k]))map[k]=[];}); if(!map.bg)map.bg=def.bg; if(!map.gridSize)map.gridSize=def.gridSize; if(!map.gridType)map.gridType=def.gridType; }
 
 // ════════════════════════════════════════════════ COORDS / SNAP
 function s2w(sx,sy){return {x:(sx-view.panX)/view.zoom, y:(sy-view.panY)/view.zoom};}
@@ -269,6 +277,7 @@ function doDraw(){
   if(fogOn || (map.layers.lights.vis && map.lights.length)) vis=viewerVisionPolys();
   if(map.layers.lights.vis) drawLights();
   if(map.layers.walls.vis) drawWalls();
+  drawEffects();
   if(map.layers.tokens.vis) drawTokens();
   if(wallDraft) drawWallSeg(wallDraft,'rgba(216,178,90,.9)',true);
   drawPings();
@@ -318,11 +327,16 @@ function drawWalls(){
   });
 }
 function drawWallSeg(w,color,strong){ ctx.lineWidth=(strong?5:4); ctx.strokeStyle=color; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(w.x1,w.y1); ctx.lineTo(w.x2,w.y2); ctx.stroke(); }
+const tokImgCache={};
+function getTokImg(src){ if(!src)return null; let im=tokImgCache[src]; if(!im){ im=new Image(); im.onload=()=>render(); im.src=src; tokImgCache[src]=im; } return im; }
 function drawTokens(){
   map.tokens.forEach(t=>{ if(t.visible===false&&role!=='gm')return; const rad=(t.size*map.gridSize)/2;
     ctx.globalAlpha=(t.visible===false)?0.4:0.92;
     ctx.beginPath(); if(t.base==='square')ctx.rect(t.x-rad,t.y-rad,rad*2,rad*2); else ctx.arc(t.x,t.y,rad,0,7);
-    ctx.fillStyle=t.color||'#8a6d3b'; ctx.fill(); ctx.globalAlpha=1;
+    const im=t.img?getTokImg(t.img):null;
+    if(im&&im.complete&&im.naturalWidth){ ctx.save(); ctx.clip(); const sc=Math.max(rad*2/im.naturalWidth,rad*2/im.naturalHeight); const w=im.naturalWidth*sc,h=im.naturalHeight*sc; ctx.drawImage(im,t.x-w/2,t.y-h/2,w,h); ctx.restore(); }
+    else { ctx.fillStyle=t.color||'#8a6d3b'; ctx.fill(); }
+    ctx.globalAlpha=1;
     ctx.lineWidth=2/view.zoom; ctx.strokeStyle=(sel&&sel.type==='token'&&sel.id===t.id)?getCSS('--sel'):(ownedByMe(t)&&role==='player'?'#3a8050':'#1c1b19'); ctx.stroke();
     if(t.hpmax>0){ const bw=rad*2,bx=t.x-rad,by=t.y-rad-9/view.zoom,bh=5/view.zoom; ctx.fillStyle='#000';ctx.fillRect(bx,by,bw,bh);
       const pct=Math.max(0,Math.min(1,(t.hp||0)/t.hpmax)); ctx.fillStyle=pct>.5?'#4a8a4a':pct>.25?'#b8922a':'#a83a2a'; ctx.fillRect(bx,by,bw*pct,bh); }
@@ -442,6 +456,19 @@ window.addEventListener('keydown',e=>{
   if((e.ctrlKey||e.metaKey)&&(e.key==='y'||(e.shiftKey&&e.key==='z'))){e.preventDefault();redo();return;}
   if(e.key==='Delete'||e.key==='Backspace'){delSelected();return;}
   if(e.key==='Escape'){cancelAim();wallDraft=null;measurements=[];measureDraft=null;select(null);render();return;}
+  // Arrow keys move the selected token (one cell; Shift = fine nudge). GM or owner only.
+  if(/^Arrow(Left|Right|Up|Down)$/.test(e.key)){
+    const t=sel&&sel.type==='token'?byId('token',sel.id):null;
+    if(t&&(role==='gm'||ownedByMe(t))&&!(map.layers.tokens&&map.layers.tokens.lock)){
+      e.preventDefault();
+      const step=e.shiftKey?map.gridSize/4:map.gridSize;
+      let nx=t.x,ny=t.y;
+      if(e.key==='ArrowLeft')nx-=step; else if(e.key==='ArrowRight')nx+=step; else if(e.key==='ArrowUp')ny-=step; else ny+=step;
+      if(!e.shiftKey){ const sc=snapCell({x:nx,y:ny}); nx=sc.x; ny=sc.y; }
+      if(!(collisionOn&&moveBlocked(t.x,t.y,nx,ny))){ t.x=nx; t.y=ny; pushTokenPos(t); if(role==='gm')syncMap(); snapshot(); render(); }
+    }
+    return;
+  }
   const tm={v:'select',h:'pan',t:'token',w:'wall',l:'light',p:'ping'}; if(tm[e.key.toLowerCase()])setTool(tm[e.key.toLowerCase()]);
 });
 
@@ -468,9 +495,10 @@ function actorAbilitiesHTML(t){
   a.abilities.forEach((grp,gi)=>{
     const meta=parseEffectMeta(grp.fx||'');
     const badges=[];
-    if(meta.targets)badges.push('&#127919; '+(meta.targets==='all'?'all':meta.targets));
-    if(meta.range)badges.push('&#8596; '+meta.range.value+meta.range.unit);
-    if(meta.area)badges.push('&#9678; '+(meta.area.size?meta.area.size:'')+meta.area.shape);
+    if(meta.targets)badges.push('Tgt '+(meta.targets==='all'?'all':meta.targets));
+    if(meta.range)badges.push('Rng '+meta.range.value+meta.range.unit);
+    if(meta.area)badges.push('AoE '+(meta.area.size?meta.area.size+' ':'')+(meta.pattern||meta.area.shape));
+    if(meta.duration)badges.push('Dur '+meta.duration+'r'+(meta.attach?'/'+meta.attach:''));
     h+=`<div style="font-size:9px;color:var(--muted);margin-top:5px;">${esc(grp.name)}${badges.length?` <span style="color:#8a6d3b;">${esc(badges.join(' '))}</span>`:''}</div><div>`;
     (grp.actions||[]).forEach((act,ai)=>{ h+=`<button class="act-chip" title="roll or aim at a target" onclick="showActionMenu(event,'${t.actor}',${gi},${ai})">${esc(act.label)}</button>`; });
     h+=`</div>`; });
@@ -484,13 +512,15 @@ function renderProps(){
       <div class="row"><label>Size</label><input type="number" step="0.5" min="0.5" value="${t.size}" ${ro?'disabled':''} oninput="upd('size',+this.value||1)"></div>
       <div class="row"><label>Base</label><select ${ro?'disabled':''} onchange="upd('base',this.value)"><option value="circle"${t.base==='circle'?' selected':''}>Circle</option><option value="square"${t.base==='square'?' selected':''}>Square</option></select></div>
       <div class="row"><label>Color</label><input type="color" value="${t.color}" ${ro?'disabled':''} oninput="upd('color',this.value)"></div>
+      ${ro?'':`<div class="row"><label>Image</label><input type="file" accept="image/*" onchange="setTokenImage(this.files[0])" style="font-size:10px;flex:1;">${t.img?`<button class="del" style="padding:2px 6px;" onclick="clearTokenImage()" title="remove image">x</button>`:''}</div>`}
       ${linkedActor(t)
-        ? `<div class="row"><label>HP</label><input type="number" value="${t.hp||0}" disabled title="synced from ${esc(linkedActor(t).name||'character')}'s sheet"><span style="font-size:9px;color:var(--muted);align-self:center;">&#8596; synced w/ sheet</span></div>`
+        ? `<div class="row"><label>HP</label><input type="number" value="${t.hp||0}" disabled title="synced from ${esc(linkedActor(t).name||'character')}'s sheet"><span style="font-size:9px;color:var(--muted);align-self:center;">synced w/ sheet</span></div>`
         : `<div class="row"><label>HP</label><input type="number" value="${t.hp||0}" oninput="upd('hp',+this.value||0)"><input type="number" title="max" value="${t.hpmax||0}" ${ro?'disabled':''} oninput="upd('hpmax',+this.value||0)"></div>`}
       <div class="row"><label>Vision (cells)</label><input type="number" min="0" value="${t.vision||0}" ${ro?'disabled':''} oninput="upd('vision',+this.value||0)" title="0 = line-of-sight, no range limit"></div>
       ${role==='gm'?`<div class="row"><label>Owner</label><input type="text" list="owner-options" value="${esc(t.owner||'')}" placeholder="connected player" oninput="upd('owner',this.value)"></div>`:''}
       ${role==='gm'?`<div class="row"><label>Character</label><select onchange="upd('actor',this.value)"><option value="">${linkedActor(t)?'— unlink —':'— none —'}</option>`+Object.entries(VT.actors||{}).map(([id,a])=>`<option value="${id}"${t.actor===id?' selected':''}>${esc(a.name||id)}</option>`).join('')+`</select>${t.actor&&VT.actors[t.actor]?` <span style="font-size:9px;color:#6fae6f;align-self:center;">auto-linked</span>`:''}</div>`:''}
       ${actorAbilitiesHTML(t)}
+      ${effectsPropsHTML(t)}
       ${simPropsHTML(t)}
       ${ro?'':'<button class="del" onclick="delSelected()" style="margin-top:8px;">Delete token</button>'}`;
   }else if(sel.type==='light'){ const l=byId('light',sel.id); if(!l){el.innerHTML='';return;}
@@ -510,6 +540,17 @@ function renderProps(){
   }
 }
 function upd(k,v){ const o=byId(sel.type,sel.id); if(!o)return; o[k]=v; render(); clearTimeout(upd._t); upd._t=setTimeout(()=>{snapshot();if(sel.type==='token'&&(k==='hp'))pushTokenPos(o);else syncMap();},400); }
+// Custom token image — downscaled to 256px so it stays light enough to sync.
+function setTokenImage(file){ if(!file||!sel||sel.type!=='token')return; const o=byId('token',sel.id); if(!o)return;
+  const r=new FileReader(); r.onload=ev=>{ const img=new Image(); img.onload=()=>{ const max=256; let w=img.naturalWidth,h=img.naturalHeight; const s=Math.min(1,max/Math.max(w,h)); w=Math.round(w*s)||1; h=Math.round(h*s)||1; const cnv=document.createElement('canvas'); cnv.width=w; cnv.height=h; cnv.getContext('2d').drawImage(img,0,0,w,h); o.img=cnv.toDataURL('image/png'); render(); snapshot(); syncMap(); renderProps(); toast('Token image set'); }; img.src=ev.target.result; }; r.readAsDataURL(file); }
+function clearTokenImage(){ if(!sel||sel.type!=='token')return; const o=byId('token',sel.id); if(!o)return; delete o.img; render(); snapshot(); syncMap(); renderProps(); }
+// Lingering effects attached to the selected token (with their countdown).
+function effectsPropsHTML(t){
+  const fx=(map.effects||[]).filter(e=>e.tokenId===t.id);
+  if(!fx.length)return '';
+  return `<div class="actor-h">Lingering Effects</div>`+fx.map(e=>`<div class="row" style="align-items:center;"><span style="flex:1;font-size:11px;">${esc(e.label||e.shape)} <span style="color:var(--muted);">(${e.shape}${e.size?' '+e.size:''})</span></span><span style="font-size:11px;color:#d8b25a;">${e.rounds}r</span><button class="del" style="padding:2px 6px;margin-left:6px;" onclick="removeEffect('${e.id}')" title="remove">x</button></div>`).join('');
+}
+function removeEffect(id){ map.effects=(map.effects||[]).filter(e=>e.id!==id); if(VT.connected&&role==='gm')syncMap(); if(sel&&sel.type==='token')renderProps(); render(); }
 function renderLayers(){
   const order=[['bg','Background'],['grid','Grid'],['walls','Walls'],['lights','Lights'],['tokens','Tokens'],['fog','Fog of War'],['measure','Measurements'],['sim','Simulation']];
   document.getElementById('layers').innerHTML=order.map(([k,n])=>{const L=map.layers[k]; return `<div class="layer"><span class="lv ${L.vis?'on':''}" onclick="toggleLayer('${k}','vis')" title="show / hide">${L.vis?'on':'off'}</span><span class="ll" onclick="toggleLayer('${k}','lock')" title="lock layer">${L.lock?'L':'-'}</span><span class="ln">${n}</span></div>`;}).join('');
@@ -570,16 +611,17 @@ function toast(m){ const t=document.getElementById('toast');t.textContent=m;t.st
 let VT={connected:false,room:null,db:null,ref:null,tableRef:null,clientId:null,members:{},actors:{},_mapT:null,_centered:false};
 let VTaim=null;
 let VTaimCursor=null; // world-space cursor while aiming
-function normShape(s){ s=(s||'').toLowerCase(); if(/cone/.test(s))return 'cone'; if(/line/.test(s))return 'line'; if(/radius|burst|blast|sphere|aoe|cube|circle/.test(s))return 'circle'; return ''; }
+function normShape(s){ s=(s||'').toLowerCase(); if(/cone|spray|fan/.test(s))return 'cone'; if(/wall|barrier/.test(s))return 'wall'; if(/ring|annulus|halo/.test(s))return 'ring'; if(/cross|plus|cardinal/.test(s))return 'cross'; if(/line|beam|ray|lance/.test(s))return 'line'; if(/radius|burst|blast|sphere|aoe|cube|circle|nova/.test(s))return 'circle'; return ''; }
 function aimAction(actorId,gi,ai){ const actor=VT.actors[actorId]; if(!actor||!actor.abilities)return; const grp=actor.abilities[gi]; const act=grp&&grp.actions&&grp.actions[ai]; if(!act)return;
   const fx=grp.fx||(grp.name+' '+act.label); const meta=parseEffectMeta(fx);
-  // pick the most intuitive default shape/size from the ability's own text
-  let shape=meta.area?normShape(meta.area.shape):'';
+  // pick the most intuitive default shape/size from the ability's own text (pattern wins)
+  let shape=meta.pattern?normShape(meta.pattern):(meta.area?normShape(meta.area.shape):'');
   let unit=(meta.area&&meta.area.unit)||(meta.range&&meta.range.unit)||'cells';
   let size=meta.area?(meta.area.size||3):(meta.range?meta.range.value:3);
   if(!shape) shape=(meta.targets==='all'||(typeof meta.targets==='number'&&meta.targets>1))?'circle':'single';
   if(shape==='single')size=0;
-  VTaim={fromName:actor.name||myName,fromActorId:actorId,ability:grp.name,action:act,fx,meta,shape,size,unit};
+  VTaim={fromName:actor.name||myName,fromActorId:actorId,ability:grp.name,action:act,fx,meta,shape,size,unit,
+    follow:meta.attach||'',rounds:meta.duration||2};
   VTaimCursor=null;
   cwrap.classList.add('aiming');
   showAimBar();
@@ -592,6 +634,8 @@ function showAimBar(){ const bar=document.getElementById('aim-bar'); if(!bar||!V
   const sw=document.getElementById('aim-size-wrap'); sw.style.display=VTaim.shape==='single'?'none':'inline';
   document.getElementById('aim-size').value=VTaim.size||3;
   document.getElementById('aim-unit').textContent=VTaim.unit||'cells';
+  const af=document.getElementById('aim-follow'); if(af)af.value=VTaim.follow||'';
+  const ar=document.getElementById('aim-rounds'); if(ar)ar.value=VTaim.rounds||2;
   updateAimCount();
 }
 function setAimShape(s){ if(!VTaim)return; VTaim.shape=s; if(s!=='single'&&!VTaim.size)VTaim.size=3; showAimBar(); render(); }
@@ -607,31 +651,72 @@ function aimTargets(){
   if(!c)return [];
   const px=metaToPixels(VTaim.size||3,VTaim.unit||'cells')||map.gridSize*3;
   if(VTaim.shape==='circle'){ return tokensInRadius(c.x,c.y,px,null); }
+  if(VTaim.shape==='ring'){ const inner=px*0.55; return map.tokens.filter(t=>{ const d=Math.hypot(t.x-c.x,t.y-c.y); return d<=px+t.size*map.gridSize/2 && d>=inner-t.size*map.gridSize/2; }); }
+  if(VTaim.shape==='cross'){ const w=map.gridSize*0.6; return map.tokens.filter(t=>{ const ax=Math.abs(t.x-c.x),ay=Math.abs(t.y-c.y); return (ax<=w&&ay<=px)||(ay<=w&&ax<=px); }); }
   const ox=src?src.x:c.x, oy=src?src.y:c.y;
   let dx=c.x-ox, dy=c.y-oy; const len=Math.hypot(dx,dy)||1; dx/=len; dy/=len;
   if(VTaim.shape==='cone'){ const half=Math.cos(Math.PI/6); // 60° total
     return map.tokens.filter(t=>{ const vx=t.x-ox,vy=t.y-oy; const d=Math.hypot(vx,vy); if(d<1||d>px)return false; return (vx*dx+vy*dy)/d>=half; }); }
   if(VTaim.shape==='line'){ const wHalf=map.gridSize*0.5; // 1-cell wide
     return map.tokens.filter(t=>{ const vx=t.x-ox,vy=t.y-oy; const along=vx*dx+vy*dy; if(along<0||along>px)return false; const perp=Math.abs(vx*(-dy)+vy*dx); return perp<=wHalf+t.size*map.gridSize/2; }); }
+  if(VTaim.shape==='wall'){ const wx=-dy,wy=dx, half=px/2, th=map.gridSize*0.5; // barrier centered on cursor, spanning perpendicular to aim
+    return map.tokens.filter(t=>{ const vx=t.x-c.x,vy=t.y-c.y; const along=vx*wx+vy*wy, perp=vx*dx+vy*dy; return Math.abs(along)<=half+t.size*map.gridSize/2 && Math.abs(perp)<=th+t.size*map.gridSize/2; }); }
   return [];
 }
 function sendActorAction(){
   const a=VTaim; if(!a)return;
+  const follow=((document.getElementById('aim-follow')||{}).value)||'';
+  const rounds=Math.max(1,parseInt((document.getElementById('aim-rounds')||{}).value)||a.rounds||2);
   const hit=aimTargets();
   VTaim=null; VTaimCursor=null; cwrap.classList.remove('aiming'); document.getElementById('hint').textContent='';
   const b=document.getElementById('aim-bar'); if(b)b.classList.remove('show');
-  if(!hit.length){ toast('No targets in area'); render(); return; }
   const src=a.fromActorId?map.tokens.find(t=>t.actor===a.fromActorId):null;
+  // instant application
   hit.forEach(tok=>{ if(a.fx)applySim(tok,a.fx,src||{label:a.fromName}); });
-  if(VT.connected&&VT.tableRef){
+  // lingering effect that follows a token for N rounds
+  if(follow==='self'&&src)addFollowEffect(src.id,a,rounds);
+  else if(follow==='target')hit.forEach(tok=>addFollowEffect(tok.id,a,rounds));
+  if(VT.connected&&VT.tableRef&&hit.length){
     const linked=hit.filter(tok=>tok.actor&&VT.actors&&VT.actors[tok.actor]);
     if(linked.length){ VT.tableRef.child('events').push({type:'action',fromId:VT.clientId,fromName:a.fromName,ability:a.ability,prompts:[a.action],
       targetId:linked[0].actor,targetName:(VT.actors[linked[0].actor].name||'?'),
       targetIds:linked.map(t=>t.actor),targetNames:linked.map(t=>VT.actors[t.actor].name||'?'),
-      meta:{targets:a.meta.targets||null,range:a.meta.range||null,area:a.meta.area||null},ts:Date.now()}); }
+      meta:{targets:a.meta.targets||null,range:a.meta.range||null,area:a.meta.area||null,duration:follow?rounds:null,attach:follow||null},ts:Date.now()}); }
   }
-  toast(a.action.label+' → '+(hit.length>1?hit.length+' targets':((hit[0].label)||'target')));
+  if(VT.connected&&role==='gm')syncMap();
+  if(!hit.length&&!follow)toast('No targets in area');
+  else toast(a.action.label+' → '+(hit.length?(hit.length>1?hit.length+' targets':((hit[0].label)||'target')):(follow==='self'?'self':'placed'))+(follow?' ('+rounds+'r)':''));
+  if(sel&&sel.type==='token')renderProps();
   render();
+}
+// Attach a lingering, token-following effect with a countdown.
+function ensureEffects(){ if(!Array.isArray(map.effects))map.effects=[]; }
+function addFollowEffect(tokenId,a,rounds){
+  if(!tokenId)return; ensureEffects();
+  const tags=(typeof analyzeSim==='function')?analyzeSim(a.fx).tags:[];
+  const colorByTag={fire:'#e0532a',lightning:'#e6c424',water:'#4e9fd0',cold:'#86d4e6','null':'#8a857c',eldritch:'#9a52c8',kinetic:'#b8922a'};
+  const shape=['ring','cross'].includes(a.shape)?a.shape:'circle'; // auras render centered; directional shapes fall back to circle
+  map.effects.push({ id:uid(), tokenId, follow:a.follow||'self', shape, size:a.size||2, unit:a.unit||'cells',
+    color:colorByTag[tags[0]]||'#8a6d3b', rounds, total:rounds, label:(a.action&&a.action.label)||a.ability, fx:a.fx, values:(a.meta&&a.meta.values)||[] });
+}
+// Draw lingering effects (they follow their token because we read its live position each frame).
+function drawEffects(){
+  if(!map.effects||!map.effects.length)return; ctx.save();
+  map.effects.forEach(e=>{
+    const t=map.tokens.find(x=>x.id===e.tokenId); if(!t)return; if(t.visible===false&&role!=='gm')return;
+    const px=metaToPixels(e.size||2,e.unit||'cells')||map.gridSize*2; const col=e.color||'#8a6d3b';
+    ctx.lineWidth=2/view.zoom; ctx.strokeStyle=col; ctx.fillStyle=hexA(col,0.14); ctx.beginPath();
+    if(e.shape==='ring'){ const inner=px*0.55; ctx.arc(t.x,t.y,px,0,Math.PI*2); ctx.arc(t.x,t.y,inner,0,Math.PI*2,true); ctx.fill('evenodd'); ctx.beginPath();ctx.arc(t.x,t.y,px,0,Math.PI*2);ctx.stroke(); ctx.beginPath();ctx.arc(t.x,t.y,inner,0,Math.PI*2);ctx.stroke(); }
+    else if(e.shape==='cross'){ const w=map.gridSize*0.6; ctx.rect(t.x-w,t.y-px,2*w,2*px); ctx.rect(t.x-px,t.y-w,2*px,2*w); ctx.fill(); ctx.stroke(); }
+    else { ctx.arc(t.x,t.y,px,0,Math.PI*2); ctx.fill(); ctx.stroke(); }
+    // countdown badge (depleting arc + remaining rounds)
+    const rad=(t.size*map.gridSize)/2, cx=t.x+rad*0.92, cy=t.y-rad*0.92, tr=7/view.zoom;
+    const frac=e.total?Math.max(0,Math.min(1,e.rounds/e.total)):0;
+    ctx.beginPath(); ctx.arc(cx,cy,tr,0,Math.PI*2); ctx.fillStyle='rgba(20,18,16,.85)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(cx,cy,tr,-Math.PI/2,-Math.PI/2+frac*Math.PI*2); ctx.strokeStyle=col; ctx.lineWidth=2.4/view.zoom; ctx.stroke();
+    ctx.fillStyle='#fff'; ctx.font=`bold ${8/view.zoom}px Georgia`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(String(e.rounds),cx,cy); ctx.textBaseline='alphabetic';
+  });
+  ctx.restore();
 }
 // Draw the aiming overlay: range ring + the chosen shape + highlighted targets.
 function drawAimPreview(){
@@ -645,9 +730,12 @@ function drawAimPreview(){
     ctx.fillStyle='rgba(216,178,90,.16)'; ctx.strokeStyle='rgba(216,178,90,.85)';
     if(VTaim.shape==='single'){ ctx.beginPath(); ctx.arc(c.x,c.y,map.gridSize*0.55,0,Math.PI*2); ctx.stroke(); }
     else if(VTaim.shape==='circle'){ ctx.beginPath(); ctx.arc(c.x,c.y,px,0,Math.PI*2); ctx.fill(); ctx.stroke(); }
+    else if(VTaim.shape==='ring'){ const inner=px*0.55; ctx.beginPath(); ctx.arc(c.x,c.y,px,0,Math.PI*2); ctx.arc(c.x,c.y,inner,0,Math.PI*2,true); ctx.fill('evenodd'); ctx.beginPath(); ctx.arc(c.x,c.y,px,0,Math.PI*2); ctx.stroke(); ctx.beginPath(); ctx.arc(c.x,c.y,inner,0,Math.PI*2); ctx.stroke(); }
+    else if(VTaim.shape==='cross'){ const w=map.gridSize*0.6; ctx.beginPath(); ctx.rect(c.x-w,c.y-px,2*w,2*px); ctx.rect(c.x-px,c.y-w,2*px,2*w); ctx.fill(); ctx.stroke(); }
     else{ const ox=src?src.x:c.x, oy=src?src.y:c.y; let dx=c.x-ox,dy=c.y-oy; const len=Math.hypot(dx,dy)||1; dx/=len; dy/=len; const ang=Math.atan2(dy,dx);
       if(VTaim.shape==='cone'){ const h=Math.PI/6; ctx.beginPath(); ctx.moveTo(ox,oy); ctx.arc(ox,oy,px,ang-h,ang+h); ctx.closePath(); ctx.fill(); ctx.stroke(); }
-      else if(VTaim.shape==='line'){ const w=map.gridSize*0.5; const nx=-dy,ny=dx; ctx.beginPath(); ctx.moveTo(ox+nx*w,oy+ny*w); ctx.lineTo(ox+dx*px+nx*w,oy+dy*px+ny*w); ctx.lineTo(ox+dx*px-nx*w,oy+dy*px-ny*w); ctx.lineTo(ox-nx*w,oy-ny*w); ctx.closePath(); ctx.fill(); ctx.stroke(); } }
+      else if(VTaim.shape==='line'){ const w=map.gridSize*0.5; const nx=-dy,ny=dx; ctx.beginPath(); ctx.moveTo(ox+nx*w,oy+ny*w); ctx.lineTo(ox+dx*px+nx*w,oy+dy*px+ny*w); ctx.lineTo(ox+dx*px-nx*w,oy+dy*px-ny*w); ctx.lineTo(ox-nx*w,oy-ny*w); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+      else if(VTaim.shape==='wall'){ const wx=-dy,wy=dx, half=px/2, th=map.gridSize*0.5; ctx.beginPath(); ctx.moveTo(c.x+wx*half+dx*th,c.y+wy*half+dy*th); ctx.lineTo(c.x-wx*half+dx*th,c.y-wy*half+dy*th); ctx.lineTo(c.x-wx*half-dx*th,c.y-wy*half-dy*th); ctx.lineTo(c.x+wx*half-dx*th,c.y+wy*half-dy*th); ctx.closePath(); ctx.fill(); ctx.stroke(); } }
   }
   // highlight tokens that would be hit
   ctx.strokeStyle='#e0532a'; ctx.lineWidth=3/view.zoom;
@@ -700,7 +788,7 @@ function analyzeSim(text){ text=text||''; return { tags:SIM_TAGS.filter(t=>t.re.
 // ── META READER (mirrors the character sheet) — targets / range / area / numeric ──
 function vtNormUnit(u){ u=(u||'').toLowerCase(); if(/^m|met/.test(u))return 'm'; if(/^f/.test(u))return 'ft'; return 'cells'; }
 function parseEffectMeta(text){
-  const meta={targets:null,range:null,area:null,values:[]};
+  const meta={targets:null,range:null,area:null,values:[],pattern:null,duration:null,attach:null};
   if(!text)return meta;
   const t=' '+text+' ';
   if(/\b(all|each|every)\s+(enem|target|creature|all(y|ies)|individual|foe|hostile)/i.test(t))meta.targets='all';
@@ -713,6 +801,21 @@ function parseEffectMeta(text){
   if(mr)meta.range={value:parseInt(mr[1]),unit:vtNormUnit(mr[2])};
   const ma=t.match(/(\d+)\s*[- ]?(cells?|squares?|tiles?|m\b|meters?|metres?|ft\b|feet|foot)?\s*(radius|cone|line|burst|blast|sphere|aoe|cube)/i)||t.match(/\b(radius|cone|line|burst|blast|sphere|aoe|cube)\b/i);
   if(ma){ if(ma.length===4)meta.area={shape:ma[3].toLowerCase(),size:parseInt(ma[1])||0,unit:vtNormUnit(ma[2]||'cells')}; else meta.area={shape:ma[1].toLowerCase(),size:0,unit:'cells'}; }
+  // DURATION — "for 3 rounds", "2-turn", "lasts 4 turns"
+  const md=t.match(/\b(?:for|lasts?|over|during)\s+(\d+)\s*(?:rounds?|turns?)/i)||t.match(/\b(\d+)[- ]?(?:round|turn)s?\b/i);
+  if(md)meta.duration=parseInt(md[1]);
+  // ATTACH — does the effect follow the caster or the target?
+  if(/\b(on yourself|on self|around you|self-?buff|you gain|grants you|surround[a-z]* you|centered on you|follows you|\baura\b)\b/i.test(t))meta.attach='self';
+  else if(/\b(on (?:the|a|each|your) target|marks? the target|attached to the target|follows (?:the )?target|sticks to)\b/i.test(t))meta.attach='target';
+  // HITBOX PATTERN — richer shapes read from the skill text
+  let pat=null;
+  if(/\b(ring|annulus|halo)\b/i.test(t))pat='ring';
+  else if(/\b(cross|plus[- ]?shaped|cardinal)\b/i.test(t))pat='cross';
+  else if(/\b(wall|barrier)\b/i.test(t))pat='wall';
+  else if(/\b(cone|spray|fan)\b/i.test(t))pat='cone';
+  else if(/\b(beam|ray|lance)\b/i.test(t)||/\bline\b/i.test(t))pat='line';
+  else if(/\b(nova|burst|blast|explos|sphere)\b/i.test(t))pat='circle';
+  if(pat)meta.pattern=pat;
   const seen=new Set(); let m,dre=/\b(\d*)d(\d+)([+-]\d+)?\b/gi;
   while((m=dre.exec(text))){ const expr=(m[1]||'1')+'d'+m[2]+(m[3]||''); if(seen.has(expr))continue; seen.add(expr);
     const ctx=text.slice(Math.max(0,m.index-14),m.index).toLowerCase();
@@ -804,6 +907,17 @@ function tickSim(){
     if(t.sim.moisture>0)t.sim.moisture=Math.max(0,t.sim.moisture-15);
     if(t.sim.charge>0)t.sim.charge=Math.max(0,t.sim.charge-25);
   });
+  // lingering effects: apply per-round damage to tokens inside, then count down
+  if(Array.isArray(map.effects)&&map.effects.length){
+    map.effects.forEach(e=>{
+      const owner=map.tokens.find(x=>x.id===e.tokenId); if(!owner){e.rounds=0;return;}
+      const dmg=(e.values||[]).filter(v=>v.type==='damage');
+      if(dmg.length){ const px=metaToPixels(e.size||2,e.unit||'cells')||map.gridSize*2;
+        tokensInRadius(owner.x,owner.y,px,owner.id).forEach(tok=>{ dmg.forEach(v=>{ const amt=v.amount!=null?v.amount:rollExprVal(v.expr); applyNumeric(tok,'damage',amt); }); }); }
+      e.rounds=Math.max(0,(e.rounds||0)-1);
+    });
+    map.effects=map.effects.filter(e=>e.rounds>0);
+  }
   if(VT.connected&&role==='gm')syncMap(); if(sel&&sel.type==='token')renderProps(); render(); toast('Round advanced');
 }
 function simPropsHTML(t){ ensureSim(t); const s=t.sim;
