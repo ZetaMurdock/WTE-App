@@ -6,6 +6,7 @@
 <title>W.T.E</title>
 <style>
   :root{ --bg:#2a2722; --bar:#1c1b19; --bone:#cfc8ba; --accent:#8a6d3b; --ink:#e7e2d8; }
+  body.wte-light{ --bg:#dcd8ce; --bar:#e2ded6; --bone:#5a5346; --accent:#8a6d3b; --ink:#1f1e1c; }
   *{box-sizing:border-box;margin:0;padding:0;}
   html,body{height:100%;background:var(--bg);font-family:Georgia,'Times New Roman',serif;color:var(--ink);overflow:hidden;}
   .app{display:flex;flex-direction:column;height:100vh;}
@@ -32,6 +33,7 @@
     <button class="tab" id="tab-vtt" onclick="wteTab('vtt')">VTT</button>
     <span class="spacer"></span>
     <span class="upd" id="upd"><span id="upd-msg">Update available</span><button onclick="wteInstallUpdate()" id="upd-btn">Restart &amp; update</button></span>
+    <button class="tab" id="theme-btn" onclick="wteToggleTheme()" title="Switch Light / Dark theme">Theme</button>
     <span class="ver" id="ver"></span>
   </div>
   <div class="views">
@@ -40,6 +42,14 @@
   </div>
 </div>
 <script>
+  // ── THEME (Stylus Update) — shared 'wte-theme' key; storage events flip the iframes too ──
+  function wteApplyTheme(t){ document.body.classList.toggle('wte-light', t==='light'); var b=document.getElementById('theme-btn'); if(b)b.textContent=(t==='light'?'Dark':'Light'); }
+  window.wteToggleTheme = function(){ var t=document.body.classList.contains('wte-light')?'dark':'light'; try{localStorage.setItem('wte-theme',t);}catch(e){} wteApplyTheme(t);
+    // nudge the iframes immediately (they also listen for the storage event)
+    ['view-sheet','view-vtt'].forEach(function(id){ var f=document.getElementById(id); try{ f&&f.contentWindow&&f.contentWindow.wteApplyTheme&&f.contentWindow.wteApplyTheme(t); }catch(e){} }); };
+  wteApplyTheme((function(){try{return localStorage.getItem('wte-theme');}catch(e){return null;}})()||'dark');
+  window.addEventListener('storage',function(e){ if(e.key==='wte-theme')wteApplyTheme(e.newValue||'dark'); });
+
   // Tab switching — both views stay loaded so neither reloads / "opens a new VTT each time".
   var views = { sheet: document.getElementById('view-sheet'), vtt: document.getElementById('view-vtt') };
   window.wteTab = function(name){

@@ -22,6 +22,13 @@
   --bone: #cfc8ba;
   --accent: #8a6d3b;
 }
+/* LIGHT THEME — Stylus Update. Dark is the default (the :root above). */
+body.wte-light {
+  --bg: #dcd8ce; --bg2: #cfcabf; --page-ink: #20201d;
+  --surface: #ffffff; --surface2: #eceae5; --border: #c4c0ba; --border2: #a8a39c;
+  --ink: #1c1b19; --ink2: #3d3c39; --muted: #6b665f; --input-bg: #ffffff;
+  --rule: #2c3e50; --info-bg: #eef1f4; --bone: #897f6c; --accent: #8a6d3b;
+}
 * { box-sizing: border-box; margin: 0; padding: 0; border-radius: 0 !important; }
 body {
   background: var(--bg);
@@ -511,6 +518,7 @@ textarea { resize: vertical; border: 1px solid var(--border); }
     <button class="btn" onclick="openLibrary()">Library</button>
     <button class="btn" onclick="clearSheet()">Clear</button>
     <span class="sep">|</span>
+    <button class="btn" id="theme-btn" onclick="wteToggleTheme()" title="Switch Light / Dark theme">Theme</button>
     <button class="btn" onclick="window.print()">Print</button>
   </div>
 </div>
@@ -2967,6 +2975,12 @@ selectDie(40);
 updatePEState();
 refreshAllActionChips();
 tagRollButtons();
+
+// ── THEME (Stylus Update) — shared 'wte-theme' key flips Sheet + VTT + shell together ──
+function wteApplyTheme(t){ document.body.classList.toggle('wte-light', t==='light'); const b=document.getElementById('theme-btn'); if(b)b.textContent=(t==='light'?'Dark':'Light')+' Mode'; }
+function wteToggleTheme(){ const t=document.body.classList.contains('wte-light')?'dark':'light'; try{localStorage.setItem('wte-theme',t);}catch(e){} wteApplyTheme(t); }
+wteApplyTheme((function(){try{return localStorage.getItem('wte-theme');}catch(e){return null;}})()||'dark');
+window.addEventListener('storage',e=>{ if(e.key==='wte-theme')wteApplyTheme(e.newValue||'dark'); });
 </script>
 </body>
 </html>

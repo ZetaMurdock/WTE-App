@@ -10,6 +10,12 @@
   --ink:#e7e2d8; --muted:#9a948a; --accent:#8a6d3b; --accent2:#a07f44;
   --rule:#1c1b19; --canvas:#3a3833; --sel:#d8b25a;
 }
+/* LIGHT THEME — Stylus Update. Dark is the default (the :root above). */
+body.wte-light{
+  --bg:#dcd8ce; --panel:#eceae5; --panel2:#e2ded6; --line:#c2bdb4;
+  --ink:#1f1e1c; --muted:#6b665f; --accent:#8a6d3b; --accent2:#a07f44;
+  --rule:#2c3e50; --canvas:#c9c5bc; --sel:#8a6d3b;
+}
 *{box-sizing:border-box;margin:0;padding:0;}
 html,body{height:100%;overflow:hidden;}
 body{background:var(--bg);color:var(--ink);font-family:'Georgia',serif;font-size:13px;display:flex;flex-direction:column;}
@@ -127,6 +133,7 @@ body{background:var(--bg);color:var(--ink);font-family:'Georgia',serif;font-size
   <button class="tbtn" id="connect-btn" onclick="openConnect()">Connect</button>
   <button class="tbtn" onclick="centerOnMyToken(event)" title="Warp to one of your tokens">My Token &#9662;</button>
   <button class="tbtn" onclick="fitView()">Fit</button>
+  <button class="tbtn" id="theme-btn" onclick="wteToggleTheme()" title="Switch Light / Dark theme">Theme</button>
   <span class="zoom" id="zoom-lbl">100%</span>
 </div>
 
@@ -1102,6 +1109,13 @@ normalizeMap();
 setBgImg(map.bg.src); syncControls(); renderLayers(); resize(); setTool('select'); ensureExplored(); applyRoleUI();
 undoStack.push(JSON.stringify(stripMap()));
 if(!saved)fitView();
+
+// ── THEME (Stylus Update) — shared 'wte-theme' key flips Sheet + VTT + shell together ──
+function wteApplyTheme(t){ document.body.classList.toggle('wte-light', t==='light'); const b=document.getElementById('theme-btn'); if(b)b.textContent=(t==='light'?'Dark':'Light'); render&&render(); }
+function wteToggleTheme(){ const t=document.body.classList.contains('wte-light')?'dark':'light'; try{localStorage.setItem('wte-theme',t);}catch(e){} wteApplyTheme(t); }
+wteApplyTheme((function(){try{return localStorage.getItem('wte-theme');}catch(e){return null;}})()||'dark');
+window.addEventListener('storage',e=>{ if(e.key==='wte-theme')wteApplyTheme(e.newValue||'dark'); });
+
 draw();
 </script>
 </body>
