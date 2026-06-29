@@ -1,0 +1,2831 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>W.T.E Character Sheet</title>
+<style>
+:root {
+  --bg: #4c4843;          /* darker boney grey page */
+  --bg2: #413e39;
+  --page-ink: #e7e2d8;    /* light text on dark page */
+  --surface: #ffffff;
+  --surface2: #eeece9;
+  --border: #c8c4bf;
+  --border2: #a8a49f;
+  --ink: #1c1b19;
+  --ink2: #3d3c39;
+  --muted: #7a756e;
+  --input-bg: #fafaf8;
+  --rule: #2c3e50;
+  --info-bg: #f0ede8;
+  --bone: #cfc8ba;
+  --accent: #8a6d3b;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; border-radius: 0 !important; }
+body {
+  background: var(--bg);
+  background-image: linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%);
+  color: var(--ink);
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 16px;
+}
+
+/* TOPBAR */
+.topbar {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding-bottom: 8px; margin-bottom: 16px;
+  border-bottom: 2px solid var(--bone);
+}
+.title { font-size: 12px; letter-spacing: 4px; text-transform: uppercase; color: var(--page-ink); font-weight: normal; }
+.topbar-right { display: flex; gap: 5px; align-items: center; }
+.btn {
+  padding: 3px 10px; border: 1px solid var(--bone);
+  background: none; color: var(--page-ink); cursor: pointer;
+  font-size: 10px; font-family: 'Georgia', serif;
+  letter-spacing: 1.5px; text-transform: uppercase; transition: all 0.1s;
+}
+.btn:hover { background: var(--bone); color: var(--ink); border-color: var(--bone); }
+.btn.prime { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.prime:hover { background: #a07f44; border-color: #a07f44; }
+.sep { color: var(--bone); font-size: 10px; opacity: 0.5; }
+
+/* LAYOUT */
+.sheet { display: flex; flex-direction: column; gap: 12px; }
+.row { display: flex; gap: 10px; }
+.row > * { flex: 1; }
+
+/* SECTION */
+.section { border: 1px solid var(--border2); background: var(--surface); }
+.section-head {
+  background: var(--rule); color: white;
+  font-family: 'Georgia', serif; font-size: 9px;
+  letter-spacing: 3px; text-transform: uppercase;
+  padding: 5px 14px; font-weight: normal;
+  display: flex; align-items: center; overflow: visible;
+  position: relative;
+}
+.section-head::before { content: ''; position: absolute; left: -10px; top: 50%; width: 10px; height: 1px; background: rgba(255,255,255,0.45); }
+.section-head::after  { content: ''; position: absolute; right: -10px; top: 50%; width: 10px; height: 1px; background: rgba(255,255,255,0.45); }
+.section-head span { color: rgba(255,255,255,0.5); margin-left: 6px; font-size: 8px; letter-spacing: 1px; font-weight:normal; }
+.section-body { padding: 10px 12px; }
+
+/* INPUTS */
+input[type="text"], input[type="number"], textarea, select {
+  background: var(--input-bg); border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--ink); padding: 2px 4px;
+  width: 100%; font-size: 12px; font-family: 'Georgia', serif;
+  outline: none; transition: border-color 0.1s;
+}
+input:focus, textarea:focus, select:focus { border-bottom-color: var(--ink); }
+input[type="number"] { text-align: center; }
+input[readonly] { color: var(--muted); background: transparent; }
+textarea { resize: vertical; border: 1px solid var(--border); }
+.field { margin-bottom: 6px; }
+.field:last-child { margin-bottom: 0; }
+.field label {
+  display: block; font-size: 8px; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--muted);
+  font-family: 'Georgia', serif; margin-bottom: 2px;
+}
+
+/* IDENTITY */
+.ig1 { display: grid; grid-template-columns: 2fr 0.6fr 1fr 1fr 1fr 1fr; gap: 9px; margin-bottom: 6px; }
+.ig2 { display: grid; grid-template-columns: 1fr 1fr 1fr 1.5fr; gap: 9px; }
+
+/* INFO BOXES */
+.info-box {
+  background: var(--info-bg); border: 1px solid var(--border);
+  padding: 8px 12px; margin-top: 8px; display: none;
+}
+.info-box.visible { display: block; }
+.info-row { display: flex; gap: 16px; flex-wrap: wrap; }
+.info-label { font-size: 8px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); font-family: 'Georgia', serif; }
+.info-value { font-size: 12px; color: var(--ink); }
+
+/* SPECIES BOX */
+.spec-bonus-tags { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+.sbtag { background: var(--surface2); border: 1px solid var(--border2); padding: 2px 8px; font-size: 11px; color: var(--ink); }
+.sbtag b { color: var(--accent); }
+.ability-chip-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.ability-chip { background: #fff; border: 1px solid var(--border2); padding: 2px 7px; font-size: 10.5px; color: var(--ink2); }
+.ability-chip.variant { border-color: var(--accent); color: var(--accent); }
+
+/* SMART EFFECT ACTION CHIPS */
+.action-chips { display:flex; gap:5px; flex-wrap:wrap; align-items:center; margin-top:6px; }
+.act-chips-lbl { font-size:8px; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); margin-right:1px; }
+.act-chip { display:inline-flex; align-items:center; gap:4px; background:var(--accent); color:#fff; border:none; cursor:pointer; font-family:'Georgia',serif; font-size:10px; padding:2px 9px; transition:all .1s; }
+.act-chip:hover { background:#a07f44; }
+.act-chip::before { content:''; }
+/* META BADGES â€” targeting / range / area / numeric */
+.meta-chip { display:inline-flex; align-items:center; gap:3px; background:var(--surface2); border:1px solid var(--border2); color:var(--ink2); font-family:'Georgia',serif; font-size:9px; letter-spacing:.5px; padding:2px 7px; }
+.meta-chip b { color:var(--accent); font-size:9.5px; }
+.act-chip.value { background:#34506b; }
+.act-chip.value:hover { background:#42648a; }
+/* DEFINITION LISTS â€” full skill text under ability chips */
+.def-list { margin-top:6px; display:flex; flex-direction:column; gap:4px; }
+.def-item { font-size:10.5px; line-height:1.5; color:var(--ink2); border-left:2px solid var(--border2); padding:1px 0 1px 7px; }
+.def-item.variant { border-left-color:var(--accent); }
+.def-item b { color:var(--ink); }
+.def-item .def-meta { color:var(--accent); font-size:9px; letter-spacing:.5px; margin-left:5px; }
+
+/* BACKGROUND BONUS */
+.bg-bonus-row { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; margin-top: 8px; }
+.bg-bonus-item { display: flex; gap: 4px; align-items: center; }
+.bg-bonus-val { font-size: 11px; font-weight: bold; color: var(--ink); min-width: 22px; font-family: Georgia; }
+.bg-bonus-item select { width: 110px; }
+
+/* STAT TABLES */
+.stat-table { width: 100%; border-collapse: collapse; }
+.stat-table th {
+  font-size: 8px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--muted); font-family: 'Georgia', serif; font-weight: normal;
+  text-align: left; padding: 3px 4px; border-bottom: 1px solid var(--border2);
+}
+.stat-table th.c { text-align: center; }
+.stat-table td { padding: 2px 4px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.stat-table tr:last-child td { border-bottom: none; }
+.stat-table td.sn { font-size: 12px; }
+.stat-table td.ss { font-size: 9px; color: var(--muted); }
+.stat-table td.c { text-align: center; }
+.stat-table input[type="number"] { width: 46px; font-size: 13px; }
+.stat-table input.mod { width: 40px; font-size: 12px; }
+.bonus-pip { font-size: 9px; color: var(--accent); margin-left: 2px; }
+
+/* DICE ROLL BUTTON â€” tiny circular */
+.roll-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 15px; height: 15px; border-radius: 50% !important;
+  border: 1px solid var(--border2); background: var(--surface2);
+  color: var(--muted); cursor: pointer;
+  font-size: 8px; line-height: 1; text-align: center;
+  font-family: Georgia; vertical-align: middle;
+  margin-left: 4px; transition: all 0.1s; flex-shrink: 0; padding: 0;
+}
+.roll-btn:hover { background: var(--accent); color: white; border-color: var(--accent); transform: scale(1.12); }
+.stat-table .score-cell { display: flex; align-items: center; justify-content: center; }
+
+/* HP ROW */
+.hp-row {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 7px; padding-top: 7px; border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.hp-lbl { font-size: 8px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); white-space: nowrap; font-family: Georgia; }
+.hp-row input { width: 52px; font-size: 13px; }
+.formula-note { font-size: 9px; color: var(--muted); font-style: italic; margin-top: 2px; }
+
+/* RANK INFO */
+.rank-bar {
+  background: var(--info-bg); border: 1px solid var(--border);
+  padding: 5px 10px; margin-top: 0;
+  font-size: 9px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap;
+}
+.rank-bar strong { color: var(--ink); }
+
+/* INCEPT */
+.incept-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; }
+.stage-btns { display: flex; gap: 4px; margin-top: 2px; }
+.stage-btn {
+  flex: 1; padding: 3px; border: 1px solid var(--border2);
+  background: none; color: var(--muted); cursor: pointer;
+  font-size: 8px; letter-spacing: 1.5px; text-transform: uppercase;
+  font-family: 'Georgia', serif; text-align: center; transition: all 0.1s;
+}
+.stage-btn.active { background: var(--ink); border-color: var(--ink); color: white; }
+
+/* DATA TABLES */
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th {
+  font-size: 8px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--muted); font-family: 'Georgia', serif; font-weight: normal;
+  text-align: left; padding: 3px 5px; border-bottom: 1px solid var(--border2);
+  background: var(--surface2);
+}
+.data-table td { padding: 2px 4px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.data-table tr:last-child td { border-bottom: none; }
+.data-table td.rn { font-size: 9px; color: var(--muted); width: 16px; text-align: center; font-family: Georgia; }
+.data-table input, .data-table select, .data-table textarea { font-size: 11px; padding: 2px 3px; }
+.data-table textarea { min-height: 24px; }
+.add-row-btn {
+  margin-top: 4px; padding: 3px 10px; border: 1px dashed var(--border2);
+  background: none; color: var(--muted); cursor: pointer;
+  font-size: 8px; letter-spacing: 1.5px; text-transform: uppercase;
+  font-family: 'Georgia', serif; display: block; width: 100%; transition: all 0.1s;
+}
+.add-row-btn:hover { border-color: var(--ink); color: var(--ink); }
+.add-row-btn:disabled { opacity: 0.35; cursor: default; }
+
+/* VARNA */
+.vsub {
+  font-size: 8px; letter-spacing: 2.5px; text-transform: uppercase;
+  color: var(--muted); font-family: 'Georgia', serif;
+  padding: 4px 0; border-bottom: 1px solid var(--border);
+  margin-bottom: 7px; margin-top: 10px;
+}
+.vsub:first-child { margin-top: 0; }
+.vgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.alist { display: flex; flex-direction: column; gap: 3px; }
+.aitem { display: flex; gap: 4px; align-items: center; }
+.anum { font-size: 9px; color: var(--muted); min-width: 14px; font-family: Georgia; }
+
+/* CIPHER */
+.cgrid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 7px; }
+.cstatus { display: flex; gap: 4px; margin-top: 2px; }
+.csbtn {
+  flex: 1; padding: 3px; border: 1px solid var(--border2);
+  background: none; color: var(--muted); cursor: pointer;
+  font-size: 8px; letter-spacing: 1.5px; text-transform: uppercase;
+  font-family: 'Georgia', serif; text-align: center; transition: all 0.1s;
+}
+.csbtn.active { background: var(--ink); border-color: var(--ink); color: white; }
+
+/* PRESSURE ENGINE */
+.pe-top { display: grid; grid-template-columns: 130px 1fr 1fr 1fr; gap: 10px; align-items: end; margin-bottom: 8px; }
+.pe-state { font-size: 13px; font-weight: bold; font-family: Georgia; }
+.pe-state.calm { color: #3a8050; }
+.pe-state.tense { color: #b88a20; }
+.pe-state.critical { color: #b03020; }
+.pe-state.catastrophic { color: #7a1a1a; }
+.pe-mini { font-size: 8px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+.pe-mini b { color: var(--ink); font-size: 12px; }
+.pe-skill-row { display: grid; grid-template-columns: 18px 1.4fr 1fr 70px; gap: 7px; align-items: center; margin-bottom: 5px; }
+.pe-skill-row .rl { font-size: 9px; color: var(--muted); text-align: center; }
+.pe-roll-out { font-size: 12px; font-family: Consolas, monospace; color: var(--ink2); text-align: center; }
+.pe-actions { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+.pe-resolve { padding: 6px 16px; border: 1px solid var(--accent); background: var(--accent); color: #fff; font-family: Georgia; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer; }
+.pe-resolve:hover { background: #a07f44; }
+.pe-result {
+  margin-top: 9px; background: var(--info-bg); border: 1px solid var(--border);
+  padding: 10px 12px; display: none; gap: 18px; align-items: center; flex-wrap: wrap;
+}
+.pe-result.show { display: flex; }
+.pe-res-item { display: flex; flex-direction: column; gap: 1px; }
+.pe-res-lbl { font-size: 8px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+.pe-res-val { font-size: 18px; font-family: Georgia; color: var(--ink); }
+.pe-outcome { font-size: 15px; font-weight: bold; font-family: Georgia; }
+.pe-apply { padding: 4px 12px; border: 1px solid var(--ink); background: none; color: var(--ink); font-family: Georgia; font-size: 9px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; }
+.pe-apply:hover { background: var(--ink); color: #fff; }
+
+/* EQUIPMENT */
+.ewpn { display: grid; grid-template-columns: 2fr 65px 75px; gap: 6px; margin-bottom: 5px; align-items: end; }
+.earm { display: grid; grid-template-columns: 2fr 65px; gap: 6px; align-items: end; }
+.wpn-type-hint { font-size: 9px; color: var(--muted); font-style: italic; margin-bottom: 4px; }
+
+/* DICE PANEL */
+.dice-panel {
+  position: fixed; right: 0; top: 0; bottom: 0; width: 258px;
+  background: var(--surface); border-left: 1px solid var(--border2);
+  z-index: 999; transform: translateX(100%); transition: transform 0.2s ease;
+  display: flex; flex-direction: column;
+}
+.dice-panel.open { transform: translateX(0); }
+.dp-head {
+  background: var(--rule); padding: 8px 12px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.dp-title { font-size: 9px; letter-spacing: 3px; text-transform: uppercase; color: white; font-family: 'Georgia', serif; }
+.dp-close { background: none; border: none; color: rgba(255,255,255,0.5); cursor: pointer; font-size: 15px; font-family: Georgia; }
+.dp-close:hover { color: white; }
+.dp-body { flex: 1; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 9px; }
+.dp-lbl { font-size: 8px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); font-family: 'Georgia', serif; margin-bottom: 3px; }
+.dlock {
+  display: none; background: var(--accent); color: #fff; padding: 6px 9px;
+  font-size: 10px; font-family: Georgia; align-items: center; justify-content: space-between; gap: 6px;
+}
+.dlock.show { display: flex; }
+.dlock .lk-name { letter-spacing: 1px; }
+.dlock .lk-x { cursor: pointer; color: rgba(255,255,255,0.7); font-size: 13px; }
+.dlock .lk-x:hover { color: #fff; }
+.dquick { display: grid; grid-template-columns: repeat(3,1fr); gap: 4px; }
+.dbtn {
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--ink2); cursor: pointer; font-size: 12px;
+  font-family: 'Georgia', serif; padding: 7px 4px; text-align: center; transition: all 0.1s;
+}
+.dbtn:hover, .dbtn.sel { background: var(--ink); border-color: var(--ink); color: white; }
+.dcrow { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.dexrow { display: flex; gap: 4px; align-items: end; }
+.dexrow .field { flex: 1; margin: 0; }
+.dexrow input { font-family: 'Consolas', monospace; }
+.dgo {
+  padding: 4px 10px; border: 1px solid var(--ink);
+  background: var(--ink); color: white;
+  font-family: 'Georgia', serif; font-size: 10px; letter-spacing: 1px;
+  text-transform: uppercase; cursor: pointer;
+}
+.dresult {
+  background: var(--surface2); border: 1px solid var(--border);
+  padding: 10px; text-align: center; min-height: 76px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+}
+.dresult-lbl { font-size: 8px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); font-family: 'Georgia', serif; }
+.dresult-num { font-size: 42px; color: var(--ink); line-height: 1; font-family: 'Georgia', serif; }
+.dresult-num.bump { animation: bump 0.14s ease; }
+@keyframes bump { 50%{transform:scale(1.1)} }
+.dresult-bk { font-size: 10px; color: var(--muted); font-family: 'Consolas', monospace; }
+.dresult-ex { font-size: 9px; color: var(--border2); }
+.drollbig {
+  width: 100%; padding: 9px; background: var(--accent); border: none; color: white;
+  font-family: 'Georgia', serif; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; cursor: pointer;
+}
+.drollbig:hover { opacity: 0.88; }
+.dhist-head {
+  font-size: 8px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted);
+  font-family: 'Georgia', serif; display: flex; justify-content: space-between; margin-bottom: 3px;
+}
+.dhist-clear { font-size: 9px; color: var(--border2); cursor: pointer; text-decoration: underline; font-family: Georgia; text-transform: none; letter-spacing: 0; }
+.dhist-clear:hover { color: var(--muted); }
+.dhistory { display: flex; flex-direction: column; gap: 2px; max-height: 130px; overflow-y: auto; }
+.dhitem { background: var(--surface2); border: 1px solid var(--border); padding: 3px 7px; display: flex; gap: 7px; font-size: 10px; }
+.dhexpr { color: var(--muted); font-family: 'Consolas', monospace; flex: 1; }
+.dhval { color: var(--ink); font-family: Georgia; }
+.dhtime { font-size: 9px; color: var(--border); }
+.last-roll-note { font-size: 9px; color: var(--muted); text-align: center; font-style: italic; }
+
+/* TABLE (multiplayer) */
+.table-panel{position:fixed;left:0;top:0;bottom:0;width:304px;background:var(--surface);border-right:1px solid var(--border2);z-index:998;transform:translateX(-100%);transition:transform .2s ease;display:flex;flex-direction:column;}
+.table-panel.open{transform:translateX(0);}
+.tp-head{background:var(--rule);padding:8px 12px;display:flex;align-items:center;justify-content:space-between;}
+.tp-title{font-size:9px;letter-spacing:3px;text-transform:uppercase;color:#fff;font-family:Georgia,serif;}
+.tp-body{flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:7px;}
+.tp-sec-h{font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);padding-bottom:3px;margin-top:6px;}
+.tp-status{font-size:11px;color:var(--ink2);display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.tp-combatant{display:flex;flex-direction:column;gap:1px;background:var(--surface2);border:1px solid var(--border);padding:5px 8px;}
+.tc-name{font-size:12px;color:var(--ink);}
+.tc-hp{font-size:10px;color:var(--muted);font-family:Consolas,monospace;}
+.tc-role{font-size:8px;letter-spacing:1px;text-transform:uppercase;color:var(--accent);}
+.tp-log{display:flex;flex-direction:column;gap:2px;max-height:220px;overflow-y:auto;}
+.tp-log-line{font-size:10.5px;color:var(--ink2);}
+.tl-t{color:var(--border2);font-family:Consolas,monospace;font-size:9px;margin-right:3px;}
+.tp-prompt{position:relative;background:#fff;border:1px solid var(--accent);border-left:3px solid var(--accent);padding:7px 9px;margin-bottom:4px;}
+.tp-prompt-h{font-size:11px;color:var(--ink);margin-bottom:5px;padding-right:14px;}
+.tp-prompt-x{position:absolute;right:6px;top:4px;cursor:pointer;color:var(--muted);font-size:13px;}
+.tp-empty{font-size:10px;color:var(--muted);font-style:italic;}
+.tp-setup textarea,.tp-field textarea{min-height:88px;font-family:Consolas,monospace;font-size:10px;}
+.tp-field{margin-bottom:6px;}
+.tp-field label{display:block;font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:2px;}
+.tp-btn{padding:5px 12px;border:1px solid var(--accent);background:var(--accent);color:#fff;font-family:Georgia,serif;font-size:10px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;}
+.tp-btn.ghost{background:none;color:var(--ink2);border-color:var(--border2);}
+.tp-note{font-size:9px;color:var(--muted);font-style:italic;line-height:1.55;}
+.tp-note a{color:#4e7fa5;}
+.act-send{display:inline-flex;align-items:center;background:none;border:1px dashed var(--accent);color:var(--accent);cursor:pointer;font-family:Georgia,serif;font-size:10px;padding:2px 8px;}
+.act-send:hover{background:var(--accent);color:#fff;}
+.tgt-menu{position:fixed;z-index:2000;background:#fff;border:1px solid var(--border2);box-shadow:0 4px 14px rgba(0,0,0,.25);display:flex;flex-direction:column;min-width:130px;}
+.tgt-item{text-align:left;background:none;border:none;border-bottom:1px solid var(--border);padding:6px 10px;cursor:pointer;font-family:Georgia,serif;font-size:11px;color:var(--ink);}
+.tgt-item:hover{background:var(--surface2);}
+.tgt-empty{padding:6px 10px;font-size:10px;color:var(--muted);}
+.tp-combatant.clickable{cursor:pointer;}
+.tp-combatant.clickable:hover{border-color:var(--accent);}
+.gate-editor{background:#fff;border:1px solid var(--accent);border-left:3px solid var(--accent);padding:8px 10px;margin-bottom:6px;}
+.ge-head{font-size:11px;color:var(--ink);font-weight:bold;display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;}
+.ge-x{cursor:pointer;color:var(--muted);font-size:14px;}
+.ge-grp{font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin:6px 0 3px;}
+.ge-row{display:flex;flex-wrap:wrap;gap:4px;}
+.gate-tog{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border2);background:var(--surface2);color:var(--ink2);font-family:Georgia,serif;font-size:9.5px;padding:2px 6px;cursor:pointer;}
+.gate-tog span{font-size:8px;font-weight:bold;letter-spacing:1px;}
+.gate-tog.on{border-color:#3a8050;}
+.gate-tog.on span{color:#3a8050;}
+.gate-tog.off{opacity:.6;}
+.gate-tog.off span{color:#b03020;}
+.ge-foot{display:flex;gap:6px;margin-top:8px;}
+.pe-gated-note{font-size:9px;color:#b88a20;font-style:italic;margin-top:4px;}
+.bg-mech-status{font-size:9px;letter-spacing:1px;text-transform:uppercase;font-weight:bold;}
+.bg-mech-status.off{color:var(--muted);}
+.bg-mech-status.on{color:#3a8050;}
+.bg-mech-btn{padding:2px 9px;border:1px solid var(--accent);background:none;color:var(--accent);font-family:'Georgia',serif;font-size:9px;cursor:pointer;}
+.bg-mech-btn:hover{background:var(--accent);color:#fff;}
+.bg-mech-btn:disabled{opacity:.5;cursor:default;background:none;color:var(--accent);}
+
+/* EXPORT MODAL */
+.modal-bg {
+  position: fixed; inset: 0; background: rgba(10,10,10,0.55);
+  z-index: 1500; display: none; align-items: flex-start; justify-content: center; padding: 24px;
+  overflow-y: auto;
+}
+.modal-bg.open { display: flex; }
+.modal-card { background: #fff; width: 760px; max-width: 100%; border: 1px solid var(--border2); }
+.modal-head { background: var(--rule); color: #fff; padding: 9px 16px; display: flex; justify-content: space-between; align-items: center; }
+.modal-head .mt { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; }
+.modal-head .mx { cursor: pointer; color: rgba(255,255,255,0.6); font-size: 16px; }
+.modal-head .mx:hover { color: #fff; }
+.modal-tools { padding: 10px 16px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid var(--border); background: var(--info-bg); }
+.modal-tools .hint { font-size: 10px; color: var(--muted); font-style: italic; margin-left: auto; }
+.modal-body { padding: 18px 22px; max-height: 70vh; overflow-y: auto; }
+
+/* TOAST */
+.toast {
+  position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
+  background: var(--ink); color: white; padding: 5px 18px;
+  font-family: 'Georgia', serif; font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+  z-index: 9999; transition: opacity 0.3s; pointer-events: none;
+}
+
+@media print {
+  .topbar, .dice-panel, .table-panel, .modal-bg { display: none !important; }
+  body { background: white; padding: 5px; }
+  .section-head { background: #222 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+</style>
+</head>
+<body>
+
+<!-- DICE PANEL -->
+<div class="dice-panel" id="dicePanel">
+  <div class="dp-head">
+    <span class="dp-title">Dice</span>
+    <button class="dp-close" onclick="closeDice()" title="Close & unlock">x</button>
+  </div>
+  <div class="dp-body">
+    <div class="dlock" id="dLock">
+      <span class="lk-name" id="dLockName">Locked</span>
+      <span class="lk-x" onclick="closeDice()" title="Unlock & close">x</span>
+    </div>
+    <div>
+      <div class="dp-lbl">Quick Dice</div>
+      <div class="dquick">
+        <button class="dbtn" onclick="selectDie(4)">d4</button>
+        <button class="dbtn" onclick="selectDie(6)">d6</button>
+        <button class="dbtn" onclick="selectDie(8)">d8</button>
+        <button class="dbtn" onclick="selectDie(10)">d10</button>
+        <button class="dbtn" onclick="selectDie(20)">d20</button>
+        <button class="dbtn" onclick="selectDie(40)">d40</button>
+      </div>
+    </div>
+    <div class="dcrow">
+      <div class="field"><label>Count</label><input type="number" id="dCount" min="1" max="20" value="1"></div>
+      <div class="field"><label>Modifier</label><input type="number" id="dMod" min="-99" max="99" value="0"></div>
+    </div>
+    <div>
+      <div class="dp-lbl">Custom Expression</div>
+      <div class="dexrow">
+        <div class="field"><input type="text" id="dExpr" placeholder="2d6+3" oninput="clearDieSelect()"></div>
+        <button class="dgo" onclick="rollExpr()">Roll</button>
+      </div>
+    </div>
+    <div class="dresult">
+      <div class="dresult-lbl">Result</div>
+      <div class="dresult-num" id="dResultNum">&mdash;</div>
+      <div class="dresult-bk" id="dResultBreak"></div>
+      <div class="dresult-ex" id="dResultExpr"></div>
+    </div>
+    <button class="drollbig" id="dRollBig" onclick="rollSelected()">Roll</button>
+    <div class="last-roll-note" id="lastRollNote"></div>
+    <div>
+      <div class="dhist-head">History <span class="dhist-clear" onclick="clearHistory()">Clear</span></div>
+      <div class="dhistory" id="dHistory"></div>
+    </div>
+  </div>
+</div>
+
+<!-- TABLE PANEL (multiplayer) -->
+<div class="table-panel" id="tablePanel">
+  <div class="tp-head">
+    <span class="tp-title">Table</span>
+    <button class="dp-close" onclick="toggleTable()">x</button>
+  </div>
+  <div class="tp-body" id="tableBody"></div>
+</div>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="title">W.T.E Character Sheet</div>
+  <div class="topbar-right">
+    <button class="btn" onclick="toggleTable()">Table</button>
+    <button class="btn" onclick="if(window.parent&&window.parent.wteTab){window.parent.wteTab('vtt')}else{location.href='vtt.html'}">VTT</button>
+    <button class="btn" onclick="toggleDice()">Dice</button>
+    <span class="sep">|</span>
+    <button class="btn prime" onclick="openExport()">Export</button>
+    <button class="btn" onclick="openWiki()">Wiki</button>
+    <button class="btn" onclick="saveSheet()">Save</button>
+    <button class="btn" onclick="loadSheet()">Load</button>
+    <button class="btn" onclick="openLibrary()">Library</button>
+    <button class="btn" onclick="clearSheet()">Clear</button>
+    <span class="sep">|</span>
+    <button class="btn" onclick="window.print()">Print</button>
+  </div>
+</div>
+
+<div class="sheet">
+
+<!-- IDENTITY -->
+<div class="section">
+  <div class="section-head">Inquisitor Identity</div>
+  <div class="section-body">
+    <div class="ig1">
+      <div class="field"><label>Name</label><input type="text" id="f-name"></div>
+      <div class="field"><label>Rank</label><input type="number" id="f-level" min="0" max="9" value="0" oninput="onRankChange()"></div>
+      <div class="field"><label>Paradigm</label>
+        <select id="f-paradigm" onchange="onParadigmChange()">
+          <option value="">&mdash;</option>
+          <option>Science</option><option>Simulation</option><option>Remnant</option>
+          <option>Cognition</option><option>Evolution</option><option>Warfare</option>
+        </select>
+      </div>
+      <div class="field"><label>Species</label>
+        <select id="f-species" onchange="onSpeciesChange()">
+          <option value="">&mdash;</option>
+          <optgroup label="Humanity"><option>Hyomen</option><option>Voaulton</option><option>Mirga</option></optgroup>
+          <optgroup label="Omenity"><option>Oriyu</option><option>Insectoid</option><option>SubDermin</option></optgroup>
+          <optgroup label="Asternem"><option>Inderi</option><option>Seraph</option><option>Stygians</option></optgroup>
+        </select>
+      </div>
+      <div class="field"><label>Variant</label>
+        <select id="f-variant" onchange="onVariantChange()"><option value="">&mdash;</option></select>
+      </div>
+      <div class="field"><label>Family / Faction</label><input type="text" id="f-family"></div>
+    </div>
+    <div class="ig2">
+      <div class="field"><label>Background</label>
+        <select id="f-background" onchange="onBackgroundChange()">
+          <option value="">&mdash;</option>
+          <option>Enigmatica</option><option>Hollow-Earth</option><option>The Derived</option>
+          <option>Kinetic Kingdom</option><option>Xothos</option><option>Evolved</option>
+          <option>Keno</option><option>Valin</option><option>Hybrid Experiments</option>
+          <option>Lunaro Central</option><option>Roko</option><option>Nexus Ascendency</option>
+          <option>Genesis Collapse</option><option>A.O.E.</option><option>Null</option>
+          <option>Nigraldi Dominion</option><option>Unknown</option>
+        </select>
+      </div>
+      <div class="field"><label>CAS Zone</label>
+        <select id="f-cas">
+          <option>Open</option><option>Managed</option><option>Sanction Zoned</option>
+          <option>Sealed</option><option>Absolute</option>
+        </select>
+      </div>
+      <div class="field"><label>Player</label><input type="text" id="f-player"></div>
+      <div class="field"><label>Session</label><input type="text" id="f-session"></div>
+    </div>
+
+    <!-- SPECIES INFO / BONUS -->
+    <div class="info-box" id="species-box">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:5px;">
+        <div class="info-label">Species Affinity</div>
+        <span class="info-value" id="sp-family" style="font-size:11px;color:var(--muted);"></span>
+        <span id="sp-sync" style="font-size:9px;letter-spacing:1px;"></span>
+        <a id="sp-wiki" href="#" target="_blank" rel="noopener" style="display:none;margin-left:auto;font-size:9px;letter-spacing:1px;color:#4e7fa5;text-decoration:none;">View on wiki &#8599;</a>
+      </div>
+      <div class="spec-bonus-tags" id="sp-bonus-tags"></div>
+      <div class="info-label" style="margin-top:6px;">Innate Abilities <span id="sp-note" style="text-transform:none;letter-spacing:0;font-style:italic;color:var(--accent);"></span></div>
+      <div class="ability-chip-row" id="sp-innate"></div>
+      <div class="def-list" id="sp-innate-defs"></div>
+      <div class="action-chips" id="sp-innate-actions"></div>
+      <div class="info-label" id="sp-variant-lbl" style="margin-top:8px;display:none;">Variant Abilities</div>
+      <div class="ability-chip-row" id="sp-variant-abilities"></div>
+      <div class="def-list" id="sp-variant-defs"></div>
+      <div class="action-chips" id="sp-variant-actions"></div>
+    </div>
+
+    <!-- PARADIGM INFO -->
+    <div class="info-box" id="paradigm-box">
+      <div class="info-label" style="margin-bottom:5px;display:flex;align-items:center;gap:10px;">Paradigm Access
+        <a id="pi-wiki" href="#" target="_blank" rel="noopener" style="font-size:9px;letter-spacing:1px;color:#4e7fa5;text-decoration:none;">View on wiki &#8599;</a>
+      </div>
+      <div class="info-row">
+        <div class="info-item"><div class="info-label">Rank Title</div><div class="info-value" id="pi-title">&mdash;</div></div>
+        <div class="info-item"><div class="info-label">Light Weapon</div><div class="info-value" id="pi-light">&mdash;</div></div>
+        <div class="info-item"><div class="info-label">Medium Weapon</div><div class="info-value" id="pi-medium">&mdash;</div></div>
+        <div class="info-item"><div class="info-label">Heavy Weapon</div><div class="info-value" id="pi-heavy">&mdash;</div></div>
+        <div class="info-item"><div class="info-label">Genus Domains</div><div class="info-value" id="pi-domains">&mdash;</div></div>
+      </div>
+    </div>
+
+    <!-- BACKGROUND BONUS ASSIGNMENT -->
+    <div class="info-box" id="bg-bonus-box">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:7px;">
+        <div class="info-label">Background Bonus</div>
+        <select id="bg-type" onchange="renderBgBonuses()" style="width:130px;font-size:11px;">
+          <option value="standard">Standard (+2,+2,+1,+1)</option>
+          <option value="focused">Focused (+4,+2)</option>
+        </select>
+      </div>
+      <div class="bg-bonus-row" id="bg-bonus-row"></div>
+      <div class="bg-mechanic" id="bg-mechanic" style="display:none;margin-top:8px;border-top:1px solid var(--border);padding-top:7px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="info-label">Active Mechanic</div>
+          <span id="bg-mech-status" class="bg-mech-status off">Inactive</span>
+          <button class="bg-mech-btn" id="bg-mech-toggle" onclick="toggleBgMechanic()">Activate</button>
+        </div>
+        <div class="info-value" id="bg-mech-trigger" style="font-size:11px;margin-top:3px;"></div>
+        <div class="info-value" id="bg-mech-effect" style="font-size:11px;color:var(--accent);margin-top:2px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ATTRIBUTES / DERIVED / SPECIALTIES -->
+<div class="row">
+
+  <!-- Attributes -->
+  <div class="section" style="flex:0.70">
+    <div class="section-head">Attributes <span id="attr-bonus-note"></span></div>
+    <div class="section-body" style="padding:7px 10px;">
+      <table class="stat-table">
+        <thead>
+          <tr><th>Attribute</th><th class="c">Score</th><th class="c">Mod</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="sn">PHY <span class="ss">Strength</span></td>
+            <td class="c"><div class="score-cell"><input type="number" id="a-phy" min="0" max="20" oninput="calcAll()"><button class="roll-btn" onclick="inlineRoll('PHY Check','a-phy')" title="Roll PHY">d</button></div></td>
+            <td class="c"><input class="mod" readonly id="m-phy"></td></tr>
+          <tr><td class="sn">DEX <span class="ss">Dexterity</span></td>
+            <td class="c"><div class="score-cell"><input type="number" id="a-dex" min="0" max="20" oninput="calcAll()"><button class="roll-btn" onclick="inlineRoll('DEX Check','a-dex')" title="Roll DEX">d</button></div></td>
+            <td class="c"><input class="mod" readonly id="m-dex"></td></tr>
+          <tr><td class="sn">END <span class="ss">Endurance</span></td>
+            <td class="c"><div class="score-cell"><input type="number" id="a-end" min="0" max="20" oninput="calcAll()"><button class="roll-btn" onclick="inlineRoll('END Check','a-end')" title="Roll END">d</button></div></td>
+            <td class="c"><input class="mod" readonly id="m-end"></td></tr>
+          <tr><td class="sn">AP <span class="ss">Action Priority</span></td>
+            <td class="c"><div class="score-cell"><input type="number" id="a-ap" min="0" max="20" oninput="calcAll()"><button class="roll-btn" onclick="inlineRoll('AP Check','a-ap')" title="Roll AP">d</button></div></td>
+            <td class="c"><input class="mod" readonly id="m-ap"></td></tr>
+          <tr><td class="sn">WIS <span class="ss">Wisdom</span></td>
+            <td class="c"><div class="score-cell"><input type="number" id="a-wis" min="0" max="20" oninput="calcAll()"><button class="roll-btn" onclick="inlineRoll('WIS Check','a-wis')" title="Roll WIS">d</button></div></td>
+            <td class="c"><input class="mod" readonly id="m-wis"></td></tr>
+          <tr><td class="sn">CHA <span class="ss">Charisma</span></td>
+            <td class="c"><div class="score-cell"><input type="number" id="a-con" min="0" max="20" oninput="calcAll()"><button class="roll-btn" onclick="inlineRoll('CHA Check','a-con')" title="Roll Charisma">d</button></div></td>
+            <td class="c"><input class="mod" readonly id="m-con"></td></tr>
+          <tr><td class="sn">INT <span class="ss">Intelligence</span></td>
+            <td class="c"><div class="score-cell"><input type="number" id="a-int" min="0" max="20" oninput="calcAll()"><button class="roll-btn" onclick="inlineRoll('INT Check','a-int')" title="Roll INT">d</button></div></td>
+            <td class="c"><input class="mod" readonly id="m-int"></td></tr>
+        </tbody>
+      </table>
+      <div class="formula-note">Mod = floor(score / 4). Circle = 1d20 + score. Species/Background bonuses included.</div>
+    </div>
+  </div>
+
+  <!-- Derived Stats -->
+  <div class="section" style="flex:1">
+    <div class="section-head">Derived Statistics <span>auto-scaled &middot; base +5, +2/10pts, &minus;1/3pts</span></div>
+    <div class="section-body" style="padding:7px 10px;">
+      <table class="stat-table">
+        <thead><tr><th>Statistic</th><th class="c">Value</th><th class="c" style="width:55px;">Override</th></tr></thead>
+        <tbody>
+          <tr><td class="sn">Attack Power</td><td class="c"><input type="number" id="d-atk" readonly></td><td class="c"><input class="mod" type="number" id="do-atk" placeholder="+"></td></tr>
+          <tr><td class="sn">Def. Hit Points</td><td class="c"><input type="number" id="d-dhp" readonly></td><td class="c"><input class="mod" type="number" id="do-dhp" placeholder="+"></td></tr>
+          <tr><td class="sn">Movement</td><td class="c"><input type="number" id="d-mv" readonly></td><td class="c"><input class="mod" type="number" id="do-mv" placeholder="+"></td></tr>
+          <tr><td class="sn">Synaptic Space</td><td class="c"><input type="number" id="d-ss" readonly></td><td class="c"><input class="mod" type="number" id="do-ss" placeholder="+"></td></tr>
+          <tr><td class="sn">Evasion</td><td class="c"><input type="number" id="d-ev" readonly></td><td class="c"><input class="mod" type="number" id="do-ev" placeholder="+"></td></tr>
+          <tr><td class="sn">Neuronal Capacity</td><td class="c"><input type="number" id="d-nc" readonly></td><td class="c"><input class="mod" type="number" id="do-nc" placeholder="+"></td></tr>
+          <tr><td class="sn">Recovery Rate</td><td class="c"><input type="number" id="d-rr" readonly></td><td class="c"><input class="mod" type="number" id="do-rr" placeholder="+"></td></tr>
+          <tr><td class="sn">Action Density</td><td class="c"><input type="number" id="d-ad" readonly></td><td class="c"><input class="mod" type="number" id="do-ad" placeholder="+"></td></tr>
+          <tr><td class="sn">Influence</td><td class="c"><input type="number" id="d-inf" readonly></td><td class="c"><input class="mod" type="number" id="do-inf" placeholder="+"></td></tr>
+          <tr><td class="sn">Perception Range</td><td class="c"><input type="number" id="d-pr" readonly></td><td class="c"><input class="mod" type="number" id="do-pr" placeholder="+"></td></tr>
+        </tbody>
+      </table>
+      <div class="formula-note">Subtotal = 5 + full value of each contributing stat; +2 per 10 of subtotal = maximum; then reductions (&minus;&lfloor;specialty/3&rfloor;) last &mdash; no floor, so an overloaded stat can hit 0 or go negative. Every specialty both helps &amp; hinders. Override adds a manual bonus.</div>
+      <div class="hp-row">
+        <span class="hp-lbl">Max HP</span>
+        <input type="number" id="d-hpmax" readonly style="width:52px;font-size:14px;">
+        <span style="color:var(--muted)">/</span>
+        <span class="hp-lbl">Current</span>
+        <input type="number" id="d-hpcur" style="width:52px;font-size:14px;">
+        <span style="margin-left:5px;"></span>
+        <span class="hp-lbl">DHP</span>
+        <input type="number" id="d-dhpcur" style="width:44px;" placeholder="cur">
+        <span class="hp-lbl">SS</span>
+        <input type="number" id="d-sscur" style="width:44px;" placeholder="cur">
+      </div>
+    </div>
+  </div>
+
+  <!-- Specialties -->
+  <div class="section" style="flex:0.80">
+    <div class="section-head">Specialties <span>225 pts &middot; max 75 ea &middot; 1d40</span></div>
+    <div class="section-body" style="padding:7px 10px;">
+      <table class="stat-table">
+        <thead><tr><th>Specialty</th><th class="c">Pts</th><th class="c">Mod</th></tr></thead>
+        <tbody id="spec-tbody">
+          <tr><td class="sn">Inspiration</td><td class="c"><div class="score-cell"><input type="number" class="spec-in" id="s-ins" min="0" max="75" value="0" oninput="calcAll()"><button class="roll-btn" onclick="inlineSpecRoll('Inspiration','s-ins')" title="Roll 1d40">d</button></div></td><td class="c"><input class="mod" readonly id="sm-ins"></td></tr>
+          <tr><td class="sn">Versatility</td><td class="c"><div class="score-cell"><input type="number" class="spec-in" id="s-ver" min="0" max="75" value="0" oninput="calcAll()"><button class="roll-btn" onclick="inlineSpecRoll('Versatility','s-ver')" title="Roll 1d40">d</button></div></td><td class="c"><input class="mod" readonly id="sm-ver"></td></tr>
+          <tr><td class="sn">Balance</td><td class="c"><div class="score-cell"><input type="number" class="spec-in" id="s-bal" min="0" max="75" value="0" oninput="calcAll()"><button class="roll-btn" onclick="inlineSpecRoll('Balance','s-bal')" title="Roll 1d40">d</button></div></td><td class="c"><input class="mod" readonly id="sm-bal"></td></tr>
+          <tr><td class="sn">Weight</td><td class="c"><div class="score-cell"><input type="number" class="spec-in" id="s-wt" min="0" max="75" value="0" oninput="calcAll()"><button class="roll-btn" onclick="inlineSpecRoll('Weight','s-wt')" title="Roll 1d40">d</button></div></td><td class="c"><input class="mod" readonly id="sm-wt"></td></tr>
+          <tr><td class="sn">Precision</td><td class="c"><div class="score-cell"><input type="number" class="spec-in" id="s-pre" min="0" max="75" value="0" oninput="calcAll()"><button class="roll-btn" onclick="inlineSpecRoll('Precision','s-pre')" title="Roll 1d40">d</button></div></td><td class="c"><input class="mod" readonly id="sm-pre"></td></tr>
+          <tr><td class="sn">Control</td><td class="c"><div class="score-cell"><input type="number" class="spec-in" id="s-ctrl" min="0" max="75" value="0" oninput="calcAll()"><button class="roll-btn" onclick="inlineSpecRoll('Control','s-ctrl')" title="Roll 1d40">d</button></div></td><td class="c"><input class="mod" readonly id="sm-ctrl"></td></tr>
+          <tr><td class="sn">Priority</td><td class="c"><div class="score-cell"><input type="number" class="spec-in" id="s-pri" min="0" max="75" value="0" oninput="calcAll()"><button class="roll-btn" onclick="inlineSpecRoll('Priority','s-pri')" title="Roll 1d40">d</button></div></td><td class="c"><input class="mod" readonly id="sm-pri"></td></tr>
+          <tr><td class="sn">Wpn Mastery</td><td class="c"><div class="score-cell"><input type="number" class="spec-in" id="s-wm" min="0" max="75" value="0" oninput="calcAll()"><button class="roll-btn" onclick="inlineSpecRoll('Wpn Mastery','s-wm')" title="Roll 1d40">d</button></div></td><td class="c"><input class="mod" readonly id="sm-wm"></td></tr>
+          <tr><td class="sn">Mental Fort.</td><td class="c"><div class="score-cell"><input type="number" class="spec-in" id="s-mf" min="0" max="75" value="0" oninput="calcAll()"><button class="roll-btn" onclick="inlineSpecRoll('Mental Fort','s-mf')" title="Roll 1d40">d</button></div></td><td class="c"><input class="mod" readonly id="sm-mf"></td></tr>
+          <tr><td class="sn">Perception</td><td class="c"><div class="score-cell"><input type="number" class="spec-in" id="s-per" min="0" max="75" value="0" oninput="calcAll()"><button class="roll-btn" onclick="inlineSpecRoll('Perception','s-per')" title="Roll 1d40">d</button></div></td><td class="c"><input class="mod" readonly id="sm-per"></td></tr>
+          <tr><td class="sn">Adaption</td><td class="c"><div class="score-cell"><input type="number" class="spec-in" id="s-adp" min="0" max="75" value="0" oninput="calcAll()"><button class="roll-btn" onclick="inlineSpecRoll('Adaption','s-adp')" title="Roll 1d40">d</button></div></td><td class="c"><input class="mod" readonly id="sm-adp"></td></tr>
+          <tr><td class="sn">Cunning</td><td class="c"><div class="score-cell"><input type="number" class="spec-in" id="s-cun" min="0" max="75" value="0" oninput="calcAll()"><button class="roll-btn" onclick="inlineSpecRoll('Cunning','s-cun')" title="Roll 1d40">d</button></div></td><td class="c"><input class="mod" readonly id="sm-cun"></td></tr>
+        </tbody>
+      </table>
+      <div style="margin-top:4px;font-size:9px;text-align:right;color:var(--muted);">Remaining: <span id="pts-left">225</span> / 225</div>
+      <div class="formula-note">Specialty roll = 1d40 + pts. Pts &le; 25 apply a &minus;25 untrained penalty.</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- RANK STATUS -->
+<div class="rank-bar" id="rank-bar">
+  <span>Rank <strong id="rb-rank">0</strong></span>
+  <span>Title: <strong id="rb-title">&mdash;</strong></span>
+  <span>Genus Slots: <strong id="rb-genus">5</strong></span>
+  <span>Cipher Slots: <strong id="rb-ciphers">1</strong></span>
+  <span>Max HP: <strong id="rb-hp">&mdash;</strong></span>
+  <span>Rank Mult: <strong id="rb-mult">&times;1.0</strong></span>
+</div>
+
+<!-- PRESSURE ENGINE -->
+<div class="section">
+  <div class="section-head">Pressure Engine <span>situation resolution &middot; AAV vs PE</span></div>
+  <div class="section-body" style="padding:9px 12px;">
+    <div class="pe-top">
+      <div class="field" style="margin:0;"><label>Current PE / BP</label><input type="number" id="pe-val" min="0" max="200" value="50" oninput="onPEValInput()"></div>
+      <div><div class="pe-mini">State</div><div class="pe-state tense" id="pe-state">TENSE</div></div>
+      <div><div class="pe-mini">Rank Mult</div><div class="pe-mini"><b id="pe-mult">&times;1.0</b></div></div>
+      <div><div class="pe-mini">Final Complexity <span style="text-transform:none;letter-spacing:0;">(Insp &minus; Tax)</span></div><div class="pe-mini"><b id="pe-cplx">0</b></div></div>
+    </div>
+    <div class="formula-note" style="margin-bottom:6px;">Per skill: (1d40 + Specialty pts + Attribute Mod + Complexity) &times; Rank Mult. Choose 1&ndash;4 skills; 3 skills +1, 4 skills +2 Complexity Bonus.</div>
+    <div id="pe-skills"></div>
+    <div class="pe-gated-note" id="pe-gate-note" style="display:none;">Curator has restricted which stats you can roll for this challenge.</div>
+    <div class="pe-actions">
+      <button class="pe-resolve" onclick="resolvePE()">Resolve Roll</button>
+      <button class="pe-apply" onclick="resetPESkills()">Clear Skills</button>
+    </div>
+    <div class="pe-result" id="pe-result">
+      <div class="pe-res-item"><span class="pe-res-lbl">AAV</span><span class="pe-res-val" id="pe-aav">&mdash;</span></div>
+      <div class="pe-res-item"><span class="pe-res-lbl">AAV &minus; PE</span><span class="pe-res-val" id="pe-diff">&mdash;</span></div>
+      <div class="pe-res-item"><span class="pe-res-lbl">Outcome</span><span class="pe-outcome" id="pe-outcome">&mdash;</span></div>
+      <div class="pe-res-item"><span class="pe-res-lbl">Suggested PE Change</span><span class="pe-res-val" id="pe-change">&mdash;</span></div>
+      <button class="pe-apply" id="pe-apply-btn" onclick="applyPEChange()">Apply &rarr; New PE</button>
+    </div>
+  </div>
+</div>
+
+<!-- INCEPT + ASYMMETRY -->
+<div class="row">
+  <div class="section" style="flex:0.80">
+    <div class="section-head">Incept &mdash; Ancestral Truth</div>
+    <div class="section-body">
+      <div class="incept-grid">
+        <div class="field"><label>Innate Nature</label><input type="text" id="i-nature" placeholder="species / family"></div>
+        <div class="field"><label>Species Ability</label><input type="text" id="i-ability" placeholder="auto-filled from species"></div>
+        <div class="field"><label>Wryde Mutation</label><input type="text" id="i-wryde"></div>
+        <div class="field"><label>Expression State</label>
+          <select id="i-expr"><option>Dormant</option><option>Suppressed</option><option>Normal</option><option>Stable Active</option></select>
+        </div>
+      </div>
+      <div class="field" style="margin-top:7px;">
+        <label>Stage</label>
+        <div class="stage-btns">
+          <button class="stage-btn" id="stage-species" onclick="setStage('species')">Species</button>
+          <button class="stage-btn" id="stage-lineage" onclick="setStage('lineage')">Lineage</button>
+          <button class="stage-btn" id="stage-heritage" onclick="setStage('heritage')">Heritage</button>
+        </div>
+      </div>
+      <div class="field" style="margin-top:7px;"><label>DDC / Director Notes</label><textarea id="i-notes" style="min-height:34px;"></textarea></div>
+    </div>
+  </div>
+
+  <div class="section" style="flex:1.4">
+    <div class="section-head">Asymmetry Log <span>Genera &middot; Incept &middot; Varna &middot; Uber</span></div>
+    <div class="section-body" style="padding:7px 10px;">
+      <table class="data-table">
+        <thead><tr><th style="width:16px;">#</th><th style="width:80px;">Domain</th><th style="width:120px;">Name</th><th style="width:60px;">Weight</th><th style="width:70px;">Wryde</th><th>Effect</th></tr></thead>
+        <tbody id="asym-body"></tbody>
+      </table>
+      <button class="add-row-btn" onclick="addAsymRow()">+ Add Row</button>
+    </div>
+  </div>
+</div>
+
+<!-- GENUS LOADOUT -->
+<div class="section">
+  <div class="section-head">Genus Loadout <span id="genus-head-note">5 at creation &middot; +1 per rank</span></div>
+  <div class="section-body" style="padding:7px 10px;">
+    <div class="wpn-type-hint" id="genus-domain-note">Pick a Paradigm to filter Genus by its energy domains.</div>
+    <datalist id="genus-options"></datalist>
+    <table class="data-table">
+      <thead><tr><th style="width:18px;">#</th><th style="width:140px;">Name</th><th style="width:100px;">Energy Domain</th><th style="width:90px;">Action Cost</th><th style="width:55px;">SS Cost</th><th>Effect</th></tr></thead>
+      <tbody id="genus-body"></tbody>
+    </table>
+    <button class="add-row-btn" id="add-genus-btn" onclick="addGenusRow()">+ Add Genus</button>
+  </div>
+</div>
+
+<!-- VARNA + CIPHER -->
+<div class="row">
+
+  <div class="section" style="flex:1">
+    <div class="section-head">Varna &mdash; Mastery</div>
+    <div class="section-body">
+      <div class="vsub">Mundane Varna</div>
+      <div class="vgrid">
+        <div class="field"><label>Weapon / Technique</label><input type="text" id="v-weapon"></div>
+        <div class="field"><label>Proficiency / Mastery Level</label><input type="text" id="v-prof"></div>
+        <div class="field"><label>Weapon Skill</label><input type="text" id="v-skill"></div>
+        <div class="field"><label>Passive Technique</label><input type="text" id="v-passive"></div>
+      </div>
+      <div class="vsub">Supernatural Varna</div>
+      <div class="vgrid">
+        <div class="field"><label>Mastery Path</label><input type="text" id="vs-path"></div>
+        <div class="field"><label>Saving Throw Bonus (+3)</label><input type="text" id="vs-save"></div>
+        <div class="field"><label>Hit Die Gained</label><input type="text" id="vs-hd"></div>
+        <div></div>
+      </div>
+      <div style="margin-top:7px;">
+        <div class="vsub">Mastery Abilities</div>
+        <div class="alist" id="varna-ability-list">
+          <div class="aitem"><span class="anum">1.</span><input type="text" id="vs-a1"></div>
+          <div class="aitem"><span class="anum">2.</span><input type="text" id="vs-a2"></div>
+          <div class="aitem"><span class="anum">3.</span><input type="text" id="vs-a3"></div>
+          <div class="aitem"><span class="anum">4.</span><input type="text" id="vs-a4"></div>
+        </div>
+        <button class="add-row-btn" onclick="addVarnaAbility()" style="margin-top:4px;">+ Add Ability</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section" style="flex:0.70">
+    <div class="section-head">Paradigm Cipher</div>
+    <div class="section-body">
+      <div style="font-size:9px;color:var(--muted);margin-bottom:6px;">DNA-locked. Offline TL&le;2.0 &middot; Online TL&ge;3.0. Grows with rank.</div>
+      <div class="wpn-type-hint" id="cipher-domain-note">Pick a Paradigm to load its Ciphers.</div>
+      <datalist id="cipher-options"></datalist>
+      <div class="field"><label>Cipher (pick from Paradigm)</label><input type="text" id="c-pick" list="cipher-options" autocomplete="off" onfocus="loadCiphersForParadigm()" onchange="onCipherPick()" placeholder="search ciphersâ€¦"></div>
+      <div id="cipher-block-note" class="pe-gated-note" style="display:none;">Online Ciphers deactivated by the Curator.</div>
+      <div class="cgrid">
+        <div class="field"><label>Type</label><select id="c-type" onchange="applyOnlineCipherState()"><option>Offline</option><option>Online</option></select></div>
+        <div class="field"><label>TL</label><input type="number" id="c-tl" min="1" max="5" step="0.5"></div>
+        <div></div>
+      </div>
+      <div class="field">
+        <label>Status</label>
+        <div class="cstatus">
+          <button class="csbtn active" id="cs-active" onclick="setCipherStatus('active')">Active</button>
+          <button class="csbtn" id="cs-suspended" onclick="setCipherStatus('suspended')">Suspended</button>
+          <button class="csbtn" id="cs-deactivated" onclick="setCipherStatus('deactivated')">Deactivated</button>
+        </div>
+      </div>
+      <div class="field" style="margin-top:7px;"><label>Primary Cipher Benefits</label><textarea id="c-benefits" style="min-height:50px;"></textarea></div>
+      <div class="action-chips" id="cipher-chips"></div>
+      <div style="margin-top:7px;">
+        <div class="vsub">Additional Ciphers</div>
+        <div class="alist" id="cipher-list"></div>
+        <button class="add-row-btn" id="add-cipher-btn" onclick="addCipher()" style="margin-top:4px;">+ Add Cipher</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- EQUIPMENT -->
+<div class="section">
+  <div class="section-head">Equipment <span>4 weapon slots &middot; Light 1/2 &middot; Medium 1 &middot; Heavy 2</span></div>
+  <div class="section-body">
+    <div class="wpn-type-hint" id="wpn-hint">Select a Paradigm to see authorized weapon types.</div>
+    <div class="row" style="gap:18px;">
+      <div style="flex:1.1">
+        <div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:5px;">Weapons</div>
+        <div class="ewpn"><div class="field"><label>Weapon 1</label><input type="text" id="w1-name" oninput="renderWeaponChips(1)"></div><div class="field"><label>Type</label><select id="w1-type"><option>Light</option><option>Medium</option><option>Heavy</option></select></div><div class="field"><label>Damage</label><input type="text" id="w1-dmg" oninput="renderWeaponChips(1)"></div></div>
+        <div class="action-chips" id="wpn-chips-1"></div>
+        <div class="ewpn"><div class="field"><label>Weapon 2</label><input type="text" id="w2-name" oninput="renderWeaponChips(2)"></div><div class="field"><label>Type</label><select id="w2-type"><option>Light</option><option>Medium</option><option>Heavy</option></select></div><div class="field"><label>Damage</label><input type="text" id="w2-dmg" oninput="renderWeaponChips(2)"></div></div>
+        <div class="action-chips" id="wpn-chips-2"></div>
+        <div class="ewpn"><div class="field"><label>Weapon 3</label><input type="text" id="w3-name" oninput="renderWeaponChips(3)"></div><div class="field"><label>Type</label><select id="w3-type"><option>Light</option><option>Medium</option><option>Heavy</option></select></div><div class="field"><label>Damage</label><input type="text" id="w3-dmg" oninput="renderWeaponChips(3)"></div></div>
+        <div class="action-chips" id="wpn-chips-3"></div>
+        <div class="ewpn" style="margin-bottom:0;"><div class="field"><label>Weapon 4</label><input type="text" id="w4-name" oninput="renderWeaponChips(4)"></div><div class="field"><label>Type</label><select id="w4-type"><option>Light</option><option>Medium</option><option>Heavy</option></select></div><div class="field"><label>Damage</label><input type="text" id="w4-dmg" oninput="renderWeaponChips(4)"></div></div>
+        <div class="action-chips" id="wpn-chips-4"></div>
+      </div>
+      <div style="flex:0.70">
+        <div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:5px;">Defense &amp; Gear</div>
+        <div class="earm" style="margin-bottom:6px;">
+          <div class="field"><label>Armor</label><input type="text" id="armor-name"></div>
+          <div class="field"><label>DR</label><input type="text" id="armor-dr"></div>
+        </div>
+        <div class="field"><label>Gear 1</label><input type="text" id="gear1"></div>
+        <div class="field"><label>Gear 2</label><input type="text" id="gear2"></div>
+        <div class="field"><label>Gear 3</label><input type="text" id="gear3"></div>
+        <div class="field"><label>Gear 4</label><input type="text" id="gear4"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- NOTES -->
+<div class="section">
+  <div class="section-head">Notes &amp; Backstory</div>
+  <div class="section-body">
+    <textarea id="notes" style="width:100%;min-height:65px;border:none;border-bottom:1px solid var(--border);" placeholder="Origin, key events, session logs..."></textarea>
+  </div>
+</div>
+
+</div><!-- end .sheet -->
+
+<!-- EXPORT MODAL -->
+<div class="modal-bg" id="exportModal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <span class="mt">Export &mdash; Clean Document</span>
+      <span class="mx" onclick="closeExport()">x</span>
+    </div>
+    <div class="modal-tools">
+      <button class="btn prime" onclick="copyExport()" style="color:#fff;">Copy for Google Docs</button>
+      <button class="btn" onclick="copyExportText()" style="border-color:var(--border2);color:var(--ink2);">Copy Plain Text</button>
+      <span class="hint">Copy, then paste (Ctrl+V) into a Google Doc &mdash; formatting is preserved.</span>
+    </div>
+    <div class="modal-body"><div id="exportRender"></div></div>
+  </div>
+</div>
+
+<!-- WIKI MODAL -->
+<div class="modal-bg" id="wikiModal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <span class="mt">Wiki Character</span>
+      <span class="mx" onclick="closeWiki()">x</span>
+    </div>
+    <div class="modal-body">
+      <div class="tp-sec-h" style="border:none;">Import from Wiki</div>
+      <div class="tp-note">Enter a wiki page name (your character blog/profile). The sheet reads a <b>WTE-SHEET</b> block on that page and loads the character. Builds the rest (derived stats, abilities) automatically.</div>
+      <div style="display:flex;gap:6px;margin:8px 0 16px;">
+        <input type="text" id="wiki-page-input" placeholder="e.g. User blog:You/My Inquisitor" style="flex:1;">
+        <button class="btn prime" onclick="importFromWiki()" style="color:#fff;white-space:nowrap;">Import character</button>
+      </div>
+      <div class="tp-sec-h" style="border:none;">Your character's wiki template</div>
+      <div class="tp-note">Copy this block and paste it anywhere on your wiki page. Anyone can then import this character by entering your page name above. (Raw Save-file JSON also works in a WTE-SHEET block.)</div>
+      <textarea id="wiki-template-out" readonly style="width:100%;min-height:240px;font-family:Consolas,monospace;font-size:11px;margin-top:8px;border:1px solid var(--border);"></textarea>
+      <button class="btn" onclick="copyWikiTemplate()" style="margin-top:8px;border-color:var(--border2);color:var(--ink2);">Copy template</button>
+    </div>
+  </div>
+</div>
+
+<!-- LIBRARY MODAL -->
+<div class="modal-bg" id="libraryModal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <span class="mt">Library &mdash; Character Folders</span>
+      <span class="mx" onclick="closeLibrary()">x</span>
+    </div>
+    <div class="modal-tools">
+      <button class="btn prime" onclick="libNewFolder()" style="color:#fff;">+ New Folder</button>
+      <span class="hint">Organize saved sheets into folders (Bosses, NPCs, Monsters&hellip;). Stored in this browser.</span>
+    </div>
+    <div class="modal-body"><div id="libraryBody"></div></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" style="opacity:0;"></div>
+
+<script>
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// DATA
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+const PARADIGM_DATA = {
+  Science:    { weapons:{Light:'Hybrid',Medium:'Exotic',Heavy:'Kinetic'},    domains:['Neutral','Elemental'],           titles:['Intern','Researcher','Scientist','Specialist/Director'] },
+  Simulation: { weapons:{Light:'Exotic',Medium:'Kinetic',Heavy:'Hybrid'},    domains:['Kinetic','Null'],                titles:['Sim Intern','Simulator','Simulation Agent','Simulation Engineer'] },
+  Remnant:    { weapons:{Light:'Kinetic',Medium:'Energy',Heavy:'Hybrid'},    domains:['Kinetic','Neutral'],             titles:['Wanderer','Dependent','Contractor','Chosen/Specialist'] },
+  Cognition:  { weapons:{Light:'Energy',Medium:'Exotic',Heavy:'Hybrid'},     domains:['Eldritch','Null'],              titles:['Seeker','Empath','Overviewer','Auditor'] },
+  Evolution:  { weapons:{Light:'Energy',Medium:'Exotic',Heavy:'Hybrid'},     domains:['Elemental','Eldritch'],         titles:['Tester','Modificator','Xenobiologist','Mutagenist'] },
+  Warfare:    { weapons:{Light:'Hybrid',Medium:'Exotic',Heavy:'Kinetic'},    domains:['Neutral','Kinetic'],            titles:['Private','Corporal','Captain','Specialist/Director'] },
+};
+
+// SPECIES â€” affinity bonuses (mapped to the 7 sheet attributes), innate abilities, variants
+const SPECIES_DATA = {
+  Hyomen:    { family:'Humanity', bonus:{}, note:'Balanced â€” specialize by choice', innate:['Prodigal Mind','Indecisive Body','Indomitable Will','Peak Evolution'],
+    variants:{ 'Bio-Engineered Hyomen':['Enhanced Strength (+Â½ Ode Lvl to STR rolls)','Enhanced Anatomy (Adv. on Adaptation)'], 'Spatians':['Space Modulation','Evolved Body (convert non-crit dmg type)'], 'Neo-Humans':['Awakened Visualization (magnetic fields)','Genetic Control (latent mutations 1hr)'] } },
+  Voaulton:  { family:'Humanity', bonus:{'a-phy':2,'a-end':2}, innate:['Chemical Mastery','Robotic Integration','Adaptive Analysis','Energetic Synergy'],
+    variants:{ 'Droid':['Modulation (restructure form)','EMP (40ft pulse, 1 free/enc.)'], 'Cyborg':['Hacking (backfire attacker)','Circuit Transfiguration (Halt/Detonate/Redirect)'], 'N-T1 (Novus-Tauron)':['Forced Control (Nerve Grapple / Neural Override)','Elongation (limbs to 40ft)'] } },
+  Mirga:     { family:'Humanity', bonus:{'a-int':2,'a-ap':2}, innate:['Perfect Mimicry','Mimetic Adaptation','Illusory Disguise','Emotional Mimicry'],
+    variants:{ 'Chimera':['Multicellular Sentience (detach segments)','Modularity (transform segments, 8/hr)'] } },
+  Oriyu:     { family:'Omenity', bonus:{}, note:'Variable by lineage â€” assign manually', innate:['Energy Manipulation','Energy Absorption','Energy Projection','Energy Shielding'], variants:{} },
+  Insectoid: { family:'Omenity', bonus:{'a-end':2,'a-con':2}, innate:['Regenerative Limbs','Eyeless (non-visual senses)','Reflexive Assurance','Peak Evolution'],
+    variants:{ 'Archnida':['Bursting Fracture','Unnerving Presence'], 'Cerioisk':['Augo Consumption (Cocoon Phase)','Corruptive Reproduction'] } },
+  SubDermin: { family:'Omenity', bonus:{'a-end':2,'a-dex':2}, innate:['Forsaken Touch','Radioactive Anatomy','Terrestrial Knowledge','Living Planet Merge'],
+    variants:{ 'Fractine':['Diamond Form','Crystal Manipulation'], 'Construct':['Physical Fracture (Anchored on overwhelm)','Pressuring Advance'] } },
+  Inderi:    { family:'Asternem', bonus:{'a-wis':2,'a-int':2}, note:'Choose 2 of 4 active â€” other 2 become locked Inceptions', innate:['Eldritch Physiology','Enhanced Regeneration','Perfect Reflex Calibration','True Eye of Solitude'],
+    variants:{ "AI'N":['Dilation','Replication (1:1 replica, 1/2hr)'] } },
+  Seraph:    { family:'Asternem', bonus:{'a-dex':2,'a-wis':2}, innate:['Antimatter Wings','Dance of Displacement','Spatial Rupture','Distant Vision'], variants:{} },
+  Stygians:  { family:'Asternem', bonus:{'a-con':2,'a-wis':2}, innate:['Shadow Meld','Umbral Step','Hive Conjugation','Dimensional Flicker'],
+    variants:{ 'Xeno':['Mutagenic Absorption','Freakish Nature'], 'Greys':['Telepathy / Telekinesis','Psionic Mold'], 'Annunaki':['Melam Manifestation','Ni Conjuration','+ Head Shape ability (Telepathy / Precognition / Atomic Manip.)'] } },
+};
+
+const BG_STANDARD = [2,2,1,1];
+const BG_FOCUSED  = [4,2];
+
+const ATTRS = [['a-phy','PHY'],['a-dex','DEX'],['a-end','END'],['a-ap','AP'],['a-wis','WIS'],['a-con','CHA'],['a-int','INT']];
+const SPECS = [['s-ins','Inspiration'],['s-ver','Versatility'],['s-bal','Balance'],['s-wt','Weight'],['s-pre','Precision'],['s-ctrl','Control'],['s-pri','Priority'],['s-wm','Wpn Mastery'],['s-mf','Mental Fort.'],['s-per','Perception'],['s-adp','Adaption'],['s-cun','Cunning']];
+// reducing specialties (Tax Burden contributors) â€” kept in sync with the derived web
+const REDUCERS = ['s-pre','s-bal','s-adp','s-cun','s-wt','s-ver','s-pri','s-mf','s-ctrl','s-wm','s-per'];
+
+const STAT_OPTIONS = [
+  {id:'a-phy',label:'PHY'},{id:'a-dex',label:'DEX'},{id:'a-end',label:'END'},
+  {id:'a-ap',label:'AP'},{id:'a-wis',label:'WIS'},{id:'a-con',label:'CHA'},{id:'a-int',label:'INT'},
+  {id:'s-ins',label:'Inspiration'},{id:'s-ver',label:'Versatility'},{id:'s-bal',label:'Balance'},
+  {id:'s-wt',label:'Weight'},{id:'s-pre',label:'Precision'},{id:'s-ctrl',label:'Control'},
+  {id:'s-pri',label:'Priority'},{id:'s-wm',label:'Wpn Mastery'},{id:'s-mf',label:'Mental Fort.'},
+  {id:'s-per',label:'Perception'},{id:'s-adp',label:'Adaption'},{id:'s-cun',label:'Cunning'},
+];
+
+const SPEC_TOTAL = 225, SPEC_MAX = 75;
+// â”€â”€ DERIVED-STAT BALANCE KNOBS (tweak these to rebalance build-crafting) â”€â”€
+const RED_DIV = 3;        // reduction harshness: âˆ’1 per this many specialty pts (lower = harsher)
+                          // no safety floor â€” a bad build can drop a derived stat to 0 or negative
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// DYNAMIC ROWS
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+let asymCount = 0, genusCount = 0, varnaAbilityCount = 4, cipherCount = 2;
+
+function makeAsymRow(n) {
+  const tr = document.createElement('tr'); tr.id='asym-row-'+n;
+  tr.innerHTML=`<td class="rn">${n}</td>
+    <td><select id="as-dom-${n}" style="font-size:11px;"><option value="">&mdash;</option><option>Genera</option><option>Incept</option><option>Varna</option><option>Uber</option></select></td>
+    <td><input type="text" id="as-name-${n}"></td>
+    <td><input type="text" id="as-wt-${n}"></td>
+    <td><input type="text" id="as-wr-${n}"></td>
+    <td><input type="text" id="as-fx-${n}"></td>`;
+  return tr;
+}
+function makeGenusRow(n) {
+  const tr = document.createElement('tr'); tr.id='genus-row-'+n;
+  tr.innerHTML=`<td class="rn">${n}</td>
+    <td><input type="text" id="gn-name-${n}" list="genus-options" autocomplete="off" onfocus="loadGenusForParadigm()" onchange="onGenusPick(${n})" oninput="renderActionChips('gn-fx-${n}','gn-chips-${n}','gn-name-${n}')"></td>
+    <td><select id="gn-dom-${n}" style="font-size:11px;"><option value="">&mdash;</option><option>Neutral</option><option>Eldritch</option><option>Null</option><option>Elemental</option><option>Kinetic</option></select></td>
+    <td><input type="text" id="gn-act-${n}"></td>
+    <td><input type="number" id="gn-ss-${n}" min="0"></td>
+    <td><textarea id="gn-fx-${n}" style="min-height:22px;" oninput="renderActionChips('gn-fx-${n}','gn-chips-${n}','gn-name-${n}')"></textarea><div class="action-chips" id="gn-chips-${n}"></div></td>`;
+  return tr;
+}
+function buildInitialRows() {
+  const ab=document.getElementById('asym-body');
+  for(let i=1;i<=4;i++){asymCount++;ab.appendChild(makeAsymRow(i));}
+  const gb=document.getElementById('genus-body');
+  for(let i=1;i<=5;i++){genusCount++;gb.appendChild(makeGenusRow(i));}
+  // Additional Ciphers start at row #2 (the primary cipher is the section above)
+  document.getElementById('cipher-list').appendChild(makeCipherRow(2));
+}
+function addAsymRow() {
+  asymCount++;
+  document.getElementById('asym-body').appendChild(makeAsymRow(asymCount));
+  autosave();
+}
+function addGenusRow() {
+  const rank=parseInt(document.getElementById('f-level').value)||0;
+  const max=5+rank;
+  if(genusCount>=max){toast('Genus limit for Rank '+rank+' reached ('+max+')');return;}
+  genusCount++;
+  document.getElementById('genus-body').appendChild(makeGenusRow(genusCount));
+  updateGenusBtn();
+  autosave();
+}
+function addVarnaAbility(){
+  varnaAbilityCount++;
+  const list=document.getElementById('varna-ability-list');
+  const d=document.createElement('div');d.className='aitem';
+  d.innerHTML=`<span class="anum">${varnaAbilityCount}.</span><input type="text" id="vs-a${varnaAbilityCount}">`;
+  list.appendChild(d); autosave();
+}
+// Build one Additional Cipher row: paradigm picker + effect text + affixed action/meta chips.
+function makeCipherRow(n){
+  const d=document.createElement('div');d.className='aitem';
+  d.style.flexDirection='column';d.style.alignItems='stretch';d.style.gap='3px';
+  d.innerHTML=`<div style="display:flex;gap:5px;align-items:center;">
+      <span class="anum">${n}.</span>
+      <input type="text" id="c${n}" list="cipher-options" placeholder="search ciphersâ€¦" autocomplete="off" onfocus="loadCiphersForParadigm()" onchange="onAdditionalCipherPick(${n})" oninput="renderActionChips('c${n}-benefits','c${n}-chips','c${n}')" style="flex:1;">
+      <select id="c${n}-type" style="width:80px;"><option>Offline</option><option>Online</option></select>
+    </div>
+    <textarea id="c${n}-benefits" placeholder="effect / benefits (auto-filled from the wiki, editable)" style="min-height:34px;" oninput="renderActionChips('c${n}-benefits','c${n}-chips','c${n}')"></textarea>
+    <div class="action-chips" id="c${n}-chips"></div>`;
+  return d;
+}
+// Pick an additional cipher from the paradigm list â†’ fill its effect + type + chips.
+function onAdditionalCipherPick(n){
+  const el=document.getElementById('c'+n); if(!el)return;
+  const c=cipherByName[(el.value||'').trim().toLowerCase()];
+  if(c){
+    const ben=document.getElementById('c'+n+'-benefits'); if(ben)ben.value=c.name+' â€” '+c.effect;
+    const ty=document.getElementById('c'+n+'-type'); if(ty)ty.value=c.section==='Online'?'Online':'Offline';
+  }
+  renderActionChips('c'+n+'-benefits','c'+n+'-chips','c'+n);
+  autosave();
+}
+function refreshCipherChips(){ for(let i=2;i<=cipherCount;i++){ if(document.getElementById('c'+i+'-benefits'))renderActionChips('c'+i+'-benefits','c'+i+'-chips','c'+i); } }
+function addCipher(){
+  const rank=parseInt(document.getElementById('f-level').value)||0;
+  const max=1+rank;
+  if(cipherCount>max){toast('Cipher limit for Rank '+rank+' reached');return;}
+  cipherCount++;
+  document.getElementById('cipher-list').appendChild(makeCipherRow(cipherCount));
+  updateCipherBtn(); autosave();
+}
+function updateGenusBtn(){
+  const rank=parseInt(document.getElementById('f-level').value)||0;
+  const max=5+rank;
+  const btn=document.getElementById('add-genus-btn');
+  btn.textContent=`+ Add Genus (${genusCount}/${max})`;
+  btn.disabled=genusCount>=max;
+}
+function updateCipherBtn(){
+  const rank=parseInt(document.getElementById('f-level').value)||0;
+  const max=1+rank;
+  const btn=document.getElementById('add-cipher-btn');
+  btn.textContent=`+ Add Cipher (${cipherCount}/${max})`;
+  btn.disabled=cipherCount>max;
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// SPECIES
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// â”€â”€ WIKI LIVE-SYNC (Fandom MediaWiki API) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Local SPECIES_DATA is the offline fallback + home of the concrete numbers
+// (bonuses, which aren't on the wiki). At runtime we overlay the wiki's current
+// innate abilities & variants on top so ability text never drifts from canon.
+const WIKI_BASE='https://wonderland-of-the-enigma.fandom.com';
+const wikiSpeciesCache={};   // name -> {innate:[{name,desc}], variants:{Name:[{name,desc}]}, url}
+function wikiPageUrl(t){return WIKI_BASE+'/wiki/'+encodeURIComponent(String(t).replace(/ /g,'_'));}
+function cleanWiki(s){
+  return (s||'')
+    .replace(/<br\s*\/?>/gi,' ')
+    .replace(/'''?/g,'')
+    .replace(/\[\[[^\]|]*\|([^\]]*)\]\]/g,'$1')
+    .replace(/\[\[([^\]]*)\]\]/g,'$1')
+    .replace(/<[^>]+>/g,'')
+    .replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&mdash;/gi,'â€”').replace(/&minus;/gi,'âˆ’')
+    .replace(/\s+/g,' ').trim();
+}
+function wSection(wt,heading){
+  const h=heading.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  const m=wt.match(new RegExp('==\\s*'+h+'\\s*==([\\s\\S]*?)(?=\\n==[^=]|$)','i'));
+  return m?m[1]:'';
+}
+function wCell(line){
+  let s=line.replace(/^[|!]+/,'').trim();   // strip leading pipe/bang markers
+  const i=s.indexOf('|');                    // split attrs | content (space-optional)
+  if(i>=0 && s.slice(0,i).includes('=')) s=s.slice(i+1); // drop the style/attrs segment
+  return s.trim();
+}
+function wTables(s){const out=[];const re=/\{\|[\s\S]*?\|\}/g;let m;while((m=re.exec(s)))out.push(m[0]);return out;}
+function wAbilityTable(section){
+  const t=wTables(section);
+  return t.find(x=>/\|\s*(Effect|Description)\b/i.test(x)) || t.find(x=>/Ability/i.test(x)) || null;
+}
+function wParseAbilities(tbl){
+  if(!tbl)return[];
+  const rows=[];let cur=[];
+  tbl.split('\n').forEach(raw=>{
+    const t=raw.trim();
+    if(t.startsWith('|-')){if(cur.length)rows.push(cur);cur=[];}
+    else if(t.startsWith('!')){cur.push({hdr:true});}
+    else if(t.startsWith('|')&&t!=='|}'&&!t.startsWith('|+')){
+      const bold=/font-weight:\s*bold/i.test(t),color=/color:\s*#[0-9a-fA-F]/i.test(t);
+      cur.push({text:wCell(t),name:bold&&color});
+    }
+  });
+  if(cur.length)rows.push(cur);
+  const out=[];
+  rows.forEach(r=>{
+    if(r.some(c=>c.hdr)||!r.length)return;
+    if(r[0].name){
+      const name=cleanWiki(r[0].text);
+      const desc=cleanWiki(r.slice(1).map(c=>c.text).join(' â€” '));
+      if(name)out.push({name,desc});
+    }
+  });
+  return out;
+}
+function wParseVariants(wt){
+  const sec=wSection(wt,'VARIANTS');if(!sec)return {};
+  const re=/<div style="font-size:1\.1em;font-weight:bold;[^"]*font-family:monospace[^"]*">([^<]+)<\/div>/g;
+  const marks=[];let m;
+  while((m=re.exec(sec)))marks.push({name:cleanWiki(m[1]),idx:m.index});
+  const out={};
+  marks.forEach((mk,i)=>{
+    const chunk=sec.slice(mk.idx, i+1<marks.length?marks[i+1].idx:sec.length);
+    out[mk.name]=wParseAbilities(wAbilityTable(chunk));
+  });
+  return out;
+}
+async function fetchSpeciesWiki(name){
+  if(wikiSpeciesCache[name])return wikiSpeciesCache[name];
+  const url=WIKI_BASE+'/api.php?action=parse&prop=wikitext&format=json&origin=*&page='+encodeURIComponent(name);
+  const r=await fetch(url); if(!r.ok)throw new Error('HTTP '+r.status);
+  const j=await r.json(); if(j.error)throw new Error(j.error.info||'wiki error');
+  const wt=j.parse.wikitext['*'];
+  const data={innate:wParseAbilities(wAbilityTable(wSection(wt,'INNATE ABILITIES'))),variants:wParseVariants(wt),url:wikiPageUrl(name)};
+  wikiSpeciesCache[name]=data; return data;
+}
+function setSpeciesSync(state){
+  const el=document.getElementById('sp-sync'); if(!el)return;
+  if(!state){el.textContent='';return;}
+  if(state==='loading'){el.textContent='syncingâ€¦';el.style.color='var(--muted)';}
+  else if(state==='synced'){el.textContent='synced from wiki';el.style.color='#3a8050';}
+  else{el.textContent='offline â€” local data';el.style.color='#b88a20';}
+}
+// Merge local (numbers/fallback) with cached wiki abilities â†’ {label,title}[] chips
+function mergedSpecies(sp){
+  const local=SPECIES_DATA[sp]; if(!local)return null;
+  const live=wikiSpeciesCache[sp];
+  const innate = live&&live.innate.length ? live.innate.map(a=>({label:a.name,title:a.desc}))
+                                          : local.innate.map(s=>({label:s,title:''}));
+  // Merge variants case-insensitively (local is Title Case, wiki is ALL CAPS).
+  const titleCase=s=>s.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()).replace(/'(\w)/g,(m,c)=>"'"+c.toUpperCase());
+  const vmap=new Map(); // lowerkey -> {display, abilities}
+  Object.entries(local.variants).forEach(([n,arr])=>{
+    vmap.set(n.toLowerCase(),{display:n,abilities:arr.map(s=>({label:s,title:''}))});
+  });
+  if(live)Object.entries(live.variants).forEach(([n,arr])=>{
+    const k=n.toLowerCase(),ex=vmap.get(k);
+    vmap.set(k,{display:ex?ex.display:titleCase(n),
+      abilities:(arr&&arr.length)?arr.map(a=>({label:a.name,title:a.desc})):(ex?ex.abilities:[])});
+  });
+  const variants={};
+  vmap.forEach(v=>{variants[v.display]=v.abilities;});
+  return {family:local.family,bonus:local.bonus,note:local.note,innate,variants,url:(live&&live.url)||wikiPageUrl(sp)};
+}
+function renderSpecies(){
+  const sp=document.getElementById('f-species').value;
+  const box=document.getElementById('species-box');
+  const varSel=document.getElementById('f-variant');
+  const prevVariant=varSel.value;
+  varSel.innerHTML='<option value="">&mdash;</option>';
+  const wikiLink=document.getElementById('sp-wiki');
+  if(!sp||!SPECIES_DATA[sp]){box.classList.remove('visible');wikiLink.style.display='none';renderSpeciesAbilities();return;}
+  const d=mergedSpecies(sp);
+  Object.keys(d.variants).forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;varSel.appendChild(o);});
+  if(prevVariant&&d.variants[prevVariant])varSel.value=prevVariant;
+  box.classList.add('visible');
+  document.getElementById('sp-family').textContent=d.family;
+  document.getElementById('sp-note').textContent=d.note?('â€” '+d.note):'';
+  wikiLink.href=d.url; wikiLink.style.display='inline';
+  const bt=document.getElementById('sp-bonus-tags');bt.innerHTML='';
+  const labels={'a-phy':'PHY','a-dex':'DEX','a-end':'END','a-ap':'AP','a-wis':'WIS','a-con':'CHA','a-int':'INT'};
+  if(Object.keys(d.bonus).length){
+    Object.entries(d.bonus).forEach(([id,v])=>{const s=document.createElement('span');s.className='sbtag';s.innerHTML=`${labels[id]} <b>+${v}</b>`;bt.appendChild(s);});
+  }else{const s=document.createElement('span');s.className='sbtag';s.textContent='No fixed attribute bonus';bt.appendChild(s);}
+  const innate=document.getElementById('sp-innate');innate.innerHTML='';
+  d.innate.forEach(a=>{const c=document.createElement('span');c.className='ability-chip';c.textContent=a.label;if(a.title)c.title=a.title;innate.appendChild(c);});
+  renderAbilityDefs('sp-innate-defs',d.innate,false);
+  renderActionChipsFromText(d.innate.map(a=>a.title).filter(Boolean).join('  '),'sp-innate-actions',sp+' (innate)');
+  const natEl=document.getElementById('i-nature');
+  if(!natEl.value||natEl.dataset.auto==='1'){natEl.value=`${sp} (${d.family})`;natEl.dataset.auto='1';}
+  const abEl=document.getElementById('i-ability');
+  if(!abEl.value||abEl.dataset.auto==='1'){abEl.value=d.innate.map(a=>a.label).join('; ');abEl.dataset.auto='1';}
+  renderSpeciesAbilities();
+}
+function onSpeciesChange(){
+  renderSpecies(); calcAll(); autosave();
+  const sp=document.getElementById('f-species').value;
+  if(sp&&SPECIES_DATA[sp]&&!wikiSpeciesCache[sp]){
+    setSpeciesSync('loading');
+    fetchSpeciesWiki(sp)
+      .then(()=>{ if(document.getElementById('f-species').value===sp){renderSpecies();setSpeciesSync('synced');autosave();} })
+      .catch(()=>{ if(document.getElementById('f-species').value===sp)setSpeciesSync('offline'); });
+  }else if(sp&&wikiSpeciesCache[sp]){ setSpeciesSync('synced'); }
+  else setSpeciesSync('');
+}
+function onVariantChange(){
+  document.getElementById('i-ability').dataset.auto='1';
+  renderSpeciesAbilities();
+  const sp=document.getElementById('f-species').value,v=document.getElementById('f-variant').value;
+  const d=mergedSpecies(sp),abEl=document.getElementById('i-ability');
+  if(d&&abEl.dataset.auto==='1'){
+    const base=d.innate.map(a=>a.label).join('; ');
+    const va=(v&&d.variants[v]&&d.variants[v].length)?(' || '+v+': '+d.variants[v].map(a=>a.label).join('; ')):'';
+    abEl.value=base+va;
+  }
+  autosave();
+}
+function renderSpeciesAbilities(){
+  const sp=document.getElementById('f-species').value,v=document.getElementById('f-variant').value;
+  const lbl=document.getElementById('sp-variant-lbl'),box=document.getElementById('sp-variant-abilities');
+  box.innerHTML='';
+  const d=sp?mergedSpecies(sp):null;
+  if(d&&v&&d.variants[v]&&d.variants[v].length){
+    lbl.style.display='block'; lbl.innerHTML='Variant Abilities &mdash; '+v;
+    d.variants[v].forEach(a=>{const c=document.createElement('span');c.className='ability-chip variant';c.textContent=a.label;if(a.title)c.title=a.title;box.appendChild(c);});
+    renderAbilityDefs('sp-variant-defs',d.variants[v],true);
+    renderActionChipsFromText(d.variants[v].map(a=>a.title).filter(Boolean).join('  '),'sp-variant-actions',v);
+  }else{ lbl.style.display='none'; renderAbilityDefs('sp-variant-defs',[],true); renderActions('sp-variant-actions',[]); }
+}
+// Render full skill definitions (label + description + meta) under the ability chips.
+function renderAbilityDefs(containerId,abilities,variant){
+  const el=document.getElementById(containerId); if(!el)return;
+  el.innerHTML='';
+  (abilities||[]).forEach(a=>{
+    const def=a.title||'';
+    const meta=parseEffectMeta(def);
+    const bh=metaBadgesHTML(meta);
+    const d=document.createElement('div'); d.className='def-item'+(variant?' variant':'');
+    d.innerHTML=`<b>${esc(a.label)}</b>${def?(' â€” '+esc(def)):''}`+(bh?` <span class="def-meta">${bh}</span>`:'');
+    el.appendChild(d);
+  });
+}
+function getSpeciesBonus(){
+  const sp=document.getElementById('f-species').value;
+  return (sp&&SPECIES_DATA[sp])?SPECIES_DATA[sp].bonus:{};
+}
+
+// â”€â”€ SMART GENUS â€” scraped from the 5 domain pages, gated by paradigm â”€â”€
+const GENUS_DOMAINS=['Neutral','Eldritch','Elemental','Null','Kinetic'];
+const genusCache={};   // domain -> [{name,domain,ss,ssText,activation,classification,effect}]
+const genusByName={};  // lowercase name -> genus
+function genusStatCells(chunk){
+  const tb=(chunk.match(/\{\|[\s\S]*?\|\}/)||[])[0]; if(!tb)return [];
+  const cells=[]; let started=false;
+  for(const raw of tb.split('\n')){
+    const t=raw.trim();
+    if(t.startsWith('|-')){ if(started)break; started=true; continue; }
+    if(!started||t.startsWith('!')||t==='|}'||t.startsWith('{|'))continue;
+    if(t.startsWith('|')) t.split('||').forEach(part=>{
+      let s=part.trim().replace(/^\|/,'').trim();
+      const j=s.indexOf('|'); if(j>=0&&s.slice(0,j).includes('='))s=s.slice(j+1);
+      cells.push(cleanWiki(s.trim()));
+    });
+  }
+  return cells;
+}
+function parseGenusPage(wt,domain){
+  const out=[];
+  const nameRe=/<div style="font-size:15px;font-weight:700;color:#dedede[^"]*">([^<]+)<\/div>/g;
+  const marks=[]; let m;
+  while((m=nameRe.exec(wt)))marks.push({name:cleanWiki(m[1]),idx:m.index});
+  marks.forEach((mk,i)=>{
+    const chunk=wt.slice(mk.idx, i+1<marks.length?marks[i+1].idx:wt.length);
+    const cells=genusStatCells(chunk);
+    const eff=chunk.match(/<div style="color:#909090;font-size:11px;line-height:1\.7[^"]*">([\s\S]*?)<\/div>/);
+    out.push({name:mk.name,domain,classification:cells[0]||'',ss:parseInt(cells[1])||0,ssText:cells[1]||'',activation:cells[2]||'',effect:eff?cleanWiki(eff[1]):''});
+  });
+  return out;
+}
+async function fetchGenusDomain(domain){
+  if(genusCache[domain])return genusCache[domain];
+  const url=WIKI_BASE+'/api.php?action=parse&prop=wikitext&format=json&origin=*&page='+encodeURIComponent(domain+'_Genus');
+  const r=await fetch(url); if(!r.ok)throw new Error('HTTP '+r.status);
+  const j=await r.json(); if(j.error)throw new Error(j.error.info||'wiki error');
+  const list=parseGenusPage(j.parse.wikitext['*'],domain);
+  genusCache[domain]=list; list.forEach(g=>{genusByName[g.name.toLowerCase()]=g;});
+  return list;
+}
+function paradigmDomains(){
+  const p=document.getElementById('f-paradigm').value;
+  return (p&&PARADIGM_DATA[p])?PARADIGM_DATA[p].domains.slice():GENUS_DOMAINS.slice();
+}
+let _genusLoading=false;
+async function loadGenusForParadigm(){
+  if(_genusLoading)return; _genusLoading=true;
+  const doms=paradigmDomains();
+  const note=document.getElementById('genus-domain-note');
+  if(doms.some(d=>!genusCache[d])&&note)note.textContent='Loading Genus for '+doms.join(', ')+'â€¦';
+  let ok=0;
+  await Promise.all(doms.map(d=>fetchGenusDomain(d).then(()=>ok++).catch(()=>{})));
+  _genusLoading=false;
+  renderGenusDatalist();
+  if(note){
+    const total=doms.reduce((n,d)=>n+((genusCache[d]||[]).length),0);
+    note.textContent= total
+      ? `Genus suggestions limited to your domains: ${doms.join(', ')} Â· ${total} available (from wiki)`
+      : `Offline â€” type Genus names manually (domains: ${doms.join(', ')})`;
+  }
+}
+function renderGenusDatalist(){
+  const dl=document.getElementById('genus-options'); if(!dl)return;
+  const opts=[];
+  paradigmDomains().forEach(d=>(genusCache[d]||[]).forEach(g=>opts.push(`<option value="${(g.name||'').replace(/"/g,'&quot;')}">${g.domain} Â· ${g.ss} SS</option>`)));
+  dl.innerHTML=opts.join('');
+}
+function onGenusPick(n){
+  const nameEl=document.getElementById('gn-name-'+n); if(!nameEl)return;
+  const g=genusByName[(nameEl.value||'').trim().toLowerCase()];
+  if(!g)return; // unknown / freeform â€” leave as typed
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.value=v;};
+  set('gn-dom-'+n,g.domain); set('gn-ss-'+n,g.ss); set('gn-act-'+n,g.activation); set('gn-fx-'+n,g.effect);
+  renderActionChips('gn-fx-'+n,'gn-chips-'+n,'gn-name-'+n);
+  autosave();
+}
+
+// â”€â”€ CIPHERS â€” scraped per paradigm; Curator can deactivate Online ciphers â”€â”€
+const cipherCache={};   // paradigm -> [cipher]
+const cipherByName={};  // lowercase name -> cipher
+function parseCipherPage(wt,paradigm){
+  const onlineIdx=wt.indexOf('ONLINE CIPHERS'), specialIdx=wt.indexOf('SPECIAL CIPHERS');
+  const sectionAt=(idx)=>{ if(specialIdx>=0&&idx>specialIdx)return 'Special'; if(onlineIdx>=0&&idx>onlineIdx)return 'Online'; return 'Offline'; };
+  const out=[];
+  const nameRe=/<div style="font-size:10\.5px;font-weight:700;color:#dedede[^"]*">([^<]+)<\/div>/g;
+  const marks=[]; let m;
+  while((m=nameRe.exec(wt)))marks.push({name:cleanWiki(m[1]),idx:m.index});
+  marks.forEach((mk,i)=>{
+    const chunk=wt.slice(mk.idx,i+1<marks.length?marks[i+1].idx:wt.length);
+    const meta=(label)=>{ const mm=chunk.match(new RegExp(label+':\\s*<span[^>]*>([^<]+)</span>','i')); return mm?cleanWiki(mm[1]):''; };
+    const effs=[...chunk.matchAll(/<div style="color:#909090;font-size:11px;line-height:1\.7[^"]*">([\s\S]*?)<\/div>/g)].map(x=>cleanWiki(x[1]));
+    out.push({name:mk.name,paradigm,section:sectionAt(mk.idx),ss:parseInt(meta('SS'))||0,type:meta('TYPE'),rank:meta('RANK'),effect:effs.join(' ')});
+  });
+  return out;
+}
+async function fetchCipherPage(paradigm){
+  if(cipherCache[paradigm])return cipherCache[paradigm];
+  const url=WIKI_BASE+'/api.php?action=parse&prop=wikitext&format=json&origin=*&page='+encodeURIComponent(paradigm+'_Ciphers');
+  const r=await fetch(url); if(!r.ok)throw new Error('HTTP '+r.status);
+  const j=await r.json(); if(j.error)throw new Error(j.error.info||'wiki error');
+  const list=parseCipherPage(j.parse.wikitext['*'],paradigm);
+  cipherCache[paradigm]=list; list.forEach(c=>{cipherByName[c.name.toLowerCase()]=c;});
+  return list;
+}
+let _cipherLoading=false;
+async function loadCiphersForParadigm(){
+  const p=document.getElementById('f-paradigm').value;
+  const note=document.getElementById('cipher-domain-note');
+  if(!p){ if(note)note.textContent='Pick a Paradigm to load its Ciphers.'; return; }
+  if(_cipherLoading)return; _cipherLoading=true;
+  if(!cipherCache[p]&&note)note.textContent='Loading '+p+' Ciphersâ€¦';
+  try{ await fetchCipherPage(p); }catch(e){}
+  _cipherLoading=false;
+  renderCipherDatalist();
+  if(note){
+    const list=cipherCache[p]||[];
+    const n=s=>list.filter(c=>c.section===s).length;
+    note.textContent= list.length ? `${p} Ciphers Â· ${list.length} (Offline ${n('Offline')} Â· Online ${n('Online')} Â· Special ${n('Special')})` : 'Offline â€” enter cipher details manually';
+  }
+}
+function renderCipherDatalist(){
+  const dl=document.getElementById('cipher-options'); if(!dl)return;
+  const list=cipherCache[document.getElementById('f-paradigm').value]||[];
+  dl.innerHTML=list.map(c=>`<option value="${(c.name||'').replace(/"/g,'&quot;')}">${c.section} Â· ${c.ss} SS</option>`).join('');
+}
+function onCipherPick(){
+  const el=document.getElementById('c-pick'); if(!el)return;
+  const c=cipherByName[(el.value||'').trim().toLowerCase()];
+  if(!c)return;
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.value=v;};
+  set('c-benefits', c.name+' â€” '+c.effect);
+  set('c-type', c.section==='Online'?'Online':'Offline');
+  set('c-tl', c.section==='Online'?3:2);
+  renderActionChipsFromText(c.effect,'cipher-chips',c.name);
+  applyOnlineCipherState(); autosave();
+}
+let onlineCiphersOff=false, _cipherForcedOff=false;
+function applyOnlineCipherState(){
+  const ct=document.getElementById('c-type'); if(!ct)return;
+  const myOnline=ct.value==='Online';
+  const blocked=onlineCiphersOff&&myOnline;
+  const banner=document.getElementById('cipher-block-note'); if(banner)banner.style.display=blocked?'block':'none';
+  ['cs-active','cs-suspended','cs-deactivated'].forEach(id=>{const b=document.getElementById(id);if(b)b.disabled=blocked;});
+  document.querySelectorAll('#cipher-chips .act-chip').forEach(b=>{b.disabled=blocked;b.style.opacity=blocked?'0.3':'';b.style.cursor=blocked?'not-allowed':'';});
+  if(blocked){ if(cipherStatus!=='deactivated'){_cipherForcedOff=true;setCipherStatus('deactivated');} }
+  else if(_cipherForcedOff){ _cipherForcedOff=false; setCipherStatus('active'); }
+}
+function updateCipherToggleBtn(){
+  const b=document.getElementById('tp-cipher-toggle'); if(!b)return;
+  b.textContent=onlineCiphersOff?'Reactivate Online Ciphers':'Deactivate Online Ciphers';
+  b.className='tp-btn'+(onlineCiphersOff?'':' ghost');
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// PARADIGM & BACKGROUND
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+function onParadigmChange(){
+  const p=document.getElementById('f-paradigm').value;
+  const box=document.getElementById('paradigm-box');
+  if(!p||!PARADIGM_DATA[p]){box.classList.remove('visible');return;}
+  box.classList.add('visible');
+  const d=PARADIGM_DATA[p];
+  const rank=parseInt(document.getElementById('f-level').value)||0;
+  const titleIdx=Math.min(rank,d.titles.length-1);
+  document.getElementById('pi-title').textContent=d.titles[titleIdx]||d.titles[d.titles.length-1];
+  document.getElementById('pi-light').textContent=d.weapons.Light;
+  document.getElementById('pi-medium').textContent=d.weapons.Medium;
+  document.getElementById('pi-heavy').textContent=d.weapons.Heavy;
+  document.getElementById('pi-domains').textContent=d.domains.join(', ');
+  document.getElementById('wpn-hint').textContent=
+    `${p} Paradigm â€” Light: ${d.weapons.Light} Â· Medium: ${d.weapons.Medium} Â· Heavy: ${d.weapons.Heavy}`;
+  const pl=document.getElementById('pi-wiki'); if(pl)pl.href=wikiPageUrl(p);
+  loadGenusForParadigm(); loadCiphersForParadigm();
+  calcAll(); autosave();
+}
+function onBackgroundChange(autoAssign){
+  if(autoAssign===undefined)autoAssign=true;
+  const bg=document.getElementById('f-background').value;
+  const box=document.getElementById('bg-bonus-box');
+  if(!bg){box.classList.remove('visible');hideBgMechanic();return;}
+  box.classList.add('visible');
+  renderBgBonuses();
+  loadBackgroundData().then(()=>{
+    const d=BACKGROUND_DATA&&BACKGROUND_DATA[bg];
+    if(!d){hideBgMechanic();return;}
+    if(autoAssign){ // user picked this background â€” auto-fill its bonus stats (flat +2/+2/+1/+1)
+      document.getElementById('bg-type').value='standard';
+      renderBgBonuses();
+      d.bonuses.forEach((b,i)=>{ const sel=document.getElementById('bg-b'+i); if(sel&&b.id)sel.value=b.id; });
+      calcAll(); autosave();
+    }
+    showBgMechanic(bg,d);
+  });
+}
+function renderBgBonuses(){
+  const type=document.getElementById('bg-type').value;
+  const arr=type==='focused'?BG_FOCUSED:BG_STANDARD;
+  const row=document.getElementById('bg-bonus-row');
+  const saved=[];
+  row.querySelectorAll('select').forEach(s=>saved.push(s.value));
+  row.innerHTML='';
+  arr.forEach((bonus,i)=>{
+    const div=document.createElement('div');div.className='bg-bonus-item';
+    const optHtml=STAT_OPTIONS.map(o=>`<option value="${o.id}"${saved[i]===o.id?' selected':''}>${o.label}</option>`).join('');
+    div.innerHTML=`<span class="bg-bonus-val">+${bonus}</span>
+      <select id="bg-b${i}" onchange="calcAll()">${optHtml}</select>`;
+    row.appendChild(div);
+  });
+  calcAll();
+}
+function getBgBonuses(){
+  const bonuses={};
+  const type=document.getElementById('bg-type').value;
+  const arr=type==='focused'?BG_FOCUSED:BG_STANDARD;
+  arr.forEach((bonus,i)=>{
+    const sel=document.getElementById('bg-b'+i);
+    if(sel){const id=sel.value;bonuses[id]=(bonuses[id]||0)+bonus;}
+  });
+  return bonuses;
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// RANK
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+const RANK_MULT=[1.00,1.20,1.40,1.45,1.50,1.55,1.60,1.65,1.70,1.75]; // Rank 0..9 (9 = Apex)
+function rankMult(){ const r=Math.max(0,Math.min(9,parseInt(document.getElementById('f-level').value)||0)); return RANK_MULT[r]; }
+function onRankChange(){
+  calcAll(); onParadigmChange(); updateGenusBtn(); updateCipherBtn(); updateRankBar();
+}
+function updateRankBar(){
+  const rank=parseInt(document.getElementById('f-level').value)||0;
+  const paradigm=document.getElementById('f-paradigm').value;
+  const d=PARADIGM_DATA[paradigm];
+  const title=d?d.titles[Math.min(rank,d.titles.length-1)]:'â€”';
+  document.getElementById('rb-rank').textContent=rank;
+  document.getElementById('rb-title').textContent=title;
+  document.getElementById('rb-genus').textContent=5+rank;
+  document.getElementById('rb-ciphers').textContent=1+rank;
+  document.getElementById('rb-hp').textContent=document.getElementById('d-hpmax').value||'â€”';
+  document.getElementById('rb-mult').textContent='Ã—'+rankMult().toFixed(2);
+  document.getElementById('pe-mult').textContent='Ã—'+rankMult().toFixed(2);
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// CALCULATIONS
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+function getV(id){return parseInt(document.getElementById(id)?.value)||0;}
+function setRO(id,val){const el=document.getElementById(id);if(el&&el.readOnly)el.value=val;}
+
+function calcAll(){
+  const bg=getBgBonuses();
+  const spb=getSpeciesBonus();
+  const ab=(id)=>(bg[id]||0)+(spb[id]||0); // total external bonus for a stat
+  const raw={
+    phy:getV('a-phy')+ab('a-phy'),
+    dex:getV('a-dex')+ab('a-dex'),
+    end:getV('a-end')+ab('a-end'),
+    ap: getV('a-ap') +ab('a-ap'),
+    wis:getV('a-wis')+ab('a-wis'),
+    con:getV('a-con')+ab('a-con'),
+    int:getV('a-int')+ab('a-int'),
+  };
+  const m={};
+  ['phy','dex','end','ap','wis','con','int'].forEach(a=>{
+    m[a]=Math.floor(raw[a]/4);
+    setRO('m-'+a, m[a]);
+  });
+  // attribute bonus note
+  const totalSpB=Object.values(spb).reduce((x,y)=>x+y,0);
+  document.getElementById('attr-bonus-note').textContent=totalSpB?('+ species bonus'):'';
+
+  // Specialties (with background bonuses, capped at SPEC_MAX)
+  const sp={
+    ins:Math.min(SPEC_MAX,getV('s-ins')+(bg['s-ins']||0)),
+    ver:Math.min(SPEC_MAX,getV('s-ver')+(bg['s-ver']||0)),
+    bal:Math.min(SPEC_MAX,getV('s-bal')+(bg['s-bal']||0)),
+    wt: Math.min(SPEC_MAX,getV('s-wt') +(bg['s-wt'] ||0)),
+    pre:Math.min(SPEC_MAX,getV('s-pre')+(bg['s-pre']||0)),
+    ctrl:Math.min(SPEC_MAX,getV('s-ctrl')+(bg['s-ctrl']||0)),
+    pri:Math.min(SPEC_MAX,getV('s-pri')+(bg['s-pri']||0)),
+    wm: Math.min(SPEC_MAX,getV('s-wm') +(bg['s-wm'] ||0)),
+    mf: Math.min(SPEC_MAX,getV('s-mf') +(bg['s-mf'] ||0)),
+    per:Math.min(SPEC_MAX,getV('s-per')+(bg['s-per']||0)),
+    adp:Math.min(SPEC_MAX,getV('s-adp')+(bg['s-adp']||0)),
+    cun:Math.min(SPEC_MAX,getV('s-cun')+(bg['s-cun']||0)),
+  };
+  const sm={};
+  const spKeys=['ins','ver','bal','wt','pre','ctrl','pri','wm','mf','per','adp','cun'];
+  const spIds=['s-ins','s-ver','s-bal','s-wt','s-pre','s-ctrl','s-pri','s-wm','s-mf','s-per','s-adp','s-cun'];
+  spKeys.forEach((k,i)=>{ sm[k]=Math.floor(sp[k]/10)*2; setRO('sm-'+spIds[i].slice(2),sm[k]); });
+
+  const red=(pts)=>Math.floor(pts/RED_DIV);    // reduction: âˆ’1 per RED_DIV pts
+  // DERIVED STAT â€” STEP 1: subtotal = 5 + full value of each contributing stat.
+  // STEP 2: maximum = subtotal + 2 per full 10 points of that subtotal.
+  // STEP 3: subtract reductions last â€” NO floor, so it can hit 0 or go negative.
+  //   e.g. END 20 + Weight 25 â†’ subtotal 50 â†’ +10 â†’ 60 max â†’ minus reductions.
+  const dv=(contribs, reductions)=>{
+    const S = 5 + contribs;                    // subtotal incl. base +5
+    const max = S + Math.floor(S/10)*2;        // +2 per 10 points of the subtotal
+    return max - (reductions||0);              // overload it and it goes negative
+  };
+  // Every specialty now both helps (full-value contributor) and hinders (reducer).
+  const atk = dv(raw.phy + sp.wt + sp.ctrl,           red(sp.pre) + red(sp.bal));
+  const dhp = dv(sp.wt + raw.end,                      red(sp.adp) + red(sp.cun));
+  const mv  = dv(raw.dex + raw.ap + sp.pri,            red(sp.wt) + red(sp.pre));
+  const ss  = dv(sp.mf + raw.int + sp.adp,             red(sp.ver) + red(sp.pri));
+  const ev  = dv(raw.dex + sp.bal + sp.cun,            red(sp.wt) + red(sp.mf));
+  const nc  = dv(sp.adp + sp.mf + raw.wis + sp.ver,    red(sp.ctrl) + red(sp.wm));
+  const rr  = dv(raw.end + sp.bal + sp.adp,            red(sp.wt) + red(sp.ctrl) + red(sp.cun));
+  const ad  = dv(raw.ap + sp.pre + sp.cun + sp.pri,    red(sp.wt) + red(sp.mf));
+  const inf = dv(raw.con + sp.cun + sp.ins + sp.ver,   red(sp.adp) + red(sp.per));
+  const pr  = dv(raw.wis + sp.per + sp.cun,            red(sp.mf) + red(sp.bal));
+
+  const ov=(id)=>parseInt(document.getElementById(id)?.value)||0;
+  // No clamp â€” a badly-built stat shows its true 0 or negative value as a liability.
+  setRO('d-atk', atk+ov('do-atk'));
+  setRO('d-dhp', dhp+ov('do-dhp'));
+  setRO('d-mv',  mv +ov('do-mv'));
+  setRO('d-ss',  ss +ov('do-ss'));
+  setRO('d-ev',  ev +ov('do-ev'));
+  setRO('d-nc',  nc +ov('do-nc'));
+  setRO('d-rr',  rr +ov('do-rr'));
+  setRO('d-ad',  ad +ov('do-ad'));
+  setRO('d-inf', inf+ov('do-inf'));
+  setRO('d-pr',  pr +ov('do-pr'));
+
+  // HP = floor((DHP/2) Ã— rankMult) + END mod (HP itself still bottoms out at 0 = death)
+  const dhpVal = dhp+ov('do-dhp');
+  const hpMax  = Math.floor((dhpVal/2)*rankMult()) + m.end;
+  setRO('d-hpmax', hpMax>0?hpMax:0);
+
+  // Points remaining (raw, before caps/bonuses)
+  let total=0;
+  document.querySelectorAll('.spec-in').forEach(el=>total+=parseInt(el.value)||0);
+  const left=SPEC_TOTAL-total;
+  const el=document.getElementById('pts-left');
+  el.textContent=left; el.style.color=left<0?'#b03020':'';
+
+  // Pressure Engine derived: Tax Burden & Complexity
+  let tax=0; REDUCERS.forEach(id=>tax+=Math.floor((getV(id)+(bg[id]||0))/10));
+  const inspPts=Math.min(SPEC_MAX,getV('s-ins')+(bg['s-ins']||0));
+  const complexity=inspPts-tax;
+  document.getElementById('pe-cplx').textContent=(complexity>=0?'+':'')+complexity;
+
+  updateRankBar();
+  updatePEState();
+  publishCombatantDebounced();
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// STAGE / CIPHER STATUS
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+let currentStage='', cipherStatus='active';
+function setStage(s){
+  ['species','lineage','heritage'].forEach(x=>document.getElementById('stage-'+x).classList.toggle('active',x===s));
+  currentStage=s; autosave();
+}
+function setCipherStatus(s){
+  cipherStatus=s;
+  ['active','suspended','deactivated'].forEach(x=>document.getElementById('cs-'+x).classList.toggle('active',x===s));
+  autosave();
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// PRESSURE ENGINE
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+function gateAllows(id){
+  if(typeof Table==='undefined'||!Table.connected)return true;
+  const g=Table.gates&&Table.gates[Table.clientId];
+  return !g || g[id]!==false;
+}
+function buildPESkills(){
+  const wrap=document.getElementById('pe-skills');wrap.innerHTML='';
+  const specs=SPECS.filter(s=>gateAllows(s[0]));
+  const attrs=ATTRS.filter(a=>gateAllows(a[0]));
+  for(let i=1;i<=4;i++){
+    const row=document.createElement('div');row.className='pe-skill-row';
+    const spOpts='<option value="">â€” skill â€”</option>'+specs.map(s=>`<option value="${s[0]}">${s[1]}</option>`).join('');
+    const atOpts='<option value="">no attr</option>'+attrs.map(a=>`<option value="${a[0]}">${a[1]}</option>`).join('');
+    row.innerHTML=`<div class="rl">${i}</div>
+      <select id="pe-sp-${i}" onchange="autosave()">${spOpts}</select>
+      <select id="pe-at-${i}" onchange="autosave()">${atOpts}</select>
+      <div class="pe-roll-out" id="pe-r-${i}">&mdash;</div>`;
+    wrap.appendChild(row);
+  }
+}
+function updatePEState(){
+  const v=parseInt(document.getElementById('pe-val').value)||0;
+  const el=document.getElementById('pe-state');
+  let s='CALM',c='calm';
+  if(v>=110){s='CATASTROPHIC';c='catastrophic';}
+  else if(v>=80){s='CRITICAL';c='critical';}
+  else if(v>=45){s='TENSE';c='tense';}
+  el.textContent=s; el.className='pe-state '+c;
+}
+function resolvePE(){
+  const complexity=parseInt(document.getElementById('pe-cplx').textContent)||0;
+  const mult=rankMult();
+  let totals=[],used=0;
+  for(let i=1;i<=4;i++){
+    const spId=document.getElementById('pe-sp-'+i).value;
+    const out=document.getElementById('pe-r-'+i);
+    if(!spId){ out.textContent='â€”'; continue; }
+    used++;
+    const specPts=getV(spId);
+    const atId=document.getElementById('pe-at-'+i).value;
+    const attrMod=atId?(parseInt(document.getElementById('m-'+atId.slice(2)).value)||0):0;
+    const die=Math.floor(Math.random()*40)+1;
+    const raw=(die+specPts+attrMod+complexity)*mult;
+    const tot=Math.round(raw);
+    totals.push(tot);
+    out.textContent=`${tot} (d40=${die})`;
+  }
+  const res=document.getElementById('pe-result');
+  if(used===0){ res.classList.remove('show'); toast('Select at least 1 skill'); return; }
+  const cBonus = used>=4?2 : used===3?1 : 0;
+  const avg = totals.reduce((a,b)=>a+b,0)/used;
+  const aav = Math.round(avg)+cBonus;
+  const pe=parseInt(document.getElementById('pe-val').value)||0;
+  const diff=aav-pe;
+  document.getElementById('pe-aav').textContent=aav+(cBonus?` (+${cBonus})`:'');
+  document.getElementById('pe-diff').textContent=(diff>=0?'+':'')+diff;
+  const band=peBand(diff);
+  const connected=(typeof Table!=='undefined'&&Table.connected);
+  const isAntag=(connected&&Table.role==='curator'); // boss/NPC: success raises pressure
+  const finalDelta=isAntag?-band.change:band.change;
+  const o=document.getElementById('pe-outcome');
+  o.textContent=band.name; o.style.color=band.color;
+  document.getElementById('pe-change').textContent= connected
+    ? ((finalDelta>=0?'+':'')+finalDelta+' â†’ shared BP'+(isAntag?' (antagonist)':''))
+    : ((band.change>=0?'+':'')+band.change+'  ('+band.range+')');
+  res.dataset.change=finalDelta;
+  res.dataset.outcome=band.name;
+  res.classList.add('show');
+  toast(band.name);
+}
+function peBand(diff){
+  if(diff>=6)   return {name:'CRITICAL SUCCESS', color:'#2f7a45', change:-8, range:'âˆ’6 to âˆ’10'};
+  if(diff>=4)   return {name:'SUCCESS',          color:'#4e7fa5', change:-4, range:'âˆ’4'};
+  if(diff>=2)   return {name:'SIMPLE SUCCESS',   color:'#3d3c39', change:-2, range:'âˆ’2'};
+  if(diff>=-1)  return {name:'PARTIAL / STALEMATE', color:'#b88a20', change:0, range:'0'};
+  if(diff>=-3)  return {name:'FUMBLE',           color:'#c07030', change:2, range:'+1 to +2'};
+  if(diff>=-5)  return {name:'FAILURE',          color:'#a03535', change:4, range:'+3 to +5'};
+  return            {name:'CRITICAL FAILURE',color:'#7a1a1a', change:8, range:'+5 to +10'};
+}
+function applyPEChange(){
+  const res=document.getElementById('pe-result');
+  const ch=parseInt(res.dataset.change)||0;
+  if(typeof Table!=='undefined'&&Table.connected){
+    // contribute to the ONE shared BP; the state/bp listener updates everyone's value
+    Table.applyPEDelta(ch);
+    Table.log(`${Table.name}${Table.role==='curator'?' (antagonist)':''}: ${res.dataset.outcome||'resolved'} â†’ BP ${ch>=0?'+':''}${ch}`);
+    res.classList.remove('show');
+    toast('Shared BP '+(ch>=0?'+':'')+ch);
+    return;
+  }
+  const pe=parseInt(document.getElementById('pe-val').value)||0;
+  const nv=Math.max(0,pe+ch);
+  document.getElementById('pe-val').value=nv;
+  updatePEState(); res.classList.remove('show'); autosave();
+  toast('PE â†’ '+nv);
+}
+function resetPESkills(){
+  for(let i=1;i<=4;i++){ document.getElementById('pe-sp-'+i).value=''; document.getElementById('pe-at-'+i).value=''; document.getElementById('pe-r-'+i).textContent='â€”'; }
+  document.getElementById('pe-result').classList.remove('show'); autosave();
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// SAVE / LOAD / CLEAR
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+function collectAll(){
+  const d={
+    __asymCount:asymCount, __genusCount:genusCount,
+    __varnaAbilityCount:varnaAbilityCount, __cipherCount:cipherCount,
+    __stage:currentStage, __cipher:cipherStatus,
+  };
+  document.querySelectorAll('input,textarea,select').forEach(el=>{if(el.id)d[el.id]=el.value;});
+  document.querySelectorAll('[id^="bg-b"]').forEach(el=>{d[el.id]=el.value;});
+  return d;
+}
+function applyAll(d){
+  const extraAsym=Math.max(0,(d.__asymCount||4)-4);
+  for(let i=0;i<extraAsym;i++){asymCount++;document.getElementById('asym-body').appendChild(makeAsymRow(asymCount));}
+  const extraGenus=Math.max(0,(d.__genusCount||5)-5);
+  for(let i=0;i<extraGenus;i++){genusCount++;document.getElementById('genus-body').appendChild(makeGenusRow(genusCount));}
+  const extraVarna=Math.max(0,(d.__varnaAbilityCount||4)-4);
+  for(let i=0;i<extraVarna;i++){
+    varnaAbilityCount++;
+    const list=document.getElementById('varna-ability-list');
+    const div=document.createElement('div');div.className='aitem';
+    div.innerHTML=`<span class="anum">${varnaAbilityCount}.</span><input type="text" id="vs-a${varnaAbilityCount}">`;
+    list.appendChild(div);
+  }
+  const extraCipher=Math.max(0,(d.__cipherCount||2)-2);
+  for(let i=0;i<extraCipher;i++){
+    cipherCount++;
+    document.getElementById('cipher-list').appendChild(makeCipherRow(cipherCount));
+  }
+  // species first so variant options exist
+  if(d['f-species']){document.getElementById('f-species').value=d['f-species'];onSpeciesChange();}
+  Object.entries(d).forEach(([id,val])=>{
+    if(id.startsWith('__'))return;
+    const el=document.getElementById(id);
+    if(el&&!el.readOnly)el.value=val;
+  });
+  if(d['f-variant']){document.getElementById('f-variant').value=d['f-variant'];renderSpeciesAbilities();}
+  if(d.__stage)setStage(d.__stage);
+  if(d.__cipher)setCipherStatus(d.__cipher);
+  // create paradigm/background sub-controls FIRST, then restore the bg-bonus selects
+  onParadigmChange(); onBackgroundChange(false); // false = don't auto-overwrite the saved bonus picks
+  document.querySelectorAll('[id^="bg-b"]').forEach(el=>{if(d[el.id]!==undefined)el.value=d[el.id];});
+  calcAll(); updateGenusBtn(); updateCipherBtn(); updatePEState(); refreshAllActionChips();
+  // pull live cipher/genus data for this paradigm so pickers work after an old-file load
+  if(d['f-paradigm']){loadGenusForParadigm();loadCiphersForParadigm();}
+}
+function autosave(){localStorage.setItem('wte-sheet-v6',JSON.stringify(collectAll()));}
+document.addEventListener('change',autosave);
+document.addEventListener('input',e=>{
+  if(e.target.classList.contains('spec-in')||e.target.id.startsWith('a-')||e.target.id.startsWith('do-'))calcAll();
+  autosave();
+  publishCombatantDebounced();
+});
+
+function saveSheet(){
+  const name=document.getElementById('f-name').value||'Inquisitor';
+  const blob=new Blob([JSON.stringify(collectAll(),null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`WTE_${name.replace(/\s+/g,'_')}.json`;a.click();toast('Saved.');
+}
+function loadSheet(){
+  const inp=document.createElement('input');inp.type='file';inp.accept='.json';
+  inp.onchange=e=>{
+    const r=new FileReader();
+    r.onload=ev=>{try{applyAll(JSON.parse(ev.target.result));toast('Loaded.');}catch(er){toast('Error.');}};
+    r.readAsText(e.target.files[0]);
+  };inp.click();
+}
+function resetDynamicRows(){
+  // rebuild Asymmetry (4) + Genus (5) from scratch
+  document.getElementById('asym-body').innerHTML=''; asymCount=0;
+  document.getElementById('genus-body').innerHTML=''; genusCount=0;
+  buildInitialRows();
+  // Varna abilities back to 4
+  const vlist=document.getElementById('varna-ability-list'); vlist.innerHTML='';
+  for(let i=1;i<=4;i++){ const d=document.createElement('div'); d.className='aitem'; d.innerHTML=`<span class="anum">${i}.</span><input type="text" id="vs-a${i}">`; vlist.appendChild(d); }
+  varnaAbilityCount=4;
+  // Additional ciphers back to just #2
+  document.getElementById('cipher-list').innerHTML='';
+  document.getElementById('cipher-list').appendChild(makeCipherRow(2));
+  cipherCount=2;
+}
+function clearSheet(){
+  if(!confirm('Clear ALL data and reset the sheet to a blank rank-0 character?'))return;
+  resetDynamicRows();
+  document.querySelectorAll('input:not([readonly]),textarea').forEach(el=>{ if(el.type==='checkbox')el.checked=false; else el.value=''; });
+  document.querySelectorAll('select').forEach(el=>el.selectedIndex=0);
+  document.querySelectorAll('.spec-in').forEach(el=>el.value='0');
+  document.getElementById('f-level').value='0';
+  document.getElementById('pe-val').value='50';
+  document.getElementById('i-nature').dataset.auto='';document.getElementById('i-ability').dataset.auto='';
+  setStage('');setCipherStatus('active');
+  ['species-box','paradigm-box','bg-bonus-box'].forEach(id=>document.getElementById(id).classList.remove('visible'));
+  if(typeof hideBgMechanic==='function')hideBgMechanic();
+  if(typeof bgMechanicActive!=='undefined')bgMechanicActive=false;
+  // wipe derived/generated UI bits
+  document.querySelectorAll('.action-chips').forEach(c=>c.innerHTML='');
+  ['cipher-options','genus-options'].forEach(id=>{const e=document.getElementById(id);if(e)e.innerHTML='';});
+  const gd=document.getElementById('genus-domain-note'); if(gd)gd.textContent='Pick a Paradigm to filter Genus by its energy domains.';
+  const cd=document.getElementById('cipher-domain-note'); if(cd)cd.textContent='Pick a Paradigm to load its Ciphers.';
+  const cb=document.getElementById('cipher-block-note'); if(cb)cb.style.display='none';
+  onParadigmChange(); onBackgroundChange(); onSpeciesChange();
+  calcAll();updateGenusBtn();updateCipherBtn();updatePEState();refreshAllActionChips();autosave();
+  toast('Cleared.');
+}
+function toast(msg){
+  const t=document.getElementById('toast');t.textContent=msg;t.style.opacity='1';
+  setTimeout(()=>t.style.opacity='0',1700);
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// DICE ROLLER  (with locked auto-roll context)
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+let selectedDie=40, rollHistory=[], lockedRoll=null;
+function toggleDice(){document.getElementById('dicePanel').classList.toggle('open');}
+function closeDice(){
+  // X button: unlock + close, return to manual mode
+  lockedRoll=null;
+  document.getElementById('dLock').classList.remove('show');
+  document.getElementById('dRollBig').textContent='Roll';
+  document.getElementById('lastRollNote').textContent='';
+  document.getElementById('dicePanel').classList.remove('open');
+}
+function selectDie(n){
+  selectedDie=n;
+  document.querySelectorAll('.dbtn').forEach(b=>b.classList.toggle('sel',b.textContent==='d'+n));
+  document.getElementById('dExpr').value='';
+}
+function clearDieSelect(){document.querySelectorAll('.dbtn').forEach(b=>b.classList.remove('sel'));selectedDie=null;}
+function rollDie(s){return Math.floor(Math.random()*s)+1;}
+function parseExpr(e){
+  const m=e.trim().toLowerCase().replace(/\s/g,'').match(/^(\d+)?d(\d+)([+-]\d+)?$/);
+  if(!m)return null;
+  return{count:parseInt(m[1]||'1'),sides:parseInt(m[2]),mod:parseInt(m[3]||'0')};
+}
+function rollSelected(){
+  if(lockedRoll){ runLockedRoll(); return; }
+  const ex=document.getElementById('dExpr').value.trim();
+  if(ex){rollExpr();return;}
+  const s=selectedDie||20,c=parseInt(document.getElementById('dCount').value)||1,mod=parseInt(document.getElementById('dMod').value)||0;
+  performRoll(c,s,mod,`${c}d${s}${mod>0?'+'+mod:mod<0?mod:''}`,null);
+}
+function rollExpr(){
+  const raw=document.getElementById('dExpr').value,p=parseExpr(raw);
+  if(!p){toast('Invalid â€” e.g. 2d6+3');return;}
+  performRoll(p.count,p.sides,p.mod,raw,null);
+}
+function openPanelIfClosed(){ if(!document.getElementById('dicePanel').classList.contains('open'))document.getElementById('dicePanel').classList.add('open'); }
+function showLock(name){
+  const l=document.getElementById('dLock');
+  document.getElementById('dLockName').textContent='Locked: '+name+' â€” press Roll';
+  l.classList.add('show');
+  document.getElementById('dRollBig').textContent='Roll '+name;
+}
+// Attribute check: 1d20 + score (re-reads current score each roll)
+function inlineRoll(label,scoreId){
+  if(!gateAllows(scoreId)){toast('Curator restricted this roll');return;}
+  lockedRoll={kind:'attr',label,scoreId,sides:20};
+  openPanelIfClosed(); showLock(label);
+  runLockedRoll();
+}
+// Specialty check: 1d40 + pts; pts<=25 â†’ -25 untrained penalty (re-reads current pts)
+function inlineSpecRoll(label,specId){
+  if(!gateAllows(specId)){toast('Curator restricted this roll');return;}
+  lockedRoll={kind:'spec',label,specId,sides:40};
+  openPanelIfClosed(); showLock(label);
+  runLockedRoll();
+}
+function inlineDiceRoll(label,expr){
+  const p=parseExpr(expr); if(!p){toast('Bad dice: '+expr);return;}
+  lockedRoll={kind:'dice',label,expr};
+  openPanelIfClosed(); showLock(label); runLockedRoll();
+}
+function runLockedRoll(){
+  if(!lockedRoll)return;
+  if(lockedRoll.kind==='attr'){
+    const score=parseInt(document.getElementById(lockedRoll.scoreId)?.value)||0;
+    performRoll(1,20,score,`1d20+${score}`,`${lockedRoll.label}: 1d20 + ${score}`);
+  }else if(lockedRoll.kind==='spec'){
+    const pts=parseInt(document.getElementById(lockedRoll.specId)?.value)||0;
+    const penalty=pts<=25?-25:0;
+    const mod=pts+penalty;
+    const note=`${lockedRoll.label}: 1d40 + ${pts}${penalty?(' '+penalty+' untrained'):''}`;
+    performRoll(1,40,mod,`1d40${mod>=0?'+'+mod:mod}`,note);
+  }else if(lockedRoll.kind==='dice'){
+    const p=parseExpr(lockedRoll.expr);
+    performRoll(p.count,p.sides,p.mod,lockedRoll.expr,lockedRoll.label);
+  }
+}
+function performRoll(count,sides,mod,exprLabel,note){
+  const rolls=Array.from({length:count},()=>rollDie(sides));
+  const total=rolls.reduce((a,b)=>a+b,0)+mod;
+  const n=document.getElementById('dResultNum');
+  n.textContent=total;n.classList.add('bump');
+  setTimeout(()=>n.classList.remove('bump'),160);
+  document.getElementById('dResultBreak').textContent=(count>1?'['+rolls.join(', ')+']':('['+rolls[0]+']'))+(mod?(mod>0?' +'+mod:' '+mod):'');
+  document.getElementById('dResultExpr').textContent=exprLabel.replace('+0','');
+  document.getElementById('lastRollNote').textContent=note||'';
+  const t=new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+  rollHistory.unshift({expr:(note?note.split(':')[0]+' ':'')+exprLabel.replace('+0',''),total,t});
+  if(rollHistory.length>25)rollHistory.pop();
+  renderHistory();
+  window.__lastRollResult={total,rolls,mod};
+  if(Table.connected)Table.postRoll(note||exprLabel.replace('+0',''),total);
+}
+function renderHistory(){
+  const el=document.getElementById('dHistory');el.innerHTML='';
+  rollHistory.forEach(h=>{
+    const d=document.createElement('div');d.className='dhitem';
+    d.innerHTML=`<span class="dhexpr">${h.expr}</span><span class="dhval">${h.total}</span><span class="dhtime">${h.t}</span>`;
+    el.appendChild(d);
+  });
+}
+function clearHistory(){
+  rollHistory=[];renderHistory();
+  document.getElementById('dResultNum').textContent='â€”';
+  document.getElementById('dResultBreak').textContent='';
+  document.getElementById('dResultExpr').textContent='';
+  document.getElementById('lastRollNote').textContent='';
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// SMART EFFECT ACTIONS â€” read effect text â†’ roll buttons
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+const ATTR_VOCAB={strength:'a-phy',dexterity:'a-dex',endurance:'a-end','action priority':'a-ap',wisdom:'a-wis',charisma:'a-con',intelligence:'a-int',phy:'a-phy',dex:'a-dex',end:'a-end',ap:'a-ap',wis:'a-wis',con:'a-con',int:'a-int'};
+const SPEC_VOCAB={inspiration:'s-ins',versatility:'s-ver',balance:'s-bal',weight:'s-wt',precision:'s-pre',control:'s-ctrl',priority:'s-pri','weapon mastery':'s-wm','mental fortitude':'s-mf',perception:'s-per',adaptation:'s-adp',adaption:'s-adp',cunning:'s-cun'};
+const ATTR_CODE={'a-phy':'PHY','a-dex':'DEX','a-end':'END','a-ap':'AP','a-wis':'WIS','a-con':'CHA','a-int':'INT'};
+function specLabel(id){const f=SPECS.find(s=>s[0]===id);return f?f[1]:id;}
+// Parse free-text effect â†’ [{label, kind:'attr'|'spec'|'dice', stat?/expr?}]
+function parseEffectActions(text){
+  if(!text)return[];
+  const actions=[],seen=new Set();
+  const vocab=[];
+  Object.entries(SPEC_VOCAB).forEach(([k,v])=>vocab.push([k,'spec',v]));
+  Object.entries(ATTR_VOCAB).forEach(([k,v])=>vocab.push([k,'attr',v]));
+  vocab.sort((a,b)=>b[0].length-a[0].length); // multiword terms first
+  const alt=vocab.map(v=>v[0].replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|');
+  const re=new RegExp('\\b('+alt+')\\b[\\s-]*(?:based\\s+)?(skill check|check|saving throw|save|roll)','gi');
+  let m;
+  while((m=re.exec(text))){
+    const v=vocab.find(x=>x[0]===m[1].toLowerCase()); if(!v)continue;
+    const w=m[2].toLowerCase();
+    const ck=/sav/.test(w)?'Save':(w==='roll'?'Roll':'Check');
+    const code=v[1]==='attr'?ATTR_CODE[v[2]]:specLabel(v[2]);
+    const key=v[2]+'|'+ck; if(seen.has(key))continue; seen.add(key);
+    actions.push({label:code+' '+ck,kind:v[1],stat:v[2]});
+  }
+  const dre=/\b(\d*)d(\d+)([+-]\d+)?\b/gi;
+  while((m=dre.exec(text))){
+    const expr=(m[1]||'1')+'d'+m[2]+(m[3]||'');
+    if(seen.has('dice|'+expr))continue; seen.add('dice|'+expr);
+    actions.push({label:expr,kind:'dice',expr});
+  }
+  return actions;
+}
+function fireAction(a){
+  if(a.kind==='attr')inlineRoll(a.label,a.stat);
+  else if(a.kind==='spec')inlineSpecRoll(a.label,a.stat);
+  else if(a.kind==='dice')inlineDiceRoll(a.label,a.expr);
+}
+// â”€â”€ META READER â€” targeting, range, area, and numeric values pulled from effect text â”€â”€
+// Returns {targets:Number|'all'|null, range:{value,unit}|null, area:{shape,size,unit}|null, values:[{type,expr,label}]}
+function parseEffectMeta(text){
+  const meta={targets:null,range:null,area:null,values:[]};
+  if(!text)return meta;
+  const t=' '+text+' ';
+  // TARGETS â€” "up to 3 targets", "two creatures", "all enemies", "single target"
+  if(/\b(all|each|every)\s+(enem|target|creature|all(y|ies)|individual|foe|hostile)/i.test(t))meta.targets='all';
+  else{
+    let mt=t.match(/\b(?:up to|targets?|hits?|strikes?|affects?)\s*(\d+)\s*(?:targets?|creatures?|enemies|individuals?|foes?|allies|figures?)?/i)
+         ||t.match(/\b(\d+)\s+(?:targets?|creatures?|enemies|individuals?|foes?|allies|figures?)\b/i);
+    const words={one:1,two:2,three:3,four:4,five:5,six:6};
+    if(mt)meta.targets=parseInt(mt[1]);
+    else{ const mw=t.match(/\b(one|two|three|four|five|six)\s+(?:targets?|creatures?|enemies|individuals?|foes?|allies)\b/i); if(mw)meta.targets=words[mw[1].toLowerCase()]; }
+    if(/\bsingle\s+target\b/i.test(t)&&!meta.targets)meta.targets=1;
+  }
+  // RANGE â€” "within 6 cells", "range 30 ft", "reach 2 squares"
+  const mr=t.match(/\b(?:range|within|reach|up to|out to)\s*(\d+)\s*(cells?|squares?|tiles?|m\b|meters?|metres?|ft\b|feet|foot)/i);
+  if(mr)meta.range={value:parseInt(mr[1]),unit:normUnit(mr[2])};
+  // AREA â€” "3-cell radius", "15 ft cone", "line", "burst"
+  const ma=t.match(/(\d+)\s*[- ]?(cells?|squares?|tiles?|m\b|meters?|metres?|ft\b|feet|foot)?\s*(radius|cone|line|burst|blast|sphere|aoe|cube)/i)
+        ||t.match(/\b(radius|cone|line|burst|blast|sphere|aoe|cube)\b/i);
+  if(ma){ if(ma.length===4)meta.area={shape:ma[3].toLowerCase(),size:parseInt(ma[1])||0,unit:normUnit(ma[2]||'cells')}; else meta.area={shape:ma[1].toLowerCase(),size:0,unit:'cells'}; }
+  // NUMERIC VALUES â€” damage / healing dice or flats
+  const seen=new Set();
+  let m,dre=/\b(\d*)d(\d+)([+-]\d+)?\b/gi;
+  while((m=dre.exec(text))){ const expr=(m[1]||'1')+'d'+m[2]+(m[3]||''); if(seen.has(expr))continue; seen.add(expr);
+    const ctx=text.slice(Math.max(0,m.index-14),m.index).toLowerCase();
+    const type=/heal|restore|regen|mend|repair/.test(ctx)?'heal':'damage';
+    meta.values.push({type,expr,label:(type==='heal'?'Heal ':'Damage ')+expr}); }
+  const mh=text.match(/\bheal(?:s|ing)?\s*(?:for\s*)?(\d+)\b(?!\s*d)/i); if(mh&&!seen.has('h'+mh[1])){seen.add('h'+mh[1]);meta.values.push({type:'heal',amount:parseInt(mh[1]),label:'Heal '+mh[1]});}
+  return meta;
+}
+function normUnit(u){ u=(u||'').toLowerCase(); if(/^m|met/.test(u))return 'm'; if(/^f/.test(u))return 'ft'; return 'cells'; }
+function metaBadgesHTML(meta){
+  if(!meta)return'';
+  const out=[];
+  if(meta.targets)out.push(`<span class="meta-chip" title="number of targets this ability can affect">Targets <b>${meta.targets==='all'?'ALL':meta.targets}</b></span>`);
+  if(meta.range)out.push(`<span class="meta-chip" title="effective range">Range <b>${meta.range.value} ${meta.range.unit}</b></span>`);
+  if(meta.area)out.push(`<span class="meta-chip" title="area of effect">Area <b>${meta.area.size?meta.area.size+' ':''}${meta.area.shape}</b></span>`);
+  return out.join('');
+}
+function renderActions(containerId,actions,prefix,sourceLabel,meta){
+  const el=document.getElementById(containerId); if(!el)return;
+  el.innerHTML='';
+  const hasMeta=meta&&(meta.targets||meta.range||meta.area||(meta.values&&meta.values.length));
+  if(!actions||(!actions.length&&!hasMeta))return;
+  if(prefix&&(actions.length||hasMeta)){const s=document.createElement('span');s.className='act-chips-lbl';s.textContent=prefix;el.appendChild(s);}
+  actions.forEach(a=>{
+    const b=document.createElement('button');b.type='button';b.className='act-chip';
+    b.textContent=a.label; b.title='Roll '+a.label;
+    b.addEventListener('click',()=>fireAction(a));
+    el.appendChild(b);
+  });
+  // numeric value chips â€” roll/apply the ability's damage or healing directly
+  if(meta&&meta.values)meta.values.forEach(v=>{
+    const b=document.createElement('button');b.type='button';b.className='act-chip value';
+    b.textContent=v.label; b.title=(v.type==='heal'?'Roll healing':'Roll damage')+(Table.connected?' (then pick targets)':'');
+    b.addEventListener('click',ev=>fireValue(ev,v,sourceLabel,meta));
+    el.appendChild(b);
+  });
+  // meta badges â€” targets / range / area
+  if(meta){ const bh=metaBadgesHTML(meta); if(bh){const w=document.createElement('span');w.style.display='inline-flex';w.style.gap='4px';w.innerHTML=bh;el.appendChild(w);} }
+  if(Table.connected&&sourceLabel&&(actions.length||hasMeta)){
+    const sb=document.createElement('button');sb.type='button';sb.className='act-send';
+    sb.textContent=(meta&&(meta.targets==='all'||meta.targets>1||meta.area))?'Use on targetsâ€¦':'Use onâ€¦';
+    sb.title='Send these checks to one or more targets at the table';
+    sb.addEventListener('click',ev=>showTargetMenu(ev,sourceLabel,actions,meta));
+    el.appendChild(sb);
+  }
+}
+// Roll a numeric value (damage/heal); if at a table, offer to apply it to targets directly.
+function fireValue(ev,v,sourceLabel,meta){
+  if(v.expr){ inlineDiceRoll((v.type==='heal'?'Heal':'Damage')+' â€” '+(sourceLabel||''),v.expr); }
+  const amt=v.expr?(window.__lastRollResult?window.__lastRollResult.total:null):v.amount;
+  if(Table.connected){ showTargetMenu(ev,sourceLabel,[],meta,{type:v.type,amount:amt,expr:v.expr}); }
+  else if(!v.expr&&v.amount!=null){ toast((v.type==='heal'?'Heal ':'Damage ')+v.amount); }
+}
+function renderActionChips(srcId,containerId,labelId){
+  const src=document.getElementById(srcId);
+  const label=labelId?(document.getElementById(labelId)?.value||'Ability'):'Ability';
+  const txt=src?src.value:'';
+  renderActions(containerId,parseEffectActions(txt),'Rolls',label,parseEffectMeta(txt));
+}
+function renderActionChipsFromText(text,containerId,sourceLabel){
+  renderActions(containerId,parseEffectActions(text),'Rolls',sourceLabel||'Ability',parseEffectMeta(text));
+}
+function renderWeaponChips(i){
+  const dmg=document.getElementById('w'+i+'-dmg'),name=document.getElementById('w'+i+'-name');
+  const acts=[];
+  parseEffectActions(dmg?dmg.value:'').filter(a=>a.kind==='dice')
+    .forEach(a=>acts.push({label:'Damage '+a.expr,kind:'dice',expr:a.expr}));
+  if(name&&name.value.trim())acts.push({label:'Attack (Wpn Mastery)',kind:'spec',stat:'s-wm'});
+  const meta=parseEffectMeta(dmg?dmg.value:'');
+  renderActions('wpn-chips-'+i,acts,acts.length?'Rolls':'',(name&&name.value.trim())||('Weapon '+i),meta);
+}
+function refreshAllActionChips(){
+  for(let i=1;i<=genusCount;i++){ if(document.getElementById('gn-fx-'+i))renderActionChips('gn-fx-'+i,'gn-chips-'+i); }
+  for(let i=1;i<=4;i++)renderWeaponChips(i);
+  refreshCipherChips();
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// EXPORT â€” clean, modular document for Google Docs
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+function val(id){const e=document.getElementById(id);return e?(e.value||'').toString().trim():'';}
+function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+function buildExportHTML(){
+  const name=val('f-name')||'Unnamed Inquisitor';
+  const sp=val('f-species'), variant=val('f-variant');
+  const C={ink:'#1c1b19', mut:'#6b6760', line:'#b8b2a6', head:'#2c3e50', bone:'#efece5'};
+  const sectionHead=(t)=>`<div style="background:${C.head};color:#fff;font-family:Georgia,serif;font-size:11px;letter-spacing:3px;text-transform:uppercase;padding:5px 12px;margin:18px 0 8px;">${t}</div>`;
+  const cell=(l,v)=>`<td style="padding:4px 8px;border:1px solid ${C.line};font-family:Georgia,serif;font-size:12px;"><span style="font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:${C.mut};display:block;">${l}</span>${esc(v)||'&nbsp;'}</td>`;
+
+  // identity
+  let html=`<div style="font-family:Georgia,serif;color:${C.ink};max-width:720px;">`;
+  html+=`<div style="border-bottom:3px double ${C.head};padding-bottom:8px;margin-bottom:4px;">
+    <div style="font-size:9px;letter-spacing:4px;text-transform:uppercase;color:${C.mut};">W.T.E &middot; Inquisitor Record &middot; Year 3261</div>
+    <div style="font-size:24px;letter-spacing:1px;color:${C.head};">${esc(name)}</div>
+    <div style="font-size:12px;color:${C.mut};">${esc(sp)}${variant?(' &mdash; '+esc(variant)):''}${val('f-paradigm')?(' &middot; '+esc(val('f-paradigm'))+' Paradigm'):''} &middot; Rank ${esc(val('f-level')||'0')}</div>
+  </div>`;
+
+  html+=sectionHead('Identity');
+  html+=`<table style="border-collapse:collapse;width:100%;"><tr>
+    ${cell('Paradigm',val('f-paradigm'))}${cell('Species',sp)}${cell('Variant',variant)}${cell('Family / Faction',val('f-family'))}
+  </tr><tr>
+    ${cell('Background',val('f-background'))}${cell('CAS Zone',val('f-cas'))}${cell('Player',val('f-player'))}${cell('Session',val('f-session'))}
+  </tr></table>`;
+
+  // attributes + derived side by side via two tables
+  html+=sectionHead('Attributes');
+  html+=`<table style="border-collapse:collapse;width:100%;"><tr style="background:${C.bone};">
+    <th style="padding:4px 8px;border:1px solid ${C.line};font-size:9px;letter-spacing:1px;text-transform:uppercase;color:${C.mut};text-align:left;">Attribute</th>
+    <th style="padding:4px 8px;border:1px solid ${C.line};font-size:9px;text-transform:uppercase;color:${C.mut};">Score</th>
+    <th style="padding:4px 8px;border:1px solid ${C.line};font-size:9px;text-transform:uppercase;color:${C.mut};">Mod</th></tr>`;
+  ATTRS.forEach(a=>{
+    html+=`<tr><td style="padding:3px 8px;border:1px solid ${C.line};font-size:12px;">${a[1]}</td>
+      <td style="padding:3px 8px;border:1px solid ${C.line};text-align:center;font-size:12px;">${esc(val(a[0])||'0')}</td>
+      <td style="padding:3px 8px;border:1px solid ${C.line};text-align:center;font-size:12px;">${esc(val('m-'+a[0].slice(2)))}</td></tr>`;
+  });
+  html+=`</table>`;
+
+  html+=sectionHead('Derived Statistics');
+  const dlist=[['Attack Power','d-atk'],['Def. Hit Points','d-dhp'],['Movement','d-mv'],['Synaptic Space','d-ss'],['Evasion','d-ev'],['Neuronal Capacity','d-nc'],['Recovery Rate','d-rr'],['Action Density','d-ad'],['Influence','d-inf'],['Perception Range','d-pr']];
+  html+=`<table style="border-collapse:collapse;width:100%;"><tr>`;
+  dlist.forEach((d,i)=>{
+    html+=`<td style="padding:4px 8px;border:1px solid ${C.line};font-size:11px;"><span style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:${C.mut};display:block;">${d[0]}</span><b style="font-size:14px;">${esc(val(d[1])||'0')}</b></td>`;
+    if(i%5===4)html+=`</tr><tr>`;
+  });
+  html+=`</tr></table><div style="font-size:11px;color:${C.mut};margin-top:4px;">Max HP ${esc(val('d-hpmax')||'0')} &middot; Current ${esc(val('d-hpcur'))||'â€”'}</div>`;
+
+  // specialties
+  html+=sectionHead('Specialties â€” 225 pts');
+  html+=`<table style="border-collapse:collapse;width:100%;"><tr>`;
+  SPECS.forEach((s,i)=>{
+    const pts=val(s[0])||'0', mod=val('sm-'+s[0].slice(2));
+    html+=`<td style="padding:4px 8px;border:1px solid ${C.line};font-size:11px;"><span style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:${C.mut};display:block;">${s[1]}</span><b>${esc(pts)}</b> <span style="color:${C.mut};">(mod ${esc(mod)})</span></td>`;
+    if(i%4===3)html+=`</tr><tr>`;
+  });
+  html+=`</tr></table>`;
+
+  // species abilities
+  if(sp&&SPECIES_DATA[sp]){
+    html+=sectionHead('Incept â€” Species & Abilities');
+    html+=`<div style="font-size:12px;line-height:1.7;">`;
+    html+=`<b>Family:</b> ${esc(SPECIES_DATA[sp].family)}<br>`;
+    html+=`<b>Innate:</b> ${esc(SPECIES_DATA[sp].innate.join(' &middot; '))}<br>`;
+    if(variant&&SPECIES_DATA[sp].variants[variant]) html+=`<b>${esc(variant)}:</b> ${esc(SPECIES_DATA[sp].variants[variant].join(' &middot; '))}<br>`;
+    if(val('i-wryde'))html+=`<b>Wryde:</b> ${esc(val('i-wryde'))}<br>`;
+    html+=`<b>Stage:</b> ${esc(currentStage||'â€”')} &middot; <b>Expression:</b> ${esc(val('i-expr'))}`;
+    html+=`</div>`;
+  }
+
+  // asymmetry log
+  let asymRows='';
+  for(let i=1;i<=asymCount;i++){
+    if(!document.getElementById('as-name-'+i))continue;
+    const nm=val('as-name-'+i);if(!nm&&!val('as-fx-'+i))continue;
+    asymRows+=`<tr>${cell('Domain',val('as-dom-'+i))}${cell('Name',nm)}${cell('Weight',val('as-wt-'+i))}${cell('Wryde',val('as-wr-'+i))}${cell('Effect',val('as-fx-'+i))}</tr>`;
+  }
+  if(asymRows){ html+=sectionHead('Asymmetry Log'); html+=`<table style="border-collapse:collapse;width:100%;">${asymRows}</table>`; }
+
+  // genus
+  let genusRows='';
+  for(let i=1;i<=genusCount;i++){
+    if(!document.getElementById('gn-name-'+i))continue;
+    const nm=val('gn-name-'+i);if(!nm)continue;
+    genusRows+=`<tr>${cell('Name',nm)}${cell('Domain',val('gn-dom-'+i))}${cell('Action',val('gn-act-'+i))}${cell('SS',val('gn-ss-'+i))}${cell('Effect',val('gn-fx-'+i))}</tr>`;
+  }
+  if(genusRows){ html+=sectionHead('Genus Loadout'); html+=`<table style="border-collapse:collapse;width:100%;">${genusRows}</table>`; }
+
+  // varna
+  if(val('v-weapon')||val('vs-path')){
+    html+=sectionHead('Varna â€” Mastery');
+    html+=`<table style="border-collapse:collapse;width:100%;"><tr>${cell('Weapon / Technique',val('v-weapon'))}${cell('Proficiency',val('v-prof'))}${cell('Weapon Skill',val('v-skill'))}${cell('Passive',val('v-passive'))}</tr>
+      <tr>${cell('Mastery Path',val('vs-path'))}${cell('Save Bonus',val('vs-save'))}${cell('Hit Die',val('vs-hd'))}${cell('',' ')}</tr></table>`;
+    let mab=[];for(let i=1;i<=varnaAbilityCount;i++){const v=val('vs-a'+i);if(v)mab.push(v);}
+    if(mab.length)html+=`<div style="font-size:12px;margin-top:4px;"><b>Mastery Abilities:</b> ${esc(mab.join(' &middot; '))}</div>`;
+  }
+
+  // cipher
+  if(val('c-tl')||val('c-benefits')){
+    html+=sectionHead('Paradigm Cipher');
+    html+=`<table style="border-collapse:collapse;width:100%;"><tr>${cell('Type',val('c-type'))}${cell('TL',val('c-tl'))}${cell('Status',cipherStatus)}</tr></table>`;
+    if(val('c-benefits'))html+=`<div style="font-size:12px;margin-top:4px;">${esc(val('c-benefits'))}</div>`;
+    let addC='';
+    for(let i=2;i<=cipherCount;i++){ const nm=val('c'+i),fx=val('c'+i+'-benefits'); if(!nm&&!fx)continue; addC+=`<tr>${cell('Cipher',nm)}${cell('Type',val('c'+i+'-type'))}${cell('Effect',fx)}</tr>`; }
+    if(addC)html+=`<div style="font-size:9px;letter-spacing:1px;text-transform:uppercase;color:${C.mut};margin:6px 0 3px;">Additional Ciphers</div><table style="border-collapse:collapse;width:100%;">${addC}</table>`;
+  }
+
+  // equipment
+  let wpns='';
+  for(let i=1;i<=4;i++){const nm=val('w'+i+'-name');if(!nm)continue;wpns+=`<tr>${cell('Weapon',nm)}${cell('Type',val('w'+i+'-type'))}${cell('Damage',val('w'+i+'-dmg'))}</tr>`;}
+  if(wpns||val('armor-name')){
+    html+=sectionHead('Equipment');
+    html+=`<table style="border-collapse:collapse;width:100%;">${wpns}`;
+    if(val('armor-name'))html+=`<tr>${cell('Armor',val('armor-name'))}${cell('DR',val('armor-dr'))}${cell('',' ')}</tr>`;
+    html+=`</table>`;
+    const gear=[1,2,3,4].map(i=>val('gear'+i)).filter(Boolean);
+    if(gear.length)html+=`<div style="font-size:12px;margin-top:4px;"><b>Gear:</b> ${esc(gear.join(' &middot; '))}</div>`;
+  }
+
+  // notes
+  if(val('notes')){ html+=sectionHead('Notes & Backstory'); html+=`<div style="font-size:12px;line-height:1.6;white-space:pre-wrap;">${esc(val('notes'))}</div>`; }
+
+  html+=`<div style="border-top:1px solid ${C.line};margin-top:18px;padding-top:6px;font-size:8px;letter-spacing:3px;text-transform:uppercase;color:${C.mut};text-align:center;">WTE &middot; Year 3261</div>`;
+  html+=`</div>`;
+  return html;
+}
+function buildExportText(){
+  const L=[];const line=(s='')=>L.push(s);
+  const name=val('f-name')||'Unnamed Inquisitor';
+  line('W.T.E Â· INQUISITOR RECORD Â· YEAR 3261');line('='.repeat(50));
+  line(name.toUpperCase());
+  line(`${val('f-species')}${val('f-variant')?(' â€” '+val('f-variant')):''} Â· ${val('f-paradigm')||'â€”'} Â· Rank ${val('f-level')||'0'}`);line('');
+  line('IDENTITY');
+  line(`  Background: ${val('f-background')||'â€”'}   CAS: ${val('f-cas')}`);
+  line(`  Family: ${val('f-family')||'â€”'}   Player: ${val('f-player')||'â€”'}`);line('');
+  line('ATTRIBUTES');
+  ATTRS.forEach(a=>line(`  ${a[1].padEnd(5)} ${String(val(a[0])||'0').padStart(3)}   mod ${val('m-'+a[0].slice(2))}`));line('');
+  line('DERIVED');
+  [['Attack Power','d-atk'],['Def. HP','d-dhp'],['Movement','d-mv'],['Synaptic Space','d-ss'],['Evasion','d-ev'],['Neuronal Cap.','d-nc'],['Recovery','d-rr'],['Action Density','d-ad'],['Influence','d-inf'],['Perception','d-pr']].forEach(d=>line(`  ${d[0].padEnd(16)} ${val(d[1])||'0'}`));
+  line(`  Max HP ${val('d-hpmax')||'0'}`);line('');
+  line('SPECIALTIES (225 pts)');
+  SPECS.forEach(s=>line(`  ${s[1].padEnd(14)} ${String(val(s[0])||'0').padStart(3)}   mod ${val('sm-'+s[0].slice(2))}`));line('');
+  if(val('notes')){line('NOTES');line('  '+val('notes'));}
+  return L.join('\n');
+}
+function openExport(){
+  document.getElementById('exportRender').innerHTML=buildExportHTML();
+  document.getElementById('exportModal').classList.add('open');
+}
+function closeExport(){document.getElementById('exportModal').classList.remove('open');}
+function copyExport(){
+  const node=document.getElementById('exportRender');
+  const range=document.createRange();range.selectNodeContents(node);
+  const sel=window.getSelection();sel.removeAllRanges();sel.addRange(range);
+  let ok=false;try{ok=document.execCommand('copy');}catch(e){}
+  sel.removeAllRanges();
+  if(ok){toast('Copied â€” paste into Google Docs');}
+  else{
+    // Clipboard API fallback (rich)
+    try{
+      const blob=new Blob([node.innerHTML],{type:'text/html'});
+      const tb=new Blob([buildExportText()],{type:'text/plain'});
+      navigator.clipboard.write([new ClipboardItem({'text/html':blob,'text/plain':tb})]).then(()=>toast('Copied â€” paste into Google Docs')).catch(()=>toast('Copy failed â€” select manually'));
+    }catch(e){toast('Copy failed â€” select manually');}
+  }
+}
+function copyExportText(){
+  const txt=buildExportText();
+  if(navigator.clipboard){navigator.clipboard.writeText(txt).then(()=>toast('Plain text copied')).catch(()=>fallbackText(txt));}
+  else fallbackText(txt);
+}
+function fallbackText(txt){
+  const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();
+  try{document.execCommand('copy');toast('Plain text copied');}catch(e){toast('Copy failed');}
+  document.body.removeChild(ta);
+}
+document.getElementById('exportModal').addEventListener('click',e=>{if(e.target.id==='exportModal')closeExport();});
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// WIKI â†” CHARACTER â€” import a character authored on a wiki page
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+const META_FIELDS=[['name','f-name'],['player','f-player'],['rank','f-level'],['paradigm','f-paradigm'],['species','f-species'],['variant','f-variant'],['background','f-background'],['cas','f-cas'],['family','f-family'],['session','f-session'],['notes','notes']];
+const STAT_LABELS=[
+  ['PHY','a-phy'],['DEX','a-dex'],['END','a-end'],['AP','a-ap'],['WIS','a-wis'],['CON','a-con'],['INT','a-int'],
+  ['Inspiration','s-ins'],['Versatility','s-ver'],['Balance','s-bal'],['Weight','s-wt'],['Precision','s-pre'],
+  ['Control','s-ctrl'],['Priority','s-pri'],['Weapon Mastery','s-wm'],['Mental Fortitude','s-mf'],
+  ['Perception','s-per'],['Adaption','s-adp'],['Cunning','s-cun'] ];
+const LABEL_TO_ID={}; STAT_LABELS.forEach(([l,id])=>LABEL_TO_ID[l.toLowerCase()]=id);
+[['strength','a-phy'],['dexterity','a-dex'],['endurance','a-end'],['action priority','a-ap'],['wisdom','a-wis'],['charisma','a-con'],['intelligence','a-int'],['wpn mastery','s-wm'],['mental fort','s-mf'],['adaptation','s-adp']].forEach(([l,id])=>LABEL_TO_ID[l]=id);
+const ID_TO_LABEL={}; STAT_LABELS.forEach(([l,id])=>ID_TO_LABEL[id]=l);
+
+function buildWikiTemplate(){
+  const L=['<!-- WTE-SHEET'];
+  META_FIELDS.forEach(([lbl,id])=>{ if(id==='notes')return; L.push(lbl+': '+(val(id)||'')); });
+  L.push('background bonus: '+(val('bg-type')||'standard'));
+  ['bg-b0','bg-b1','bg-b2','bg-b3'].forEach((bid,i)=>{ const v=document.getElementById(bid)?.value; if(v)L.push('bonus '+(i+1)+': '+(ID_TO_LABEL[v]||v)); });
+  ATTRS.forEach(a=>L.push(a[1]+': '+(val(a[0])||'0')));
+  SPECS.forEach(s=>L.push((ID_TO_LABEL[s[0]]||s[1])+': '+(val(s[0])||'0')));
+  if(val('notes'))L.push('notes: '+val('notes').replace(/\s*\n\s*/g,' '));
+  L.push('WTE-SHEET -->');
+  return L.join('\n');
+}
+function parseWikiTemplate(text){
+  let block=text;
+  const m=text.match(/WTE-SHEET([\s\S]*?)WTE-SHEET/i);
+  if(m)block=m[1];
+  const jm=block.match(/\{[\s\S]*\}/);
+  if(jm){ try{ const o=JSON.parse(jm[0]); if(o&&typeof o==='object'&&o['f-name']!==undefined)return o; }catch(e){} }
+  const out={};
+  block.split('\n').forEach(line=>{
+    const mm=line.match(/^\s*([^:#<][^:]*?)\s*:\s*(.*)$/); if(!mm)return;
+    const key=mm[1].trim().toLowerCase(), v=mm[2].trim();
+    const meta=META_FIELDS.find(f=>f[0]===key); if(meta){ out[meta[1]]=v; return; }
+    if(key==='background bonus'){ out['bg-type']=/focus/i.test(v)?'focused':'standard'; return; }
+    const bm=key.match(/^bonus\s*([1-4])$/); if(bm){ const id=LABEL_TO_ID[v.toLowerCase()]; if(id)out['bg-b'+(parseInt(bm[1])-1)]=id; return; }
+    const sid=LABEL_TO_ID[key]; if(sid){ out[sid]=v; return; }
+  });
+  return Object.keys(out).length?out:null;
+}
+async function importFromWiki(){
+  const page=document.getElementById('wiki-page-input').value.trim();
+  if(!page){toast('Enter a wiki page name');return;}
+  toast('Fetching '+page+'â€¦');
+  try{
+    const url=WIKI_BASE+'/api.php?action=parse&prop=wikitext&format=json&origin=*&page='+encodeURIComponent(page);
+    const r=await fetch(url); if(!r.ok)throw new Error('HTTP '+r.status);
+    const j=await r.json(); if(j.error)throw new Error(j.error.info||'page not found');
+    const obj=parseWikiTemplate(j.parse.wikitext['*']);
+    if(!obj){toast('No WTE-SHEET block found on that page');return;}
+    applyAll(obj); closeWiki(); toast('Imported '+(obj['f-name']||'character'));
+  }catch(e){ toast('Import failed: '+e.message); }
+}
+function openWiki(){ document.getElementById('wiki-template-out').value=buildWikiTemplate(); document.getElementById('wikiModal').classList.add('open'); }
+function closeWiki(){ document.getElementById('wikiModal').classList.remove('open'); }
+function copyWikiTemplate(){
+  const ta=document.getElementById('wiki-template-out'); ta.select();
+  try{ document.execCommand('copy'); toast('Template copied â€” paste onto your wiki page'); }catch(e){ if(navigator.clipboard)navigator.clipboard.writeText(ta.value).then(()=>toast('Template copied')); }
+}
+document.getElementById('wikiModal').addEventListener('click',e=>{if(e.target.id==='wikiModal')closeWiki();});
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// LIBRARY â€” folders of saved character sheets (Bosses / NPCs / Monstersâ€¦)
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+function libGet(){ try{return JSON.parse(localStorage.getItem('wte-library')||'{"folders":{}}');}catch(e){return {folders:{}};} }
+function libSet(l){ localStorage.setItem('wte-library',JSON.stringify(l)); }
+function jsq(s){ return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+function openLibrary(){ renderLibrary(); document.getElementById('libraryModal').classList.add('open'); }
+function closeLibrary(){ document.getElementById('libraryModal').classList.remove('open'); }
+function libNewFolder(){ const n=(prompt('Folder name (e.g. Bosses, NPCs, Monsters):')||'').trim(); if(!n)return; const l=libGet(); if(!l.folders[n])l.folders[n]=[]; libSet(l); renderLibrary(); }
+function libDeleteFolder(n){ if(!confirm('Delete folder "'+n+'" and all sheets inside it?'))return; const l=libGet(); delete l.folders[n]; libSet(l); renderLibrary(); }
+function libSaveCurrent(folder){ const l=libGet(); const arr=l.folders[folder]||[]; const name=(document.getElementById('f-name').value||'Unnamed').trim(); const data=collectAll(); const ex=arr.find(e=>e.name.toLowerCase()===name.toLowerCase()); if(ex)ex.data=data; else arr.push({id:Math.random().toString(36).slice(2,9),name,data}); l.folders[folder]=arr; libSet(l); renderLibrary(); toast('Saved "'+name+'" â†’ '+folder); }
+function libLoad(folder,id){ const l=libGet(); const e=(l.folders[folder]||[]).find(x=>x.id===id); if(!e)return; if(!confirm('Load "'+e.name+'" into the sheet? Current unsaved changes will be replaced.'))return; applyAll(e.data); closeLibrary(); toast('Loaded '+e.name); }
+function libDelete(folder,id){ const l=libGet(); const e=(l.folders[folder]||[]).find(x=>x.id===id); if(e&&!confirm('Remove "'+e.name+'" from '+folder+'?'))return; l.folders[folder]=(l.folders[folder]||[]).filter(x=>x.id!==id); libSet(l); renderLibrary(); }
+function renderLibrary(){
+  const l=libGet(), body=document.getElementById('libraryBody'), folders=Object.keys(l.folders);
+  if(!folders.length){ body.innerHTML='<div style="color:var(--muted);font-style:italic;font-size:12px;">No folders yet. Create one (e.g. &ldquo;Bosses&rdquo;) to start saving sheets.</div>'; return; }
+  body.innerHTML=folders.map(f=>{
+    const entries=l.folders[f]||[];
+    const rows=entries.length ? entries.map(e=>`<div style="display:flex;align-items:center;gap:8px;padding:3px 2px;border-bottom:1px solid var(--border);"><span style="flex:1;font-size:13px;">${esc(e.name)}</span><button class="btn" onclick="libLoad('${jsq(f)}','${e.id}')">Load</button><span style="cursor:pointer;color:#b03020;font-size:15px;padding:0 4px;" onclick="libDelete('${jsq(f)}','${e.id}')" title="Remove">&times;</span></div>`).join('') : '<div style="color:var(--muted);font-style:italic;font-size:11px;padding:3px 0;">Empty.</div>';
+    return `<div style="border:1px solid var(--border2);margin-bottom:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--info-bg);padding:6px 10px;border-bottom:1px solid var(--border);">
+        <b style="font-size:12px;letter-spacing:1px;">${esc(f)} <span style="color:var(--muted);font-weight:normal;">(${entries.length})</span></b>
+        <span><button class="btn" onclick="libSaveCurrent('${jsq(f)}')">+ Save current sheet</button> <span style="cursor:pointer;color:#b03020;font-size:15px;padding:0 4px;" onclick="libDeleteFolder('${jsq(f)}')" title="Delete folder">&times;</span></span>
+      </div>
+      <div style="padding:6px 10px;">${rows}</div>
+    </div>`;
+  }).join('');
+}
+document.getElementById('libraryModal').addEventListener('click',e=>{if(e.target.id==='libraryModal')closeLibrary();});
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// BACKGROUND MECHANICS â€” scraped from the Background page
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+let BACKGROUND_DATA=null, bgMechanicActive=false;
+function mapBgStats(text){
+  const parts=(text||'').split(/,|;/).map(s=>s.trim()).filter(Boolean);
+  const keys=Object.keys(LABEL_TO_ID).sort((a,b)=>b.length-a.length);
+  const out=[];
+  parts.forEach((p,idx)=>{
+    const lp=p.toLowerCase(); let id=LABEL_TO_ID[lp];
+    if(!id){ for(const k of keys){ if(lp.includes(k)){ id=LABEL_TO_ID[k]; break; } } }
+    if(!id)return;
+    let amt; if(/\b(two|2)\b/.test(lp))amt=2; else if(/\b(three|3)\b/.test(lp))amt=3; else if(/\b(one|1)\b/.test(lp))amt=1; else amt=[2,2,1,1][idx]!==undefined?[2,2,1,1][idx]:1;
+    out.push({id,amt});
+  });
+  return out;
+}
+function parseBackgroundPage(wt){
+  const tables=wt.match(/\{\|[\s\S]*?\|\}/g)||[];
+  const tbl=tables.find(t=>/Passive Bonus Stats/i.test(t));
+  if(!tbl)return {};
+  const out={};
+  tbl.split(/\n\|-/).forEach(r=>{
+    const cells=[];
+    r.split('\n').forEach(line=>{ const t=line.trim(); if(t.startsWith('|')&&t!=='|}'&&!t.startsWith('|-')&&!t.startsWith('{|'))cells.push(cleanWiki(t.replace(/^\|\s?/,''))); });
+    if(cells.length>=4 && cells[0] && !/passive bonus/i.test(cells[1]||'')) out[cells[0]]={statsText:cells[1],trigger:cells[2],effect:cells[3],bonuses:mapBgStats(cells[1])};
+  });
+  return out;
+}
+async function loadBackgroundData(){
+  if(BACKGROUND_DATA)return BACKGROUND_DATA;
+  try{
+    const j=await (await fetch(WIKI_BASE+'/api.php?action=parse&prop=wikitext&format=json&origin=*&page=Background')).json();
+    BACKGROUND_DATA=parseBackgroundPage(j.parse.wikitext['*']);
+  }catch(e){ BACKGROUND_DATA={}; }
+  return BACKGROUND_DATA;
+}
+function showBgMechanic(bg,d){
+  const box=document.getElementById('bg-mechanic'); if(!box)return;
+  box.style.display='block';
+  document.getElementById('bg-mech-trigger').textContent='Trigger: '+(d.trigger||'â€”');
+  document.getElementById('bg-mech-effect').textContent='Effect: '+(d.effect||'â€”');
+  applyBgMechState();
+}
+function hideBgMechanic(){ const b=document.getElementById('bg-mechanic'); if(b)b.style.display='none'; }
+function toggleBgMechanic(){
+  if(typeof Table!=='undefined'&&Table.connected){ toast('At a table the Curator confirms the trigger'); return; }
+  bgMechanicActive=!bgMechanicActive; applyBgMechState(); autosave();
+}
+function applyBgMechState(){
+  let active=bgMechanicActive, byCurator=false;
+  if(typeof Table!=='undefined'&&Table.connected){ active=!!(Table.bgMech&&Table.bgMech[Table.clientId]); byCurator=true; }
+  const st=document.getElementById('bg-mech-status'), btn=document.getElementById('bg-mech-toggle');
+  if(st){ st.textContent=active?'Active':'Inactive'; st.className='bg-mech-status '+(active?'on':'off'); }
+  if(btn){ btn.textContent=active?'Deactivate':'Activate'; btn.disabled=byCurator; btn.title=byCurator?'Curator confirms the trigger at the table':''; }
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// TABLE â€” real-time multiplayer (Firebase Realtime DB)
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+function randCode(){return 'WTE-'+Math.random().toString(36).slice(2,6).toUpperCase();}
+function clientId(){
+  let id=localStorage.getItem('wte-client-id');
+  if(!id){id='c'+Math.random().toString(36).slice(2,10);localStorage.setItem('wte-client-id',id);}
+  return id;
+}
+// lazy-load the Firebase compat SDK only when the Table is actually used
+function loadFirebase(){
+  if(window.firebase&&window.firebase.database)return Promise.resolve();
+  if(window.__fbLoading)return window.__fbLoading;
+  window.__fbLoading=new Promise((res,rej)=>{
+    const add=(src,cb)=>{const s=document.createElement('script');s.src=src;s.onload=cb;s.onerror=()=>rej(new Error('Failed to load '+src));document.head.appendChild(s);};
+    add('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js',()=>
+      add('https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js',res));
+  });
+  return window.__fbLoading;
+}
+
+// Gather the character's actionable abilities + stats so the VTT can use them
+function gatherActorStats(){ const s={}; ATTRS.forEach(a=>{ s[a[0]]=getV(a[0]); s['m-'+a[0].slice(2)]=getV('m-'+a[0].slice(2)); }); SPECS.forEach(x=>{ s[x[0]]=getV(x[0]); }); return s; }
+function gatherActorAbilities(){
+  const out=[]; const basics=[];
+  ATTRS.forEach(a=>basics.push({label:a[1]+' Check',kind:'attr',stat:a[0]}));
+  SPECS.forEach(x=>basics.push({label:specLabel(x[0])+' Check',kind:'spec',stat:x[0]}));
+  out.push({name:'Checks',actions:basics});
+  const sp=val('f-species'); const d=(sp&&typeof mergedSpecies==='function')?mergedSpecies(sp):null;
+  if(d){ const itext=d.innate.map(a=>a.title).filter(Boolean).join('  '); const ia=parseEffectActions(itext); if(ia.length)out.push({name:sp+' (innate)',actions:ia,fx:itext});
+    const v=val('f-variant'); if(v&&d.variants[v]){ const vt=d.variants[v].map(a=>a.title).filter(Boolean).join('  '); const va=parseEffectActions(vt); if(va.length)out.push({name:v,actions:va,fx:vt}); } }
+  for(let i=1;i<=genusCount;i++){ const nm=val('gn-name-'+i),fx=val('gn-fx-'+i); if(!fx)continue; const acts=parseEffectActions(fx); if(acts.length)out.push({name:nm||('Genus '+i),actions:acts,fx:fx}); }
+  for(let i=1;i<=4;i++){ const nm=val('w'+i+'-name'),dmg=val('w'+i+'-dmg'); if(!nm)continue; const acts=[]; parseEffectActions(dmg).filter(a=>a.kind==='dice').forEach(a=>acts.push({label:'Damage '+a.expr,kind:'dice',expr:a.expr})); acts.push({label:'Attack (Wpn Mastery)',kind:'spec',stat:'s-wm'}); out.push({name:nm,actions:acts,fx:'attack '+dmg}); }
+  const cb=val('c-benefits'); if(cb){ const acts=parseEffectActions(cb); if(acts.length||parseEffectMeta(cb).values.length)out.push({name:val('c-pick')||'Cipher',actions:acts,fx:cb}); }
+  for(let i=2;i<=cipherCount;i++){ const fx=val('c'+i+'-benefits'); if(!fx)continue; const acts=parseEffectActions(fx); if(acts.length||parseEffectMeta(fx).values.length)out.push({name:val('c'+i)||('Cipher '+i),actions:acts,fx:fx}); }
+  return out;
+}
+const Table={
+  connected:false, room:null, role:'player', name:'', db:null, ref:null, evRef:null,
+  combatants:{}, gates:{}, bgMech:{}, _startTs:0, _view:null,
+  get clientId(){return clientId();},
+  setBP(v){ if(this.connected&&this.role==='curator')this.ref.child('state/bp').set(parseInt(v)||0); },
+  setGate(id,statId,allowed){ if(this.connected&&this.role==='curator')this.ref.child('gates/'+id+'/'+statId).set(!!allowed); },
+  setAllGate(id,allowed){ if(!(this.connected&&this.role==='curator'))return; const m={}; ATTRS.concat(SPECS).forEach(x=>m[x[0]]=!!allowed); this.ref.child('gates/'+id).set(m); },
+  setOnlineCiphers(off){ if(this.connected&&this.role==='curator'){ this.ref.child('state/onlineCiphersOff').set(!!off); this.log('Curator '+(off?'DEACTIVATED':'reactivated')+' all Online Ciphers'); } },
+  setBgMech(id,on){ if(this.connected&&this.role==='curator'){ this.ref.child('bgMech/'+id).set(!!on); this.log('Curator '+(on?'activated':'deactivated')+' '+((this.combatants[id]||{}).name||'a')+' background mechanic'); } },
+  config(){ try{return JSON.parse(localStorage.getItem('wte-fb-config')||'null');}catch(e){return null;} },
+  clearConfig(){ localStorage.removeItem('wte-fb-config'); renderTablePanel(); },
+  async connect(room,role,name){
+    const cfg=this.config(); if(!cfg){toast('Add Firebase config first');return;}
+    if(!room){toast('Enter a room code');return;}
+    try{
+      await loadFirebase();
+      if(!firebase.apps.length)firebase.initializeApp(cfg);
+      this.db=firebase.database();
+    }catch(e){toast('Firebase error: '+e.message);return;}
+    this.room=room.trim().toUpperCase(); this.role=role||'player';
+    this.name=name||val('f-name')||(this.role==='curator'?'Curator':'Player');
+    this.ref=this.db.ref('tables/'+this.room);
+    const mref=this.ref.child('members/'+this.clientId);
+    mref.set({name:this.name,role:this.role,ts:Date.now()});
+    mref.onDisconnect().remove();
+    this.connected=true;
+    this.publishCombatant();
+    this.ref.child('combatants/'+this.clientId).onDisconnect().remove();
+    this.ref.child('combatants').on('value',s=>{this.combatants=s.val()||{};renderRoster();refreshAllActionChips();});
+    this.ref.child('gates').on('value',s=>{this.gates=s.val()||{};applyMyGate();renderGateEditor();});
+    this.ref.child('state/bp').on('value',s=>{
+      const bp=s.val(); if(bp==null)return;
+      const el=document.getElementById('pe-val'); if(el){el.value=bp;updatePEState();}
+      const t=document.getElementById('tp-bp'); if(t&&document.activeElement!==t)t.value=bp;
+    });
+    this.ref.child('state/onlineCiphersOff').on('value',s=>{ onlineCiphersOff=!!s.val(); applyOnlineCipherState(); updateCipherToggleBtn(); });
+    this.ref.child('bgMech').on('value',s=>{ this.bgMech=s.val()||{}; applyBgMechState(); renderGateEditor(); });
+    applyBgMechState();
+    const pv=document.getElementById('pe-val'); if(pv)pv.disabled=(this.role!=='curator');
+    this._startTs=Date.now();
+    this.evRef=this.ref.child('events');
+    this.evRef.on('child_added',s=>this.onEvent(s.val()));
+    renderTablePanel(); refreshAllActionChips();
+    toast('Joined table '+this.room);
+  },
+  leave(){
+    try{
+      if(this.ref){
+        this.ref.child('combatants').off(); this.ref.child('gates').off(); this.ref.child('bgMech').off(); this.ref.child('state/bp').off(); this.ref.child('state/onlineCiphersOff').off();
+        if(this.evRef)this.evRef.off();
+        this.ref.child('members/'+this.clientId).remove();
+        this.ref.child('combatants/'+this.clientId).remove();
+      }
+    }catch(e){}
+    this.connected=false; this.ref=null; this.evRef=null; this.combatants={}; this.gates={}; this.bgMech={};
+    onlineCiphersOff=false; applyOnlineCipherState(); applyBgMechState();
+    const pv=document.getElementById('pe-val'); if(pv)pv.disabled=false;
+    closeGateEditor(); applyMyGate();
+    renderTablePanel(); refreshAllActionChips();
+  },
+  publishCombatant(){
+    if(!this.connected||!this.ref)return;
+    this.ref.child('combatants/'+this.clientId).set({
+      name:val('f-name')||this.name, ownerId:this.clientId, ownerName:this.name, role:this.role,
+      species:val('f-species'), variant:val('f-variant'),
+      hpMax:getV('d-hpmax'), hpCur:getV('d-hpcur'), dhp:getV('d-dhpcur'), ss:getV('d-sscur'),
+      abilities:gatherActorAbilities(), stats:gatherActorStats(),
+      ts:Date.now()
+    });
+  },
+  sendAction(ability,actions,targets,meta,apply){
+    if(!this.connected)return;
+    const ids=Array.isArray(targets)?targets:[targets];
+    const valid=ids.filter(id=>this.combatants[id]);
+    if(!valid.length)return;
+    const names=valid.map(id=>this.combatants[id].name||'?');
+    const ev={type:'action',fromId:this.clientId,fromName:this.name,ability,prompts:actions||[],
+      targetId:valid[0],targetName:names[0],targetIds:valid,targetNames:names,ts:Date.now()};
+    if(meta){ ev.meta={targets:meta.targets||null,range:meta.range||null,area:meta.area||null}; }
+    if(apply){ ev.apply=apply; } // {type:'damage'|'heal', amount, expr} â†’ VTT applies numerically
+    this.evRef.push(ev);
+  },
+  postRoll(label,total){
+    if(!this.connected||!this.evRef)return;
+    this.evRef.push({type:'roll',fromId:this.clientId,fromName:this.name,label,total,ts:Date.now()});
+  },
+  // Any connected client contributes to the ONE shared BP, atomically.
+  applyPEDelta(delta){
+    if(!this.connected)return;
+    const base=parseInt(document.getElementById('pe-val').value)||0;
+    this.ref.child('state/bp').transaction(cur=>Math.max(0,(typeof cur==='number'?cur:base)+delta));
+  },
+  log(text){ if(this.connected&&this.evRef)this.evRef.push({type:'log',text,ts:Date.now()}); },
+  onEvent(e){
+    if(!e||(e.ts&&e.ts<this._startTs))return; // ignore historical backlog
+    if(e.type==='action'){
+      const tgts=(e.targetNames&&e.targetNames.length)?e.targetNames.join(', '):e.targetName;
+      const ap=e.apply?` (${e.apply.type} ${e.apply.amount!=null?e.apply.amount:e.apply.expr||''})`:'';
+      addLogLine(`<b>${esc(e.fromName)}</b> used <b>${esc(e.ability)}</b> on ${esc(tgts)}${esc(ap)}`);
+      const ids=e.targetIds||(e.targetId?[e.targetId]:[]);
+      if(ids.includes(this.clientId))showPrompt(e);
+    }else if(e.type==='roll'){
+      addLogLine(`${esc(e.fromName)} rolled ${esc(e.label)}: <b>${esc(String(e.total))}</b>`);
+    }else if(e.type==='log'){
+      addLogLine(esc(e.text));
+    }
+  }
+};
+
+let _pubTimer=null;
+function publishCombatantDebounced(){
+  if(!Table.connected)return;
+  clearTimeout(_pubTimer); _pubTimer=setTimeout(()=>Table.publishCombatant(),300);
+}
+function toggleTable(){
+  const p=document.getElementById('tablePanel');
+  p.classList.toggle('open');
+  if(p.classList.contains('open'))renderTablePanel();
+}
+function renderTablePanel(){
+  const b=document.getElementById('tableBody'); if(!b)return;
+  const cfg=Table.config();
+  const view=!cfg?'setup':(Table.connected?'connected':'connect');
+  if(view===Table._view && view==='connected'){ renderRoster(); return; }
+  Table._view=view;
+  if(view==='setup'){
+    b.innerHTML=`<div class="tp-setup">
+      <div class="tp-note">Paste your Firebase web config (Firebase Console &rarr; Project settings &rarr; Your apps &rarr; Web). Must include <b>databaseURL</b> &amp; <b>apiKey</b>. <a href="https://console.firebase.google.com" target="_blank" rel="noopener">Open console &#8599;</a></div>
+      <div class="tp-field"><label>Firebase config</label><textarea id="fb-config-input" placeholder='{ "apiKey":"...", "databaseURL":"https://...firebasedatabase.app", "projectId":"..." }'></textarea></div>
+      <button class="tp-btn" onclick="tableSaveConfig()">Save config</button>
+      <div class="tp-note" style="margin-top:8px;color:#b03020;">Table data (names, HP, rolls) is stored in your Firebase cloud DB. Set Realtime Database rules to test mode to start.</div>
+    </div>`;
+  }else if(view==='connect'){
+    b.innerHTML=`
+      <div class="tp-field"><label>Display name</label><input type="text" id="tp-name" value="${esc(val('f-name'))}"></div>
+      <div class="tp-field"><label>Role</label><select id="tp-role"><option value="player">Player</option><option value="curator">Curator</option></select></div>
+      <div class="tp-field"><label>Room code</label><input type="text" id="tp-room" placeholder="WTE-XXXX"></div>
+      <div style="display:flex;gap:6px;">
+        <button class="tp-btn" onclick="tableConnect()">Connect</button>
+        <button class="tp-btn ghost" onclick="document.getElementById('tp-room').value=randCode()">Random</button>
+      </div>
+      <div class="tp-note" style="margin-top:8px;">First in picks Curator + a code; others join with the same code. <a href="#" onclick="Table.clearConfig();return false;">Reset config</a></div>`;
+  }else{
+    b.innerHTML=`
+      <div class="tp-status">Table <b>${esc(Table.room)}</b> &middot; ${esc(Table.name)} (${esc(Table.role)}) <button class="tp-btn ghost" onclick="Table.leave()">Leave</button></div>
+      ${Table.role==='curator'?`<div class="tp-field"><label>Base Pressure (BP) &mdash; shared with table</label><input type="number" id="tp-bp" value="${getV('pe-val')}" oninput="Table.setBP(this.value)"></div>
+      <button class="tp-btn${onlineCiphersOff?'':' ghost'}" id="tp-cipher-toggle" onclick="Table.setOnlineCiphers(!onlineCiphersOff)">${onlineCiphersOff?'Reactivate Online Ciphers':'Deactivate Online Ciphers'}</button>
+      <div class="tp-note">Click a combatant below to set which stats they can roll.</div>`:''}
+      <div class="tp-sec-h">Incoming</div><div id="table-prompts"><div class="tp-empty">No prompts yet.</div></div>
+      <div class="tp-sec-h">Combatants</div><div id="table-roster"></div>
+      <div class="tp-sec-h">Table Log</div><div id="table-log" class="tp-log"></div>`;
+    renderRoster();
+  }
+}
+function tableSaveConfig(){
+  const raw=document.getElementById('fb-config-input').value.trim();
+  let cfg=null;
+  try{ cfg=JSON.parse(raw); }
+  catch(e){ try{ cfg=Function('return ('+raw.match(/\{[\s\S]*\}/)[0]+')')(); }catch(e2){ cfg=null; } }
+  if(!cfg||!cfg.databaseURL||!cfg.apiKey){ toast('Need valid config with databaseURL & apiKey'); return; }
+  localStorage.setItem('wte-fb-config',JSON.stringify(cfg));
+  toast('Config saved'); Table._view=null; renderTablePanel();
+}
+function tableConnect(){
+  const room=document.getElementById('tp-room').value;
+  const role=document.getElementById('tp-role').value;
+  const name=document.getElementById('tp-name').value;
+  Table.connect(room,role,name);
+}
+function renderRoster(){
+  const el=document.getElementById('table-roster'); if(!el)return;
+  const list=Object.entries(Table.combatants||{});
+  el.innerHTML='';
+  if(!list.length){ el.innerHTML='<div class="tp-empty">No one connected yet.</div>'; return; }
+  const gated=(id)=>{const g=Table.gates&&Table.gates[id];return g?ATTRS.concat(SPECS).filter(x=>g[x[0]]===false).length:0;};
+  list.forEach(([id,c])=>{
+    const d=document.createElement('div');d.className='tp-combatant'+(Table.role==='curator'?' clickable':'');
+    const ng=gated(id);
+    d.innerHTML=`<span class="tc-name">${esc(c.name||'?')}${id===Table.clientId?' (you)':''}${ng?` <span style="color:#b88a20;font-size:9px;">(${ng} blocked)</span>`:''}</span>
+      <span class="tc-hp">HP ${c.hpCur||0}/${c.hpMax||0}${c.dhp?(' &middot; DHP '+c.dhp):''}${c.ss?(' &middot; SS '+c.ss):''}</span>
+      <span class="tc-role">${esc(c.role||'')}</span>`;
+    if(Table.role==='curator')d.onclick=()=>showGateEditor(id);
+    el.appendChild(d);
+  });
+}
+function addLogLine(html){
+  const log=document.getElementById('table-log'); if(!log)return;
+  const t=new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+  const d=document.createElement('div');d.className='tp-log-line';
+  d.innerHTML=`<span class="tl-t">${t}</span> ${html}`;
+  log.prepend(d);
+}
+function showPrompt(e){
+  const wrap=document.getElementById('table-prompts'); if(!wrap)return;
+  if(wrap.querySelector('.tp-empty'))wrap.innerHTML='';
+  const card=document.createElement('div');card.className='tp-prompt';
+  const h=document.createElement('div');h.className='tp-prompt-h';h.innerHTML=`<b>${esc(e.fromName)}</b> &rarr; ${esc(e.ability)}`;
+  card.appendChild(h);
+  const row=document.createElement('div');row.className='action-chips';
+  (e.prompts||[]).forEach(p=>{
+    const b=document.createElement('button');b.type='button';b.className='act-chip';b.textContent=p.label;
+    b.addEventListener('click',()=>fireAction(Object.assign({},p,{label:p.label+' ('+e.ability+')'})));
+    row.appendChild(b);
+  });
+  card.appendChild(row);
+  const x=document.createElement('span');x.className='tp-prompt-x';x.textContent='Ã—';x.onclick=()=>card.remove();
+  card.appendChild(x);
+  wrap.prepend(card);
+  if(!document.getElementById('tablePanel').classList.contains('open'))document.getElementById('tablePanel').classList.add('open');
+  toast(`${e.fromName} used ${e.ability} on you`);
+}
+function closeTargetMenu(){ const m=document.getElementById('tgtMenu'); if(m)m.remove(); }
+function showTargetMenu(ev,ability,actions,meta,apply){
+  closeTargetMenu();
+  ev.stopPropagation();
+  const menu=document.createElement('div');menu.className='tgt-menu';menu.id='tgtMenu';
+  const list=Object.entries(Table.combatants||{});
+  // multi-select when the ability hits more than one figure (count, "all", or an area)
+  const cap=meta?(meta.targets==='all'?Infinity:(meta.targets||1)):1;
+  const multi=cap>1||(meta&&meta.area);
+  if(!list.length){ menu.innerHTML='<div class="tgt-empty">No combatants connected</div>'; }
+  else if(!multi){
+    list.forEach(([id,c])=>{
+      const b=document.createElement('button');b.type='button';b.className='tgt-item';
+      b.textContent=(c.name||'?')+(id===Table.clientId?' (you)':'');
+      b.onclick=()=>{Table.sendAction(ability,actions,[id],meta,apply);closeTargetMenu();toast('Sent to '+(c.name||'target'));};
+      menu.appendChild(b);
+    });
+  }else{
+    const cs=new Set();
+    const hdr=document.createElement('div');hdr.className='tgt-empty';
+    hdr.textContent=cap===Infinity?'Select targets (all eligible)':`Select up to ${cap} target${cap>1?'s':''}`;
+    menu.appendChild(hdr);
+    list.forEach(([id,c])=>{
+      const b=document.createElement('button');b.type='button';b.className='tgt-item';
+      const refresh=()=>{b.textContent=(cs.has(id)?'âœ“ ':'')+(c.name||'?')+(id===Table.clientId?' (you)':'');b.style.background=cs.has(id)?'var(--surface2)':'';};
+      b.onclick=e=>{ e.stopPropagation(); if(cs.has(id))cs.delete(id); else{ if(cs.size>=cap){toast('Target limit reached');return;} cs.add(id);} refresh(); };
+      refresh(); menu.appendChild(b);
+    });
+    const go=document.createElement('button');go.type='button';go.className='tgt-item';go.style.borderTop='2px solid var(--accent)';go.style.color='var(--accent)';go.textContent='Send to selected â†’';
+    go.onclick=e=>{ e.stopPropagation(); if(!cs.size){toast('Pick at least one target');return;} Table.sendAction(ability,actions,[...cs],meta,apply); closeTargetMenu(); toast('Sent to '+cs.size+' target'+(cs.size>1?'s':'')); };
+    menu.appendChild(go);
+  }
+  document.body.appendChild(menu);
+  const r=ev.currentTarget.getBoundingClientRect();
+  menu.style.left=Math.min(r.left,window.innerWidth-160)+'px';
+  menu.style.top=(r.bottom+4)+'px';
+  setTimeout(()=>document.addEventListener('click',closeTargetMenu,{once:true}),0);
+}
+
+// â”€â”€ ROLL GATING (Curator-controlled per player) â”€â”€
+function tagRollButtons(){
+  document.querySelectorAll('.roll-btn').forEach(b=>{
+    const m=(b.getAttribute('onclick')||'').match(/,\s*'([as]-[a-z]+)'/);
+    if(m)b.dataset.stat=m[1];
+  });
+}
+function applyGateVisuals(){
+  document.querySelectorAll('.roll-btn[data-stat]').forEach(b=>{
+    const ok=gateAllows(b.dataset.stat);
+    b.disabled=!ok; b.style.opacity=ok?'':'0.28'; b.style.cursor=ok?'':'not-allowed';
+  });
+}
+function applyMyGate(){
+  buildPESkills(); applyGateVisuals();
+  const g=(typeof Table!=='undefined'&&Table.connected)?(Table.gates&&Table.gates[Table.clientId]):null;
+  const blocked=g?ATTRS.concat(SPECS).some(x=>g[x[0]]===false):false;
+  const note=document.getElementById('pe-gate-note'); if(note)note.style.display=blocked?'block':'none';
+}
+let gateEditorFor=null;
+function showGateEditor(id){ gateEditorFor=id; renderGateEditor(); }
+function closeGateEditor(){ gateEditorFor=null; const h=document.getElementById('gate-editor'); if(h)h.remove(); }
+function renderGateEditor(){
+  if(!gateEditorFor||!Table.connected||Table.role!=='curator'){ const e=document.getElementById('gate-editor'); if(e)e.remove(); return; }
+  let host=document.getElementById('gate-editor');
+  if(!host){ host=document.createElement('div'); host.id='gate-editor'; host.className='gate-editor';
+    const body=document.getElementById('tableBody'); body.insertBefore(host, body.firstChild); }
+  const c=Table.combatants[gateEditorFor]||{name:'?'};
+  const g=(Table.gates&&Table.gates[gateEditorFor])||{};
+  const tog=(x)=>{ const on=g[x[0]]!==false; return `<button class="gate-tog ${on?'on':'off'}" onclick="Table.setGate('${gateEditorFor}','${x[0]}',${on?'false':'true'})">${x[1]}<span>${on?'ON':'OFF'}</span></button>`; };
+  const mechOn=!!(Table.bgMech&&Table.bgMech[gateEditorFor]);
+  host.innerHTML=`<div class="ge-head">Roll permissions &mdash; ${esc(c.name||'?')}<span class="ge-x" onclick="closeGateEditor()">&times;</span></div>
+    <div class="ge-grp">Attributes</div><div class="ge-row">${ATTRS.map(tog).join('')}</div>
+    <div class="ge-grp">Specialties</div><div class="ge-row">${SPECS.map(tog).join('')}</div>
+    <div class="ge-grp">Background Mechanic (confirm trigger)</div>
+    <div class="ge-row"><button class="gate-tog ${mechOn?'on':'off'}" onclick="Table.setBgMech('${gateEditorFor}',${mechOn?'false':'true'})">Active Trigger<span>${mechOn?'ON':'OFF'}</span></button></div>
+    <div class="ge-foot">
+      <button class="tp-btn ghost" onclick="Table.setAllGate('${gateEditorFor}',true)">All on</button>
+      <button class="tp-btn ghost" onclick="Table.setAllGate('${gateEditorFor}',false)">All off</button>
+      <button class="tp-btn" onclick="closeGateEditor()">Done</button>
+    </div>`;
+}
+function onPEValInput(){
+  updatePEState();
+  if(typeof Table!=='undefined'&&Table.connected&&Table.role==='curator')Table.setBP(document.getElementById('pe-val').value);
+}
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// INIT
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+buildInitialRows();
+buildPESkills();
+const _saved=localStorage.getItem('wte-sheet-v6');
+if(_saved){try{applyAll(JSON.parse(_saved));}catch(e){calcAll();updateGenusBtn();updateCipherBtn();}}
+else{calcAll();updateGenusBtn();updateCipherBtn();}
+selectDie(40);
+updatePEState();
+refreshAllActionChips();
+tagRollButtons();
+</script>
+</body>
+</html>
+

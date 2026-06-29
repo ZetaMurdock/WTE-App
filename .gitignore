@@ -1,0 +1,16 @@
+# dependencies
+node_modules/
+
+# rust / tauri build output
+src-tauri/target/
+src-tauri/gen/
+
+# updater signing secrets — NEVER commit these
+src-tauri/.tauri/
+*.key
+*.key.pub
+PASSPHRASE.txt
+
+# OS
+.DS_Store
+Thumbs.db
