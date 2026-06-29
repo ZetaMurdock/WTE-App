@@ -1048,11 +1048,11 @@ function makeAsymRow(n) {
 function makeGenusRow(n) {
   const tr = document.createElement('tr'); tr.id='genus-row-'+n;
   tr.innerHTML=`<td class="rn">${n}</td>
-    <td><input type="text" id="gn-name-${n}" list="genus-options" autocomplete="off" onfocus="loadGenusForParadigm()" onchange="onGenusPick(${n})" oninput="renderActionChips('gn-fx-${n}','gn-chips-${n}','gn-name-${n}')"></td>
+    <td><input type="text" id="gn-name-${n}" list="genus-options" autocomplete="off" onfocus="loadGenusForParadigm()" onchange="onGenusPick(${n})" oninput="renderActionChips('gn-fx-${n}','gn-chips-${n}','gn-name-${n}',document.getElementById('gn-ss-${n}').value)"></td>
     <td><select id="gn-dom-${n}" style="font-size:11px;"><option value="">&mdash;</option><option>Neutral</option><option>Eldritch</option><option>Null</option><option>Elemental</option><option>Kinetic</option></select></td>
     <td><input type="text" id="gn-act-${n}"></td>
     <td><input type="number" id="gn-ss-${n}" min="0"></td>
-    <td><textarea id="gn-fx-${n}" style="min-height:22px;" oninput="renderActionChips('gn-fx-${n}','gn-chips-${n}','gn-name-${n}')"></textarea><div class="action-chips" id="gn-chips-${n}"></div></td>`;
+    <td><textarea id="gn-fx-${n}" style="min-height:22px;" oninput="renderActionChips('gn-fx-${n}','gn-chips-${n}','gn-name-${n}',document.getElementById('gn-ss-${n}').value)"></textarea><div class="action-chips" id="gn-chips-${n}"></div></td>`;
   return tr;
 }
 function buildInitialRows() {
@@ -1104,11 +1104,12 @@ function onAdditionalCipherPick(n){
   if(c){
     const ben=document.getElementById('c'+n+'-benefits'); if(ben)ben.value=c.name+' — '+c.effect;
     const ty=document.getElementById('c'+n+'-type'); if(ty)ty.value=c.section==='Online'?'Online':'Offline';
+    el.dataset.ss=c.ss||0;   // remember the SS cost so the Cast chip survives reloads
   }
-  renderActionChips('c'+n+'-benefits','c'+n+'-chips','c'+n);
+  renderActionChips('c'+n+'-benefits','c'+n+'-chips','c'+n,(el.dataset.ss||0));
   autosave();
 }
-function refreshCipherChips(){ for(let i=2;i<=cipherCount;i++){ if(document.getElementById('c'+i+'-benefits'))renderActionChips('c'+i+'-benefits','c'+i+'-chips','c'+i); } }
+function refreshCipherChips(){ for(let i=2;i<=cipherCount;i++){ if(document.getElementById('c'+i+'-benefits')){ const el=document.getElementById('c'+i); renderActionChips('c'+i+'-benefits','c'+i+'-chips','c'+i,(el&&el.dataset.ss)||0); } } }
 function addCipher(){
   const rank=parseInt(document.getElementById('f-level').value)||0;
   const max=1+rank;
@@ -1398,7 +1399,7 @@ function onGenusPick(n){
   if(!g)return; // unknown / freeform — leave as typed
   const set=(id,v)=>{const e=document.getElementById(id);if(e)e.value=v;};
   set('gn-dom-'+n,g.domain); set('gn-ss-'+n,g.ss); set('gn-act-'+n,g.activation); set('gn-fx-'+n,g.effect);
-  renderActionChips('gn-fx-'+n,'gn-chips-'+n,'gn-name-'+n);
+  renderActionChips('gn-fx-'+n,'gn-chips-'+n,'gn-name-'+n,getV('gn-ss-'+n));
   autosave();
 }
 
@@ -1458,7 +1459,8 @@ function onCipherPick(){
   set('c-benefits', c.name+' — '+c.effect);
   set('c-type', c.section==='Online'?'Online':'Offline');
   set('c-tl', c.section==='Online'?3:2);
-  renderActionChipsFromText(c.effect,'cipher-chips',c.name);
+  el.dataset.ss=c.ss||0;
+  renderActionChipsFromText(c.name+' — '+c.effect,'cipher-chips',c.name,c.ss||0);
   applyOnlineCipherState(); autosave();
 }
 let onlineCiphersOff=false, _cipherForcedOff=false;
@@ -2128,7 +2130,7 @@ function fireAction(a){
 // ── META READER — targeting, range, area, and numeric values pulled from effect text ──
 // Returns {targets:Number|'all'|null, range:{value,unit}|null, area:{shape,size,unit}|null, values:[{type,expr,label}]}
 function parseEffectMeta(text){
-  const meta={targets:null,range:null,area:null,values:[],pattern:null,duration:null,attach:null};
+  const meta={targets:null,range:null,area:null,values:[],pattern:null,duration:null,attach:null,bypassDHP:false};
   if(!text)return meta;
   const t=' '+text+' ';
   // TARGETS — "up to 3 targets", "two creatures", "all enemies", "single target"
@@ -2160,6 +2162,7 @@ function parseEffectMeta(text){
   else if(/\b(beam|ray|lance)\b/i.test(t)||/\bline\b/i.test(t))pat='line';
   else if(/\b(nova|burst|blast|explos|sphere)\b/i.test(t))pat='circle';
   if(pat)meta.pattern=pat;
+  if(/\btrue damage\b|ignore[sd]?\s+(?:the\s+)?(?:dhp|defensiv|armou?r|shield)|bypass(?:es|ed)?\s+(?:the\s+)?(?:dhp|defensiv|shield)|direct damage|pierc(?:e|ing)/i.test(t))meta.bypassDHP=true;
   // NUMERIC VALUES — damage / healing dice or flats
   const seen=new Set();
   let m,dre=/\b(\d*)d(\d+)([+-]\d+)?\b/gi;
@@ -2178,14 +2181,53 @@ function metaBadgesHTML(meta){
   if(meta.range)out.push(`<span class="meta-chip" title="effective range">Range <b>${meta.range.value} ${meta.range.unit}</b></span>`);
   if(meta.area)out.push(`<span class="meta-chip" title="area of effect">Area <b>${meta.area.size?meta.area.size+' ':''}${meta.pattern||meta.area.shape}</b></span>`);
   if(meta.duration)out.push(`<span class="meta-chip" title="how long the effect lasts${meta.attach?' — follows '+meta.attach:''}">Duration <b>${meta.duration}r${meta.attach?' · '+meta.attach:''}</b></span>`);
+  if(meta.bypassDHP)out.push(`<span class="meta-chip" title="ignores Defensive Hit Points — hits HP directly">True dmg</span>`);
   return out.join('');
 }
-function renderActions(containerId,actions,prefix,sourceLabel,meta){
+// ── SYNAPTIC SPACE + DEFENSIVE HIT POINTS ──
+function ssCurrent(){ const c=document.getElementById('d-sscur'); const m=document.getElementById('d-ss'); let v=c&&c.value!==''?parseInt(c.value):NaN; if(isNaN(v))v=parseInt(m&&m.value)||0; return v; }
+// Spend Synaptic Space when a Genus/Cipher is used.
+function spendSS(n,label){
+  n=parseInt(n)||0; if(n<=0)return;
+  const c=document.getElementById('d-sscur'); const m=document.getElementById('d-ss');
+  let cur=ssCurrent();
+  if(n>cur && !confirm(`${label||'Ability'} costs ${n} SS but you only have ${cur} Synaptic Space. Use anyway (overdraw)?`))return;
+  if(c.value===''&&m)c.value=m.value;            // seed current from max on first spend
+  c.value=ssCurrent()-n;
+  calcAll(); autosave(); if(typeof publishCombatantDebounced==='function')publishCombatantDebounced();
+  toast(`${label||'Used'} — ${n} SS spent (${c.value} left)`);
+}
+// Take damage: Defensive Hit Points absorb first, overflow hits HP — unless the ability bypasses DHP / is true damage.
+function applyIncomingDamage(amount,bypassDHP,label){
+  amount=parseInt(amount)||0; if(amount<=0)return;
+  const hpEl=document.getElementById('d-hpcur'), hpMax=document.getElementById('d-hpmax');
+  const dhpEl=document.getElementById('d-dhpcur'), dhpMax=document.getElementById('d-dhp');
+  let hp=hpEl.value!==''?parseInt(hpEl.value):(parseInt(hpMax.value)||0);
+  let rem=amount, absorbed=0;
+  if(!bypassDHP){ let dhp=dhpEl.value!==''?parseInt(dhpEl.value):(parseInt(dhpMax.value)||0);
+    absorbed=Math.min(Math.max(0,dhp),rem); dhp-=absorbed; rem-=absorbed; dhpEl.value=dhp; }
+  hp-=rem; hpEl.value=hp;
+  calcAll(); autosave(); if(typeof publishCombatantDebounced==='function')publishCombatantDebounced();
+  toast(`${label?label+': ':''}-${amount}${bypassDHP?' (true dmg → HP)':(absorbed?` (${absorbed} on DHP)`:'')}`);
+}
+function applyHealing(amount,label){
+  amount=parseInt(amount)||0; if(amount<=0)return;
+  const hpEl=document.getElementById('d-hpcur'),hpMax=document.getElementById('d-hpmax');
+  let hp=(hpEl.value!==''?parseInt(hpEl.value):0)+amount; const mx=parseInt(hpMax.value)||0; if(mx&&hp>mx)hp=mx;
+  hpEl.value=hp; calcAll(); autosave(); if(typeof publishCombatantDebounced==='function')publishCombatantDebounced();
+  toast(`${label?label+': ':''}+${amount} HP`);
+}
+function renderActions(containerId,actions,prefix,sourceLabel,meta,castSS){
   const el=document.getElementById(containerId); if(!el)return;
   el.innerHTML='';
+  castSS=parseInt(castSS)||0;
   const hasMeta=meta&&(meta.targets||meta.range||meta.area||(meta.values&&meta.values.length));
-  if(!actions||(!actions.length&&!hasMeta))return;
-  if(prefix&&(actions.length||hasMeta)){const s=document.createElement('span');s.className='act-chips-lbl';s.textContent=prefix;el.appendChild(s);}
+  if(!actions||(!actions.length&&!hasMeta&&!castSS))return;
+  if(prefix&&(actions.length||hasMeta||castSS)){const s=document.createElement('span');s.className='act-chips-lbl';s.textContent=prefix;el.appendChild(s);}
+  // Cast chip — spends Synaptic Space when you use a Genus / Cipher
+  if(castSS>0){ const b=document.createElement('button');b.type='button';b.className='act-chip';b.style.background='#5a4a8a';
+    b.textContent='Cast −'+castSS+' SS'; b.title='Spend '+castSS+' Synaptic Space to use '+(sourceLabel||'this ability');
+    b.addEventListener('click',()=>spendSS(castSS,sourceLabel)); el.appendChild(b); }
   actions.forEach(a=>{
     const b=document.createElement('button');b.type='button';b.className='act-chip';
     b.textContent=a.label; b.title='Roll '+a.label;
@@ -2216,14 +2258,14 @@ function fireValue(ev,v,sourceLabel,meta){
   if(Table.connected){ showTargetMenu(ev,sourceLabel,[],meta,{type:v.type,amount:amt,expr:v.expr}); }
   else if(!v.expr&&v.amount!=null){ toast((v.type==='heal'?'Heal ':'Damage ')+v.amount); }
 }
-function renderActionChips(srcId,containerId,labelId){
+function renderActionChips(srcId,containerId,labelId,castSS){
   const src=document.getElementById(srcId);
   const label=labelId?(document.getElementById(labelId)?.value||'Ability'):'Ability';
   const txt=src?src.value:'';
-  renderActions(containerId,parseEffectActions(txt),'Rolls',label,parseEffectMeta(txt));
+  renderActions(containerId,parseEffectActions(txt),'Rolls',label,parseEffectMeta(txt),castSS);
 }
-function renderActionChipsFromText(text,containerId,sourceLabel){
-  renderActions(containerId,parseEffectActions(text),'Rolls',sourceLabel||'Ability',parseEffectMeta(text));
+function renderActionChipsFromText(text,containerId,sourceLabel,castSS){
+  renderActions(containerId,parseEffectActions(text),'Rolls',sourceLabel||'Ability',parseEffectMeta(text),castSS);
 }
 function renderWeaponChips(i){
   const dmg=document.getElementById('w'+i+'-dmg'),name=document.getElementById('w'+i+'-name');
@@ -2235,7 +2277,7 @@ function renderWeaponChips(i){
   renderActions('wpn-chips-'+i,acts,acts.length?'Rolls':'',(name&&name.value.trim())||('Weapon '+i),meta);
 }
 function refreshAllActionChips(){
-  for(let i=1;i<=genusCount;i++){ if(document.getElementById('gn-fx-'+i))renderActionChips('gn-fx-'+i,'gn-chips-'+i); }
+  for(let i=1;i<=genusCount;i++){ if(document.getElementById('gn-fx-'+i))renderActionChips('gn-fx-'+i,'gn-chips-'+i,'gn-name-'+i,getV('gn-ss-'+i)); }
   for(let i=1;i<=4;i++)renderWeaponChips(i);
   refreshCipherChips();
 }
@@ -2684,7 +2726,7 @@ const Table={
     const names=valid.map(id=>this.combatants[id].name||'?');
     const ev={type:'action',fromId:this.clientId,fromName:this.name,ability,prompts:actions||[],
       targetId:valid[0],targetName:names[0],targetIds:valid,targetNames:names,ts:Date.now()};
-    if(meta){ ev.meta={targets:meta.targets||null,range:meta.range||null,area:meta.area||null}; }
+    if(meta){ ev.meta={targets:meta.targets||null,range:meta.range||null,area:meta.area||null,bypassDHP:!!meta.bypassDHP,duration:meta.duration||null,attach:meta.attach||null}; }
     if(apply){ ev.apply=apply; } // {type:'damage'|'heal', amount, expr} → VTT applies numerically
     this.evRef.push(ev);
   },
@@ -2810,6 +2852,14 @@ function showPrompt(e){
     b.addEventListener('click',()=>fireAction(Object.assign({},p,{label:p.label+' ('+e.ability+')'})));
     row.appendChild(b);
   });
+  // direct apply — DHP absorbs first unless the ability is true damage / bypasses DHP
+  if(e.apply&&e.apply.amount!=null){
+    const bypass=!!(e.meta&&e.meta.bypassDHP);
+    const b=document.createElement('button');b.type='button';b.className='act-chip value';
+    if(e.apply.type==='heal'){ b.textContent='Apply +'+e.apply.amount+' HP'; b.addEventListener('click',()=>{applyHealing(e.apply.amount,e.ability);card.remove();}); }
+    else{ b.textContent='Take '+e.apply.amount+' dmg'+(bypass?' (true)':''); b.addEventListener('click',()=>{applyIncomingDamage(e.apply.amount,bypass,e.ability);card.remove();}); }
+    row.appendChild(b);
+  }
   card.appendChild(row);
   const x=document.createElement('span');x.className='tp-prompt-x';x.textContent='×';x.onclick=()=>card.remove();
   card.appendChild(x);

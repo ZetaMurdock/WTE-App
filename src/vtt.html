@@ -41,7 +41,7 @@ body{background:var(--bg);color:var(--ink);font-family:'Georgia',serif;font-size
 .aim-bar.show{display:flex;}
 .aim-title{letter-spacing:1px;color:#d8b25a;}
 .aim-shapes{display:flex;gap:3px;}
-.aim-sh{width:26px;height:24px;border:1px solid #4a463e;background:#2a2722;color:#cfc8ba;cursor:pointer;font-size:13px;line-height:1;}
+.aim-sh{height:22px;padding:0 7px;border:1px solid #4a463e;background:#2a2722;color:#cfc8ba;cursor:pointer;font-size:9px;letter-spacing:.5px;line-height:1;white-space:nowrap;font-family:Georgia,serif;}
 .aim-sh:hover{border-color:#8a6d3b;}
 .aim-sh.on{background:#8a6d3b;border-color:#8a6d3b;color:#fff;}
 .aim-size input{width:42px;background:#2a2722;border:1px solid #4a463e;color:#e7e2d8;font-size:11px;padding:1px 3px;text-align:center;margin:0 3px;}
@@ -528,6 +528,9 @@ function renderProps(){
       ${linkedActor(t)
         ? `<div class="row"><label>HP</label><input type="number" value="${t.hp||0}" disabled title="synced from ${esc(linkedActor(t).name||'character')}'s sheet"><span style="font-size:9px;color:var(--muted);align-self:center;">synced w/ sheet</span></div>`
         : `<div class="row"><label>HP</label><input type="number" value="${t.hp||0}" oninput="upd('hp',+this.value||0)"><input type="number" title="max" value="${t.hpmax||0}" ${ro?'disabled':''} oninput="upd('hpmax',+this.value||0)"></div>`}
+      ${linkedActor(t)
+        ? (t.dhp!=null?`<div class="row"><label>DHP</label><input type="number" value="${t.dhp||0}" disabled title="Defensive HP synced from the sheet"><span style="font-size:9px;color:var(--muted);align-self:center;">synced</span></div>`:'')
+        : `<div class="row"><label>DHP</label><input type="number" value="${t.dhp||0}" ${ro?'disabled':''} oninput="upd('dhp',+this.value||0)" title="Defensive Hit Points — absorbs damage before HP (unless true damage)"></div>`}
       <div class="row"><label>Vision (cells)</label><input type="number" min="0" value="${t.vision||0}" ${ro?'disabled':''} oninput="upd('vision',+this.value||0)" title="0 = line-of-sight, no range limit"></div>
       ${role==='gm'?`<div class="row"><label>Owner</label><input type="text" list="owner-options" value="${esc(t.owner||'')}" placeholder="connected player" oninput="upd('owner',this.value)"></div>`:''}
       ${role==='gm'?`<div class="row"><label>Character</label><select onchange="upd('actor',this.value)"><option value="">${linkedActor(t)?'— unlink —':'— none —'}</option>`+Object.entries(VT.actors||{}).map(([id,a])=>`<option value="${id}"${t.actor===id?' selected':''}>${esc(a.name||id)}</option>`).join('')+`</select>${t.actor&&VT.actors[t.actor]?` <span style="font-size:9px;color:#6fae6f;align-self:center;">auto-linked</span>`:''}</div>`:''}
@@ -733,7 +736,7 @@ function sendActorAction(){
     VT.tableRef.child('events').push({type:'action',fromId:VT.clientId,fromName:a.fromName,ability:a.ability,prompts:[a.action],
       targetId:linked[0]?linked[0].actor:null,targetName:linked[0]?(VT.actors[linked[0].actor].name||'?'):null,
       targetIds:linked.map(t=>t.actor),targetNames:linked.map(t=>VT.actors[t.actor].name||'?'),
-      meta:{targets:a.meta.targets||null,range:a.meta.range||null,area:a.meta.area||null,duration:follow?rounds:null,attach:follow||null},
+      meta:{targets:a.meta.targets||null,range:a.meta.range||null,area:a.meta.area||null,duration:follow?rounds:null,attach:follow||null,bypassDHP:!!a.meta.bypassDHP},
       hitbox:box, fxText:a.fx, ts:Date.now()});
   }
   if(VT.connected&&role==='gm')syncMap();
@@ -920,16 +923,20 @@ function syncLinkedTokenHP(){
   map.tokens.forEach(t=>{ const a=linkedActor(t); if(!a)return;
     const hpMax=+a.hpMax||0, hpCur=(a.hpCur!=null&&a.hpCur!=='')?+a.hpCur:hpMax;
     if(hpMax>0&&(t.hpmax!==hpMax||t.hp!==hpCur)){ t.hpmax=hpMax; t.hp=hpCur; changed=true; }
+    const dhp=(a.dhp!=null&&a.dhp!=='')?+a.dhp:null; if(dhp!=null&&t.dhp!==dhp){ t.dhp=dhp; changed=true; }
   });
   if(changed){ syncMap(); render(); }
 }
 // Apply a numeric damage/heal payload to a token's HP + simulation integrity.
 // Linked PCs keep their HP from the sheet (we still log + adjust sim integrity for feedback).
-function applyNumeric(tok,type,amount){
-  if(!tok||amount==null)return; ensureSim(tok); const pc=linkedActor(tok);
+function applyNumeric(tok,type,amount,bypassDHP){
+  if(!tok||amount==null)return; ensureSim(tok); const pc=linkedActor(tok); let absorbed=0;
   if(type==='heal'){ if(tok.hpmax>0&&!pc)tok.hp=Math.min(tok.hpmax,(tok.hp||0)+amount); tok.sim.integrity=Math.min(100,tok.sim.integrity+amount); }
-  else{ if(tok.hpmax>0&&!pc)tok.hp=Math.max(0,(tok.hp||0)-amount); tok.sim.integrity=Math.max(0,tok.sim.integrity-amount); if(typeof markHurt==='function')markHurt(tok); }
-  vtSimLog(`${tok.label||'token'} ${type==='heal'?'+':'-'}${amount} ${type==='heal'?'HP':'dmg'}${pc?' (via sheet)':''}`);
+  else{ let rem=amount;
+    if(!pc){ if(!bypassDHP && (tok.dhp||0)>0){ absorbed=Math.min(tok.dhp,rem); tok.dhp-=absorbed; rem-=absorbed; }
+      if(tok.hpmax>0)tok.hp=Math.max(0,(tok.hp||0)-rem); }
+    tok.sim.integrity=Math.max(0,tok.sim.integrity-amount); if(typeof markHurt==='function')markHurt(tok); }
+  vtSimLog(`${tok.label||'token'} ${type==='heal'?'+':'-'}${amount} ${type==='heal'?'HP':(bypassDHP?'true dmg':(absorbed?absorbed+' on DHP':'dmg'))}${pc?' (via sheet)':''}`);
 }
 // Resolve an incoming action event on the GM's map: hit linked tokens + AoE, apply numbers, place lingering effects.
 function vtApplyActionEvent(e){
@@ -942,7 +949,7 @@ function vtApplyActionEvent(e){
   if(e.meta&&e.meta.area){ const px=metaToPixels(e.meta.area.size||3,e.meta.area.unit||'cells')||map.gridSize*3;
     primary.forEach(p=>tokensInRadius(p.x,p.y,px,p.id).forEach(o=>{ if(!hit.includes(o))hit.push(o); })); }
   hit.forEach(tok=>{
-    if(e.apply){ const amt=e.apply.amount!=null?e.apply.amount:rollExprVal(e.apply.expr); applyNumeric(tok,e.apply.type,amt); }
+    if(e.apply){ const amt=e.apply.amount!=null?e.apply.amount:rollExprVal(e.apply.expr); applyNumeric(tok,e.apply.type,amt,e.meta&&e.meta.bypassDHP); }
     else if(e.fxText){ applySim(tok,e.fxText,{label:e.fromName}); }
   });
   // place a lingering effect from this event (player-cast effects sync through the GM here)
