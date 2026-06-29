@@ -536,7 +536,7 @@ function actorAbilitiesHTML(t){
     if(meta.area)badges.push('AoE '+(meta.area.size?meta.area.size+' ':'')+(meta.pattern||meta.area.shape));
     if(meta.duration)badges.push('Dur '+meta.duration+'r'+(meta.attach?'/'+meta.attach:''));
     h+=`<div style="font-size:9px;color:var(--muted);margin-top:5px;">${esc(grp.name)}${badges.length?` <span style="color:#8a6d3b;">${esc(badges.join(' '))}</span>`:''}</div><div>`;
-    (grp.actions||[]).forEach((act,ai)=>{ const ico=act.icon?`<img class="chip-ico" src="${esc(act.icon)}">`:''; h+=`<button class="act-chip${act.icon?' has-icon':''}" title="roll or aim at a target" onclick="showActionMenu(event,'${t.actor}',${gi},${ai})">${ico}${esc(act.label)}</button>`; });
+    (grp.actions||[]).forEach((act,ai)=>{ const idle=(act.anim&&act.anim.idle)||act.icon; const ico=idle?`<img class="chip-ico" src="${esc(idle)}">`:''; h+=`<button class="act-chip${idle?' has-icon':''}" data-fxid="${gi}-${ai}" title="roll or aim at a target" onclick="showActionMenu(event,'${t.actor}',${gi},${ai})">${ico}${esc(act.label)}</button>`; });
     h+=`</div>`; });
   return h;
 }
@@ -844,19 +844,33 @@ function drawAimPreview(){
 function rollDie(n){return Math.floor(Math.random()*n)+1;}
 let vtLog=[];
 function addVtLog(text){ vtLog.unshift(text); if(vtLog.length>6)vtLog.pop(); const el=document.getElementById('vt-log'); if(el)el.innerHTML=vtLog.map(t=>`<div>${String(t).replace(/</g,'&lt;')}</div>`).join(''); }
+function playVttBtnAnim(gi,ai,src){ const btn=document.querySelector('.act-chip[data-fxid="'+gi+'-'+ai+'"]'); if(!btn||!src)return;
+  let img=btn.querySelector('img.chip-ico'); const base=img?img.getAttribute('src'):'';
+  if(!img){ img=document.createElement('img'); img.className='chip-ico'; btn.insertBefore(img,btn.firstChild); btn.classList.add('has-icon'); img.dataset.temp='1'; }
+  clearTimeout(btn._fxT); img.src=src; const dur=1500/(window.wteAnimSpeed||1);
+  btn._fxT=setTimeout(()=>{ if(img.dataset.temp){ img.remove(); btn.classList.remove('has-icon'); } else if(base) img.src=base; }, dur); }
 function rollActorAction(actorId,gi,ai){
   const actor=VT.actors[actorId]; const grp=actor&&actor.abilities&&actor.abilities[gi]; const act=grp&&grp.actions&&grp.actions[ai]; if(!act)return;
-  const stats=actor.stats||{}; let total=0,label=act.label,bd='';
-  if(act.kind==='attr'){ const sc=stats[act.stat]||0; const d=rollDie(20); total=d+sc; bd=`1d20(${d})+${sc}`; }
-  else if(act.kind==='spec'){ const pts=stats[act.stat]||0; const pen=pts<=25?-25:0; const d=rollDie(40); total=d+pts+pen; bd=`1d40(${d})+${pts}${pen?(' '+pen):''}`; }
-  else if(act.kind==='dice'){ const m=(act.expr||'').match(/^(\d*)d(\d+)([+-]\d+)?$/); if(!m){toast('Bad dice');return;} const c=+(m[1]||1),s=+m[2],mod=+(m[3]||0); let sum=0,rolls=[]; for(let i=0;i<c;i++){const r=rollDie(s);rolls.push(r);sum+=r;} total=sum+mod; bd=`[${rolls.join(',')}]${mod?(mod>0?'+'+mod:mod):''}`; }
+  const stats=actor.stats||{}; let total=0,label=act.label,bd='',sides=0,nats=[];
+  if(act.kind==='attr'){ const sc=stats[act.stat]||0; const d=rollDie(20); total=d+sc; bd=`1d20(${d})+${sc}`; sides=20; nats=[d]; }
+  else if(act.kind==='spec'){ const pts=stats[act.stat]||0; const pen=pts<=25?-25:0; const d=rollDie(40); total=d+pts+pen; bd=`1d40(${d})+${pts}${pen?(' '+pen):''}`; sides=40; nats=[d]; }
+  else if(act.kind==='dice'){ const m=(act.expr||'').match(/^(\d*)d(\d+)([+-]\d+)?$/); if(!m){toast('Bad dice');return;} const c=+(m[1]||1),s=+m[2],mod=+(m[3]||0); let sum=0,rolls=[]; for(let i=0;i<c;i++){const r=rollDie(s);rolls.push(r);sum+=r;} total=sum+mod; bd=`[${rolls.join(',')}]${mod?(mod>0?'+'+mod:mod):''}`; sides=s; nats=rolls; }
   const name=actor.name||myName;
   if(VT.connected&&VT.tableRef){ VT.tableRef.child('events').push({type:'roll',fromId:VT.clientId,fromName:name,label:`${grp.name}: ${label}`,total,ts:Date.now()}); }
   else addVtLog(`${name} · ${grp.name}: ${label} = ${total} (${bd})`);
   toast(`${label}: ${total}`);
+  // dice animation on the button (crit from natural die, success/fail vs optional DC)
+  const an=act.anim;
+  if(an){ const critMax=nats.some(r=>r===sides), crit1=nats.some(r=>r===1); let slot=null;
+    if(critMax&&an.critSucc)slot='critSucc'; else if(crit1&&an.critFail)slot='critFail';
+    else if(an.dc!=null)slot=total>=an.dc?'success':'fail';
+    else if(critMax)slot='success'; else if(crit1)slot='fail';
+    if(slot&&an[slot])playVttBtnAnim(gi,ai,an[slot]); }
 }
 function showActionMenu(ev,actorId,gi,ai){
   closeActionMenu(); ev.stopPropagation();
+  const _a=(VT.actors[actorId]||{}).abilities; const _act=_a&&_a[gi]&&_a[gi].actions&&_a[gi].actions[ai];
+  if(_act&&_act.anim&&_act.anim.click)playVttBtnAnim(gi,ai,_act.anim.click);
   const m=document.createElement('div'); m.className='act-menu'; m.id='actMenu';
   m.innerHTML=`<button onclick="rollActorAction('${actorId}',${gi},${ai});closeActionMenu()">Roll (myself)</button><button onclick="aimAction('${actorId}',${gi},${ai});closeActionMenu()">Aim at target &rarr;</button>`;
   document.body.appendChild(m);

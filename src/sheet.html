@@ -974,13 +974,17 @@ textarea { resize: vertical; border: 1px solid var(--border); }
           <span class="info-value" id="sx-icon-count" style="font-size:11px;color:var(--muted);"></span>
           <button class="btn" onclick="resetAllIcons()">Reset all icons</button>
         </div>
-        <div class="formula-note">Right-click any ability / weapon / cipher / genus button to set a custom PNG, JPG or SVG icon.</div>
-      </div>
-      <div>
-        <div class="info-label" style="margin-bottom:5px;">Coming next</div>
-        <div class="formula-note">Animated button effects (idle / click) and dice-roll success / failure animations arrive in the next Stylus update &mdash; this panel will host their controls.</div>
+        <div class="formula-note">Right-click any ability / weapon / cipher / genus button to open its editor: set a custom PNG / JPG / SVG icon, idle &amp; click GIFs, dice success / failure / critical GIFs, and a success DC.</div>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- BUTTON FX EDITOR MODAL -->
+<div class="modal-bg" id="btnEditorModal">
+  <div class="modal-card" style="width:560px;">
+    <div class="modal-head"><span class="mt">Button &mdash; Icon &amp; Animations</span><span class="mx" onclick="closeBtnEditor()">x</span></div>
+    <div class="modal-body" id="btnEditorBody"></div>
   </div>
 </div>
 
@@ -1849,7 +1853,7 @@ function collectAll(){
   const d={
     __asymCount:asymCount, __genusCount:genusCount,
     __varnaAbilityCount:varnaAbilityCount, __cipherCount:cipherCount,
-    __stage:currentStage, __cipher:cipherStatus, __icons:customIcons,
+    __stage:currentStage, __cipher:cipherStatus, __icons:customIcons, __anims:buttonAnims,
   };
   document.querySelectorAll('input,textarea,select').forEach(el=>{if(el.id)d[el.id]=el.value;});
   document.querySelectorAll('[id^="bg-b"]').forEach(el=>{d[el.id]=el.value;});
@@ -1857,6 +1861,7 @@ function collectAll(){
 }
 function applyAll(d){
   customIcons=(d.__icons&&typeof d.__icons==='object')?d.__icons:{};   // restore custom button icons before chips render
+  buttonAnims=(d.__anims&&typeof d.__anims==='object')?d.__anims:{};
   const extraAsym=Math.max(0,(d.__asymCount||4)-4);
   for(let i=0;i<extraAsym;i++){asymCount++;document.getElementById('asym-body').appendChild(makeAsymRow(asymCount));}
   const extraGenus=Math.max(0,(d.__genusCount||5)-5);
@@ -1929,7 +1934,7 @@ function resetDynamicRows(){
 }
 // Reset the sheet to a blank rank-0 character (no confirm/toast) — reused by Clear + roster switching.
 function blankSheet(){
-  customIcons={};   // fresh character → no custom button icons
+  customIcons={}; buttonAnims={};   // fresh character → no custom button icons / animations
   resetDynamicRows();
   document.querySelectorAll('input:not([readonly]),textarea').forEach(el=>{ if(el.type==='checkbox')el.checked=false; else el.value=''; });
   document.querySelectorAll('select').forEach(el=>el.selectedIndex=0);
@@ -2121,6 +2126,13 @@ function performRoll(count,sides,mod,exprLabel,note){
   renderHistory();
   window.__lastRollResult={total,rolls,mod};
   if(Table.connected)Table.postRoll(note||exprLabel.replace('+0',''),total);
+  // play the triggering button's dice animation (crit from natural die, success/fail vs optional DC)
+  if(window.__rollBtn){ const btn=window.__rollBtn, key=window.__rollKey; window.__rollBtn=null;
+    const an=buttonAnims[key]; if(an){ const critMax=rolls.some(r=>r===sides), crit1=rolls.some(r=>r===1); let slot=null;
+      if(critMax&&an.critSucc)slot='critSucc'; else if(crit1&&an.critFail)slot='critFail';
+      else if(an.dc!=null)slot=(total>=an.dc)?'success':'fail';
+      else if(critMax)slot='success'; else if(crit1)slot='fail';
+      if(slot&&an[slot])playButtonAnim(btn,key,an[slot]); } }
 }
 function renderHistory(){
   const el=document.getElementById('dHistory');el.innerHTML='';
@@ -2269,39 +2281,60 @@ function applyHealing(amount,label){
 }
 // ── CUSTOM BUTTON ICONS (Stylus Update) — right-click any action button to set a PNG/JPG/SVG icon ──
 let customIcons = {};   // "Source|Label" -> data URL (raster downscaled to 64px, or SVG kept vector)
+let buttonAnims = {};   // "Source|Label" -> { idle, click, success, fail, critSucc, critFail, dc }
+const ANIM_SLOTS=[['idle','Idle (loops)'],['click','On click'],['success','Success'],['fail','Failure'],['critSucc','Critical success'],['critFail','Critical failure']];
 function iconKey(source,label){ return (source||'Ability')+'|'+(label||''); }
 function decorateChip(btn,source,label){
   const key=iconKey(source,label); btn.dataset.ikey=key; applyChipIcon(btn,key);
-  btn.addEventListener('contextmenu',ev=>{ ev.preventDefault(); ev.stopPropagation(); showIconMenu(ev,key); });
+  // capture-phase: mark which button is rolling + play its click animation BEFORE the roll fires
+  btn.addEventListener('click',()=>{ window.__rollBtn=btn; window.__rollKey=key; const an=buttonAnims[key]; if(an&&an.click)playButtonAnim(btn,key,an.click); },true);
+  btn.addEventListener('contextmenu',ev=>{ ev.preventDefault(); ev.stopPropagation(); openBtnEditor(key,label); });
 }
 function applyChipIcon(btn,key){
-  const src=customIcons[key]; let img=btn.querySelector('img.chip-ico');
+  const an=buttonAnims[key]||{}; const src=an.idle||customIcons[key]; let img=btn.querySelector('img.chip-ico');
   if(src){ if(!img){ img=document.createElement('img'); img.className='chip-ico'; btn.insertBefore(img,btn.firstChild); } img.src=src; btn.classList.add('has-icon'); }
   else if(img){ img.remove(); btn.classList.remove('has-icon'); }
 }
 function refreshAllIcons(){ document.querySelectorAll('.act-chip[data-ikey]').forEach(b=>applyChipIcon(b,b.dataset.ikey)); }
-let _iconMenuKey=null;
-function showIconMenu(ev,key){
-  closeIconMenu(); _iconMenuKey=key;
-  const m=document.createElement('div'); m.className='tgt-menu'; m.id='iconMenu';
-  const has=!!customIcons[key];
-  m.innerHTML=`<button class="tgt-item" onclick="pickIconFile()">Set icon…</button>`+(has?`<button class="tgt-item" onclick="clearIcon()">Remove / reset icon</button>`:'');
-  document.body.appendChild(m);
-  m.style.left=Math.min(ev.clientX,window.innerWidth-170)+'px'; m.style.top=Math.min(ev.clientY,window.innerHeight-80)+'px';
-  setTimeout(()=>document.addEventListener('click',closeIconMenu,{once:true}),0);
+// Temporarily show an animation GIF on a button, then revert to its idle/icon.
+function playButtonAnim(btn,key,src){
+  if(!btn||!src)return; let img=btn.querySelector('img.chip-ico');
+  if(!img){ img=document.createElement('img'); img.className='chip-ico'; btn.insertBefore(img,btn.firstChild); btn.classList.add('has-icon'); img.dataset.temp='1'; }
+  clearTimeout(btn._animT); img.src=src;
+  const dur=1500/(window.wteAnimSpeed||1);
+  btn._animT=setTimeout(()=>{ if(img.dataset.temp){ img.remove(); btn.classList.remove('has-icon'); } applyChipIcon(btn,key); }, dur);
 }
-function closeIconMenu(){ const m=document.getElementById('iconMenu'); if(m)m.remove(); }
-function pickIconFile(){
-  closeIconMenu();
-  const inp=document.createElement('input'); inp.type='file'; inp.accept='image/png,image/jpeg,image/svg+xml,.png,.jpg,.jpeg,.svg';
-  inp.onchange=e=>{ const f=e.target.files[0]; const key=_iconMenuKey; if(!f||!key)return;
-    if(/svg/i.test(f.type)||/\.svg$/i.test(f.name)){ const r=new FileReader(); r.onload=ev=>{ customIcons[key]='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(ev.target.result))); afterIconChange(); }; r.readAsText(f); }
-    else { const r=new FileReader(); r.onload=ev=>{ const img=new Image(); img.onload=()=>{ const max=64; let w=img.naturalWidth,h=img.naturalHeight; const s=Math.min(1,max/Math.max(w,h)); w=Math.round(w*s)||1; h=Math.round(h*s)||1; const c=document.createElement('canvas'); c.width=w;c.height=h; c.getContext('2d').drawImage(img,0,0,w,h); customIcons[key]=c.toDataURL('image/png'); afterIconChange(); }; img.src=ev.target.result; }; r.readAsDataURL(f); }
-  };
-  inp.click();
+function afterIconChange(){ refreshAllIcons(); autosave(); if(typeof publishCombatantDebounced==='function')publishCombatantDebounced(); }
+// ── BUTTON EDITOR — icon + animation GIFs + DC, with live (looping) previews ──
+let _bedKey=null,_bedLabel='';
+function openBtnEditor(key,label){ _bedKey=key; _bedLabel=label||(key||'').split('|').pop(); renderBtnEditor(); document.getElementById('btnEditorModal').classList.add('open'); }
+function closeBtnEditor(){ document.getElementById('btnEditorModal').classList.remove('open'); }
+function renderBtnEditor(){
+  const an=buttonAnims[_bedKey]||{}; const ic=customIcons[_bedKey];
+  const cell=(label,slot,src,fn)=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:7px;">
+      <span style="width:120px;font-size:11px;color:var(--ink2);">${label}</span>
+      <span style="width:40px;height:40px;border:1px solid var(--border2);background:var(--surface2);display:inline-flex;align-items:center;justify-content:center;overflow:hidden;">${src?`<img src="${src}" style="max-width:100%;max-height:100%;">`:'<span style="font-size:8px;color:var(--muted);">none</span>'}</span>
+      <button class="btn" onclick="bedSet('${slot}')">Set…</button>${src?`<button class="btn" onclick="bedClear('${slot}')">Clear</button>`:''}</div>`;
+  let h=`<div class="info-label" style="margin-bottom:8px;">Button: <b style="color:var(--ink);">${esc(_bedLabel)}</b></div>`;
+  h+=cell('Icon (PNG/JPG/SVG)','icon',ic);
+  ANIM_SLOTS.forEach(s=>h+=cell(s[1]+' (GIF)',s[0],an[s[0]]));
+  h+=`<div style="display:flex;align-items:center;gap:10px;margin-top:6px;border-top:1px solid var(--border);padding-top:8px;">
+      <span style="width:120px;font-size:11px;color:var(--ink2);">Success DC</span>
+      <input type="number" id="bed-dc" value="${an.dc!=null?an.dc:''}" placeholder="optional" style="width:80px;" oninput="bedDC(this.value)">
+      <span class="formula-note" style="margin:0;">Roll &ge; DC plays Success, below plays Failure. Natural max die = crit success, natural 1 = crit failure.</span></div>`;
+  h+=`<div style="margin-top:10px;"><button class="btn" onclick="bedResetAll()">Clear this button</button></div>`;
+  document.getElementById('btnEditorBody').innerHTML=h;
 }
-function clearIcon(){ closeIconMenu(); if(_iconMenuKey){ delete customIcons[_iconMenuKey]; afterIconChange(); } }
-function afterIconChange(){ refreshAllIcons(); autosave(); if(typeof publishCombatantDebounced==='function')publishCombatantDebounced(); toast('Icon updated'); }
+function bedFile(slot,cb){ const inp=document.createElement('input'); inp.type='file'; inp.accept=slot==='icon'?'image/png,image/jpeg,image/svg+xml,.png,.jpg,.jpeg,.svg':'image/gif,image/png,.gif,.png';
+  inp.onchange=e=>{ const f=e.target.files[0]; if(!f)return;
+    if(slot==='icon'&&(/svg/i.test(f.type)||/\.svg$/i.test(f.name))){ const r=new FileReader(); r.onload=ev=>cb('data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(ev.target.result)))); r.readAsText(f); return; }
+    if(/gif/i.test(f.type)||/\.gif$/i.test(f.name)){ const r=new FileReader(); r.onload=ev=>cb(ev.target.result); r.readAsDataURL(f); return; } // keep GIF animation intact
+    const r=new FileReader(); r.onload=ev=>{ const img=new Image(); img.onload=()=>{ const max=slot==='icon'?64:96; let w=img.naturalWidth,h=img.naturalHeight; const s=Math.min(1,max/Math.max(w,h)); w=Math.round(w*s)||1; h=Math.round(h*s)||1; const c=document.createElement('canvas'); c.width=w;c.height=h; c.getContext('2d').drawImage(img,0,0,w,h); cb(c.toDataURL('image/png')); }; img.src=ev.target.result; }; r.readAsDataURL(f);
+  }; inp.click(); }
+function bedSet(slot){ bedFile(slot,src=>{ if(slot==='icon')customIcons[_bedKey]=src; else { (buttonAnims[_bedKey]=buttonAnims[_bedKey]||{})[slot]=src; } afterIconChange(); renderBtnEditor(); toast('Saved'); }); }
+function bedClear(slot){ if(slot==='icon')delete customIcons[_bedKey]; else if(buttonAnims[_bedKey])delete buttonAnims[_bedKey][slot]; afterIconChange(); renderBtnEditor(); }
+function bedDC(v){ const a=(buttonAnims[_bedKey]=buttonAnims[_bedKey]||{}); if(v===''||v==null)delete a.dc; else a.dc=parseInt(v); afterIconChange(); }
+function bedResetAll(){ delete customIcons[_bedKey]; delete buttonAnims[_bedKey]; afterIconChange(); renderBtnEditor(); toast('Button reset'); }
 function renderActions(containerId,actions,prefix,sourceLabel,meta,castSS){
   const el=document.getElementById(containerId); if(!el)return;
   el.innerHTML='';
@@ -2731,8 +2764,8 @@ function gatherActorAbilities(){
   for(let i=1;i<=4;i++){ const nm=val('w'+i+'-name'),dmg=val('w'+i+'-dmg'); if(!nm)continue; const acts=[]; parseEffectActions(dmg).filter(a=>a.kind==='dice').forEach(a=>acts.push({label:'Damage '+a.expr,kind:'dice',expr:a.expr})); acts.push({label:'Attack (Wpn Mastery)',kind:'spec',stat:'s-wm'}); out.push({name:nm,actions:acts,fx:'attack '+dmg}); }
   const cb=val('c-benefits'); if(cb){ const acts=parseEffectActions(cb); if(acts.length||parseEffectMeta(cb).values.length)out.push({name:val('c-pick')||'Cipher',actions:acts,fx:cb}); }
   for(let i=2;i<=cipherCount;i++){ const fx=val('c'+i+'-benefits'); if(!fx)continue; const acts=parseEffectActions(fx); if(acts.length||parseEffectMeta(fx).values.length)out.push({name:val('c'+i)||('Cipher '+i),actions:acts,fx:fx}); }
-  // attach any custom icons so the VTT shows the same button art
-  out.forEach(g=>{ (g.actions||[]).forEach(a=>{ const ic=customIcons[iconKey(g.name,a.label)]; if(ic)a.icon=ic; }); });
+  // attach custom icons + animations so the VTT shows the same button art / effects
+  out.forEach(g=>{ (g.actions||[]).forEach(a=>{ const k=iconKey(g.name,a.label); const ic=customIcons[k]; if(ic)a.icon=ic; const an=buttonAnims[k]; if(an)a.anim=an; }); });
   return out;
 }
 const Table={
@@ -3076,10 +3109,11 @@ function wteApplyStylus(){
 }
 function setStylusScale(v){ wteStylus.scale=(parseInt(v)||100)/100; wteSaveStylus(); wteApplyStylus(); }
 function setStylusAnim(v){ wteStylus.animSpeed=(parseInt(v)||100)/100; wteSaveStylus(); wteApplyStylus(); }
-function openStylus(){ const c=document.getElementById('sx-icon-count'); if(c)c.textContent=Object.keys(customIcons||{}).length+' custom icon(s) set'; wteApplyStylus(); document.getElementById('stylusModal').classList.add('open'); }
+function openStylus(){ const c=document.getElementById('sx-icon-count'); if(c)c.textContent=Object.keys(customIcons||{}).length+' icon(s), '+Object.keys(buttonAnims||{}).length+' animated'; wteApplyStylus(); document.getElementById('stylusModal').classList.add('open'); }
 function closeStylus(){ document.getElementById('stylusModal').classList.remove('open'); }
-function resetAllIcons(){ if(!Object.keys(customIcons||{}).length){toast('No custom icons');return;} if(!confirm('Reset ALL custom button icons to default?'))return; customIcons={}; refreshAllIcons(); autosave(); if(typeof publishCombatantDebounced==='function')publishCombatantDebounced(); openStylus(); toast('Icons reset'); }
+function resetAllIcons(){ if(!Object.keys(customIcons||{}).length&&!Object.keys(buttonAnims||{}).length){toast('Nothing to reset');return;} if(!confirm('Reset ALL custom button icons and animations to default?'))return; customIcons={}; buttonAnims={}; refreshAllIcons(); autosave(); if(typeof publishCombatantDebounced==='function')publishCombatantDebounced(); openStylus(); toast('Buttons reset'); }
 document.getElementById('stylusModal').addEventListener('click',e=>{if(e.target.id==='stylusModal')closeStylus();});
+document.getElementById('btnEditorModal').addEventListener('click',e=>{if(e.target.id==='btnEditorModal')closeBtnEditor();});
 wteLoadStylus(); wteApplyStylus();
 
 window.addEventListener('storage',e=>{ if(e.key==='wte-theme')wteApplyTheme(e.newValue||'dark'); else if(e.key==='wte-stylus'){ wteLoadStylus(); wteApplyStylus(); } });
