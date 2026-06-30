@@ -723,6 +723,15 @@ function openScenesMenu(ev){ closeActionMenu();
 
 // ════════════════════════════════════════════════ ASSET LIBRARY (Phase 6) — desktop app only
 let assetFolders=[], assetList=[], assetFilter='all', assetSearch='';
+let assetMeta={}, assetBust=0, assetWatchers=[], assetMissing=[];   // meta: path -> {fav,tags:[],alias}
+function assetMetaLoad(){ try{assetMeta=JSON.parse(localStorage.getItem('wte-asset-meta'))||{};}catch(e){assetMeta={};} }
+function assetMetaSave(){ try{localStorage.setItem('wte-asset-meta',JSON.stringify(assetMeta));}catch(e){} }
+function am(p){ return assetMeta[p]||(assetMeta[p]={tags:[]}); }
+function assetName(a){ const m=assetMeta[a.path]; return (m&&m.alias)||a.name; }
+function toggleFav(i){ const a=assetList[i]; if(!a)return; const m=am(a.path); m.fav=!m.fav; assetMetaSave(); renderAssetBrowser(); }
+function renameAsset(i){ const a=assetList[i]; if(!a)return; const m=am(a.path); const n=prompt('Display name:',m.alias||a.name); if(n!=null){ if(n.trim())m.alias=n.trim(); else delete m.alias; assetMetaSave(); renderAssetBrowser(); } }
+function tagAsset(i){ const a=assetList[i]; if(!a)return; const m=am(a.path); const n=prompt('Tags (comma-separated):',(m.tags||[]).join(', ')); if(n!=null){ m.tags=n.split(',').map(s=>s.trim()).filter(Boolean); assetMetaSave(); renderAssetBrowser(); } }
+async function relinkAsset(oldPath){ const T=window.__TAURI__; if(!T||!T.dialog)return; let sel; try{ sel=await T.dialog.open({multiple:false,title:'Relink to a new file'}); }catch(e){return;} if(!sel)return; const np=Array.isArray(sel)?sel[0]:sel; if(!np)return; assetMeta[np]=assetMeta[oldPath]; delete assetMeta[oldPath]; assetMetaSave(); assetScan(); toast('Relinked'); }
 const ASSET_EXT={ image:['png','jpg','jpeg','webp'], gif:['gif'], video:['mp4','webm','mov','m4v'], audio:['wav','mp3','ogg'] };
 function assetKind(name){ const e=(name.split('.').pop()||'').toLowerCase(); for(const k in ASSET_EXT)if(ASSET_EXT[k].includes(e))return k; return null; }
 const CAT_MAP={maps:'Maps',map:'Maps',scenes:'Maps',tokens:'Tokens',token:'Tokens',npc:'Tokens',npcs:'Tokens',creatures:'Tokens',creature:'Tokens',bosses:'Tokens',monsters:'Tokens',abilities:'Abilities',ability:'Abilities',icons:'Abilities',icon:'Abilities',skills:'Abilities',ciphers:'Abilities',genus:'Abilities',status:'Abilities',weapons:'Items',weapon:'Items',items:'Items',item:'Items',portraits:'Portraits',portrait:'Portraits',faces:'Portraits',sprites:'Sprites',sprite:'Sprites',effects:'Effects',effect:'Effects',particles:'Effects',gifs:'GIFs',gif:'GIFs',audio:'Audio',sounds:'Audio',sound:'Audio',sfx:'Audio',music:'Audio'};
@@ -737,32 +746,56 @@ async function assetConnectFolder(){
 }
 function assetForget(path){ assetFolders=assetFolders.filter(f=>f!==path); try{localStorage.setItem('wte-asset-folders',JSON.stringify(assetFolders));}catch(e){} assetScan(); }
 async function assetScan(){
-  const fs=tauriFS(), T=window.__TAURI__; if(!fs)return; assetList=[]; const CAP=3000;
+  const fs=tauriFS(), T=window.__TAURI__; if(!fs)return; assetList=[]; assetBust++; const CAP=3000;
   for(const root of assetFolders){ const sep=root.includes('\\')?'\\':'/';
     async function walk(dir,rel){ if(assetList.length>=CAP)return; let entries; try{entries=await fs.readDir(dir);}catch(e){return;}
       for(const en of entries){ if(assetList.length>=CAP)break; const full=dir+sep+en.name; const r=rel?rel+sep+en.name:en.name;
         if(en.isDirectory){ await walk(full,r); }
-        else { const k=assetKind(en.name); if(!k)continue; assetList.push({path:full,name:en.name,rel:r,kind:k,cat:catFor(r,k),url:T.core.convertFileSrc(full)}); } } }
+        else { const k=assetKind(en.name); if(!k)continue; assetList.push({path:full,name:en.name,rel:r,kind:k,cat:catFor(r,k),url:T.core.convertFileSrc(full)+'?b='+assetBust}); } } }
     try{ await walk(root,''); }catch(e){}
   }
+  // missing detection — assets we have metadata for that no longer exist (never silently removed)
+  const present=new Set(assetList.map(a=>a.path));
+  assetMissing=Object.keys(assetMeta).filter(p=>!present.has(p)&&(assetMeta[p].fav||(assetMeta[p].tags&&assetMeta[p].tags.length)||assetMeta[p].alias));
+  assetSetupWatch();
   renderAssetBrowser();
 }
-function assetCats(){ const s=new Set(['all']); assetList.forEach(a=>s.add(a.cat)); return [...s]; }
+// Live change-detection: watch connected folders → debounced rescan (refreshes previews automatically).
+let _watchT=null;
+async function assetSetupWatch(){
+  const fs=tauriFS(); if(!fs||!fs.watch)return;
+  try{ for(const un of assetWatchers){ try{ (await un)(); }catch(e){} } }catch(e){} assetWatchers=[];
+  for(const root of assetFolders){ try{ const un=fs.watch(root,()=>{ clearTimeout(_watchT); _watchT=setTimeout(assetScan,800); },{recursive:true,delayMs:500}); assetWatchers.push(un); }catch(e){} }
+}
+function assetCats(){ const s=['all','★ Favorites']; const e=new Set(); assetList.forEach(a=>e.add(a.cat)); return s.concat([...e]); }
+function assetMatch(a){
+  if(assetFilter==='★ Favorites'){ if(!(assetMeta[a.path]&&assetMeta[a.path].fav))return false; }
+  else if(assetFilter!=='all'&&a.cat!==assetFilter)return false;
+  if(assetSearch){ const m=assetMeta[a.path]||{}; const hay=(a.name+' '+(m.alias||'')+' '+((m.tags||[]).join(' '))).toLowerCase(); if(!hay.includes(assetSearch))return false; }
+  return true;
+}
 function renderAssetBrowser(){
   const body=document.getElementById('assetBody'); if(!body)return;
-  const items=assetList.filter(a=>(assetFilter==='all'||a.cat===assetFilter)&&(!assetSearch||a.name.toLowerCase().includes(assetSearch)));
+  const items=assetList.filter(assetMatch);
   let h=`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
     <button class="tbtn live" onclick="assetConnectFolder()">+ Connect folder</button>
-    <input type="text" placeholder="search assets…" value="${esc(assetSearch)}" oninput="assetSearch=this.value.toLowerCase();renderAssetBrowser()" style="flex:1;min-width:120px;">
+    <input type="text" placeholder="search name / tag…" value="${esc(assetSearch)}" oninput="assetSearch=this.value.toLowerCase();renderAssetBrowser()" style="flex:1;min-width:120px;">
     <button class="tbtn" onclick="assetScan()" title="Rescan connected folders">Rescan</button></div>`;
-  if(assetFolders.length){ h+=`<div class="note" style="margin-bottom:6px;">Folders: `+assetFolders.map(f=>`${esc(f.split(/[\\/]/).pop())} <span style="color:var(--muted);cursor:pointer;" onclick="assetForget('${esc(f).replace(/'/g,"\\'")}')">[x]</span>`).join(' · ')+`</div>`; }
+  if(assetFolders.length){ h+=`<div class="note" style="margin-bottom:6px;">Folders: `+assetFolders.map(f=>`${esc(f.split(/[\\/]/).pop())} <span style="color:var(--muted);cursor:pointer;" onclick="assetForget('${esc(f).replace(/'/g,"\\'")}')">[x]</span>`).join(' · ')+` &middot; <span style="color:var(--muted);">auto-refresh on file changes</span></div>`; }
+  if(assetMissing.length){ h+=`<div class="note" style="border:1px solid #b88a20;padding:6px 8px;margin-bottom:6px;"><b style="color:#d8b25a;">${assetMissing.length} linked asset(s) missing</b> &mdash; `+assetMissing.map(p=>`${esc(p.split(/[\\/]/).pop())} <button class="tbtn" style="padding:0 5px;font-size:9px;" onclick="relinkAsset('${esc(p).replace(/'/g,"\\'")}')">Relink…</button>`).join(' · ')+`</div>`; }
   h+=`<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">`+assetCats().map(c=>`<button class="tbtn${c===assetFilter?' live':''}" style="padding:2px 8px;" onclick="assetFilter='${c}';renderAssetBrowser()">${c}</button>`).join('')+`</div>`;
-  if(!assetFolders.length){ h+=`<div class="note">Connect one or more folders from your computer. Sub-folders named <b>maps / tokens / portraits / abilities / sprites / effects / gifs / audio</b> are auto-sorted into categories. Drag an image onto the map to drop a token, or use BG / Token.</div>`; }
+  if(!assetFolders.length){ h+=`<div class="note">Connect one or more folders from your computer. Sub-folders named <b>maps / tokens / portraits / abilities / sprites / effects / gifs / audio</b> are auto-sorted into categories. Drag an image onto the map to drop a token, or use BG / Token. Right-click in this window does nothing &mdash; use the &#9734; / Tag / Rename buttons under each asset.</div>`; }
   else if(!items.length){ h+=`<div class="note">No matching assets. Try Rescan or a different category.</div>`; }
-  else { h+=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px;">`+items.map((a,i)=>{
+  else { h+=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px;">`+items.map((a)=>{ const i=assetList.indexOf(a); const m=assetMeta[a.path]||{}; const fav=!!m.fav;
       const thumb=(a.kind==='image'||a.kind==='gif')?`<img src="${esc(a.url)}" draggable="true" ondragstart="assetDragStart(event,${i})" style="width:100%;height:64px;object-fit:cover;border:1px solid var(--line);cursor:grab;background:var(--panel2);">`:`<div style="height:64px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;text-transform:uppercase;">${a.kind}</div>`;
-      const btns=(a.kind==='image'||a.kind==='gif')?`<button class="tbtn" style="padding:1px 5px;font-size:9px;" onclick="assetUseBackground(${i})">BG</button><button class="tbtn" style="padding:1px 5px;font-size:9px;" onclick="assetUseToken(${i})">Token</button>`:'';
-      return `<div title="${esc(a.name)} · ${a.cat}">${thumb}<div style="font-size:9px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(a.name)}</div><div style="display:flex;gap:3px;margin-top:2px;">${btns}</div></div>`;
+      const place=(a.kind==='image'||a.kind==='gif')?`<button class="tbtn" style="padding:1px 5px;font-size:9px;" onclick="assetUseBackground(${i})">BG</button><button class="tbtn" style="padding:1px 5px;font-size:9px;" onclick="assetUseToken(${i})">Token</button>`:'';
+      const tags=(m.tags&&m.tags.length)?`<div style="font-size:8px;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">#${esc(m.tags.join(' #'))}</div>`:'';
+      return `<div style="position:relative;" title="${esc(a.name)} · ${a.cat}">
+        <button onclick="toggleFav(${i})" title="favorite" style="position:absolute;top:2px;right:2px;border:none;background:rgba(0,0,0,.45);color:${fav?'#ffd24a':'#fff'};cursor:pointer;font-size:11px;line-height:1;padding:1px 3px;">&#9733;</button>
+        ${thumb}
+        <div style="font-size:9px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(assetName(a))}</div>${tags}
+        <div style="display:flex;gap:3px;margin-top:2px;flex-wrap:wrap;">${place}<button class="tbtn" style="padding:1px 4px;font-size:9px;" onclick="tagAsset(${i})">Tag</button><button class="tbtn" style="padding:1px 4px;font-size:9px;" onclick="renameAsset(${i})">Name</button></div>
+      </div>`;
     }).join('')+`</div>`; }
   body.innerHTML=h;
 }
@@ -1283,6 +1316,7 @@ window.addEventListener('storage',e=>{ if(e.key==='wte-theme')wteApplyTheme(e.ne
 
 // ── Asset Library init (desktop app only) ──
 try{ assetFolders=JSON.parse(localStorage.getItem('wte-asset-folders'))||[]; }catch(e){ assetFolders=[]; }
+assetMetaLoad();
 if(window.__TAURI__){ if(assetFolders.length)assetScan(); } else { const ab=document.getElementById('assets-btn'); if(ab)ab.style.display='none'; }
 
 draw();
