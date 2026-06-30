@@ -2749,15 +2749,19 @@ function clientId(){
 }
 // lazy-load the Firebase compat SDK only when the Table is actually used
 function loadFirebase(){
-  if(window.firebase&&window.firebase.database)return Promise.resolve();
+  if(window.firebase&&window.firebase.database&&window.firebase.auth)return Promise.resolve();
   if(window.__fbLoading)return window.__fbLoading;
   window.__fbLoading=new Promise((res,rej)=>{
     const add=(src,cb)=>{const s=document.createElement('script');s.src=src;s.onload=cb;s.onerror=()=>rej(new Error('Failed to load '+src));document.head.appendChild(s);};
     add('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js',()=>
-      add('https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js',res));
+      add('https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js',()=>
+        add('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js',res)));
   });
   return window.__fbLoading;
 }
+// signed-in account (shared origin-wide with the app shell)
+function currentUser(){ try{ return (window.firebase&&firebase.auth&&firebase.apps.length)?firebase.auth().currentUser:null; }catch(e){ return null; } }
+function currentUid(){ const u=currentUser(); return u?u.uid:null; }
 
 // Gather the character's actionable abilities + stats so the VTT can use them
 function gatherActorStats(){ const s={}; ATTRS.forEach(a=>{ s[a[0]]=getV(a[0]); s['m-'+a[0].slice(2)]=getV('m-'+a[0].slice(2)); }); SPECS.forEach(x=>{ s[x[0]]=getV(x[0]); }); return s; }
@@ -2788,20 +2792,41 @@ const Table={
   setBgMech(id,on){ if(this.connected&&this.role==='curator'){ this.ref.child('bgMech/'+id).set(!!on); this.log('Curator '+(on?'activated':'deactivated')+' '+((this.combatants[id]||{}).name||'a')+' background mechanic'); } },
   config(){ try{return JSON.parse(localStorage.getItem('wte-fb-config')||'null');}catch(e){return null;} },
   clearConfig(){ localStorage.removeItem('wte-fb-config'); renderTablePanel(); },
+  // Ensure Firebase app + db + auth listener are ready (without joining a room).
+  async ensureDb(){
+    if(this.db)return this.db;
+    const cfg=this.config(); if(!cfg)return null;
+    await loadFirebase();
+    if(!firebase.apps.length)firebase.initializeApp(cfg);
+    this.db=firebase.database();
+    try{ firebase.auth().onAuthStateChanged(u=>{ this._uid=u?u.uid:null; renderTablePanel(); if(u)this.autoRejoin(); }); }catch(e){}
+    return this.db;
+  },
+  async autoRejoin(){
+    if(this.connected||this._autoTried)return; this._autoTried=true;
+    const lr=await this.lastRoom(); if(lr&&lr.room){ this.connect(lr.room,lr.role,lr.name); }
+  },
   async connect(room,role,name){
     const cfg=this.config(); if(!cfg){toast('Add Firebase config first');return;}
     if(!room){toast('Enter a room code');return;}
-    try{
-      await loadFirebase();
-      if(!firebase.apps.length)firebase.initializeApp(cfg);
-      this.db=firebase.database();
-    }catch(e){toast('Firebase error: '+e.message);return;}
+    try{ await this.ensureDb(); }catch(e){toast('Firebase error: '+e.message);return;}
     this.room=room.trim().toUpperCase(); this.role=role||'player';
     this.name=name||val('f-name')||(this.role==='curator'?'Curator':'Player');
     this.ref=this.db.ref('tables/'+this.room);
+    // open/closed gating — a closed room admits only the Curator + already-known members
+    if(this.role!=='curator'){
+      try{
+        const openSnap=await this.ref.child('state/open').once('value');
+        if(openSnap.val()===false){
+          const meSnap=await this.ref.child('members/'+this.clientId).once('value');
+          if(!meSnap.exists()){ toast('That room is closed by the Curator'); this.connected=false; this.ref=null; return; }
+        }
+      }catch(e){}
+    }
     const mref=this.ref.child('members/'+this.clientId);
-    mref.set({name:this.name,role:this.role,ts:Date.now()});
+    mref.set({name:this.name,role:this.role,uid:currentUid()||null,ts:Date.now()});
     mref.onDisconnect().remove();
+    this.saveRoomToAccount();
     this.connected=true;
     this.publishCombatant();
     this.ref.child('combatants/'+this.clientId).onDisconnect().remove();
@@ -2814,6 +2839,7 @@ const Table={
     });
     this.ref.child('state/onlineCiphersOff').on('value',s=>{ onlineCiphersOff=!!s.val(); applyOnlineCipherState(); updateCipherToggleBtn(); });
     this.ref.child('bgMech').on('value',s=>{ this.bgMech=s.val()||{}; applyBgMechState(); renderGateEditor(); });
+    this.ref.child('state/open').on('value',s=>{ this.roomOpen=(s.val()!==false); if(this._view==='connected')renderRoster(); });
     applyBgMechState();
     const pv=document.getElementById('pe-val'); if(pv)pv.disabled=(this.role!=='curator');
     this._startTs=Date.now();
@@ -2825,10 +2851,11 @@ const Table={
   leave(){
     try{
       if(this.ref){
-        this.ref.child('combatants').off(); this.ref.child('gates').off(); this.ref.child('bgMech').off(); this.ref.child('state/bp').off(); this.ref.child('state/onlineCiphersOff').off();
+        this.ref.child('combatants').off(); this.ref.child('gates').off(); this.ref.child('bgMech').off(); this.ref.child('state/bp').off(); this.ref.child('state/onlineCiphersOff').off(); this.ref.child('state/open').off();
         if(this.evRef)this.evRef.off();
         this.ref.child('members/'+this.clientId).remove();
         this.ref.child('combatants/'+this.clientId).remove();
+        this.ref.child('sheets/'+this.clientId).remove();
       }
     }catch(e){}
     this.connected=false; this.ref=null; this.evRef=null; this.combatants={}; this.gates={}; this.bgMech={};
@@ -2846,7 +2873,19 @@ const Table={
       abilities:gatherActorAbilities(), stats:gatherActorStats(),
       ts:Date.now()
     });
+    // publish the full sheet so the Curator can view it (players only; Curators don't share)
+    if(this.role!=='curator'){ try{ this.ref.child('sheets/'+this.clientId).set(collectAll()); }catch(e){} }
   },
+  // ── account-linked rooms ──
+  saveRoomToAccount(){ const uid=currentUid(); if(!uid||!this.db||!this.room)return;
+    try{ this.db.ref('users/'+uid+'/rooms/'+this.room).set({role:this.role,name:this.name,ts:Date.now()}); this.db.ref('users/'+uid+'/lastRoom').set({room:this.room,role:this.role,name:this.name}); }catch(e){} },
+  async accountRooms(){ await this.ensureDb(); const uid=currentUid(); if(!uid||!this.db)return {}; try{ const s=await this.db.ref('users/'+uid+'/rooms').once('value'); return s.val()||{}; }catch(e){ return {}; } },
+  async lastRoom(){ await this.ensureDb(); const uid=currentUid(); if(!uid||!this.db)return null; try{ const s=await this.db.ref('users/'+uid+'/lastRoom').once('value'); return s.val(); }catch(e){ return null; } },
+  forgetRoom(code){ const uid=currentUid(); if(!uid||!this.db)return; try{ this.db.ref('users/'+uid+'/rooms/'+code).remove(); }catch(e){} renderTablePanel(); },
+  // ── open / closed room (Curator) ──
+  setOpen(open){ if(this.connected&&this.role==='curator'){ this.ref.child('state/open').set(!!open); this.log('Curator '+(open?'opened':'closed')+' the room'); renderTablePanel(); } },
+  // ── Curator: view a player's full sheet ──
+  async viewSheet(id){ if(!this.ref)return; try{ const s=await this.ref.child('sheets/'+id).once('value'); const d=s.val(); if(!d){toast('No sheet published yet');return;} showSheetViewer(d,(this.combatants[id]||{}).name||'Player'); }catch(e){ toast('Could not load sheet'); } },
   sendAction(ability,actions,targets,meta,apply){
     if(!this.connected)return;
     const ids=Array.isArray(targets)?targets:[targets];
@@ -2918,13 +2957,17 @@ function renderTablePanel(){
         <button class="tp-btn" onclick="tableConnect()">Connect</button>
         <button class="tp-btn ghost" onclick="document.getElementById('tp-room').value=randCode()">Random</button>
       </div>
+      <div class="tp-sec-h" style="margin-top:10px;">My Rooms</div>
+      <div id="tp-myrooms"><div class="tp-empty">Sign in (top bar) to save &amp; auto-rejoin rooms.</div></div>
       <div class="tp-note" style="margin-top:8px;">First in picks Curator + a code; others join with the same code. <a href="#" onclick="Table.clearConfig();return false;">Reset config</a></div>`;
+    renderMyRooms();
   }else{
     b.innerHTML=`
       <div class="tp-status">Table <b>${esc(Table.room)}</b> &middot; ${esc(Table.name)} (${esc(Table.role)}) <button class="tp-btn ghost" onclick="Table.leave()">Leave</button></div>
       ${Table.role==='curator'?`<div class="tp-field"><label>Base Pressure (BP) &mdash; shared with table</label><input type="number" id="tp-bp" value="${getV('pe-val')}" oninput="Table.setBP(this.value)"></div>
+      <button class="tp-btn${Table.roomOpen===false?'':' ghost'}" onclick="Table.setOpen(Table.roomOpen===false)">${Table.roomOpen===false?'Room: CLOSED — click to open':'Room: OPEN — click to close'}</button>
       <button class="tp-btn${onlineCiphersOff?'':' ghost'}" id="tp-cipher-toggle" onclick="Table.setOnlineCiphers(!onlineCiphersOff)">${onlineCiphersOff?'Reactivate Online Ciphers':'Deactivate Online Ciphers'}</button>
-      <div class="tp-note">Click a combatant below to set which stats they can roll.</div>`:''}
+      <div class="tp-note">Closed rooms only let people who already joined back in. Click a combatant below to gate their rolls or view their sheet.</div>`:''}
       <div class="tp-sec-h">Incoming</div><div id="table-prompts"><div class="tp-empty">No prompts yet.</div></div>
       <div class="tp-sec-h">Combatants</div><div id="table-roster"></div>
       <div class="tp-sec-h">Table Log</div><div id="table-log" class="tp-log"></div>`;
@@ -2958,9 +3001,41 @@ function renderRoster(){
     d.innerHTML=`<span class="tc-name">${esc(c.name||'?')}${id===Table.clientId?' (you)':''}${ng?` <span style="color:#b88a20;font-size:9px;">(${ng} blocked)</span>`:''}</span>
       <span class="tc-hp">HP ${c.hpCur||0}/${c.hpMax||0}${c.dhp?(' &middot; DHP '+c.dhp):''}${c.ss?(' &middot; SS '+c.ss):''}</span>
       <span class="tc-role">${esc(c.role||'')}</span>`;
-    if(Table.role==='curator')d.onclick=()=>showGateEditor(id);
+    if(Table.role==='curator'){
+      d.onclick=()=>showGateEditor(id);
+      if(id!==Table.clientId&&c.role!=='curator'){ const vb=document.createElement('button'); vb.className='tp-btn ghost'; vb.style.cssText='margin-top:4px;font-size:9px;padding:2px 8px;'; vb.textContent='View sheet'; vb.onclick=(ev)=>{ev.stopPropagation();Table.viewSheet(id);}; d.appendChild(vb); }
+    }
     el.appendChild(d);
   });
+}
+async function renderMyRooms(){
+  const el=document.getElementById('tp-myrooms'); if(!el)return;
+  const u=currentUser();
+  if(!u){ el.innerHTML='<div class="tp-empty">Sign in (top bar) to save &amp; auto-rejoin rooms.</div>'; return; }
+  const rooms=await Table.accountRooms(); const codes=Object.keys(rooms||{});
+  if(!codes.length){ el.innerHTML='<div class="tp-empty">Signed in as '+esc(u.email||u.displayName||'')+'. Join a room and it\'ll be saved here.</div>'; return; }
+  el.innerHTML='<div class="tp-empty" style="margin-bottom:4px;">Signed in as '+esc(u.email||u.displayName||'')+'</div>'+codes.map(code=>{
+    const r=rooms[code]||{};
+    return `<div class="tp-combatant clickable" onclick="Table.connect('${esc(code)}','${esc(r.role||'player')}','${esc(r.name||'')}')"><span class="tc-name">${esc(code)}</span><span class="tc-role">${esc(r.role||'')} &middot; <span style="cursor:pointer;color:var(--muted);" onclick="event.stopPropagation();Table.forgetRoom('${esc(code)}')">forget</span></span></div>`;
+  }).join('');
+}
+// Read-only viewer for a player's published sheet (Curator).
+function showSheetViewer(d,name){
+  const m=document.getElementById('exportModal'); if(!m)return;
+  const get=(id)=>esc((d&&d[id]!=null?d[id]:'').toString());
+  const attrRows=ATTRS.map(a=>`<tr><td style="padding:3px 8px;border:1px solid #b8b2a6;">${a[1]}</td><td style="padding:3px 8px;border:1px solid #b8b2a6;text-align:center;">${get(a[0])||'0'}</td><td style="padding:3px 8px;border:1px solid #b8b2a6;text-align:center;">${get('m-'+a[0].slice(2))}</td></tr>`).join('');
+  const specRows=SPECS.map(s=>`<td style="padding:3px 8px;border:1px solid #b8b2a6;font-size:11px;">${s[1]}: <b>${get(s[0])||'0'}</b></td>`).reduce((acc,c,i)=>acc+c+((i%4===3)?'</tr><tr>':''),'');
+  let h=`<div style="font-family:Georgia,serif;color:#1c1b19;">
+    <div style="font-size:20px;color:#2c3e50;">${get('f-name')||esc(name)}</div>
+    <div style="font-size:12px;color:#6b6760;margin-bottom:10px;">${get('f-species')} ${get('f-variant')?('— '+get('f-variant')):''} &middot; ${get('f-paradigm')} &middot; Rank ${get('f-level')||'0'} &middot; HP ${get('d-hpcur')}/${get('d-hpmax')} &middot; DHP ${get('d-dhpcur')} &middot; SS ${get('d-sscur')}</div>
+    <table style="border-collapse:collapse;margin-bottom:10px;"><tr><th style="padding:3px 8px;border:1px solid #b8b2a6;">Attr</th><th style="padding:3px 8px;border:1px solid #b8b2a6;">Score</th><th style="padding:3px 8px;border:1px solid #b8b2a6;">Mod</th></tr>${attrRows}</table>
+    <table style="border-collapse:collapse;width:100%;margin-bottom:10px;"><tr>${specRows}</tr></table>
+    ${get('c-benefits')?`<div style="font-size:12px;"><b>Cipher:</b> ${get('c-benefits')}</div>`:''}
+    ${get('notes')?`<div style="font-size:12px;margin-top:6px;"><b>Notes:</b> ${get('notes')}</div>`:''}
+  </div>`;
+  document.getElementById('exportRender').innerHTML=h;
+  document.querySelector('#exportModal .mt').textContent=(name||'Player')+' — Sheet (read-only)';
+  m.classList.add('open');
 }
 function addLogLine(html){
   const log=document.getElementById('table-log'); if(!log)return;
@@ -3124,6 +3199,8 @@ function resetAllIcons(){ if(!Object.keys(customIcons||{}).length&&!Object.keys(
 document.getElementById('stylusModal').addEventListener('click',e=>{if(e.target.id==='stylusModal')closeStylus();});
 document.getElementById('btnEditorModal').addEventListener('click',e=>{if(e.target.id==='btnEditorModal')closeBtnEditor();});
 wteLoadStylus(); wteApplyStylus();
+// bring up Firebase + auth in the background so account rooms auto-rejoin once signed in
+if(typeof Table!=='undefined'&&Table.config()){ Table.ensureDb().catch(()=>{}); }
 
 window.addEventListener('storage',e=>{ if(e.key==='wte-theme')wteApplyTheme(e.newValue||'dark'); else if(e.key==='wte-stylus'){ wteLoadStylus(); wteApplyStylus(); } });
 </script>
