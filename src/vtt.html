@@ -40,6 +40,25 @@ body{background:var(--bg);color:var(--ink);font-family:'Georgia',serif;font-size
 #sceneFx{position:absolute;inset:0;z-index:40;display:none;pointer-events:none;background-size:cover;background-position:center;will-change:opacity,transform,clip-path,filter;}
 #timelinePanel{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);z-index:45;display:none;background:rgba(20,18,16,.94);border:1px solid var(--accent);color:var(--ink);font-family:Georgia,serif;font-size:11px;padding:8px 12px;box-shadow:0 4px 18px rgba(0,0,0,.55);min-width:420px;}
 #timelinePanel.show{display:block;}
+.hub{position:fixed;inset:0;z-index:2500;display:none;background:var(--bg);background-image:radial-gradient(circle at 50% 30%, #34302a 0%, #1b1815 80%);overflow-y:auto;}
+.hub.show{display:block;}
+body.wte-light .hub{background-image:radial-gradient(circle at 50% 30%, #f0ede6 0%, #cfcabf 85%);}
+.hub-inner{max-width:1100px;margin:0 auto;padding:26px;}
+.hub-head{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:18px;}
+.hub-title{font-size:18px;letter-spacing:5px;text-transform:uppercase;color:var(--accent);}
+.hub-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:24px;}
+.hub-sec{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+.hub-scene-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;}
+.hub-scene{border:1px solid var(--line);cursor:pointer;background:var(--panel);transition:transform .12s,border-color .12s;}
+.hub-scene:hover{transform:translateY(-3px);border-color:var(--accent);}
+.hub-scene .thumb{height:92px;background-size:cover;background-position:center;background-color:var(--panel2);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:10px;}
+.hub-scene .nm{padding:5px 8px;font-size:11px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hub-scene.active{border-color:var(--accent);}
+.hub-col textarea{width:100%;min-height:160px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);padding:8px;font-family:Georgia,serif;font-size:12px;}
+.hub-track{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink);padding:3px 0;}
+.hub-track.playing{color:var(--accent);}
+.hub-track .tnm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;}
+.hub-music-ctl{display:flex;align-items:center;gap:6px;margin:6px 0;}
 #timelinePanel .tl-row{display:flex;align-items:center;gap:8px;margin:3px 0;}
 #timelinePanel .tl-lbl{width:62px;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);}
 #timelinePanel .tl-val{flex:1;font-family:Consolas,monospace;font-size:13px;color:#d8b25a;}
@@ -137,6 +156,7 @@ body{background:var(--bg);color:var(--ink);font-family:'Georgia',serif;font-size
   <button class="tbtn gmonly" onclick="document.getElementById('bg-file').click()">Background…</button>
   <input type="file" id="bg-file" accept="image/*" style="display:none" onchange="loadBg(this.files[0])">
   <button class="tbtn gmonly" onclick="openAW()" title="Generate walls from the map image">Auto-Walls</button>
+  <button class="tbtn" id="hub-btn" onclick="openHub()" title="Campaign Hub — scene map, music, notes">Hub</button>
   <button class="tbtn gmonly" id="scenes-btn" onclick="openScenesMenu(event)" title="Scenes — independent game areas">Scenes &#9662;</button>
   <button class="tbtn gmonly" id="assets-btn" onclick="openAssets()" title="Asset Library — connect folders of maps, tokens, art">Assets</button>
   <span class="sep"></span>
@@ -232,6 +252,26 @@ body{background:var(--bg);color:var(--ink);font-family:'Georgia',serif;font-size
     </div>
   </div>
 </div>
+
+<!-- CAMPAIGN HUB (landing) -->
+<div class="hub" id="hubPanel">
+  <div class="hub-inner">
+    <div class="hub-head"><span class="hub-title">W.T.E &mdash; Campaign Hub</span><button class="tbtn" onclick="closeHub()">Enter table &rarr;</button></div>
+    <div class="hub-grid">
+      <div class="hub-col hub-scenes">
+        <div class="hub-sec">Scenes &mdash; click to travel</div>
+        <div id="hubScenes" class="hub-scene-grid"></div>
+      </div>
+      <div class="hub-col">
+        <div class="hub-sec">Music</div>
+        <div id="hubMusic"></div>
+        <div class="hub-sec" style="margin-top:14px;">Notes</div>
+        <textarea id="hubNotes" placeholder="Session notes, plot threads, NPCs…" oninput="hubNotesSave()"></textarea>
+      </div>
+    </div>
+  </div>
+</div>
+<audio id="hubAudio"></audio>
 
 <!-- ASSET LIBRARY MODAL -->
 <div class="modal" id="assetModal">
@@ -402,6 +442,7 @@ function drawTokens(){
     ctx.globalAlpha=1;
     ctx.lineWidth=2/view.zoom; ctx.strokeStyle=(sel&&sel.type==='token'&&sel.id===t.id)?getCSS('--sel'):(ownedByMe(t)&&role==='player'?'#3a8050':'#1c1b19'); ctx.stroke();
     if(t._hurt&&t._hurt>Date.now()){ const k=(t._hurt-Date.now())/1100; ctx.beginPath(); if(t.base==='square')ctx.rect(t.x-rad,t.y-rad,rad*2,rad*2); else ctx.arc(t.x,t.y,rad+3/view.zoom,0,7); ctx.strokeStyle=`rgba(224,60,40,${0.9*k})`; ctx.lineWidth=4/view.zoom; ctx.stroke(); }
+    if(t.portal&&(role==='gm'||map.layers.tokens.vis)){ ctx.save(); ctx.setLineDash([6/view.zoom,5/view.zoom]); ctx.lineWidth=2.5/view.zoom; ctx.strokeStyle='#5ad0e0'; ctx.beginPath(); ctx.arc(t.x,t.y,rad+6/view.zoom,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]); ctx.restore(); }
     if(t.hpmax>0){ const bw=rad*2,bx=t.x-rad,by=t.y-rad-9/view.zoom,bh=5/view.zoom; ctx.fillStyle='#000';ctx.fillRect(bx,by,bw,bh);
       const pct=Math.max(0,Math.min(1,(t.hp||0)/t.hpmax)); ctx.fillStyle=pct>.5?'#4a8a4a':pct>.25?'#b8922a':'#a83a2a'; ctx.fillRect(bx,by,bw*pct,bh); }
     if(t.label){ ctx.fillStyle='#fff';ctx.font=`${13/view.zoom}px Georgia`;ctx.textAlign='center';ctx.shadowColor='#000';ctx.shadowBlur=3/view.zoom; ctx.fillText(t.label,t.x,t.y+rad+15/view.zoom); ctx.shadowBlur=0; }
@@ -506,7 +547,7 @@ window.addEventListener('mouseup',()=>{
   cwrap.classList.remove('panning');
   if(drag&&drag.mode==='measure'){ if(measureDraft&&(Math.abs(measureDraft.x2-measureDraft.x1)>1||Math.abs(measureDraft.y2-measureDraft.y1)>1))measurements.push(measureDraft); measureDraft=null; render(); drag=null; return; }
   if(drag&&drag.moved){
-    if(drag.mode==='token'){ const t=byId('token',drag.id); if(t)pushTokenPos(t); }
+    if(drag.mode==='token'){ const t=byId('token',drag.id); if(t){ pushTokenPos(t); if(role==='gm')checkPortalEnter(t); } }
     if(role==='gm'&&drag.mode!=='pan')syncMap();
     snapshot();
   }
@@ -586,6 +627,7 @@ function renderProps(){
       <div class="row"><label>Vision (cells)</label><input type="number" min="0" value="${t.vision||0}" ${ro?'disabled':''} oninput="upd('vision',+this.value||0)" title="0 = line-of-sight, no range limit"></div>
       ${role==='gm'?`<div class="row"><label>Owner</label><input type="text" list="owner-options" value="${esc(t.owner||'')}" placeholder="connected player" oninput="upd('owner',this.value)"></div>`:''}
       ${role==='gm'?`<div class="row"><label>Character</label><select onchange="upd('actor',this.value)"><option value="">${linkedActor(t)?'— unlink —':'— none —'}</option>`+Object.entries(VT.actors||{}).map(([id,a])=>`<option value="${id}"${t.actor===id?' selected':''}>${esc(a.name||id)}</option>`).join('')+`</select>${t.actor&&VT.actors[t.actor]?` <span style="font-size:9px;color:#6fae6f;align-self:center;">auto-linked</span>`:''}</div>`:''}
+      ${role==='gm'?portalPropsHTML(t):''}
       ${actorAbilitiesHTML(t)}
       ${effectsPropsHTML(t)}
       ${simPropsHTML(t)}
@@ -756,6 +798,80 @@ function addScene(){ stashScene(); const id=newSceneId(); scenes[id]={name:'Scen
 function dupScene(){ stashScene(); const id=newSceneId(); const m=JSON.parse(JSON.stringify(map)); scenes[id]={name:((scenes[activeScene]&&scenes[activeScene].name)||'Scene')+' copy',map:m}; m.name=scenes[id].name; activeScene=id; loadActiveScene(true); scenesSave(); toast('Scene duplicated'); }
 function renameScene(){ const s=scenes[activeScene]; if(!s)return; const n=prompt('Scene name:',s.name||''); if(n!=null){ s.name=n.trim()||s.name; map.name=s.name; scenesSave(); toast('Renamed'); } }
 function delScene(){ if(Object.keys(scenes).length<=1){toast('Keep at least one scene');return;} if(!confirm('Delete scene "'+((scenes[activeScene]&&scenes[activeScene].name)||'')+'"? This cannot be undone.'))return; delete scenes[activeScene]; activeScene=Object.keys(scenes)[0]; loadActiveScene(false); scenesSave(); toast('Scene deleted'); }
+// ── SCENE PORTALS — a token that moves the party to another scene when walked onto / activated ──
+function portalPropsHTML(t){
+  const opts=Object.entries(scenes).filter(([id])=>id!==activeScene).map(([id,s])=>`<option value="${id}"${t.portalTo===id?' selected':''}>${esc(s.name||'Scene')}</option>`).join('');
+  return `<div class="actor-h">Scene Portal</div>
+    <label class="chk"><input type="checkbox" ${t.portal?'checked':''} onchange="upd('portal',this.checked);renderProps()"> Make this a portal</label>
+    ${t.portal?`<div class="row"><label>To scene</label><select onchange="upd('portalTo',this.value)"><option value="">— pick —</option>${opts}</select></div>
+      <div class="row"><label>Who moves</label><select onchange="upd('portalWho',this.value)">
+        <option value="all"${(t.portalWho||'all')==='all'?' selected':''}>Everyone</option>
+        <option value="group"${t.portalWho==='group'?' selected':''}>The party (owned tokens)</option>
+        <option value="self"${t.portalWho==='self'?' selected':''}>Just whoever enters</option></select></div>
+      <button class="tbtn live" style="margin-top:4px;" onclick="firePortal('${t.id}')">Activate portal &rarr;</button>
+      <div class="note">Walking a token onto this tile also triggers it. Carried tokens travel to the target scene.</div>`:''}`;
+}
+function firePortal(portalId, enterTok){
+  if(role!=='gm')return; const pt=byId('token',portalId); if(!pt||!pt.portal)return;
+  const target=pt.portalTo; if(!target||!scenes[target]){ toast('Set the portal\'s target scene'); return; }
+  const who=pt.portalWho||'all';
+  let carry = who==='self' ? (enterTok?[enterTok]:(sel&&sel.type==='token'?[byId('token',sel.id)]:[]))
+            : who==='group' ? map.tokens.filter(t=>t.owner) : map.tokens.slice();
+  carry=carry.filter(Boolean);
+  stashScene(); const tgt=scenes[target].map; if(!Array.isArray(tgt.tokens))tgt.tokens=[];
+  // landing point: center of the target scene
+  const lx=(tgt.gridSize||60)*4, ly=(tgt.gridSize||60)*4;
+  carry.forEach((t,i)=>{ if(t.portal)return; const cp=JSON.parse(JSON.stringify(t)); cp.x=lx+(i%4)*(tgt.gridSize||60); cp.y=ly+Math.floor(i/4)*(tgt.gridSize||60); tgt.tokens.push(cp); });
+  const carryIds=new Set(carry.filter(t=>!t.portal).map(t=>t.id));
+  map.tokens=map.tokens.filter(t=>!carryIds.has(t.id));   // they leave this scene
+  switchScene(target);
+  toast('Portal → '+(scenes[target].name||'scene'));
+}
+function checkPortalEnter(movedTok){
+  if(role!=='gm'||!movedTok||movedTok.portal)return;
+  const hit=map.tokens.find(t=>t.portal&&t.id!==movedTok.id&&Math.hypot(t.x-movedTok.x,t.y-movedTok.y)<=map.gridSize*0.6);
+  if(hit)firePortal(hit.id, movedTok);
+}
+// ════════════════════════════════════════════════ CAMPAIGN HUB (landing page)
+let hubMusic=[], hubTrack=-1, hubLoop=true;
+function openHub(){ const p=document.getElementById('hubPanel'); if(!p)return; hubLoadNotes(); hubRender(); p.classList.add('show'); }
+function closeHub(){ const p=document.getElementById('hubPanel'); if(p)p.classList.remove('show'); }
+function hubRender(){
+  // scenes gallery
+  const sg=document.getElementById('hubScenes'); if(sg){ sg.innerHTML=Object.entries(scenes).map(([id,s])=>{ const bg=(s.map&&s.map.bg&&s.map.bg.src)?`background-image:url(${(s.map.bg.src)});`:''; return `<div class="hub-scene${id===activeScene?' active':''}" onclick="hubGoScene('${id}')"><div class="thumb" style="${bg}">${bg?'':'no map'}</div><div class="nm">${esc(s.name||'Scene')}${id===activeScene?' • here':''}</div></div>`; }).join('')+(role==='gm'||!VT.connected?`<div class="hub-scene" onclick="addScene();hubRender()"><div class="thumb">+ New</div><div class="nm">Add scene</div></div>`:''); }
+  hubRenderMusic();
+}
+function hubGoScene(id){ closeHub(); if(role==='gm'||!VT.connected){ if(id!==activeScene)switchScene(id); } else toast('The Director controls scene changes'); }
+// ── music / playlist ──
+function hubRenderMusic(){
+  const m=document.getElementById('hubMusic'); if(!m)return;
+  const cur=hubMusic[hubTrack];
+  m.innerHTML=`<div class="hub-music-ctl">
+      <button class="tbtn" onclick="hubAddTracks()">+ Add tracks</button>
+      <button class="tbtn" onclick="hubPrev()">◄◄</button>
+      <button class="tbtn live" onclick="hubPlayPause()" id="hub-pp">${(cur&&!document.getElementById('hubAudio').paused)?'❚❚':'►'}</button>
+      <button class="tbtn" onclick="hubNext()">►►</button>
+      <button class="tbtn${hubLoop?' live':''}" onclick="hubLoop=!hubLoop;hubRenderMusic()" title="loop playlist">Loop</button>
+      <input type="range" min="0" max="100" value="${Math.round((document.getElementById('hubAudio').volume||1)*100)}" oninput="document.getElementById('hubAudio').volume=this.value/100" title="volume" style="width:80px;">
+    </div>`+
+    (hubMusic.length?hubMusic.map((t,i)=>`<div class="hub-track${i===hubTrack?' playing':''}"><span class="tnm" onclick="hubPlay(${i})">${i===hubTrack?'♪ ':''}${esc(t.name)}</span><span style="cursor:pointer;color:var(--muted);" onclick="hubRemoveTrack(${i})">×</span></div>`).join('')
+      :`<div class="hub-track" style="color:var(--muted);">No tracks. Add audio files to build a playlist.</div>`);
+}
+async function hubAddTracks(){
+  const T=window.__TAURI__;
+  if(T&&T.dialog){ let sel; try{ sel=await T.dialog.open({multiple:true,title:'Add music',filters:[{name:'Audio',extensions:['mp3','wav','ogg','m4a','flac']}]}); }catch(e){return;} if(!sel)return; (Array.isArray(sel)?sel:[sel]).forEach(p=>hubMusic.push({name:p.split(/[\\/]/).pop(),url:T.core.convertFileSrc(p),path:p})); hubSaveMusic(); hubRenderMusic(); }
+  else { const inp=document.createElement('input'); inp.type='file'; inp.accept='audio/*'; inp.multiple=true; inp.onchange=e=>{ [...e.target.files].forEach(f=>hubMusic.push({name:f.name,url:URL.createObjectURL(f)})); hubRenderMusic(); }; inp.click(); }
+}
+function hubRemoveTrack(i){ hubMusic.splice(i,1); if(hubTrack>=hubMusic.length)hubTrack=hubMusic.length-1; hubSaveMusic(); hubRenderMusic(); }
+function hubPlay(i){ const a=document.getElementById('hubAudio'); if(!hubMusic[i])return; hubTrack=i; a.src=hubMusic[i].url; a.play().catch(()=>{}); a.onended=()=>{ if(hubLoop||hubTrack<hubMusic.length-1)hubNext(); }; hubRenderMusic(); }
+function hubPlayPause(){ const a=document.getElementById('hubAudio'); if(a.paused){ if(hubTrack<0&&hubMusic.length)hubPlay(0); else a.play().catch(()=>{}); } else a.pause(); setTimeout(hubRenderMusic,50); }
+function hubNext(){ if(!hubMusic.length)return; let n=hubTrack+1; if(n>=hubMusic.length)n=hubLoop?0:hubMusic.length-1; hubPlay(n); }
+function hubPrev(){ if(!hubMusic.length)return; let n=hubTrack-1; if(n<0)n=hubLoop?hubMusic.length-1:0; hubPlay(n); }
+function hubSaveMusic(){ try{ localStorage.setItem('wte-hub-music', JSON.stringify(hubMusic.filter(t=>t.path).map(t=>({name:t.name,path:t.path})))); }catch(e){} }
+function hubLoadMusic(){ try{ const arr=JSON.parse(localStorage.getItem('wte-hub-music'))||[]; const T=window.__TAURI__; if(T&&T.core)hubMusic=arr.map(t=>({name:t.name,path:t.path,url:T.core.convertFileSrc(t.path)})); }catch(e){} }
+// ── notes ──
+function hubNotesSave(){ const v=document.getElementById('hubNotes').value; try{localStorage.setItem('wte-hub-notes',v);}catch(e){} if(VT.connected&&role==='gm'&&VT.tableRef){ try{VT.tableRef.child('state/notes').set(v);}catch(e){} } }
+function hubLoadNotes(){ const el=document.getElementById('hubNotes'); if(el)try{el.value=localStorage.getItem('wte-hub-notes')||'';}catch(e){} }
 function openScenesMenu(ev){ closeActionMenu();
   const m=document.createElement('div'); m.className='act-menu'; m.id='actMenu';
   let h=Object.entries(scenes).map(([id,s])=>`<button onclick="switchScene('${id}');closeActionMenu()">${id===activeScene?'• ':'&nbsp;&nbsp;'}${esc(s.name||'Scene')}</button>`).join('');
@@ -1304,6 +1420,7 @@ async function vtConnect(){
   VT.tableRef=VT.db.ref('tables/'+room);
   VT.tableRef.child('combatants').on('value',s=>{ VT.actors=s.val()||{}; autoLinkTokens(); syncLinkedTokenHP(); if(sel&&sel.type==='token')renderProps(); render(); });
   VT.tableRef.child('state/time').on('value',s=>{ const t=s.val(); if(t&&role!=='gm'){ gameTime=Object.assign(gameTime,t); gtRender(); } });
+  VT.tableRef.child('state/notes').on('value',s=>{ const n=s.val(); if(n!=null&&role!=='gm'){ const el=document.getElementById('hubNotes'); if(el&&document.activeElement!==el)el.value=n; } });
   if(role==='gm')gtSync();
   VT._evStart=Date.now();
   VT.tableRef.child('events').on('child_added',s=>{ const e=s.val(); if(!e||(e.ts&&e.ts<VT._evStart))return;
@@ -1321,7 +1438,7 @@ async function vtConnect(){
         if(!VT._centered){ const mine=map.tokens.find(ownedByMe); if(mine){ view.panX=cv.width/2-mine.x*view.zoom; view.panY=cv.height/2-mine.y*view.zoom; VT._centered=true; render(); } } };
       if(sceneChanged) playSceneTransition(m.sceneFx||sceneFxType(), apply); else apply();
     } } });
-  VT.ref.child('tokenPos').on('value',s=>{ const tp=s.val()||{}; Object.entries(tp).forEach(([id,pos])=>{ const t=byId('token',id); if(t&&!(drag&&drag.id===id)){t.x=pos.x;t.y=pos.y;} }); render(); });
+  VT.ref.child('tokenPos').on('value',s=>{ const tp=s.val()||{}; Object.entries(tp).forEach(([id,pos])=>{ const t=byId('token',id); if(t&&!(drag&&drag.id===id)){t.x=pos.x;t.y=pos.y; if(role==='gm')checkPortalEnter(t);} }); render(); });
   VT.ref.child('ping').on('value',s=>{ const p=s.val(); if(p&&Date.now()-p.ts<3000){ pings.push({x:p.x,y:p.y,by:p.by,ts:p.ts}); render(); } });
   document.body.classList.add('gated'); applyRoleUI(); closeConnect(); toast('Connected to '+room);
 }
@@ -1402,6 +1519,8 @@ window.addEventListener('storage',e=>{ if(e.key==='wte-theme')wteApplyTheme(e.ne
 try{ assetFolders=JSON.parse(localStorage.getItem('wte-asset-folders'))||[]; }catch(e){ assetFolders=[]; }
 assetMetaLoad();
 gtLoad();
+hubLoadMusic(); hubLoadNotes();
+if(!(VT&&VT.connected&&role==='player'))setTimeout(openHub,150);   // land on the Hub on launch
 if(window.__TAURI__){ if(assetFolders.length)assetScan(); } else { const ab=document.getElementById('assets-btn'); if(ab)ab.style.display='none'; }
 
 draw();
