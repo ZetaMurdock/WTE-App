@@ -120,7 +120,7 @@
     if(firebase.auth().currentUser){ if(confirm('Sign out of '+(firebase.auth().currentUser.email||'this account')+'?')){ await firebase.auth().signOut(); renderAcct(null); } return; }
     var oauth=getOAuth();
     if(!oauth.clientSecret){
-      var sec=prompt('Paste your Google OAuth *client secret* (from the Desktop OAuth client — installed-app secret, stored only on this device):','');
+      var sec=prompt('Paste the Google OAuth CLIENT SECRET (not the client ID).\nGoogle Cloud Console → APIs & Services → Credentials → your "W.T.E Desktop" client → Client secret (starts with GOCSPX-).\nStored only on this device.','');
       if(!sec)return; oauth.clientSecret=sec.trim(); try{ localStorage.setItem('wte-oauth',JSON.stringify(oauth)); }catch(e){}
     }
     var b=document.getElementById('acct-btn'); b.textContent='Signing in…';
@@ -131,7 +131,13 @@
       var cred=firebase.auth.GoogleAuthProvider.credential(idToken);
       var res=await firebase.auth().signInWithCredential(cred);
       renderAcct(res.user);
-    }catch(e){ renderAcct(firebase.auth().currentUser); alert('Sign-in failed: '+(e&&e.message?e.message:e)); }
+    }catch(e){
+      renderAcct(firebase.auth().currentUser);
+      var msg=(e&&e.message?e.message:String(e));
+      // a token-exchange/client error usually means a wrong secret → clear it so the next try re-prompts
+      if(/token exchange|rejected the token|invalid_client|401/i.test(msg)){ try{ var o=getOAuth(); delete o.clientSecret; localStorage.setItem('wte-oauth',JSON.stringify(o)); }catch(_){ } msg+='\n\nThe saved client secret was cleared — click Sign in again to re-enter it. Make sure it is the *Client secret* of the SAME Desktop OAuth client whose ID ends in ...687gkal.'; }
+      alert('Sign-in failed: '+msg);
+    }
   };
   // restore session on launch (Firebase persists auth per-origin; iframes share it)
   (async function(){

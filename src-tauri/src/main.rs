@@ -70,16 +70,30 @@ fn google_signin_blocking(
         return Err("No authorization code received".into());
     }
 
-    let resp = ureq::post("https://oauth2.googleapis.com/token")
-        .send_form(&[
-            ("code", code.as_str()),
-            ("client_id", client_id.as_str()),
-            ("client_secret", client_secret.as_str()),
-            ("code_verifier", code_verifier.as_str()),
-            ("grant_type", "authorization_code"),
-            ("redirect_uri", redirect.as_str()),
-        ])
-        .map_err(|e| format!("token exchange failed: {}", e))?;
+    let resp = match ureq::post("https://oauth2.googleapis.com/token").send_form(&[
+        ("code", code.as_str()),
+        ("client_id", client_id.as_str()),
+        ("client_secret", client_secret.as_str()),
+        ("code_verifier", code_verifier.as_str()),
+        ("grant_type", "authorization_code"),
+        ("redirect_uri", redirect.as_str()),
+    ]) {
+        Ok(r) => r,
+        // surface Google's real error body (e.g. invalid_client / redirect_uri_mismatch)
+        Err(ureq::Error::Status(code, r)) => {
+            let body = r.into_string().unwrap_or_default();
+            let msg = serde_json::from_str::<serde_json::Value>(&body)
+                .ok()
+                .and_then(|v| {
+                    let e = v.get("error").and_then(|x| x.as_str()).unwrap_or("");
+                    let d = v.get("error_description").and_then(|x| x.as_str()).unwrap_or("");
+                    if e.is_empty() { None } else { Some(format!("{} — {}", e, d)) }
+                })
+                .unwrap_or(body);
+            return Err(format!("Google rejected the token exchange ({}): {}", code, msg));
+        }
+        Err(e) => return Err(format!("token exchange failed: {}", e)),
+    };
     let v: serde_json::Value = resp.into_json().map_err(|e| e.to_string())?;
     v.get("id_token")
         .and_then(|t| t.as_str())
