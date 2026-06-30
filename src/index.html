@@ -33,6 +33,7 @@
     <button class="tab" id="tab-vtt" onclick="wteTab('vtt')">VTT</button>
     <span class="spacer"></span>
     <span class="upd" id="upd"><span id="upd-msg">Update available</span><button onclick="wteInstallUpdate()" id="upd-btn">Restart &amp; update</button></span>
+    <button class="tab" id="acct-btn" onclick="wteAccount()" title="Google account">Sign in</button>
     <button class="tab" id="theme-btn" onclick="wteToggleTheme()" title="Switch Light / Dark theme">Theme</button>
     <span class="ver" id="ver"></span>
   </div>
@@ -85,6 +86,58 @@
     }catch(e){ btn.textContent='Update failed'; btn.disabled=false; }
   };
   initTauri();
+
+  // ════════════════════════════════════════ GOOGLE ACCOUNT (beta) ════════════════════════════════════════
+  var DEFAULT_OAUTH_CLIENT_ID = "147593598636-a8gn087e5oj75ikglcpvkl65u687gkal.apps.googleusercontent.com";
+  function getCfg(){ try{ return JSON.parse(localStorage.getItem('wte-fb-config')||'null'); }catch(e){ return null; } }
+  function getOAuth(){ var o; try{ o=JSON.parse(localStorage.getItem('wte-oauth')||'null'); }catch(e){} o=o||{}; if(!o.clientId)o.clientId=DEFAULT_OAUTH_CLIENT_ID; return o; }
+  function b64url(bytes){ var s=''; for(var i=0;i<bytes.length;i++)s+=String.fromCharCode(bytes[i]); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+  var _fbReady=null;
+  function ensureFirebase(cfg){
+    if(_fbReady)return _fbReady;
+    _fbReady=new Promise(function(res,rej){
+      function load(src,cb){ var s=document.createElement('script'); s.src=src; s.onload=cb; s.onerror=function(){rej(new Error('load fail'));}; document.head.appendChild(s); }
+      load('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js',function(){
+        load('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js',function(){
+          try{ if(!firebase.apps.length)firebase.initializeApp(cfg); res(); }catch(e){ rej(e); }
+        });
+      });
+    });
+    return _fbReady;
+  }
+  function renderAcct(u){
+    var b=document.getElementById('acct-btn'); if(!b)return;
+    if(u){ b.textContent=(u.displayName||u.email||'Account').split(' ')[0]; b.title='Signed in as '+(u.email||'')+' — click to sign out'; }
+    else { b.textContent='Sign in'; b.title='Sign in with Google'; }
+  }
+  window.wteAccount = async function(){
+    var T=window.__TAURI__;
+    if(!T){ alert('Google sign-in works in the desktop app.'); return; }
+    var cfg=getCfg();
+    if(!cfg||!cfg.authDomain||!cfg.projectId){ alert('First set your full Firebase config (with authDomain + projectId) in the VTT/Sheet table settings, then try again.'); return; }
+    try{ await ensureFirebase(cfg); }catch(e){ alert('Could not load Firebase Auth.'); return; }
+    // already signed in → offer sign out
+    if(firebase.auth().currentUser){ if(confirm('Sign out of '+(firebase.auth().currentUser.email||'this account')+'?')){ await firebase.auth().signOut(); renderAcct(null); } return; }
+    var oauth=getOAuth();
+    if(!oauth.clientSecret){
+      var sec=prompt('Paste your Google OAuth *client secret* (from the Desktop OAuth client — installed-app secret, stored only on this device):','');
+      if(!sec)return; oauth.clientSecret=sec.trim(); try{ localStorage.setItem('wte-oauth',JSON.stringify(oauth)); }catch(e){}
+    }
+    var b=document.getElementById('acct-btn'); b.textContent='Signing in…';
+    try{
+      var verifier=b64url(crypto.getRandomValues(new Uint8Array(48)));
+      var challenge=b64url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))));
+      var idToken=await T.core.invoke('google_signin',{ clientId:oauth.clientId, clientSecret:oauth.clientSecret, codeChallenge:challenge, codeVerifier:verifier });
+      var cred=firebase.auth.GoogleAuthProvider.credential(idToken);
+      var res=await firebase.auth().signInWithCredential(cred);
+      renderAcct(res.user);
+    }catch(e){ renderAcct(firebase.auth().currentUser); alert('Sign-in failed: '+(e&&e.message?e.message:e)); }
+  };
+  // restore session on launch (Firebase persists auth per-origin; iframes share it)
+  (async function(){
+    if(!window.__TAURI__)return; var cfg=getCfg(); if(!cfg||!cfg.authDomain)return;
+    try{ await ensureFirebase(cfg); firebase.auth().onAuthStateChanged(function(u){ renderAcct(u); }); }catch(e){}
+  })();
 </script>
 </body>
 </html>
