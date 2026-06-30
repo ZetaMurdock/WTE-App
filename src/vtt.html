@@ -1389,9 +1389,24 @@ function simPropsHTML(t){ ensureSim(t); const s=t.sim;
 function upd2(k,v){ const o=byId(sel.type,sel.id); if(!o)return; ensureSim(o); o.sim[k]=v; render(); clearTimeout(upd._t); upd._t=setTimeout(()=>{snapshot();syncMap();},400); }
 VT.clientId=(()=>{let id=localStorage.getItem('wte-client-id');if(!id){id='c'+Math.random().toString(36).slice(2,10);localStorage.setItem('wte-client-id',id);}return id;})();
 function fbConfig(){ try{return JSON.parse(localStorage.getItem('wte-fb-config')||'null');}catch(e){return null;} }
-function loadFirebase(){ if(window.firebase&&firebase.database)return Promise.resolve(); if(window.__fb)return window.__fb;
-  window.__fb=new Promise((res,rej)=>{const a=(s,c)=>{const e=document.createElement('script');e.src=s;e.onload=c;e.onerror=()=>rej(new Error('load fail'));document.head.appendChild(e);}; a('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js',()=>a('https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js',res));}); return window.__fb;
+function loadFirebase(){ if(window.firebase&&firebase.database&&firebase.auth)return Promise.resolve(); if(window.__fb)return window.__fb;
+  window.__fb=new Promise((res,rej)=>{const a=(s,c)=>{const e=document.createElement('script');e.src=s;e.onload=c;e.onerror=()=>rej(new Error('load fail'));document.head.appendChild(e);}; a('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js',()=>a('https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js',()=>a('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js',res)));}); return window.__fb;
 }
+// ── account-linked rooms (VTT parity) ──
+function vtCurrentUser(){ try{ return (window.firebase&&firebase.auth&&firebase.apps.length)?firebase.auth().currentUser:null; }catch(e){ return null; } }
+function vtUid(){ const u=vtCurrentUser(); return u?u.uid:null; }
+let _vtAutoTried=false;
+async function vtEnsureDb(){
+  if(VT.db)return VT.db; const cfg=fbConfig(); if(!cfg)return null;
+  await loadFirebase(); if(!firebase.apps.length)firebase.initializeApp(cfg); VT.db=firebase.database();
+  try{ firebase.auth().onAuthStateChanged(u=>{ if(document.getElementById('connectModal').classList.contains('open'))renderConnect(); if(u)vtAutoRejoin(); }); }catch(e){}
+  return VT.db;
+}
+async function vtAccountRooms(){ await vtEnsureDb(); const uid=vtUid(); if(!uid||!VT.db)return {}; try{ const s=await VT.db.ref('users/'+uid+'/rooms').once('value'); return s.val()||{}; }catch(e){ return {}; } }
+async function vtLastRoom(){ await vtEnsureDb(); const uid=vtUid(); if(!uid||!VT.db)return null; try{ const s=await VT.db.ref('users/'+uid+'/vtt/lastRoom').once('value'); return s.val(); }catch(e){ return null; } }
+async function vtAutoRejoin(){ if(VT.connected||_vtAutoTried)return; _vtAutoTried=true; const lr=await vtLastRoom(); if(lr&&lr.room)vtJoinRoom(lr.room,lr.role,lr.name); }
+function vtSaveRoom(){ const uid=vtUid(); if(!uid||!VT.db||!VT.room)return; try{ VT.db.ref('users/'+uid+'/rooms/'+VT.room).update({ts:Date.now()}); VT.db.ref('users/'+uid+'/vtt/lastRoom').set({room:VT.room,role:role,name:myName}); }catch(e){} }
+function vtForgetRoom(code){ const uid=vtUid(); if(!uid||!VT.db)return; try{ VT.db.ref('users/'+uid+'/rooms/'+code).remove(); }catch(e){} renderConnect(); }
 function openConnect(){ renderConnect(); document.getElementById('connectModal').classList.add('open'); }
 function closeConnect(){ document.getElementById('connectModal').classList.remove('open'); }
 document.getElementById('connectModal').addEventListener('click',e=>{if(e.target.id==='connectModal')closeConnect();});
@@ -1403,15 +1418,31 @@ function renderConnect(){
     <div class="row"><label>Role</label><select id="vt-role"><option value="gm">Game Master</option><option value="player">Player</option></select></div>
     <div class="row"><label>Room code</label><input type="text" id="vt-room" placeholder="WTE-XXXX"></div>
     <button class="tbtn live" onclick="vtConnect()">Connect</button>
-    <div class="note">GM hosts &amp; edits the map; players see it live, move their own tokens, and get personal Fog of War. Use the same room code as your character-sheet table.</div>`;
+    <div class="note" style="margin-top:6px;">My Rooms</div><div id="vt-myrooms"><div class="note">Sign in (app top bar) to save &amp; auto-rejoin rooms.</div></div>
+    <div class="note" style="margin-top:6px;">GM hosts &amp; edits the map; players see it live. Use the same room code as your character-sheet table.</div>`;
+  renderVtRooms();
+}
+async function renderVtRooms(){
+  const el=document.getElementById('vt-myrooms'); if(!el)return;
+  const u=vtCurrentUser(); if(!u){ return; }
+  const rooms=await vtAccountRooms(); const codes=Object.keys(rooms||{});
+  if(!codes.length){ el.innerHTML='<div class="note">Signed in as '+esc(u.email||u.displayName||'')+'. Join a room and it\'ll be saved here.</div>'; return; }
+  el.innerHTML=codes.map(code=>`<div class="row" style="align-items:center;"><button class="tbtn" style="flex:1;text-align:left;" onclick="vtJoinRoom('${esc(code)}',document.getElementById('vt-role').value,document.getElementById('vt-name').value||'${esc(myName)}')">${esc(code)}</button><span style="cursor:pointer;color:var(--muted);font-size:10px;" onclick="vtForgetRoom('${esc(code)}')">forget</span></div>`).join('');
 }
 function vtSaveCfg(){ const raw=document.getElementById('vt-cfg').value.trim(); let c=null; try{c=JSON.parse(raw);}catch(e){try{c=Function('return ('+raw.match(/\{[\s\S]*\}/)[0]+')')();}catch(e2){}} if(!c||!c.databaseURL){toast('Invalid config');return;} localStorage.setItem('wte-fb-config',JSON.stringify(c)); renderConnect(); }
 async function vtConnect(){
-  const cfg=fbConfig(); const room=document.getElementById('vt-room').value.trim().toUpperCase();
-  role=document.getElementById('vt-role').value; myName=document.getElementById('vt-name').value.trim()||(role==='gm'?'GM':'Player');
+  const room=document.getElementById('vt-room').value.trim().toUpperCase();
+  const r=document.getElementById('vt-role').value; const nm=document.getElementById('vt-name').value.trim()||(r==='gm'?'GM':'Player');
   if(!room){toast('Enter a room code');return;}
-  try{ await loadFirebase(); if(!firebase.apps.length)firebase.initializeApp(cfg); VT.db=firebase.database(); }catch(e){toast('Firebase error');return;}
+  vtJoinRoom(room,r,nm);
+}
+async function vtJoinRoom(room,r,nm){
+  const cfg=fbConfig(); if(!cfg){toast('Add Firebase config first');return;}
+  room=(room||'').trim().toUpperCase(); if(!room){toast('Enter a room code');return;}
+  role=r||'gm'; myName=nm||(role==='gm'?'GM':'Player');
+  try{ await vtEnsureDb(); }catch(e){toast('Firebase error');return;}
   VT.room=room; VT.ref=VT.db.ref('tables/'+room+'/vtt'); VT.connected=true; VT._centered=false;
+  vtSaveRoom();
   if(role==='player'){ fogOn=true; document.getElementById('fog-btn').textContent='Fog: On'; document.getElementById('fog-btn').classList.add('on'); ensureExplored(); }
   // presence so the GM can assign token owners from connected players
   const mref=VT.ref.child('members/'+VT.clientId); mref.set({name:myName,role:role,ts:Date.now()}); mref.onDisconnect().remove();
@@ -1521,6 +1552,8 @@ assetMetaLoad();
 gtLoad();
 hubLoadMusic(); hubLoadNotes();
 if(!(VT&&VT.connected&&role==='player'))setTimeout(openHub,150);   // land on the Hub on launch
+// bring up Firebase + auth so the VTT auto-rejoins your last room once signed in
+if(fbConfig()){ vtEnsureDb().catch(()=>{}); }
 if(window.__TAURI__){ if(assetFolders.length)assetScan(); } else { const ab=document.getElementById('assets-btn'); if(ab)ab.style.display='none'; }
 
 draw();

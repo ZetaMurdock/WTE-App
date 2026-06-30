@@ -1020,9 +1020,12 @@ textarea { resize: vertical; border: 1px solid var(--border); }
     </div>
     <div class="modal-tools">
       <button class="btn prime" onclick="libNewFolder()" style="color:#fff;">+ New Folder</button>
-      <span class="hint">Organize saved sheets into folders (Bosses, NPCs, Monsters&hellip;). Stored in this browser.</span>
+      <button class="btn" onclick="cloudSave()" style="border-color:var(--border2);color:var(--ink2);">Save to my account</button>
+      <button class="btn" onclick="cloudShare()" style="border-color:var(--border2);color:var(--ink2);">Share character…</button>
+      <button class="btn" onclick="cloudImport()" style="border-color:var(--border2);color:var(--ink2);">Import by code</button>
+      <span class="hint">Folders are saved in this browser. Account &amp; shared sheets sync via the cloud (sign in).</span>
     </div>
-    <div class="modal-body"><div id="libraryBody"></div></div>
+    <div class="modal-body"><div id="cloudBody"></div><div id="libraryBody"></div></div>
   </div>
 </div>
 
@@ -2657,7 +2660,20 @@ document.getElementById('wikiModal').addEventListener('click',e=>{if(e.target.id
 function libGet(){ try{return JSON.parse(localStorage.getItem('wte-library')||'{"folders":{}}');}catch(e){return {folders:{}};} }
 function libSet(l){ localStorage.setItem('wte-library',JSON.stringify(l)); }
 function jsq(s){ return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
-function openLibrary(){ renderLibrary(); document.getElementById('libraryModal').classList.add('open'); }
+function openLibrary(){ renderCloud(); renderLibrary(); document.getElementById('libraryModal').classList.add('open'); }
+// ── CLOUD / CROSS-ACCOUNT SHEET SHARING ──
+function shareCode(){ return Math.random().toString(36).slice(2,8).toUpperCase(); }
+async function cloudSave(){ await Table.ensureDb(); const uid=currentUid(); if(!uid){toast('Sign in first (app top bar)');return;} const name=(val('f-name')||'Unnamed'); try{ const ref=Table.db.ref('users/'+uid+'/sheets').push(); await ref.set({name,data:collectAll(),ts:Date.now()}); toast('Saved "'+name+'" to your account'); renderCloud(); }catch(e){ toast('Save failed — check DB rules'); } }
+async function renderCloud(){ const el=document.getElementById('cloudBody'); if(!el)return; await Table.ensureDb(); const uid=currentUid(); if(!uid){ el.innerHTML='<div style="color:var(--muted);font-size:12px;margin-bottom:10px;">Sign in (app top bar) to save characters to your account &amp; sync across devices.</div>'; return; }
+  let sheets={}; try{ const s=await Table.db.ref('users/'+uid+'/sheets').once('value'); sheets=s.val()||{}; }catch(e){}
+  const ids=Object.keys(sheets);
+  el.innerHTML=`<div class="info-label" style="margin-bottom:6px;">My Account Sheets (cloud)</div>`+(ids.length?ids.map(id=>`<div style="display:flex;gap:8px;align-items:center;margin-bottom:4px;"><span style="flex:1;font-size:12px;">${esc(sheets[id].name||'Unnamed')}</span><button class="btn" onclick="cloudLoad('${id}')">Load</button><button class="btn" onclick="cloudShareId('${id}')">Share</button><button class="btn" onclick="cloudDelete('${id}')">x</button></div>`).join(''):`<div style="color:var(--muted);font-size:12px;">No cloud sheets yet — use "Save to my account".</div>`)+`<hr style="border:none;border-top:1px solid var(--border);margin:12px 0;">`;
+}
+async function cloudLoad(id){ const uid=currentUid(); if(!uid)return; try{ const s=await Table.db.ref('users/'+uid+'/sheets/'+id).once('value'); const e=s.val(); if(!e)return; if(!confirm('Load "'+(e.name||'sheet')+'"? Replaces the current sheet.'))return; applyAll(e.data); closeLibrary(); toast('Loaded '+(e.name||'')); }catch(e){} }
+async function cloudDelete(id){ const uid=currentUid(); if(!uid)return; if(!confirm('Delete this cloud sheet?'))return; try{ await Table.db.ref('users/'+uid+'/sheets/'+id).remove(); renderCloud(); }catch(e){} }
+async function cloudShare(){ await Table.ensureDb(); if(!Table.db){toast('Set Firebase config first');return;} const code=shareCode(); try{ await Table.db.ref('sharedSheets/'+code).set({name:val('f-name')||'Unnamed',data:collectAll(),by:currentUid()||null,ts:Date.now()}); prompt('Share this code — anyone can import this character with it (Library → Import by code):',code); }catch(e){ toast('Share failed — check DB rules'); } }
+async function cloudShareId(id){ const uid=currentUid(); if(!uid)return; try{ const s=await Table.db.ref('users/'+uid+'/sheets/'+id).once('value'); const e=s.val(); if(!e)return; const code=shareCode(); await Table.db.ref('sharedSheets/'+code).set({name:e.name||'Unnamed',data:e.data,by:uid,ts:Date.now()}); prompt('Share code for "'+(e.name||'')+'":',code); }catch(e){ toast('Share failed'); } }
+async function cloudImport(){ await Table.ensureDb(); if(!Table.db){toast('Set Firebase config first');return;} const code=(prompt('Enter a share code:')||'').trim().toUpperCase(); if(!code)return; try{ const s=await Table.db.ref('sharedSheets/'+code).once('value'); const e=s.val(); if(!e){toast('No character for that code');return;} if(!confirm('Import "'+(e.name||'sheet')+'"? Replaces the current sheet.'))return; applyAll(e.data); closeLibrary(); toast('Imported '+(e.name||'')); }catch(e){ toast('Import failed'); } }
 function closeLibrary(){ document.getElementById('libraryModal').classList.remove('open'); }
 function libNewFolder(){ const n=(prompt('Folder name (e.g. Bosses, NPCs, Monsters):')||'').trim(); if(!n)return; const l=libGet(); if(!l.folders[n])l.folders[n]=[]; libSet(l); renderLibrary(); }
 function libDeleteFolder(n){ if(!confirm('Delete folder "'+n+'" and all sheets inside it?'))return; const l=libGet(); delete l.folders[n]; libSet(l); renderLibrary(); }
