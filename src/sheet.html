@@ -703,6 +703,7 @@ textarea { resize: vertical; border: 1px solid var(--border); }
         <input type="number" id="d-dhpcur" style="width:44px;" placeholder="cur">
         <span class="hp-lbl">SS</span>
         <input type="number" id="d-sscur" style="width:44px;" placeholder="cur">
+        <button class="btn" onclick="resetVitals()" title="Restore HP, DHP, SS (and Pressure) to full / neutral" style="margin-left:8px;">Reset to Neutral</button>
       </div>
     </div>
   </div>
@@ -2278,6 +2279,14 @@ function applyHealing(amount,label){
   let hp=(hpEl.value!==''?parseInt(hpEl.value):0)+amount; const mx=parseInt(hpMax.value)||0; if(mx&&hp>mx)hp=mx;
   hpEl.value=hp; calcAll(); autosave(); if(typeof publishCombatantDebounced==='function')publishCombatantDebounced();
   toast(`${label?label+': ':''}+${amount} HP`);
+}
+// Restore current HP / DHP / SS to their maximums and Pressure to neutral (50).
+function resetVitals(){
+  const set=(cur,max)=>{ const c=document.getElementById(cur),m=document.getElementById(max); if(c&&m)c.value=(m.value||0); };
+  set('d-hpcur','d-hpmax'); set('d-dhpcur','d-dhp'); set('d-sscur','d-ss');
+  const pe=document.getElementById('pe-val'); if(pe){ pe.value=50; if(typeof updatePEState==='function')updatePEState(); }
+  calcAll(); autosave(); if(typeof publishCombatantDebounced==='function')publishCombatantDebounced();
+  toast('Restored to neutral');
 }
 // ── CUSTOM BUTTON ICONS (Stylus Update) — right-click any action button to set a PNG/JPG/SVG icon ──
 let customIcons = {};   // "Source|Label" -> data URL (raster downscaled to 64px, or SVG kept vector)

@@ -37,6 +37,18 @@ body{background:var(--bg);color:var(--ink);font-family:'Georgia',serif;font-size
 .zoom{font-family:Consolas,monospace;font-size:11px;color:var(--muted);min-width:54px;text-align:right;}
 .main{flex:1;display:flex;min-height:0;}
 .canvas-wrap{flex:1;position:relative;overflow:hidden;background:var(--canvas);}
+#sceneFx{position:absolute;inset:0;z-index:40;display:none;pointer-events:none;background-size:cover;background-position:center;will-change:opacity,transform,clip-path,filter;}
+#timelinePanel{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);z-index:45;display:none;background:rgba(20,18,16,.94);border:1px solid var(--accent);color:var(--ink);font-family:Georgia,serif;font-size:11px;padding:8px 12px;box-shadow:0 4px 18px rgba(0,0,0,.55);min-width:420px;}
+#timelinePanel.show{display:block;}
+#timelinePanel .tl-row{display:flex;align-items:center;gap:8px;margin:3px 0;}
+#timelinePanel .tl-lbl{width:62px;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);}
+#timelinePanel .tl-val{flex:1;font-family:Consolas,monospace;font-size:13px;color:#d8b25a;}
+#timelinePanel .tl-active .tl-val{color:#e0532a;}
+#timelinePanel .tl-bar{height:4px;background:#2a2722;margin-top:2px;overflow:hidden;}
+#timelinePanel .tl-bar > i{display:block;height:100%;background:var(--accent);}
+#timelinePanel button{background:#2a2722;border:1px solid #4a463e;color:#cfc8ba;font-family:Georgia,serif;font-size:9px;padding:2px 6px;cursor:pointer;}
+#timelinePanel button:hover{border-color:var(--accent);}
+#timelinePanel input{width:36px;background:#2a2722;border:1px solid #4a463e;color:#e7e2d8;font-size:10px;text-align:center;}
 #cv{position:absolute;inset:0;display:block;cursor:default;}
 .canvas-wrap.tool-pan #cv{cursor:grab;}
 .canvas-wrap.panning #cv{cursor:grabbing;}
@@ -113,6 +125,7 @@ body{background:var(--bg);color:var(--ink);font-family:'Georgia',serif;font-size
   <span class="sep"></span>
   <button class="tbtn gmonly" id="collide-btn" onclick="toggleCollision()" title="Block token movement through walls">Collision: Off</button>
   <button class="tbtn gmonly" onclick="tickSim()" title="Advance round — apply Burning damage & decay">Round</button>
+  <button class="tbtn" id="timeline-btn" onclick="gtToggle()" title="In-game Time Tracking — Active &amp; Passive clocks">Timeline</button>
   <label class="mini">Grid</label>
   <select id="grid-type" onchange="map.gridType=this.value;syncMap();render()">
     <option value="square">Square</option><option value="hex">Hex</option><option value="gridless">Gridless</option>
@@ -145,6 +158,8 @@ body{background:var(--bg);color:var(--ink);font-family:'Georgia',serif;font-size
 <div class="main">
   <div class="canvas-wrap tool-select" id="cwrap">
     <canvas id="cv"></canvas>
+    <div id="sceneFx"></div>
+    <div id="timelinePanel"></div>
     <div class="status" id="status">0, 0</div>
     <div class="hint" id="hint"></div>
     <div class="aim-bar" id="aim-bar">
@@ -210,7 +225,10 @@ body{background:var(--bg);color:var(--ink);font-family:'Georgia',serif;font-size
       <div style="display:flex;gap:6px;"><button class="tbtn" onclick="wteSetTheme('dark')">Dark</button><button class="tbtn" onclick="wteSetTheme('light')">Light</button></div>
       <div class="row"><label>UI Scale</label><input type="range" id="sx-scale" min="80" max="140" step="5" value="100" style="flex:1;" oninput="setStylusScale(this.value)"><span id="sx-scale-v" style="font-family:Consolas,monospace;font-size:11px;width:38px;text-align:right;">100%</span></div>
       <div class="row"><label>Anim Speed</label><input type="range" id="sx-anim" min="50" max="200" step="10" value="100" style="flex:1;" oninput="setStylusAnim(this.value)"><span id="sx-anim-v" style="font-family:Consolas,monospace;font-size:11px;width:38px;text-align:right;">1.0×</span></div>
-      <div class="note">UI Scale resizes the toolbar &amp; side panel (the map keeps its own zoom). Animation speed feeds the upcoming animation update.</div>
+      <div class="row"><label>Scene Transition</label><select id="sx-scenefx" onchange="setStylusSceneFx(this.value)" style="flex:1;">
+        <option value="crossfade">Crossfade</option><option value="fade">Fade</option><option value="black">Fade to black</option><option value="zoom">Cinematic zoom-blur</option><option value="dissolve">Dissolve</option><option value="wipe">Wipe</option><option value="iris">Iris</option><option value="slide">Slide</option><option value="cut">Cut (instant)</option>
+      </select></div>
+      <div class="note">UI Scale resizes the toolbar &amp; side panel (the map keeps its own zoom). Animation speed also controls how fast scene transitions play.</div>
     </div>
   </div>
 </div>
@@ -698,13 +716,42 @@ let _scT=null; function scenesSaveDebounced(){ clearTimeout(_scT); _scT=setTimeo
 function stashScene(){ if(scenes[activeScene]){ scenes[activeScene].map=map; scenes[activeScene].explored=exploredCv; } }
 function loadActiveScene(keepView){
   map=Object.assign(blankMap(),scenes[activeScene].map); scenes[activeScene].map=map; normalizeMap();
+  map.sceneId=activeScene; map.sceneFx=sceneFxType();            // so players detect the change + match the cinematic
   setBgImg(map.bg.src);
   if(scenes[activeScene].explored){ exploredCv=scenes[activeScene].explored; exploredCtx=exploredCv.getContext('2d'); } else ensureExplored();
   syncControls(); renderLayers(); select(null); render();
   if(!keepView)fitView();
   if(VT.connected&&role==='gm')syncMap(true);
 }
-function switchScene(id){ if(!scenes[id]||id===activeScene)return; stashScene(); activeScene=id; loadActiveScene(false); scenesSave(); toast('Scene: '+(scenes[id].name||'')); }
+// ── CINEMATIC SCENE TRANSITIONS ──
+function sceneFxType(){ return (wteStylus&&wteStylus.sceneFx)||'crossfade'; }
+// Snapshots the current canvas, swaps the scene underneath, then animates the snapshot away.
+function playSceneTransition(type,doSwap){
+  const fx=document.getElementById('sceneFx');
+  if(!fx||type==='cut'){ doSwap&&doSwap(); return; }
+  const dur=Math.max(180,Math.round(800/(window.wteAnimSpeed||1)));
+  if(type==='black'){   // fade to black → swap while hidden → fade back
+    fx.style.transition='none'; fx.style.backgroundImage='none'; fx.style.background='#000'; fx.style.opacity='0'; fx.style.transform=''; fx.style.clipPath=''; fx.style.filter='';
+    fx.style.display='block'; void fx.offsetWidth; fx.style.transition=`opacity ${dur}ms ease`; fx.style.opacity='1';
+    setTimeout(()=>{ doSwap&&doSwap(); setTimeout(()=>{ fx.style.opacity='0'; setTimeout(()=>fx.style.display='none',dur+60); },70); },dur+30);
+    return;
+  }
+  let snap=''; try{ snap=cv.toDataURL('image/png'); }catch(e){}   // freeze the outgoing scene
+  fx.style.transition='none'; fx.style.background='#000'; fx.style.backgroundImage=snap?`url(${snap})`:'none'; fx.style.opacity='1'; fx.style.transform=''; fx.style.clipPath=''; fx.style.filter='';
+  fx.style.display='block'; void fx.offsetWidth;
+  doSwap&&doSwap();   // new scene renders underneath immediately
+  fx.style.transition=`opacity ${dur}ms ease, transform ${dur}ms ease, clip-path ${dur}ms ease, filter ${dur}ms ease`;
+  requestAnimationFrame(()=>{
+    if(type==='zoom'){ fx.style.transform='scale(1.25)'; fx.style.opacity='0'; fx.style.filter='blur(7px)'; }
+    else if(type==='wipe'){ fx.style.clipPath='inset(0 100% 0 0)'; }
+    else if(type==='iris'){ fx.style.clipPath='circle(0% at 50% 50%)'; }
+    else if(type==='slide'){ fx.style.transform='translateX(-102%)'; }
+    else if(type==='dissolve'){ fx.style.filter='blur(10px)'; fx.style.opacity='0'; }
+    else { fx.style.opacity='0'; }   // crossfade / fade
+  });
+  setTimeout(()=>{ fx.style.display='none'; }, dur+90);
+}
+function switchScene(id){ if(!scenes[id]||id===activeScene)return; stashScene(); activeScene=id; playSceneTransition(sceneFxType(),()=>loadActiveScene(false)); scenesSave(); toast('Scene: '+(scenes[id].name||'')); }
 function addScene(){ stashScene(); const id=newSceneId(); scenes[id]={name:'Scene '+(Object.keys(scenes).length+1),map:blankMap()}; activeScene=id; loadActiveScene(false); scenesSave(); toast('New scene'); }
 function dupScene(){ stashScene(); const id=newSceneId(); const m=JSON.parse(JSON.stringify(map)); scenes[id]={name:((scenes[activeScene]&&scenes[activeScene].name)||'Scene')+' copy',map:m}; m.name=scenes[id].name; activeScene=id; loadActiveScene(true); scenesSave(); toast('Scene duplicated'); }
 function renameScene(){ const s=scenes[activeScene]; if(!s)return; const n=prompt('Scene name:',s.name||''); if(n!=null){ s.name=n.trim()||s.name; map.name=s.name; scenesSave(); toast('Renamed'); } }
@@ -1165,6 +1212,34 @@ function applySim(target,text,source,depth){
   if(sel&&sel.type==='token'&&sel.id===target.id)renderProps();
   render();
 }
+// ════════════════════════════════════════════════ IN-GAME TIME TRACKING (ITT)
+// Active Time = combat / high-intensity (seconds, advances per round/action).
+// Passive Time = world evolution (minutes — travel, rituals, downtime). Both run together.
+let gameTime={activeSec:0,passiveMin:0,roundSec:6};
+function gtLoad(){ try{const o=JSON.parse(localStorage.getItem('wte-gametime')); if(o)gameTime=Object.assign(gameTime,o);}catch(e){} }
+function gtSave(){ try{localStorage.setItem('wte-gametime',JSON.stringify(gameTime));}catch(e){} }
+function gtSync(){ if(VT.connected&&role==='gm'&&VT.tableRef){ try{VT.tableRef.child('state/time').set(gameTime);}catch(e){} } }
+function gtPad(n){ return (n<10?'0':'')+n; }
+function gtFmtActive(){ const s=gameTime.activeSec||0; const m=Math.floor(s/60), ss=s%60; const r=gameTime.roundSec?Math.floor(s/gameTime.roundSec):0; return `${m}:${gtPad(ss)}  ·  ${r} round${r===1?'':'s'}`; }
+function gtFmtPassive(){ const t=gameTime.passiveMin||0; const d=Math.floor(t/1440)+1, rem=t%1440, h=Math.floor(rem/60), mn=rem%60; return `Day ${d}  ·  ${gtPad(h)}:${gtPad(mn)}`; }
+function gtAddActive(sec){ gameTime.activeSec=Math.max(0,(gameTime.activeSec||0)+(parseInt(sec)||0)); gtSave(); gtSync(); gtRender(); }
+function gtAddPassive(min){ gameTime.passiveMin=Math.max(0,(gameTime.passiveMin||0)+(parseInt(min)||0)); gtSave(); gtSync(); gtRender(); }
+function gtSetRound(v){ gameTime.roundSec=Math.max(1,parseInt(v)||6); gtSave(); gtSync(); gtRender(); }
+function gtResetActive(){ gameTime.activeSec=0; gtSave(); gtSync(); gtRender(); }
+function gtResetPassive(){ if(!confirm('Reset Passive (world) time to Day 1?'))return; gameTime.passiveMin=0; gtSave(); gtSync(); gtRender(); }
+function gtCustomPassive(){ const n=prompt('Advance passive time by minutes (use negative to rewind):','60'); if(n!=null)gtAddPassive(parseInt(n)||0); }
+function gtToggle(){ const p=document.getElementById('timelinePanel'); if(!p)return; p.classList.toggle('show'); if(p.classList.contains('show'))gtRender(); }
+function gtRender(){
+  const p=document.getElementById('timelinePanel'); if(!p||!p.classList.contains('show'))return;
+  const gm=(role==='gm'||!VT.connected);
+  const activeCtl=gm?`<button onclick="gtAddActive(gameTime.roundSec)">+Round</button><button onclick="gtAddActive(1)">+1s</button><button onclick="gtAddActive(-1)">-1s</button><button onclick="gtResetActive()">Reset</button> <span class="tl-lbl" style="width:auto;">s/round</span><input type="number" min="1" value="${gameTime.roundSec}" onchange="gtSetRound(this.value)">`:'';
+  const passCtl=gm?`<button onclick="gtAddPassive(10)">+10m</button><button onclick="gtAddPassive(60)">+1h</button><button onclick="gtAddPassive(360)">+6h</button><button onclick="gtAddPassive(1440)">+1d</button><button onclick="gtCustomPassive()">Custom…</button><button onclick="gtResetPassive()">Reset</button>`:'';
+  const aPct=Math.min(100,((gameTime.activeSec%60)/60)*100), pPct=Math.min(100,(((gameTime.passiveMin%1440))/1440)*100);
+  p.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;"><b style="letter-spacing:2px;font-size:10px;color:var(--accent);">IN-GAME TIME</b><span style="cursor:pointer;color:var(--muted);" onclick="gtToggle()">×</span></div>
+    <div class="tl-row tl-active"><span class="tl-lbl">Active</span><span class="tl-val">${gtFmtActive()}</span></div><div class="tl-bar"><i style="width:${aPct}%;background:#e0532a;"></i></div>
+    <div class="tl-row" style="margin-top:6px;"><span class="tl-lbl">Passive</span><span class="tl-val">${gtFmtPassive()}</span></div><div class="tl-bar"><i style="width:${pPct}%;"></i></div>
+    ${gm?`<div class="tl-row" style="margin-top:7px;flex-wrap:wrap;">${activeCtl}</div><div class="tl-row" style="flex-wrap:wrap;">${passCtl}</div>`:'<div class="tl-lbl" style="width:auto;margin-top:6px;">The Director controls the clocks.</div>'}`;
+}
 function tickSim(){
   map.tokens.forEach(t=>{ ensureSim(t);
     if(hasStatus(t,'Burning')){ const d=rollExprVal('1d6'); t.sim.integrity=Math.max(0,t.sim.integrity-d); if(t.hpmax>0&&!linkedActor(t))t.hp=Math.max(0,(t.hp||0)-d); vtSimLog(`${t.label||'token'} burns for ${d}`); }
@@ -1183,7 +1258,8 @@ function tickSim(){
     });
     map.effects=map.effects.filter(e=>e.rounds>0);
   }
-  if(VT.connected&&role==='gm')syncMap(); if(sel&&sel.type==='token')renderProps(); render(); toast('Round advanced');
+  if(VT.connected&&role==='gm')syncMap(); if(sel&&sel.type==='token')renderProps(); render();
+  gtAddActive(gameTime.roundSec); toast('Round advanced (+'+gameTime.roundSec+'s active)');
 }
 function simPropsHTML(t){ ensureSim(t); const s=t.sim;
   return `<div class="actor-h">Simulation</div>
@@ -1227,6 +1303,8 @@ async function vtConnect(){
   // read characters published by the character sheets (same room) for token linking + abilities
   VT.tableRef=VT.db.ref('tables/'+room);
   VT.tableRef.child('combatants').on('value',s=>{ VT.actors=s.val()||{}; autoLinkTokens(); syncLinkedTokenHP(); if(sel&&sel.type==='token')renderProps(); render(); });
+  VT.tableRef.child('state/time').on('value',s=>{ const t=s.val(); if(t&&role!=='gm'){ gameTime=Object.assign(gameTime,t); gtRender(); } });
+  if(role==='gm')gtSync();
   VT._evStart=Date.now();
   VT.tableRef.child('events').on('child_added',s=>{ const e=s.val(); if(!e||(e.ts&&e.ts<VT._evStart))return;
     if(e.type==='roll')addVtLog(`${e.fromName} · ${e.label}: ${e.total}`);
@@ -1237,8 +1315,12 @@ async function vtConnect(){
     else if(e.type==='log')addVtLog(e.text); });
   // GM pushes current map; player pulls
   if(role==='gm'){ syncMap(true); }
-  VT.ref.child('map').on('value',s=>{ if(role==='player'){ const m=s.val(); if(m){ map=Object.assign(blankMap(),m); normalizeMap(); setBgImg(map.bg.src); ensureExplored(); syncControls(); renderLayers(); render();
-      if(!VT._centered){ const mine=map.tokens.find(ownedByMe); if(mine){ view.panX=cv.width/2-mine.x*view.zoom; view.panY=cv.height/2-mine.y*view.zoom; VT._centered=true; render(); } } } } });
+  VT.ref.child('map').on('value',s=>{ if(role==='player'){ const m=s.val(); if(m){
+      const sceneChanged = m.sceneId && map && m.sceneId!==map.sceneId;   // a real scene switch, not a token move
+      const apply=()=>{ map=Object.assign(blankMap(),m); normalizeMap(); setBgImg(map.bg.src); ensureExplored(); syncControls(); renderLayers(); render();
+        if(!VT._centered){ const mine=map.tokens.find(ownedByMe); if(mine){ view.panX=cv.width/2-mine.x*view.zoom; view.panY=cv.height/2-mine.y*view.zoom; VT._centered=true; render(); } } };
+      if(sceneChanged) playSceneTransition(m.sceneFx||sceneFxType(), apply); else apply();
+    } } });
   VT.ref.child('tokenPos').on('value',s=>{ const tp=s.val()||{}; Object.entries(tp).forEach(([id,pos])=>{ const t=byId('token',id); if(t&&!(drag&&drag.id===id)){t.x=pos.x;t.y=pos.y;} }); render(); });
   VT.ref.child('ping').on('value',s=>{ const p=s.val(); if(p&&Date.now()-p.ts<3000){ pings.push({x:p.x,y:p.y,by:p.by,ts:p.ts}); render(); } });
   document.body.classList.add('gated'); applyRoleUI(); closeConnect(); toast('Connected to '+room);
@@ -1292,7 +1374,7 @@ wteApplyTheme((function(){try{return localStorage.getItem('wte-theme');}catch(e)
 function wteSetTheme(t){ try{localStorage.setItem('wte-theme',t);}catch(e){} wteApplyTheme(t); }
 
 // ── STYLUS SETTINGS (shared 'wte-stylus' prefs) — scale the chrome (not the canvas) ──
-let wteStylus={scale:1,animSpeed:1};
+let wteStylus={scale:1,animSpeed:1,sceneFx:'crossfade'};
 function wteLoadStylus(){ try{const s=JSON.parse(localStorage.getItem('wte-stylus')); if(s&&typeof s==='object')wteStylus=Object.assign(wteStylus,s);}catch(e){} }
 function wteSaveStylus(){ try{localStorage.setItem('wte-stylus',JSON.stringify(wteStylus));}catch(e){} }
 function wteApplyStylus(){
@@ -1303,10 +1385,12 @@ function wteApplyStylus(){
   if(sc)sc.value=Math.round(z*100); if(scv)scv.textContent=Math.round(z*100)+'%';
   const an=document.getElementById('sx-anim'),anv=document.getElementById('sx-anim-v');
   if(an)an.value=Math.round((wteStylus.animSpeed||1)*100); if(anv)anv.textContent=(wteStylus.animSpeed||1).toFixed(1)+'×';
+  const sf=document.getElementById('sx-scenefx'); if(sf)sf.value=wteStylus.sceneFx||'crossfade';
   if(typeof resize==='function')resize();
 }
 function setStylusScale(v){ wteStylus.scale=(parseInt(v)||100)/100; wteSaveStylus(); wteApplyStylus(); }
 function setStylusAnim(v){ wteStylus.animSpeed=(parseInt(v)||100)/100; wteSaveStylus(); wteApplyStylus(); }
+function setStylusSceneFx(v){ wteStylus.sceneFx=v; wteSaveStylus(); if(v!=='cut')playSceneTransition(v,()=>{}); }
 function openStylus(){ wteApplyStylus(); document.getElementById('stylusModal').classList.add('open'); }
 function closeStylus(){ document.getElementById('stylusModal').classList.remove('open'); }
 document.getElementById('stylusModal').addEventListener('click',e=>{if(e.target.id==='stylusModal')closeStylus();});
@@ -1317,6 +1401,7 @@ window.addEventListener('storage',e=>{ if(e.key==='wte-theme')wteApplyTheme(e.ne
 // ── Asset Library init (desktop app only) ──
 try{ assetFolders=JSON.parse(localStorage.getItem('wte-asset-folders'))||[]; }catch(e){ assetFolders=[]; }
 assetMetaLoad();
+gtLoad();
 if(window.__TAURI__){ if(assetFolders.length)assetScan(); } else { const ab=document.getElementById('assets-btn'); if(ab)ab.style.display='none'; }
 
 draw();
