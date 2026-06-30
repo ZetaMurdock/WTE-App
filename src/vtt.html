@@ -125,6 +125,7 @@ body{background:var(--bg);color:var(--ink);font-family:'Georgia',serif;font-size
   <input type="file" id="bg-file" accept="image/*" style="display:none" onchange="loadBg(this.files[0])">
   <button class="tbtn gmonly" onclick="openAW()" title="Generate walls from the map image">Auto-Walls</button>
   <button class="tbtn gmonly" id="scenes-btn" onclick="openScenesMenu(event)" title="Scenes — independent game areas">Scenes &#9662;</button>
+  <button class="tbtn gmonly" id="assets-btn" onclick="openAssets()" title="Asset Library — connect folders of maps, tokens, art">Assets</button>
   <span class="sep"></span>
   <button class="tbtn gmonly" onclick="undo()" title="Undo">Undo</button>
   <button class="tbtn gmonly" onclick="redo()" title="Redo">Redo</button>
@@ -211,6 +212,14 @@ body{background:var(--bg);color:var(--ink);font-family:'Georgia',serif;font-size
       <div class="row"><label>Anim Speed</label><input type="range" id="sx-anim" min="50" max="200" step="10" value="100" style="flex:1;" oninput="setStylusAnim(this.value)"><span id="sx-anim-v" style="font-family:Consolas,monospace;font-size:11px;width:38px;text-align:right;">1.0×</span></div>
       <div class="note">UI Scale resizes the toolbar &amp; side panel (the map keeps its own zoom). Animation speed feeds the upcoming animation update.</div>
     </div>
+  </div>
+</div>
+
+<!-- ASSET LIBRARY MODAL -->
+<div class="modal" id="assetModal">
+  <div class="card" style="width:680px;max-width:96%;">
+    <div class="card-h"><span>Asset Library</span><span class="x" onclick="closeAssets()">x</span></div>
+    <div class="card-b" id="assetBody" style="max-height:70vh;overflow-y:auto;"></div>
   </div>
 </div>
 
@@ -711,6 +720,66 @@ function openScenesMenu(ev){ closeActionMenu();
   const r=ev.currentTarget.getBoundingClientRect(); m.style.left=Math.min(r.left,window.innerWidth-190)+'px'; m.style.top=(r.bottom+3)+'px';
   setTimeout(()=>document.addEventListener('click',closeActionMenu,{once:true}),0);
 }
+
+// ════════════════════════════════════════════════ ASSET LIBRARY (Phase 6) — desktop app only
+let assetFolders=[], assetList=[], assetFilter='all', assetSearch='';
+const ASSET_EXT={ image:['png','jpg','jpeg','webp'], gif:['gif'], video:['mp4','webm','mov','m4v'], audio:['wav','mp3','ogg'] };
+function assetKind(name){ const e=(name.split('.').pop()||'').toLowerCase(); for(const k in ASSET_EXT)if(ASSET_EXT[k].includes(e))return k; return null; }
+const CAT_MAP={maps:'Maps',map:'Maps',scenes:'Maps',tokens:'Tokens',token:'Tokens',npc:'Tokens',npcs:'Tokens',creatures:'Tokens',creature:'Tokens',bosses:'Tokens',monsters:'Tokens',abilities:'Abilities',ability:'Abilities',icons:'Abilities',icon:'Abilities',skills:'Abilities',ciphers:'Abilities',genus:'Abilities',status:'Abilities',weapons:'Items',weapon:'Items',items:'Items',item:'Items',portraits:'Portraits',portrait:'Portraits',faces:'Portraits',sprites:'Sprites',sprite:'Sprites',effects:'Effects',effect:'Effects',particles:'Effects',gifs:'GIFs',gif:'GIFs',audio:'Audio',sounds:'Audio',sound:'Audio',sfx:'Audio',music:'Audio'};
+function catFor(rel,kind){ const seg=(rel.split(/[\\/]/)[0]||'').toLowerCase(); if(CAT_MAP[seg])return CAT_MAP[seg]; return kind==='audio'?'Audio':kind==='gif'?'GIFs':kind==='video'?'Maps':'Misc'; }
+function tauriFS(){ return window.__TAURI__&&window.__TAURI__.fs; }
+async function assetConnectFolder(){
+  const T=window.__TAURI__; if(!T||!T.dialog){ toast('Asset Library needs the desktop app'); return; }
+  let sel; try{ sel=await T.dialog.open({directory:true,multiple:true,title:'Connect asset folder(s)'}); }catch(e){ toast('Could not open folder picker'); return; }
+  if(!sel)return; (Array.isArray(sel)?sel:[sel]).forEach(p=>{ if(p&&!assetFolders.includes(p))assetFolders.push(p); });
+  try{localStorage.setItem('wte-asset-folders',JSON.stringify(assetFolders));}catch(e){}
+  await assetScan();
+}
+function assetForget(path){ assetFolders=assetFolders.filter(f=>f!==path); try{localStorage.setItem('wte-asset-folders',JSON.stringify(assetFolders));}catch(e){} assetScan(); }
+async function assetScan(){
+  const fs=tauriFS(), T=window.__TAURI__; if(!fs)return; assetList=[]; const CAP=3000;
+  for(const root of assetFolders){ const sep=root.includes('\\')?'\\':'/';
+    async function walk(dir,rel){ if(assetList.length>=CAP)return; let entries; try{entries=await fs.readDir(dir);}catch(e){return;}
+      for(const en of entries){ if(assetList.length>=CAP)break; const full=dir+sep+en.name; const r=rel?rel+sep+en.name:en.name;
+        if(en.isDirectory){ await walk(full,r); }
+        else { const k=assetKind(en.name); if(!k)continue; assetList.push({path:full,name:en.name,rel:r,kind:k,cat:catFor(r,k),url:T.core.convertFileSrc(full)}); } } }
+    try{ await walk(root,''); }catch(e){}
+  }
+  renderAssetBrowser();
+}
+function assetCats(){ const s=new Set(['all']); assetList.forEach(a=>s.add(a.cat)); return [...s]; }
+function renderAssetBrowser(){
+  const body=document.getElementById('assetBody'); if(!body)return;
+  const items=assetList.filter(a=>(assetFilter==='all'||a.cat===assetFilter)&&(!assetSearch||a.name.toLowerCase().includes(assetSearch)));
+  let h=`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
+    <button class="tbtn live" onclick="assetConnectFolder()">+ Connect folder</button>
+    <input type="text" placeholder="search assets…" value="${esc(assetSearch)}" oninput="assetSearch=this.value.toLowerCase();renderAssetBrowser()" style="flex:1;min-width:120px;">
+    <button class="tbtn" onclick="assetScan()" title="Rescan connected folders">Rescan</button></div>`;
+  if(assetFolders.length){ h+=`<div class="note" style="margin-bottom:6px;">Folders: `+assetFolders.map(f=>`${esc(f.split(/[\\/]/).pop())} <span style="color:var(--muted);cursor:pointer;" onclick="assetForget('${esc(f).replace(/'/g,"\\'")}')">[x]</span>`).join(' · ')+`</div>`; }
+  h+=`<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">`+assetCats().map(c=>`<button class="tbtn${c===assetFilter?' live':''}" style="padding:2px 8px;" onclick="assetFilter='${c}';renderAssetBrowser()">${c}</button>`).join('')+`</div>`;
+  if(!assetFolders.length){ h+=`<div class="note">Connect one or more folders from your computer. Sub-folders named <b>maps / tokens / portraits / abilities / sprites / effects / gifs / audio</b> are auto-sorted into categories. Drag an image onto the map to drop a token, or use BG / Token.</div>`; }
+  else if(!items.length){ h+=`<div class="note">No matching assets. Try Rescan or a different category.</div>`; }
+  else { h+=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px;">`+items.map((a,i)=>{
+      const thumb=(a.kind==='image'||a.kind==='gif')?`<img src="${esc(a.url)}" draggable="true" ondragstart="assetDragStart(event,${i})" style="width:100%;height:64px;object-fit:cover;border:1px solid var(--line);cursor:grab;background:var(--panel2);">`:`<div style="height:64px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;text-transform:uppercase;">${a.kind}</div>`;
+      const btns=(a.kind==='image'||a.kind==='gif')?`<button class="tbtn" style="padding:1px 5px;font-size:9px;" onclick="assetUseBackground(${i})">BG</button><button class="tbtn" style="padding:1px 5px;font-size:9px;" onclick="assetUseToken(${i})">Token</button>`:'';
+      return `<div title="${esc(a.name)} · ${a.cat}">${thumb}<div style="font-size:9px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(a.name)}</div><div style="display:flex;gap:3px;margin-top:2px;">${btns}</div></div>`;
+    }).join('')+`</div>`; }
+  body.innerHTML=h;
+}
+function openAssets(){ if(!window.__TAURI__){ toast('Asset Library is available in the desktop app'); return; } renderAssetBrowser(); document.getElementById('assetModal').classList.add('open'); }
+function closeAssets(){ document.getElementById('assetModal').classList.remove('open'); }
+// Read a linked file → embedded data URL (so placed art syncs to players / saves portably)
+async function assetReadDataUrl(path){ const fs=tauriFS(); if(!fs)return null; let bytes; try{ bytes=await fs.readFile(path); }catch(e){ toast('Could not read file'); return null; }
+  const ext=(path.split('.').pop()||'').toLowerCase(); const mime=ext==='jpg'||ext==='jpeg'?'image/jpeg':ext==='gif'?'image/gif':ext==='webp'?'image/webp':'image/png';
+  const blob=new Blob([bytes],{type:mime});
+  return await new Promise(res=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=()=>res(null); fr.readAsDataURL(blob); });
+}
+async function assetUseBackground(i){ const a=assetList[i]; if(!a)return; const url=await assetReadDataUrl(a.path); if(!url)return; map.bg={src:url,x:0,y:0,scale:(map.bg&&map.bg.scale)||1}; setBgImg(url); ensureExplored(); snapshot(); syncMap(); render(); closeAssets(); toast('Background set'); }
+async function assetUseToken(i){ const a=assetList[i]; if(!a)return; const url=await assetReadDataUrl(a.path); if(!url)return; const c=snapCell(s2w(cv.width/2,cv.height/2)); const t={id:uid(),x:c.x,y:c.y,size:1,base:'circle',color:'#8a6d3b',label:a.name.replace(/\.[^.]+$/,''),hp:0,hpmax:0,vision:0,owner:'',visible:true,img:url}; map.tokens.push(t); select('token',t.id); snapshot(); syncMap(); render(); closeAssets(); toast('Token added'); }
+let _assetDrag=null;
+function assetDragStart(ev,i){ _assetDrag=assetList[i]||null; try{ev.dataTransfer.effectAllowed='copy';ev.dataTransfer.setData('text/plain',_assetDrag?_assetDrag.path:'');}catch(e){} }
+cv.addEventListener('dragover',e=>{ if(_assetDrag){e.preventDefault();e.dataTransfer.dropEffect='copy';} });
+cv.addEventListener('drop',async e=>{ if(!_assetDrag)return; e.preventDefault(); const a=_assetDrag; _assetDrag=null; const p=snapCell(s2w(e.offsetX,e.offsetY)); const url=await assetReadDataUrl(a.path); if(!url)return; const t={id:uid(),x:p.x,y:p.y,size:1,base:'circle',color:'#8a6d3b',label:a.name.replace(/\.[^.]+$/,''),hp:0,hpmax:0,vision:0,owner:'',visible:true,img:url}; map.tokens.push(t); select('token',t.id); snapshot(); syncMap(); render(); toast('Token placed'); });
 function exportMap(){ const b=new Blob([JSON.stringify(map,null,2)],{type:'application/json'}); const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(map.name||'map').replace(/\s+/g,'_')+'.vtt.json';a.click(); }
 function loadMapFile(file){ if(!file)return; const r=new FileReader(); r.onload=e=>{try{map=Object.assign(blankMap(),JSON.parse(e.target.result));normalizeMap();setBgImg(map.bg.src);ensureExplored();syncControls();renderLayers();select(null);fitView();snapshot();syncMap();toast('Loaded');}catch(err){toast('Invalid map file');}}; r.readAsText(file); }
 function syncControls(){ document.getElementById('grid-type').value=map.gridType;document.getElementById('grid-size').value=map.gridSize;document.getElementById('grid-color').value=map.gridColor;document.getElementById('map-name').value=map.name; }
@@ -1211,6 +1280,10 @@ document.getElementById('stylusModal').addEventListener('click',e=>{if(e.target.
 wteLoadStylus(); wteApplyStylus();
 
 window.addEventListener('storage',e=>{ if(e.key==='wte-theme')wteApplyTheme(e.newValue||'dark'); else if(e.key==='wte-stylus'){ wteLoadStylus(); wteApplyStylus(); } });
+
+// ── Asset Library init (desktop app only) ──
+try{ assetFolders=JSON.parse(localStorage.getItem('wte-asset-folders'))||[]; }catch(e){ assetFolders=[]; }
+if(window.__TAURI__){ if(assetFolders.length)assetScan(); } else { const ab=document.getElementById('assets-btn'); if(ab)ab.style.display='none'; }
 
 draw();
 </script>
