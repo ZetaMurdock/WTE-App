@@ -312,7 +312,10 @@ function blankMap(){
     bg:{src:'',x:0,y:0,scale:1}, walls:[], tokens:[], lights:[], effects:[] };
 }
 function uid(){return Math.random().toString(36).slice(2,9);}
-function ownedByMe(t){ if(role==='gm')return true; if(!t.owner)return false; return t.owner.trim().toLowerCase()===myName.trim().toLowerCase(); }
+function ownedByMe(t){ if(role==='gm')return true;
+  // linked to my character sheet? (sheet + VTT share the same client id in the app)
+  if(t.actor&&VT.actors&&VT.actors[t.actor]&&VT.actors[t.actor].ownerId===VT.clientId)return true;
+  if(!t.owner)return false; return t.owner.trim().toLowerCase()===myName.trim().toLowerCase(); }
 function normalizeMap(){ const def=blankMap(); map.layers=Object.assign({},def.layers,map.layers||{}); ['walls','tokens','lights','effects'].forEach(k=>{if(!Array.isArray(map[k]))map[k]=[];}); if(!map.bg)map.bg=def.bg; if(!map.gridSize)map.gridSize=def.gridSize; if(!map.gridType)map.gridType=def.gridType; }
 
 // ════════════════════════════════════════════════ COORDS / SNAP
@@ -668,7 +671,20 @@ function toggleLayer(k,prop){ map.layers[k][prop]=!map.layers[k][prop]; renderLa
 function esc(s){return (s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
 
 // ════════════════════════════════════════════════ BG / VIEW / PERSIST
-function loadBg(file){ if(!file)return; const r=new FileReader(); r.onload=e=>{map.bg.src=e.target.result;setBgImg(map.bg.src);ensureExplored();snapshot();syncMap();}; r.readAsDataURL(file); }
+// Shrink big images so the map can actually sync (Firebase caps a single write at ~16MB;
+// large photoreal maps as base64 blow past it and players silently receive nothing).
+// cb(newSrc, ratio) — ratio = originalWidth/newWidth, multiply bg.scale by it to keep the drawn size.
+function shrinkDataUrl(src,maxDim,quality,cb){
+  const img=new Image();
+  img.onload=()=>{ const w=img.naturalWidth,h=img.naturalHeight; const s=Math.min(1,maxDim/Math.max(w,h));
+    if(s>=1&&src.length<3000000){ cb(src,1); return; }
+    const nw=Math.max(1,Math.round(w*s)),nh=Math.max(1,Math.round(h*s));
+    const c=document.createElement('canvas'); c.width=nw; c.height=nh; c.getContext('2d').drawImage(img,0,0,nw,nh);
+    cb(c.toDataURL('image/jpeg',quality), w/nw); };
+  img.onerror=()=>cb(src,1); img.src=src;
+}
+function loadBg(file){ if(!file)return; const r=new FileReader(); r.onload=e=>{
+  shrinkDataUrl(e.target.result,2560,0.82,(src,ratio)=>{ map.bg.src=src; map.bg.scale=(map.bg.scale||1)*ratio; setBgImg(src); ensureExplored(); snapshot(); syncMap(); }); }; r.readAsDataURL(file); }
 function setBgImg(src){ if(!src){bgImg=null;render();return;} bgImg=new Image(); bgImg.onload=()=>{ensureExplored();render();}; bgImg.src=src; }
 // ── AUTO-WALLS: derive vector walls from the background image (dark = wall) ──
 function openAW(){ document.getElementById('awModal').classList.add('open'); }
@@ -719,10 +735,14 @@ function daPickJson(file){ if(!file)return; const r=new FileReader();
 function daPickImage(file){ if(!file||!_daPending){ toast('Pick the DA data file first'); return; } const r=new FileReader();
   r.onload=ev=>{ applyDungeonAlchemist(_daPending, ev.target.result); _daPending=null; }; r.readAsDataURL(file); }
 function applyDungeonAlchemist(da,imgSrc){
+  // shrink first so the map can sync; ratio folds into bg.scale (walls are in world coords, unaffected)
+  shrinkDataUrl(imgSrc,2560,0.82,(src,ratio)=>applyDungeonAlchemist2(da,src,ratio));
+}
+function applyDungeonAlchemist2(da,imgSrc,ratio){
   const ppt=da.pixelsPerTile||150;
   map.gridType='square'; map.gridSize=60;
   const f=map.gridSize/ppt;                 // DA pixels → world pixels (1 DA tile = 1 grid cell)
-  map.bg={src:imgSrc,x:0,y:0,scale:f}; setBgImg(imgSrc);
+  map.bg={src:imgSrc,x:0,y:0,scale:f*(ratio||1)}; setBgImg(imgSrc);
   map.walls=map.walls.filter(w=>!w.da&&!w.auto);
   let n=0;
   (da.walls||[]).forEach(w=>{ const w3=w.wall3D||{}; const p1=w3.p1&&w3.p1.bottom, p2=w3.p2&&w3.p2.bottom; if(!p1||!p2)return;
@@ -970,7 +990,8 @@ async function assetReadDataUrl(path){ const fs=tauriFS(); if(!fs)return null; l
   const blob=new Blob([bytes],{type:mime});
   return await new Promise(res=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=()=>res(null); fr.readAsDataURL(blob); });
 }
-async function assetUseBackground(i){ const a=assetList[i]; if(!a)return; const url=await assetReadDataUrl(a.path); if(!url)return; map.bg={src:url,x:0,y:0,scale:(map.bg&&map.bg.scale)||1}; setBgImg(url); ensureExplored(); snapshot(); syncMap(); render(); closeAssets(); toast('Background set'); }
+async function assetUseBackground(i){ const a=assetList[i]; if(!a)return; const url=await assetReadDataUrl(a.path); if(!url)return;
+  shrinkDataUrl(url,2560,0.82,(src,ratio)=>{ map.bg={src:src,x:0,y:0,scale:((map.bg&&map.bg.scale)||1)*ratio}; setBgImg(src); ensureExplored(); snapshot(); syncMap(); render(); closeAssets(); toast('Background set'); }); }
 async function assetUseToken(i){ const a=assetList[i]; if(!a)return; const url=await assetReadDataUrl(a.path); if(!url)return; const c=snapCell(s2w(cv.width/2,cv.height/2)); const t={id:uid(),x:c.x,y:c.y,size:1,base:'circle',color:'#8a6d3b',label:a.name.replace(/\.[^.]+$/,''),hp:0,hpmax:0,vision:0,owner:'',visible:true,img:url}; map.tokens.push(t); select('token',t.id); snapshot(); syncMap(); render(); closeAssets(); toast('Token added'); }
 let _assetDrag=null;
 function assetDragStart(ev,i){ _assetDrag=assetList[i]||null; try{ev.dataTransfer.effectAllowed='copy';ev.dataTransfer.setData('text/plain',_assetDrag?_assetDrag.path:'');}catch(e){} }
@@ -1499,7 +1520,11 @@ function applyRoleUI(){
   if(role==='player'&&['token','wall','light'].includes(tool))setTool('select');
   renderProps();
 }
-function syncMap(force){ if(!(VT.connected&&role==='gm'))return; clearTimeout(VT._mapT); VT._mapT=setTimeout(()=>{ try{VT.ref.child('map').set(JSON.parse(JSON.stringify(map)));}catch(e){} }, force?0:350); }
+function syncMap(force){ if(!(VT.connected&&role==='gm'))return; clearTimeout(VT._mapT); VT._mapT=setTimeout(()=>{
+  try{ const p=VT.ref.child('map').set(JSON.parse(JSON.stringify(map)));
+    if(p&&p.catch)p.catch(e=>{ toast('Map failed to sync to players: '+((e&&e.message)||'too large?')); addVtLog('SYNC ERROR: '+((e&&e.message)||'map rejected — likely too large')); });
+  }catch(e){ toast('Map failed to sync: '+((e&&e.message)||e)); }
+}, force?0:350); }
 function pushTokenPos(t){ if(VT.connected&&(role==='gm'||ownedByMe(t))){ try{VT.ref.child('tokenPos/'+t.id).set({x:t.x,y:t.y});}catch(e){} } }
 function doPing(p){ if(VT.connected){ try{VT.ref.child('ping').set({x:p.x,y:p.y,by:myName,ts:Date.now()});}catch(e){} } else { pings.push({x:p.x,y:p.y,by:myName,ts:Date.now()}); } render(); }
 

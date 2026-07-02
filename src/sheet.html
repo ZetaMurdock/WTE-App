@@ -2663,17 +2663,21 @@ function jsq(s){ return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
 function openLibrary(){ renderCloud(); renderLibrary(); document.getElementById('libraryModal').classList.add('open'); }
 // ── CLOUD / CROSS-ACCOUNT SHEET SHARING ──
 function shareCode(){ return Math.random().toString(36).slice(2,8).toUpperCase(); }
-async function cloudSave(){ await Table.ensureDb(); const uid=currentUid(); if(!uid){toast('Sign in first (app top bar)');return;} const name=(val('f-name')||'Unnamed'); try{ const ref=Table.db.ref('users/'+uid+'/sheets').push(); await ref.set({name,data:collectAll(),ts:Date.now()}); toast('Saved "'+name+'" to your account'); renderCloud(); }catch(e){ toast('Save failed — check DB rules'); } }
+// Sheet data is stored as a JSON string — icon/anim keys can contain characters
+// Firebase forbids in paths (. # $ / [ ]), which made raw set() fail.
+function sheetData(){ return JSON.stringify(collectAll()); }
+function parseSheetData(d){ return (typeof d==='string')?JSON.parse(d):d; }
+async function cloudSave(){ await Table.ensureDb(); const uid=currentUid(); if(!uid){toast('Sign in first (app top bar)');return;} const name=(val('f-name')||'Unnamed'); try{ const ref=Table.db.ref('users/'+uid+'/sheets').push(); await ref.set({name,data:sheetData(),ts:Date.now()}); toast('Saved "'+name+'" to your account'); renderCloud(); }catch(e){ toast('Save failed: '+((e&&e.message)||'check DB rules')); } }
 async function renderCloud(){ const el=document.getElementById('cloudBody'); if(!el)return; await Table.ensureDb(); const uid=currentUid(); if(!uid){ el.innerHTML='<div style="color:var(--muted);font-size:12px;margin-bottom:10px;">Sign in (app top bar) to save characters to your account &amp; sync across devices.</div>'; return; }
   let sheets={}; try{ const s=await Table.db.ref('users/'+uid+'/sheets').once('value'); sheets=s.val()||{}; }catch(e){}
   const ids=Object.keys(sheets);
   el.innerHTML=`<div class="info-label" style="margin-bottom:6px;">My Account Sheets (cloud)</div>`+(ids.length?ids.map(id=>`<div style="display:flex;gap:8px;align-items:center;margin-bottom:4px;"><span style="flex:1;font-size:12px;">${esc(sheets[id].name||'Unnamed')}</span><button class="btn" onclick="cloudLoad('${id}')">Load</button><button class="btn" onclick="cloudShareId('${id}')">Share</button><button class="btn" onclick="cloudDelete('${id}')">x</button></div>`).join(''):`<div style="color:var(--muted);font-size:12px;">No cloud sheets yet — use "Save to my account".</div>`)+`<hr style="border:none;border-top:1px solid var(--border);margin:12px 0;">`;
 }
-async function cloudLoad(id){ const uid=currentUid(); if(!uid)return; try{ const s=await Table.db.ref('users/'+uid+'/sheets/'+id).once('value'); const e=s.val(); if(!e)return; if(!confirm('Load "'+(e.name||'sheet')+'"? Replaces the current sheet.'))return; applyAll(e.data); closeLibrary(); toast('Loaded '+(e.name||'')); }catch(e){} }
+async function cloudLoad(id){ const uid=currentUid(); if(!uid)return; try{ const s=await Table.db.ref('users/'+uid+'/sheets/'+id).once('value'); const e=s.val(); if(!e)return; if(!confirm('Load "'+(e.name||'sheet')+'"? Replaces the current sheet.'))return; applyAll(parseSheetData(e.data)); closeLibrary(); toast('Loaded '+(e.name||'')); }catch(e){ toast('Load failed'); } }
 async function cloudDelete(id){ const uid=currentUid(); if(!uid)return; if(!confirm('Delete this cloud sheet?'))return; try{ await Table.db.ref('users/'+uid+'/sheets/'+id).remove(); renderCloud(); }catch(e){} }
-async function cloudShare(){ await Table.ensureDb(); if(!Table.db){toast('Set Firebase config first');return;} const code=shareCode(); try{ await Table.db.ref('sharedSheets/'+code).set({name:val('f-name')||'Unnamed',data:collectAll(),by:currentUid()||null,ts:Date.now()}); prompt('Share this code — anyone can import this character with it (Library → Import by code):',code); }catch(e){ toast('Share failed — check DB rules'); } }
+async function cloudShare(){ await Table.ensureDb(); if(!Table.db){toast('Set Firebase config first');return;} const code=shareCode(); try{ await Table.db.ref('sharedSheets/'+code).set({name:val('f-name')||'Unnamed',data:sheetData(),by:currentUid()||null,ts:Date.now()}); prompt('Share this code — anyone can import this character with it (Library → Import by code):',code); }catch(e){ toast('Share failed: '+((e&&e.message)||'check DB rules')); } }
 async function cloudShareId(id){ const uid=currentUid(); if(!uid)return; try{ const s=await Table.db.ref('users/'+uid+'/sheets/'+id).once('value'); const e=s.val(); if(!e)return; const code=shareCode(); await Table.db.ref('sharedSheets/'+code).set({name:e.name||'Unnamed',data:e.data,by:uid,ts:Date.now()}); prompt('Share code for "'+(e.name||'')+'":',code); }catch(e){ toast('Share failed'); } }
-async function cloudImport(){ await Table.ensureDb(); if(!Table.db){toast('Set Firebase config first');return;} const code=(prompt('Enter a share code:')||'').trim().toUpperCase(); if(!code)return; try{ const s=await Table.db.ref('sharedSheets/'+code).once('value'); const e=s.val(); if(!e){toast('No character for that code');return;} if(!confirm('Import "'+(e.name||'sheet')+'"? Replaces the current sheet.'))return; applyAll(e.data); closeLibrary(); toast('Imported '+(e.name||'')); }catch(e){ toast('Import failed'); } }
+async function cloudImport(){ await Table.ensureDb(); if(!Table.db){toast('Set Firebase config first');return;} const code=(prompt('Enter a share code:')||'').trim().toUpperCase(); if(!code)return; try{ const s=await Table.db.ref('sharedSheets/'+code).once('value'); const e=s.val(); if(!e){toast('No character for that code');return;} if(!confirm('Import "'+(e.name||'sheet')+'"? Replaces the current sheet.'))return; applyAll(parseSheetData(e.data)); closeLibrary(); toast('Imported '+(e.name||'')); }catch(e){ toast('Import failed'); } }
 function closeLibrary(){ document.getElementById('libraryModal').classList.remove('open'); }
 function libNewFolder(){ const n=(prompt('Folder name (e.g. Bosses, NPCs, Monsters):')||'').trim(); if(!n)return; const l=libGet(); if(!l.folders[n])l.folders[n]=[]; libSet(l); renderLibrary(); }
 function libDeleteFolder(n){ if(!confirm('Delete folder "'+n+'" and all sheets inside it?'))return; const l=libGet(); delete l.folders[n]; libSet(l); renderLibrary(); }
@@ -2890,7 +2894,7 @@ const Table={
       ts:Date.now()
     });
     // publish the full sheet so the Curator can view it (players only; Curators don't share)
-    if(this.role!=='curator'){ try{ this.ref.child('sheets/'+this.clientId).set(collectAll()); }catch(e){} }
+    if(this.role!=='curator'){ try{ this.ref.child('sheets/'+this.clientId).set(JSON.stringify(collectAll())); }catch(e){} }
   },
   // ── account-linked rooms ──
   saveRoomToAccount(){ const uid=currentUid(); if(!uid||!this.db||!this.room)return;
@@ -2901,7 +2905,7 @@ const Table={
   // ── open / closed room (Curator) ──
   setOpen(open){ if(this.connected&&this.role==='curator'){ this.ref.child('state/open').set(!!open); this.log('Curator '+(open?'opened':'closed')+' the room'); renderTablePanel(); } },
   // ── Curator: view a player's full sheet ──
-  async viewSheet(id){ if(!this.ref)return; try{ const s=await this.ref.child('sheets/'+id).once('value'); const d=s.val(); if(!d){toast('No sheet published yet');return;} showSheetViewer(d,(this.combatants[id]||{}).name||'Player'); }catch(e){ toast('Could not load sheet'); } },
+  async viewSheet(id){ if(!this.ref)return; try{ const s=await this.ref.child('sheets/'+id).once('value'); let d=s.val(); if(!d){toast('No sheet published yet');return;} if(typeof d==='string')d=JSON.parse(d); showSheetViewer(d,(this.combatants[id]||{}).name||'Player'); }catch(e){ toast('Could not load sheet'); } },
   sendAction(ability,actions,targets,meta,apply){
     if(!this.connected)return;
     const ids=Array.isArray(targets)?targets:[targets];
