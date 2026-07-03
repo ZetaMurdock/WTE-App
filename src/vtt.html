@@ -307,6 +307,21 @@ body.wte-light .hub{background-image:radial-gradient(circle at 50% 30%, #f0ede6 
   </div>
 </div>
 
+<!-- CREATURE SHEET MODAL -->
+<div class="modal" id="creatureModal">
+  <div class="card">
+    <div class="card-h"><span>Creature Sheet</span><span class="x" onclick="closeCreature()">x</span></div>
+    <div class="card-b">
+      <div class="row"><label>Name</label><input type="text" id="cr-name"></div>
+      <div class="row"><label>HP</label><input type="number" id="cr-hp" style="width:70px;"><label style="min-width:36px;">DR</label><input type="number" id="cr-dr" style="width:70px;"></div>
+      <div class="row"><label>Stats</label><textarea id="cr-stats" placeholder="OFF: 14&#10;DEF: 12&#10;SPD: 10&#10;WIL: 8" style="min-height:70px;font-family:Consolas,monospace;font-size:11px;"></textarea></div>
+      <div class="row"><label>Abilities</label><textarea id="cr-abil" placeholder="Claw strike 2d6&#10;Flame breath 2d8, 15 ft cone, for 2 rounds&#10;Terrifying roar: WIL check, 3-cell radius" style="min-height:90px;font-family:Consolas,monospace;font-size:11px;"></textarea></div>
+      <div style="display:flex;gap:6px;"><button class="tbtn live" onclick="saveCreature()">Save to token</button><button class="tbtn" onclick="closeCreature()">Cancel</button></div>
+      <div class="note">Every stat line becomes a d20 check button; dice / ranges / areas / durations in abilities become roll &amp; aim buttons (same parser as the character sheet). Set the token's <b>Owner</b> to a player's name to let them pilot it.</div>
+    </div>
+  </div>
+</div>
+
 <!-- CONNECT MODAL -->
 <div class="modal" id="connectModal">
   <div class="card">
@@ -335,14 +350,14 @@ let undoStack=[], redoStack=[], pings=[];
 function blankMap(){
   return { name:'Untitled Map', gridType:'square', gridSize:60, gridColor:'#5a564e',
     layers:{bg:{vis:true,lock:false},grid:{vis:true,lock:false},walls:{vis:true,lock:false},lights:{vis:true,lock:false},tokens:{vis:true,lock:false},fog:{vis:true,lock:false},measure:{vis:true,lock:false},sim:{vis:true,lock:false}},
-    bg:{src:'',x:0,y:0,scale:1}, walls:[], tokens:[], lights:[], effects:[], zones:[], voidR:0 };
+    bg:{src:'',x:0,y:0,scale:1}, walls:[], tokens:[], lights:[], effects:[], zones:[], voidR:0, creatures:{} };
 }
 function uid(){return Math.random().toString(36).slice(2,9);}
 function ownedByMe(t){ if(role==='gm')return true;
   // linked to my character sheet? (sheet + VTT share the same client id in the app)
   if(t.actor&&VT.actors&&VT.actors[t.actor]&&VT.actors[t.actor].ownerId===VT.clientId)return true;
   if(!t.owner)return false; return t.owner.trim().toLowerCase()===myName.trim().toLowerCase(); }
-function normalizeMap(){ const def=blankMap(); map.layers=Object.assign({},def.layers,map.layers||{}); ['walls','tokens','lights','effects','zones'].forEach(k=>{if(!Array.isArray(map[k]))map[k]=[];}); if(!map.bg)map.bg=def.bg; if(!map.gridSize)map.gridSize=def.gridSize; if(!map.gridType)map.gridType=def.gridType; if(map.voidR==null)map.voidR=0; }
+function normalizeMap(){ const def=blankMap(); map.layers=Object.assign({},def.layers,map.layers||{}); ['walls','tokens','lights','effects','zones'].forEach(k=>{if(!Array.isArray(map[k]))map[k]=[];}); if(!map.bg)map.bg=def.bg; if(!map.gridSize)map.gridSize=def.gridSize; if(!map.gridType)map.gridType=def.gridType; if(map.voidR==null)map.voidR=0; if(!map.creatures||typeof map.creatures!=='object')map.creatures={}; }
 
 // ════════════════════════════════════════════════ COORDS / SNAP
 function s2w(sx,sy){return {x:(sx-view.panX)/view.zoom, y:(sy-view.panY)/view.zoom};}
@@ -641,10 +656,15 @@ function setTool(t){ if(role==='player'&&['token','wall','light','zone'].include
   render();
 }
 function toggleFog(){ fogOn=!fogOn; if(fogOn)ensureExplored(); document.getElementById('fog-btn').textContent='Fog: '+(fogOn?'On':'Off'); document.getElementById('fog-btn').classList.toggle('on',fogOn); render(); }
+// Resolve an actor from a sheet-published combatant OR a map-local creature ('c:'-prefixed id)
+function getActorById(id){ if(!id)return null; if(String(id).indexOf('c:')===0)return (map.creatures||{})[String(id).slice(2)]||null; return (VT.actors||{})[id]||null; }
+function tokenForActorId(id){ if(!id)return null; if(String(id).indexOf('c:')===0){ const cid=String(id).slice(2); return map.tokens.find(t=>t.creature===cid)||null; } return map.tokens.find(t=>t.actor===id)||null; }
+function actorIdFor(t){ return t.actor?t.actor:(t.creature?('c:'+t.creature):null); }
 function actorAbilitiesHTML(t){
-  const a=(t.actor&&VT.actors)?VT.actors[t.actor]:null;
+  const aid=actorIdFor(t);
+  const a=getActorById(aid);
   if(!a||!a.abilities||!a.abilities.length)return '';
-  let h=`<div class="actor-h">Abilities &middot; ${esc(a.name||'')}</div>`;
+  let h=`<div class="actor-h">${a.creature?'Creature':'Abilities'} &middot; ${esc(a.name||'')}</div>`;
   a.abilities.forEach((grp,gi)=>{
     const meta=parseEffectMeta(grp.fx||'');
     const badges=[];
@@ -653,7 +673,7 @@ function actorAbilitiesHTML(t){
     if(meta.area)badges.push('AoE '+(meta.area.size?meta.area.size+' ':'')+(meta.pattern||meta.area.shape));
     if(meta.duration)badges.push('Dur '+meta.duration+'r'+(meta.attach?'/'+meta.attach:''));
     h+=`<div style="font-size:9px;color:var(--muted);margin-top:5px;">${esc(grp.name)}${badges.length?` <span style="color:#8a6d3b;">${esc(badges.join(' '))}</span>`:''}</div><div>`;
-    (grp.actions||[]).forEach((act,ai)=>{ const idle=(act.anim&&act.anim.idle)||act.icon; const ico=idle?`<img class="chip-ico" src="${esc(idle)}">`:''; h+=`<button class="act-chip${idle?' has-icon':''}" data-fxid="${gi}-${ai}" title="roll or aim at a target" onclick="showActionMenu(event,'${t.actor}',${gi},${ai})">${ico}${esc(act.label)}</button>`; });
+    (grp.actions||[]).forEach((act,ai)=>{ const idle=(act.anim&&act.anim.idle)||act.icon; const ico=idle?`<img class="chip-ico" src="${esc(idle)}">`:''; h+=`<button class="act-chip${idle?' has-icon':''}" data-fxid="${gi}-${ai}" title="roll or aim at a target" onclick="showActionMenu(event,'${aid}',${gi},${ai})">${ico}${esc(act.label)}</button>`; });
     h+=`</div>`; });
   return h;
 }
@@ -675,6 +695,7 @@ function renderProps(){
       <div class="row"><label>Vision (cells)</label><input type="number" min="0" value="${t.vision||0}" ${ro?'disabled':''} oninput="upd('vision',+this.value||0)" title="0 = line-of-sight, no range limit"></div>
       ${role==='gm'?`<div class="row"><label>Owner</label><input type="text" list="owner-options" value="${esc(t.owner||'')}" placeholder="connected player" oninput="upd('owner',this.value)"></div>`:''}
       ${role==='gm'?`<div class="row"><label>Character</label><select onchange="upd('actor',this.value)"><option value="">${linkedActor(t)?'— unlink —':'— none —'}</option>`+Object.entries(VT.actors||{}).map(([id,a])=>`<option value="${id}"${t.actor===id?' selected':''}>${esc(a.name||id)}</option>`).join('')+`</select>${t.actor&&VT.actors[t.actor]?` <span style="font-size:9px;color:#6fae6f;align-self:center;">auto-linked</span>`:''}</div>`:''}
+      ${role==='gm'?`<button class="tbtn" style="margin-top:4px;" onclick="openCreature()">${t.creature?'Edit creature sheet…':'Make creature… (stats & abilities)'}</button>`:''}
       ${role==='gm'?portalPropsHTML(t):''}
       ${actorAbilitiesHTML(t)}
       ${effectsPropsHTML(t)}
@@ -708,6 +729,58 @@ function effectsPropsHTML(t){
   return `<div class="actor-h">Lingering Effects</div>`+fx.map(e=>`<div class="row" style="align-items:center;"><span style="flex:1;font-size:11px;">${esc(e.label||e.shape)} <span style="color:var(--muted);">(${e.shape}${e.size?' '+e.size:''})</span></span><span style="font-size:11px;color:#d8b25a;">${e.rounds}r</span><button class="del" style="padding:2px 6px;margin-left:6px;" onclick="removeEffect('${e.id}')" title="remove">x</button></div>`).join('');
 }
 function removeEffect(id){ map.effects=(map.effects||[]).filter(e=>e.id!==id); if(VT.connected&&role==='gm')syncMap(); if(sel&&sel.type==='token')renderProps(); render(); }
+// ── PILOTABLE CREATURES — map-local actors with sheet-style abilities ──
+// Every stat becomes a d20 check; ability text runs through the same parser the
+// character sheet uses (dice / range / area / duration → roll + aim buttons).
+// Roll parser for creature ability text: dice become roll buttons, and mentions of the
+// creature's OWN stats ("WIL check", "OFF save") become d20+stat checks.
+function vtParseAbilityActions(text,stats){
+  const actions=[],seen=new Set(); if(!text)return actions;
+  const names=Object.keys(stats||{});
+  if(names.length){
+    const alt=names.map(n=>n.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|');
+    const re=new RegExp('\\b('+alt+')\\b[\\s-]*(?:based\\s+)?(check|save|saving throw|roll)','gi');
+    let m; while((m=re.exec(text))){ const k=m[1].toUpperCase(); if(seen.has('c|'+k))continue; seen.add('c|'+k); actions.push({label:k+' Check',kind:'cstat',stat:k}); }
+  }
+  const dre=/\b(\d*)d(\d+)([+-]\d+)?\b/gi; let m2;
+  while((m2=dre.exec(text))){ const expr=(m2[1]||'1')+'d'+m2[2]+(m2[3]||''); if(seen.has('d|'+expr))continue; seen.add('d|'+expr); actions.push({label:expr,kind:'dice',expr}); }
+  return actions;
+}
+function buildCreatureActor(name,stats,abilText){
+  const groups=[];
+  const checks=Object.keys(stats||{}).map(k=>({label:k+' Check',kind:'cstat',stat:k}));
+  if(checks.length)groups.push({name:'Checks',actions:checks});
+  const txt=(abilText||'').trim();
+  if(txt){ groups.push({name:'Abilities',actions:vtParseAbilityActions(txt,stats),fx:txt}); }
+  return {name:name||'Creature',stats:stats||{},abilities:groups,creature:true,abilText:txt};
+}
+function parseStatLines(s){ const out={}; String(s||'').split(/\n|·|,/).forEach(line=>{ const m=line.match(/([A-Za-z_ ]{2,14}):\s*(-?\d+)/); if(m)out[m[1].trim().toUpperCase()]=parseInt(m[2]); }); return out; }
+function openCreature(){
+  if(role!=='gm'){toast('Only the GM edits creatures');return;}
+  const t=sel&&sel.type==='token'?byId('token',sel.id):null; if(!t){toast('Select a token first');return;}
+  const c=t.creature&&map.creatures?map.creatures[t.creature]:null;
+  document.getElementById('cr-name').value=(c&&c.name)||t.label||'';
+  document.getElementById('cr-hp').value=t.hpmax||'';
+  document.getElementById('cr-dr').value=t.dhp||'';
+  document.getElementById('cr-stats').value=c?Object.entries(c.stats||{}).map(([k,v])=>k+': '+v).join('\n'):'';
+  document.getElementById('cr-abil').value=(c&&c.abilText)||'';
+  document.getElementById('creatureModal').classList.add('open');
+}
+function closeCreature(){ document.getElementById('creatureModal').classList.remove('open'); }
+document.getElementById('creatureModal').addEventListener('click',e=>{if(e.target.id==='creatureModal')closeCreature();});
+function saveCreature(){
+  const t=sel&&sel.type==='token'?byId('token',sel.id):null; if(!t){closeCreature();return;}
+  const name=(document.getElementById('cr-name').value||'Creature').trim();
+  const stats=parseStatLines(document.getElementById('cr-stats').value);
+  const abil=document.getElementById('cr-abil').value;
+  if(!map.creatures)map.creatures={};
+  const cid=t.creature||uid();
+  map.creatures[cid]=buildCreatureActor(name,stats,abil);
+  t.creature=cid; t.label=name;
+  const hp=parseInt(document.getElementById('cr-hp').value); if(!isNaN(hp)){ t.hpmax=hp; if(t.hp==null||t.hp===0||t.hp>hp)t.hp=hp; }
+  const dr=parseInt(document.getElementById('cr-dr').value); if(!isNaN(dr))t.dhp=dr;
+  closeCreature(); snapshot(); syncMap(); renderProps(); render(); toast(name+' is ready to pilot');
+}
 function renderLayers(){
   const order=[['bg','Background'],['grid','Grid'],['walls','Walls'],['lights','Lights'],['tokens','Tokens'],['fog','Fog of War'],['measure','Measurements'],['sim','Simulation']];
   document.getElementById('layers').innerHTML=order.map(([k,n])=>{const L=map.layers[k]; return `<div class="layer"><span class="lv ${L.vis?'on':''}" onclick="toggleLayer('${k}','vis')" title="show / hide">${L.vis?'on':'off'}</span><span class="ll" onclick="toggleLayer('${k}','lock')" title="lock layer">${L.lock?'L':'-'}</span><span class="ln">${n}</span></div>`;}).join('');
@@ -1395,7 +1468,7 @@ let VT={connected:false,room:null,db:null,ref:null,tableRef:null,clientId:null,m
 let VTaim=null;
 let VTaimCursor=null; // world-space cursor while aiming
 function normShape(s){ s=(s||'').toLowerCase(); if(/cone|spray|fan/.test(s))return 'cone'; if(/wall|barrier/.test(s))return 'wall'; if(/ring|annulus|halo/.test(s))return 'ring'; if(/cross|plus|cardinal/.test(s))return 'cross'; if(/line|beam|ray|lance/.test(s))return 'line'; if(/radius|burst|blast|sphere|aoe|cube|circle|nova/.test(s))return 'circle'; return ''; }
-function aimAction(actorId,gi,ai){ const actor=VT.actors[actorId]; if(!actor||!actor.abilities)return; const grp=actor.abilities[gi]; const act=grp&&grp.actions&&grp.actions[ai]; if(!act)return;
+function aimAction(actorId,gi,ai){ const actor=getActorById(actorId); if(!actor||!actor.abilities)return; const grp=actor.abilities[gi]; const act=grp&&grp.actions&&grp.actions[ai]; if(!act)return;
   const fx=grp.fx||(grp.name+' '+act.label); const meta=parseEffectMeta(fx);
   // pick the most intuitive default shape/size from the ability's own text (pattern wins)
   let shape=meta.pattern?normShape(meta.pattern):(meta.area?normShape(meta.area.shape):'');
@@ -1425,7 +1498,7 @@ function setAimShape(s){ if(!VTaim)return; VTaim.shape=s; if(s!=='single'&&!VTai
 function setAimSize(n){ if(!VTaim)return; VTaim.size=Math.max(0,parseInt(n)||0); updateAimCount(); render(); }
 function updateAimCount(){ const el=document.getElementById('aim-count'); if(el&&VTaim)el.textContent=aimTargets().length+' in area'; }
 function cancelAim(){ if(VTaim){VTaim=null;VTaimCursor=null;cwrap.classList.remove('aiming');document.getElementById('hint').textContent='';const b=document.getElementById('aim-bar');if(b)b.classList.remove('show');render();} }
-function aimSourceTok(){ return VTaim&&VTaim.fromActorId?map.tokens.find(t=>t.actor===VTaim.fromActorId):null; }
+function aimSourceTok(){ return VTaim&&VTaim.fromActorId?tokenForActorId(VTaim.fromActorId):null; }
 // Tokens the current aim would hit (used for live preview highlight AND on confirm).
 function aimTargets(){
   if(!VTaim)return [];
@@ -1450,7 +1523,7 @@ function sendActorAction(){
   const a=VTaim; if(!a)return;
   const follow=((document.getElementById('aim-follow')||{}).value)||'';
   const rounds=Math.max(1,parseInt((document.getElementById('aim-rounds')||{}).value)||a.rounds||2);
-  const src=a.fromActorId?map.tokens.find(t=>t.actor===a.fromActorId):null;
+  const src=a.fromActorId?tokenForActorId(a.fromActorId):null;
   const c=VTaimCursor||(src?{x:src.x,y:src.y}:{x:0,y:0});
   // capture the hitbox geometry now (cursor/direction) before we clear the aim
   const ox=src?src.x:c.x, oy=src?src.y:c.y; let ddx=c.x-ox,ddy=c.y-oy; const dl=Math.hypot(ddx,ddy)||1;
@@ -1565,9 +1638,10 @@ function playVttBtnAnim(gi,ai,src){ const btn=document.querySelector('.act-chip[
   clearTimeout(btn._fxT); img.src=src; const dur=1500/(window.wteAnimSpeed||1);
   btn._fxT=setTimeout(()=>{ if(img.dataset.temp){ img.remove(); btn.classList.remove('has-icon'); } else if(base) img.src=base; }, dur); }
 function rollActorAction(actorId,gi,ai){
-  const actor=VT.actors[actorId]; const grp=actor&&actor.abilities&&actor.abilities[gi]; const act=grp&&grp.actions&&grp.actions[ai]; if(!act)return;
+  const actor=getActorById(actorId); const grp=actor&&actor.abilities&&actor.abilities[gi]; const act=grp&&grp.actions&&grp.actions[ai]; if(!act)return;
   const stats=actor.stats||{}; let total=0,label=act.label,bd='',sides=0,nats=[];
-  if(act.kind==='attr'){ const sc=stats[act.stat]||0; const d=rollDie(20); total=d+sc; bd=`1d20(${d})+${sc}`; sides=20; nats=[d]; }
+  if(act.kind==='cstat'){ const sc=stats[act.stat]||0; const d=rollDie(20); total=d+sc; bd=`1d20(${d})+${sc}`; sides=20; nats=[d]; }
+  else if(act.kind==='attr'){ const sc=stats[act.stat]||0; const d=rollDie(20); total=d+sc; bd=`1d20(${d})+${sc}`; sides=20; nats=[d]; }
   else if(act.kind==='spec'){ const pts=stats[act.stat]||0; const pen=pts<=25?-25:0; const d=rollDie(40); total=d+pts+pen; bd=`1d40(${d})+${pts}${pen?(' '+pen):''}`; sides=40; nats=[d]; }
   else if(act.kind==='dice'){ const m=(act.expr||'').match(/^(\d*)d(\d+)([+-]\d+)?$/); if(!m){toast('Bad dice');return;} const c=+(m[1]||1),s=+m[2],mod=+(m[3]||0); let sum=0,rolls=[]; for(let i=0;i<c;i++){const r=rollDie(s);rolls.push(r);sum+=r;} total=sum+mod; bd=`[${rolls.join(',')}]${mod?(mod>0?'+'+mod:mod):''}`; sides=s; nats=rolls; }
   const name=actor.name||myName;
@@ -1584,7 +1658,7 @@ function rollActorAction(actorId,gi,ai){
 }
 function showActionMenu(ev,actorId,gi,ai){
   closeActionMenu(); ev.stopPropagation();
-  const _a=(VT.actors[actorId]||{}).abilities; const _act=_a&&_a[gi]&&_a[gi].actions&&_a[gi].actions[ai];
+  const _a=(getActorById(actorId)||{}).abilities; const _act=_a&&_a[gi]&&_a[gi].actions&&_a[gi].actions[ai];
   if(_act&&_act.anim&&_act.anim.click)playVttBtnAnim(gi,ai,_act.anim.click);
   const m=document.createElement('div'); m.className='act-menu'; m.id='actMenu';
   m.innerHTML=`<button onclick="rollActorAction('${actorId}',${gi},${ai});closeActionMenu()">Roll (myself)</button><button onclick="aimAction('${actorId}',${gi},${ai});closeActionMenu()">Aim at target &rarr;</button>`;
@@ -1971,6 +2045,11 @@ window.addEventListener('storage',e=>{ if(e.key==='wte-theme')wteApplyTheme(e.ne
       if(role!=='gm'){ toast('Creature spawn ignored — you are not the GM here'); return; }
       const p=snapCell(s2w(cv.width/2,cv.height/2));
       const t={id:uid(),x:p.x,y:p.y,size:c.size||1,base:'circle',color:c.color||'#8a6d3b',label:c.name||'Creature',hp:c.hp||0,hpmax:c.hp||0,dhp:c.dr||0,vision:0,owner:'',visible:true,gen:true};
+      // pilotable: build a map-local actor so its abilities/rolls work like a character sheet
+      if(!map.creatures)map.creatures={};
+      const cid=uid(); const abilText=((c.traits?c.traits+'. ':'')+(c.desc||'')).trim();
+      map.creatures[cid]=buildCreatureActor(c.name||'Creature',c.stats||{},abilText);
+      t.creature=cid;
       map.tokens.push(t); select('token',t.id); snapshot(); syncMap(); render();
       addVtLog('ARCHIVE: '+t.label+' spawned (Class '+(c.cls||'?')+(c.dr?(' · DR '+c.dr):'')+' · HP '+(c.hp||0)+')');
       (c.flags||[]).forEach(f=>addVtLog('· '+f));

@@ -1655,7 +1655,9 @@ function archStatBlock(i){
 function archSpawn(i){
   const c=creatureCache&&creatureCache[i]; if(!c)return; const k=computeCreature(c);
   const colors={1:'#6b6f7a',2:'#c9a227',3:'#7a4b9a',4:'#8a3a2a',5:'#c33fbf',6:'#20202c'};
-  const payload={name:c.name,cls:c.cls,hp:k.hp,dr:k.dr,size:(c.cls===4?2:(c.cls===6?6:1)),color:colors[c.cls]||'#8a6d3b',flags:k.flags,ts:Date.now()};
+  // numeric stats travel with the token so the VTT can roll d20 checks off them
+  const stats={}; Object.entries(c.meta||{}).forEach(([kk,v])=>{ if(!['CLASS','RANK','TIER','ANCHOR','CL','HP','CHP','TRAITS'].includes(kk)&&/^-?\d+$/.test(String(v).trim()))stats[kk]=parseInt(v); });
+  const payload={name:c.name,cls:c.cls,hp:k.hp,dr:k.dr,size:(c.cls===4?2:(c.cls===6?6:1)),color:colors[c.cls]||'#8a6d3b',flags:k.flags,stats,traits:c.meta.TRAITS||'',desc:(c.desc||'').slice(0,1400),ts:Date.now()};
   try{ localStorage.setItem('wte-spawn-creature',JSON.stringify(payload)); }catch(e){ toast('Spawn failed'); return; }
   toast(c.name+' → sent to the VTT (be its GM there)');
 }
