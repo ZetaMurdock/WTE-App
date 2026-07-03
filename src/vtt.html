@@ -251,6 +251,12 @@ body.wte-light .hub{background-image:radial-gradient(circle at 50% 30%, #f0ede6 
       <div style="display:flex;gap:6px;"><button class="tbtn" onclick="document.getElementById('da-json').click()">Import Dungeon Alchemist…</button></div>
       <input type="file" id="da-json" accept=".txt,.json,.dd2vtt,.df2vtt" style="display:none" onchange="daPickJson(this.files[0])">
       <input type="file" id="da-img" accept="image/*" style="display:none" onchange="daPickImage(this.files[0])">
+      <div class="note" style="margin-top:8px;border-top:1px solid var(--line);padding-top:8px;">Heightmap — upload a <b>greyscale image</b> (black = low ground, white = high peaks) to add elevation: contour shading, raised tokens, ridge vision shadows, climb costs &amp; falling damage.</div>
+      <div style="display:flex;gap:6px;">
+        <button class="tbtn" onclick="document.getElementById('hm-file').click()">Load heightmap…</button>
+        <button class="tbtn" onclick="clearHeightmap()">Clear heightmap</button>
+      </div>
+      <input type="file" id="hm-file" accept="image/*" style="display:none" onchange="loadHeightmap(this.files[0])">
       <div class="note" id="aw-status"></div>
     </div>
   </div>
@@ -396,6 +402,7 @@ function doDraw(){
   ctx.fillStyle=getCSS('--canvas')||'#3a3833'; ctx.fillRect(0,0,cv.width,cv.height);
   ctx.setTransform(view.zoom,0,0,view.zoom,view.panX,view.panY);
   if(map.layers.bg.vis && bgImg && bgImg.complete) ctx.drawImage(bgImg,map.bg.x,map.bg.y,bgImg.width*map.bg.scale,bgImg.height*map.bg.scale);
+  if(map.height) drawHeight();
   if(map.layers.grid.vis && map.gridType!=='gridless') drawGrid();
   // vision (compute once, used for fog + lights)
   let vis=null;
@@ -464,7 +471,10 @@ function getTokImg(src){ if(!src)return null; let im=tokImgCache[src]; if(!im){ 
 function drawTokens(){
   map.tokens.forEach(t=>{ if(t.visible===false&&role!=='gm')return;
     if(role!=='gm'&&_voidR&&!inVoid(t.x,t.y,(t.size||1)*map.gridSize))return;   // disintegrated chunk
+    if(!heightVisible(t))return;   // hidden behind a ridge
     const rad=(t.size*map.gridSize)/2;
+    const yoff=map.height?-hmLevelAt(t.x,t.y)*map.gridSize*0.05:0;   // pseudo-3D elevation lift
+    if(yoff){ ctx.save(); ctx.translate(0,yoff); }
     ctx.globalAlpha=(t.visible===false)?0.4:0.92;
     ctx.beginPath(); if(t.base==='square')ctx.rect(t.x-rad,t.y-rad,rad*2,rad*2); else ctx.arc(t.x,t.y,rad,0,7);
     const im=t.img?getTokImg(t.img):null;
@@ -478,6 +488,7 @@ function drawTokens(){
       const pct=Math.max(0,Math.min(1,(t.hp||0)/t.hpmax)); ctx.fillStyle=pct>.5?'#4a8a4a':pct>.25?'#b8922a':'#a83a2a'; ctx.fillRect(bx,by,bw*pct,bh); }
     if(t.label){ ctx.fillStyle='#fff';ctx.font=`${13/view.zoom}px Georgia`;ctx.textAlign='center';ctx.shadowColor='#000';ctx.shadowBlur=3/view.zoom; ctx.fillText(t.label,t.x,t.y+rad+15/view.zoom); ctx.shadowBlur=0; }
     if(map.layers.sim&&map.layers.sim.vis&&t.statuses&&t.statuses.length){ const by=t.y-rad-(t.hpmax>0?15:5)/view.zoom, br=6/view.zoom; let bx=t.x-((t.statuses.length-1)*(br*2.3))/2; ctx.textBaseline='middle'; t.statuses.forEach(st=>{ const bd=SIM_BADGE[st]||{c:'#aaa',l:'?'}; ctx.beginPath();ctx.arc(bx,by,br,0,7);ctx.fillStyle=bd.c;ctx.fill();ctx.lineWidth=1.2/view.zoom;ctx.strokeStyle='#1c1b19';ctx.stroke(); ctx.fillStyle='#1c1b19';ctx.font=`bold ${8/view.zoom}px Georgia`;ctx.textAlign='center';ctx.fillText(bd.l,bx,by); bx+=br*2.3; }); ctx.textBaseline='alphabetic'; }
+    if(yoff)ctx.restore();
   });
 }
 function drawPings(){
@@ -559,7 +570,7 @@ cv.addEventListener('mousedown',e=>{
   if(role==='gm'&&tool==='wall'){ const v=snapVertex(p); if(!wallDraft)wallDraft={x1:v.x,y1:v.y,x2:v.x,y2:v.y}; else{addWall(wallDraft.x1,wallDraft.y1,v.x,v.y);wallDraft={x1:v.x,y1:v.y,x2:v.x,y2:v.y};} render(); return; }
   // select
   const t=tokenAt(p);
-  if(t && (role==='gm'||ownedByMe(t)) && !map.layers.tokens.lock){ select('token',t.id); drag={mode:'token',id:t.id,ox:p.x-t.x,oy:p.y-t.y,moved:false}; return; }
+  if(t && (role==='gm'||ownedByMe(t)) && !map.layers.tokens.lock){ select('token',t.id); drag={mode:'token',id:t.id,ox:p.x-t.x,oy:p.y-t.y,px:t.x,py:t.y,moved:false}; return; }
   if(role==='gm'){
     const l=lightAt(p); if(l&&!map.layers.lights.lock){ select('light',l.id); drag={mode:'light',id:l.id,ox:p.x-l.x,oy:p.y-l.y,moved:false}; return; }
     const w=wallAt(p); if(w&&!map.layers.walls.lock){ select('wall',w.id); drag={mode:'wallmove',id:w.id,sx:p.x,sy:p.y,orig:{...w},moved:false}; return; }
@@ -584,7 +595,7 @@ window.addEventListener('mouseup',()=>{
   if(drag&&drag.mode==='zone'){ finalizeZone(); drag=null; render(); return; }
   if(drag&&drag.mode==='measure'){ if(measureDraft&&(Math.abs(measureDraft.x2-measureDraft.x1)>1||Math.abs(measureDraft.y2-measureDraft.y1)>1))measurements.push(measureDraft); measureDraft=null; render(); drag=null; return; }
   if(drag&&drag.moved){
-    if(drag.mode==='token'){ const t=byId('token',drag.id); if(t){ pushTokenPos(t); if(role==='gm'){ checkPortalEnter(t); checkZoneEnter(t); } } }
+    if(drag.mode==='token'){ const t=byId('token',drag.id); if(t){ pushTokenPos(t); if(role==='gm'){ handleElevationMove(t,drag.px,drag.py); checkPortalEnter(t); checkZoneEnter(t); } } }
     if(role==='gm'&&drag.mode!=='pan')syncMap();
     snapshot();
   }
@@ -607,7 +618,7 @@ window.addEventListener('keydown',e=>{
       let nx=t.x,ny=t.y;
       if(e.key==='ArrowLeft')nx-=step; else if(e.key==='ArrowRight')nx+=step; else if(e.key==='ArrowUp')ny-=step; else ny+=step;
       if(!e.shiftKey){ const sc=snapCell({x:nx,y:ny}); nx=sc.x; ny=sc.y; }
-      if(!(collisionOn&&moveBlocked(t.x,t.y,nx,ny))){ t.x=nx; t.y=ny; pushTokenPos(t); if(role==='gm'){ checkPortalEnter(t); checkZoneEnter(t); syncMap(); } snapshot(); render(); }
+      if(!(collisionOn&&moveBlocked(t.x,t.y,nx,ny))){ const px0=t.x,py0=t.y; t.x=nx; t.y=ny; pushTokenPos(t); if(role==='gm'){ handleElevationMove(t,px0,py0); checkPortalEnter(t); checkZoneEnter(t); syncMap(); } snapshot(); render(); }
     }
     return;
   }
@@ -1017,6 +1028,89 @@ function drawVoid(){
 function setVoidR(v){ map.voidR=Math.max(0,parseInt(v)||0); snapshot(); syncMap(); render(); toast(map.voidR?('Void fog: '+map.voidR+' squares'):'Void fog off'); }
 setInterval(()=>{ if(map&&map.voidR>0)render(); },140);   // keep the void mist drifting
 
+// ════════════════════════════════════════════════ HEIGHTMAP TERRAIN ENGINE
+// map.height = {ox,oy,cell,cols,rows,data(base64 bytes 0..255)} — one sample per grid cell.
+let _hmCache=null,_hmShade=null;
+function hmBytes(){ const H=map.height; if(!H||!H.data)return null;
+  if(_hmCache&&_hmCache.key===H.data)return _hmCache.a;
+  try{ const raw=atob(H.data); const a=new Uint8Array(raw.length); for(let i=0;i<raw.length;i++)a[i]=raw.charCodeAt(i); _hmCache={key:H.data,a}; _hmShade=null; return a; }catch(e){ return null; }
+}
+// elevation level 0..10 at world coords
+function hmLevelAt(x,y){ const H=map.height; if(!H)return 0; const a=hmBytes(); if(!a)return 0;
+  const cx=Math.floor((x-H.ox)/H.cell), cy=Math.floor((y-H.oy)/H.cell);
+  if(cx<0||cy<0||cx>=H.cols||cy>=H.rows)return 0;
+  return a[cy*H.cols+cx]/25.5;
+}
+function loadHeightmap(file){
+  if(!file)return; const r=new FileReader();
+  r.onload=ev=>{ const img=new Image(); img.onload=()=>{
+    const g=map.gridSize; let ox=0,oy=0,wpx=img.naturalWidth,hpx=img.naturalHeight;
+    if(bgImg&&bgImg.complete&&map.bg.src){ ox=map.bg.x; oy=map.bg.y; wpx=bgImg.width*map.bg.scale; hpx=bgImg.height*map.bg.scale; }
+    const cols=Math.max(2,Math.min(220,Math.round(wpx/g))), rows=Math.max(2,Math.min(220,Math.round(hpx/g)));
+    const c=document.createElement('canvas'); c.width=cols; c.height=rows;
+    const cc=c.getContext('2d'); cc.drawImage(img,0,0,cols,rows);
+    let px; try{ px=cc.getImageData(0,0,cols,rows).data; }catch(e){ toast('Could not read image'); return; }
+    let s=''; for(let i=0;i<cols*rows;i++){ const v=Math.round((px[i*4]+px[i*4+1]+px[i*4+2])/3); s+=String.fromCharCode(v); }
+    map.height={ox,oy,cell:g,cols,rows,data:btoa(s)};
+    _hmCache=null; _hmShade=null;
+    snapshot(); syncMap(); render(); closeAW();
+    document.getElementById('aw-status').textContent=`Heightmap: ${cols}×${rows} cells ingested.`;
+    toast('Heightmap loaded — terrain is live');
+  }; img.src=ev.target.result; };
+  r.readAsDataURL(file);
+}
+function clearHeightmap(){ if(!map.height)return; delete map.height; _hmCache=null; _hmShade=null; snapshot(); syncMap(); render(); toast('Heightmap cleared'); }
+// Pre-rendered hillshade + contours (rebuilt only when the heightmap changes)
+function hmShadeCanvas(){
+  const H=map.height; if(!H)return null; if(_hmShade)return _hmShade;
+  const a=hmBytes(); if(!a)return null;
+  const S=(H.cols*H.rows>160000)?2:4;   // px per cell
+  const c=document.createElement('canvas'); c.width=H.cols*S; c.height=H.rows*S; const cc=c.getContext('2d');
+  const E=(x,y)=>a[Math.max(0,Math.min(H.rows-1,y))*H.cols+Math.max(0,Math.min(H.cols-1,x))];
+  for(let y=0;y<H.rows;y++)for(let x=0;x<H.cols;x++){
+    const e=E(x,y);
+    const slope=((E(x-1,y)-E(x+1,y))+(E(x,y-1)-E(x,y+1)))/2;   // light from NW
+    if(e>8){ cc.fillStyle=`rgba(255,255,255,${Math.min(.22,e/255*.22)})`; cc.fillRect(x*S,y*S,S,S); }   // elevation tint
+    if(slope>4){ cc.fillStyle=`rgba(255,244,220,${Math.min(.5,slope/255*3.2)})`; cc.fillRect(x*S,y*S,S,S); }
+    else if(slope<-4){ cc.fillStyle=`rgba(0,0,10,${Math.min(.5,-slope/255*3.2)})`; cc.fillRect(x*S,y*S,S,S); }
+    // contour edges where the level band changes
+    const lv=Math.floor(e/25.5);
+    if(Math.floor(E(x+1,y)/25.5)!==lv){ cc.fillStyle='rgba(20,16,10,.4)'; cc.fillRect(x*S+S-1,y*S,1,S); }
+    if(Math.floor(E(x,y+1)/25.5)!==lv){ cc.fillStyle='rgba(20,16,10,.4)'; cc.fillRect(x*S,y*S+S-1,S,1); }
+  }
+  _hmShade=c; return c;
+}
+function drawHeight(){
+  const H=map.height; if(!H)return; const sh=hmShadeCanvas(); if(!sh)return;
+  ctx.save(); ctx.globalAlpha=0.55; ctx.imageSmoothingEnabled=true;
+  ctx.drawImage(sh,H.ox,H.oy,H.cols*H.cell,H.rows*H.cell);
+  ctx.restore();
+}
+// Ridge vision: a token is hidden if every token I own has its sight line crossed by ground
+// higher than both of us (high ground sees over low obstacles; low ground can't see past ridges).
+function hmLosClear(v,t){
+  const vE=hmLevelAt(v.x,v.y), tE=hmLevelAt(t.x,t.y), block=Math.max(vE,tE)+0.6;
+  const dist=Math.hypot(t.x-v.x,t.y-v.y), step=map.height.cell/2, n=Math.max(1,Math.ceil(dist/step));
+  for(let i=1;i<n;i++){ const k=i/n; if(hmLevelAt(v.x+(t.x-v.x)*k,v.y+(t.y-v.y)*k)>block)return false; }
+  return true;
+}
+function heightVisible(t){
+  if(!map.height||role==='gm')return true;
+  const mine=map.tokens.filter(o=>o!==t&&ownedByMe(o)&&!o.portal);
+  if(!mine.length||ownedByMe(t))return true;
+  return mine.some(v=>hmLosClear(v,t));
+}
+// Slope costs + falling damage when a token changes elevation (GM authoritative)
+function handleElevationMove(t,px,py){
+  if(!map.height||role!=='gm'||!t)return;
+  const d=Math.round(hmLevelAt(t.x,t.y)-hmLevelAt(px,py));
+  if(d>=1)toast((t.label||'Token')+' climbs +'+d+' level'+(d>1?'s':'')+' (+'+d+' movement)');
+  else if(d<=-3){ const drop=-d, dice=Math.max(1,Math.floor(drop/2)); let dmg=0; for(let i=0;i<dice;i++)dmg+=rollDie(6);
+    applyNumeric(t,'damage',dmg,true);
+    addVtLog((t.label||'token')+' falls '+drop+' levels — '+dmg+' fall damage');
+    toast((t.label||'Token')+' falls! -'+dmg+' HP'); syncMap(); }
+}
+
 // ════════════════════════════════════════════════ CAMPAIGN HUB (landing page)
 let hubMusic=[], hubTrack=-1, hubLoop=true;
 function openHub(){ const p=document.getElementById('hubPanel'); if(!p)return; hubLoadNotes(); hubRender(); p.classList.add('show'); }
@@ -1366,6 +1460,9 @@ function sendActorAction(){
   const b=document.getElementById('aim-bar'); if(b)b.classList.remove('show');
   // instant application + red glow on those hit
   hit.forEach(tok=>{ if(a.fx)applySim(tok,a.fx,src||{label:a.fromName}); markHurt(tok); });
+  // high ground advantage — attacker above the target's elevation
+  if(map.height&&src){ const hg=hit.filter(tk=>hmLevelAt(src.x,src.y)>hmLevelAt(tk.x,tk.y)+0.5).length;
+    if(hg)addVtLog('HIGH GROUND: '+(src.label||a.fromName)+' attacks from above — +hit/+dmg vs '+hg+' target'+(hg>1?'s':'')); }
   // a red hitbox flash everyone briefly sees (non-lingering); lingering shapes persist instead
   if(!follow) addFlash(box);
   // lingering effect (follows a token, or stays on the ground)
@@ -1789,7 +1886,7 @@ async function vtJoinRoom(room,r,nm){
         if(!VT._centered){ const mine=map.tokens.find(ownedByMe); if(mine){ view.panX=cv.width/2-mine.x*view.zoom; view.panY=cv.height/2-mine.y*view.zoom; VT._centered=true; render(); } } };
       if(sceneChanged) playSceneTransition(m.sceneFx||sceneFxType(), apply); else apply();
     } } });
-  VT.ref.child('tokenPos').on('value',s=>{ const tp=s.val()||{}; Object.entries(tp).forEach(([id,pos])=>{ const t=byId('token',id); if(t&&!(drag&&drag.id===id)){t.x=pos.x;t.y=pos.y; if(role==='gm'){ checkPortalEnter(t); checkZoneEnter(t); }} }); render(); });
+  VT.ref.child('tokenPos').on('value',s=>{ const tp=s.val()||{}; Object.entries(tp).forEach(([id,pos])=>{ const t=byId('token',id); if(t&&!(drag&&drag.id===id)){ const px0=t.x,py0=t.y; t.x=pos.x;t.y=pos.y; if(role==='gm'&&(px0!==pos.x||py0!==pos.y)){ handleElevationMove(t,px0,py0); checkPortalEnter(t); checkZoneEnter(t); }} }); render(); });
   VT.ref.child('ping').on('value',s=>{ const p=s.val(); if(p&&Date.now()-p.ts<3000){ pings.push({x:p.x,y:p.y,by:p.by,ts:p.ts}); render(); } });
   document.body.classList.add('gated'); applyRoleUI(); closeConnect(); toast('Connected to '+room);
 }
