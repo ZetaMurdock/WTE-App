@@ -40,6 +40,20 @@ body{background:var(--bg);color:var(--ink);font-family:'Georgia',serif;font-size
 #sceneFx{position:absolute;inset:0;z-index:40;display:none;pointer-events:none;background-size:cover;background-position:center;will-change:opacity,transform,clip-path,filter;}
 #timelinePanel{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);z-index:45;display:none;background:rgba(20,18,16,.94);border:1px solid var(--accent);color:var(--ink);font-family:Georgia,serif;font-size:11px;padding:8px 12px;box-shadow:0 4px 18px rgba(0,0,0,.55);min-width:420px;}
 #timelinePanel.show{display:block;}
+#fxCanvas{position:absolute;inset:0;z-index:35;pointer-events:none;}
+#fxFlash{position:absolute;inset:0;z-index:60;pointer-events:none;opacity:0;background:#fff;}
+#fxVignette{position:absolute;inset:0;z-index:55;pointer-events:none;opacity:0;}
+#fxVignette.rage{opacity:1;animation:ragepulse 1.6s ease-in-out infinite;}
+@keyframes ragepulse{0%,100%{box-shadow:inset 0 0 120px 40px rgba(180,20,20,.5);}50%{box-shadow:inset 0 0 170px 75px rgba(190,20,20,.75);}}
+#fxPanel{position:absolute;right:12px;top:12px;z-index:46;display:none;background:rgba(20,18,16,.94);border:1px solid var(--accent);color:var(--ink);font-family:Georgia,serif;font-size:11px;padding:10px 12px;box-shadow:0 4px 18px rgba(0,0,0,.55);width:250px;}
+#fxPanel.show{display:block;}
+#fxPanel .fx-sec{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin:8px 0 4px;}
+#fxPanel .fx-sec:first-child{margin-top:0;}
+#fxPanel .fx-row{display:flex;gap:4px;flex-wrap:wrap;}
+#fxPanel button{background:#2a2722;border:1px solid #4a463e;color:#cfc8ba;font-family:Georgia,serif;font-size:10px;padding:3px 8px;cursor:pointer;}
+#fxPanel button:hover{border-color:var(--accent);}
+#fxPanel select{background:#2a2722;border:1px solid #4a463e;color:#e7e2d8;font-size:10px;padding:2px 4px;flex:1;font-family:Georgia,serif;}
+#fxPanel .fx-note{font-size:9px;color:var(--muted);font-style:italic;margin-top:6px;}
 .hub{position:fixed;inset:0;z-index:2500;display:none;background:var(--bg);background-image:radial-gradient(circle at 50% 30%, #34302a 0%, #1b1815 80%);overflow-y:auto;}
 .hub.show{display:block;}
 body.wte-light .hub{background-image:radial-gradient(circle at 50% 30%, #f0ede6 0%, #cfcabf 85%);}
@@ -145,6 +159,7 @@ body.wte-light .hub{background-image:radial-gradient(circle at 50% 30%, #f0ede6 
   <button class="tbtn gmonly" id="collide-btn" onclick="toggleCollision()" title="Block token movement through walls">Collision: Off</button>
   <button class="tbtn gmonly" onclick="tickSim()" title="Advance round — apply Burning damage & decay">Round</button>
   <button class="tbtn" id="timeline-btn" onclick="gtToggle()" title="In-game Time Tracking — Active &amp; Passive clocks">Timeline</button>
+  <button class="tbtn gmonly" id="fx-btn" onclick="fxToggle()" title="Director FX — screen effects, weather, filters, soundboard">FX</button>
   <label class="mini">Grid</label>
   <select id="grid-type" onchange="map.gridType=this.value;syncMap();render()">
     <option value="square">Square</option><option value="hex">Hex</option><option value="gridless">Gridless</option>
@@ -178,8 +193,12 @@ body.wte-light .hub{background-image:radial-gradient(circle at 50% 30%, #f0ede6 
 <div class="main">
   <div class="canvas-wrap tool-select" id="cwrap">
     <canvas id="cv"></canvas>
+    <canvas id="fxCanvas"></canvas>
+    <div id="fxVignette"></div>
+    <div id="fxFlash"></div>
     <div id="sceneFx"></div>
     <div id="timelinePanel"></div>
+    <div id="fxPanel"></div>
     <div class="status" id="status">0, 0</div>
     <div class="hint" id="hint"></div>
     <div class="aim-bar" id="aim-bar">
@@ -517,7 +536,10 @@ function distToSeg(p,w){ const dx=w.x2-w.x1,dy=w.y2-w.y1,l2=dx*dx+dy*dy; if(l2==
 
 // ════════════════════════════════════════════════ INPUT
 cv.addEventListener('mousedown',e=>{
+  if(Date.now()<camLockUntil)return;   // showcase in progress — camera briefly locked
   const p=s2w(e.offsetX,e.offsetY);
+  // GM Ctrl+click = Showcase: pan everyone's camera to this spot
+  if(e.ctrlKey&&role==='gm'&&!VTaim){ fxSend('focus',{x:p.x,y:p.y,zoom:view.zoom}); return; }
   if(VTaim){ VTaimCursor=p; if(VTaim.shape==='single'&&!tokenAt(p)){ toast('Click on a target token'); render(); return; } sendActorAction(); return; }
   if(tool==='ping'||e.altKey){ doPing(p); return; }
   if(e.button===1||e.button===2||tool==='pan'||e.shiftKey){ drag={mode:'pan',sx:e.offsetX,sy:e.offsetY,px:view.panX,py:view.panY}; cwrap.classList.add('panning'); return; }
@@ -557,7 +579,7 @@ window.addEventListener('mouseup',()=>{
   drag=null;
 });
 cv.addEventListener('contextmenu',e=>{e.preventDefault(); if(wallDraft){wallDraft=null;render();} else if(tool==='measure'||measurements.length){measurements=[];measureDraft=null;render();}});
-cv.addEventListener('wheel',e=>{ e.preventDefault(); const f=e.deltaY<0?1.12:1/1.12; const b=s2w(e.offsetX,e.offsetY); view.zoom=Math.max(.05,Math.min(8,view.zoom*f)); view.panX=e.offsetX-b.x*view.zoom; view.panY=e.offsetY-b.y*view.zoom; render(); },{passive:false});
+cv.addEventListener('wheel',e=>{ e.preventDefault(); if(Date.now()<camLockUntil)return; const f=e.deltaY<0?1.12:1/1.12; const b=s2w(e.offsetX,e.offsetY); view.zoom=Math.max(.05,Math.min(8,view.zoom*f)); view.panX=e.offsetX-b.x*view.zoom; view.panY=e.offsetY-b.y*view.zoom; render(); },{passive:false});
 window.addEventListener('keydown',e=>{
   if(/INPUT|SELECT|TEXTAREA/.test(e.target.tagName))return;
   if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();undo();return;}
@@ -892,6 +914,132 @@ function hubLoadMusic(){ try{ const arr=JSON.parse(localStorage.getItem('wte-hub
 // ── notes ──
 function hubNotesSave(){ const v=document.getElementById('hubNotes').value; try{localStorage.setItem('wte-hub-notes',v);}catch(e){} if(VT.connected&&role==='gm'&&VT.tableRef){ try{VT.tableRef.child('state/notes').set(v);}catch(e){} } }
 function hubLoadNotes(){ const el=document.getElementById('hubNotes'); if(el)try{el.value=localStorage.getItem('wte-hub-notes')||'';}catch(e){} }
+
+// ════════════════════════════════════════════════ DIRECTOR FX — cinematic screen effects
+let fxWeather='off', fxFilter='none', camLockUntil=0, _fxAnim=false, shakeAmp=0;
+let fxParts=[], fxRipples=[], _camAnim=null;
+const fxCv=document.getElementById('fxCanvas'), fxCtx=fxCv?fxCv.getContext('2d'):null;
+// send an instant effect to everyone at the table (runs locally when solo)
+function fxSend(fx,params){ const ev=Object.assign({type:'fx',fx,fromId:VT.clientId,ts:Date.now()},params||{});
+  if(VT.connected&&VT.tableRef){ try{VT.tableRef.child('events').push(ev);}catch(e){ fxHandle(ev); } } else fxHandle(ev); }
+function fxHandle(e){
+  switch(e.fx){
+    case 'shake': shakeAmp=Math.min(30,e.amp||14); fxLoopEnsure(); break;
+    case 'lightning': fxFlashFx('lightning'); break;
+    case 'flashbang': fxFlashFx('flashbang'); break;
+    case 'psychic': fxFlashFx('psychic'); break;
+    case 'blood': fxFlashFx('blood'); break;
+    case 'focus': camFocus(e.x,e.y,e.zoom||1); break;
+    case 'sound': playCue(e.cue); break;
+  }
+}
+// ── screen shake (CSS transform on the canvases — no render-loop surgery) ──
+function fxLoopEnsure(){ if(!_fxAnim){ _fxAnim=true; requestAnimationFrame(fxTick); } }
+function fxTick(){
+  if(fxCv&&(fxCv.width!==cwrap.clientWidth||fxCv.height!==cwrap.clientHeight)){ fxCv.width=cwrap.clientWidth; fxCv.height=cwrap.clientHeight; }
+  if(shakeAmp>0.3){ const dx=(Math.random()*2-1)*shakeAmp, dy=(Math.random()*2-1)*shakeAmp;
+    cv.style.transform=`translate(${dx}px,${dy}px)`; if(fxCv)fxCv.style.transform=cv.style.transform; shakeAmp*=0.9; }
+  else if(cv.style.transform){ cv.style.transform=''; if(fxCv)fxCv.style.transform=''; shakeAmp=0; }
+  drawWeatherFrame();
+  if(fxWeather!=='off'||shakeAmp>0.3||fxRipples.length){ requestAnimationFrame(fxTick); }
+  else { _fxAnim=false; if(fxCtx)fxCtx.clearRect(0,0,fxCv.width,fxCv.height); }
+}
+// ── full-screen flashes ──
+function fxFlashFx(kind){
+  const el=document.getElementById('fxFlash'); if(!el)return;
+  if(kind==='lightning'){ el.style.background='#fff';
+    el.animate([{opacity:0},{opacity:.95,offset:.06},{opacity:.15,offset:.22},{opacity:1,offset:.34},{opacity:0}],{duration:750,easing:'linear'});
+    setTimeout(()=>playCue('thunder'),320); shakeAmp=Math.max(shakeAmp,6); fxLoopEnsure(); }
+  else if(kind==='flashbang'){ el.style.background='#fff'; el.animate([{opacity:1},{opacity:1,offset:.25},{opacity:0}],{duration:2600,easing:'ease-out'}); }
+  else if(kind==='psychic'){ el.style.background='#c33fbf'; el.animate([{opacity:.95},{opacity:.8,offset:.3},{opacity:0}],{duration:2600,easing:'ease-out'}); }
+  else if(kind==='blood'){ const v=document.getElementById('fxVignette'); if(!v)return;
+    v.style.boxShadow='inset 0 0 140px 60px rgba(170,10,10,.8)';
+    v.animate([{opacity:1},{opacity:0}],{duration:1400,easing:'ease-out'}); }
+}
+// ── weather overlays (screen-space particles above the map, below the UI) ──
+function setWeather(w){ setWeatherLocal(w); if(VT.connected&&role==='gm'&&VT.ref){ try{VT.ref.child('fx/weather').set(w);}catch(e){} } }
+function setWeatherLocal(w){ fxWeather=w||'off'; fxParts=[]; fxRipples=[]; const s=document.getElementById('fx-weather'); if(s)s.value=fxWeather; if(fxWeather!=='off')fxLoopEnsure(); }
+function drawWeatherFrame(){
+  if(!fxCtx)return; const W=fxCv.width,H=fxCv.height; fxCtx.clearRect(0,0,W,H);
+  if(fxWeather==='rain'){
+    while(fxParts.length<150)fxParts.push({x:Math.random()*(W+200)-100,y:Math.random()*H,l:12+Math.random()*18,s:14+Math.random()*10});
+    fxCtx.strokeStyle='rgba(150,170,210,.45)'; fxCtx.lineWidth=1.2; fxCtx.beginPath();
+    fxParts.forEach(p=>{ fxCtx.moveTo(p.x,p.y); fxCtx.lineTo(p.x-p.l*0.35,p.y+p.l); p.x-=p.s*0.35; p.y+=p.s; if(p.y>H){ if(Math.random()<0.08)fxRipples.push({x:p.x,y:H-20-Math.random()*40,r:1,max:10+Math.random()*14}); p.y=-20; p.x=Math.random()*(W+200)-50; } });
+    fxCtx.stroke();
+    fxRipples=fxRipples.filter(r=>r.r<r.max);
+    fxRipples.forEach(r=>{ fxCtx.strokeStyle=`rgba(160,180,215,${0.5*(1-r.r/r.max)})`; fxCtx.beginPath(); fxCtx.ellipse(r.x,r.y,r.r*1.6,r.r*0.55,0,0,Math.PI*2); fxCtx.stroke(); r.r+=0.5; });
+  } else if(fxWeather==='embers'){
+    while(fxParts.length<80)fxParts.push({x:Math.random()*W,y:H+Math.random()*H,r:1+Math.random()*2.4,vy:0.4+Math.random()*1.1,vx:0.15+Math.random()*0.5,tw:Math.random()*6.28});
+    fxParts.forEach(p=>{ p.tw+=0.08; const a=0.35+0.4*Math.abs(Math.sin(p.tw));
+      fxCtx.fillStyle=`rgba(${220+Math.floor(Math.random()*30)},${90+Math.floor(Math.random()*60)},30,${a})`;
+      fxCtx.beginPath(); fxCtx.arc(p.x,p.y,p.r,0,Math.PI*2); fxCtx.fill();
+      p.y-=p.vy; p.x+=p.vx+Math.sin(p.tw)*0.3; if(p.y<-10){ p.y=H+10; p.x=Math.random()*W; } });
+  } else if(fxWeather==='mist'){
+    while(fxParts.length<7)fxParts.push({x:Math.random()*W,y:Math.random()*H,r:120+Math.random()*220,vx:0.12+Math.random()*0.28,ph:Math.random()*6.28});
+    fxParts.forEach(p=>{ p.ph+=0.002; const g=fxCtx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r);
+      g.addColorStop(0,'rgba(200,200,205,.10)'); g.addColorStop(1,'rgba(200,200,205,0)');
+      fxCtx.fillStyle=g; fxCtx.beginPath(); fxCtx.arc(p.x,p.y,p.r,0,Math.PI*2); fxCtx.fill();
+      p.x+=p.vx; p.y+=Math.sin(p.ph)*0.2; if(p.x-p.r>W){ p.x=-p.r; p.y=Math.random()*H; } });
+  }
+}
+// ── screen filters / color grading ──
+const FX_FILTERS={ none:'', noir:'grayscale(100%) contrast(1.12)', nightvision:'sepia(1) hue-rotate(55deg) saturate(2.6) brightness(1.15) contrast(1.25)', toxic:'hue-rotate(90deg) saturate(1.5)', bloodrage:'saturate(1.25) contrast(1.05)' };
+function setFilter(f){ setFilterLocal(f); if(VT.connected&&role==='gm'&&VT.ref){ try{VT.ref.child('fx/filter').set(f);}catch(e){} } }
+function setFilterLocal(f){ fxFilter=f||'none'; cv.style.filter=FX_FILTERS[fxFilter]||''; if(fxCv)fxCv.style.filter=cv.style.filter;
+  const v=document.getElementById('fxVignette'); if(v)v.classList.toggle('rage',fxFilter==='bloodrage');
+  const s=document.getElementById('fx-filter'); if(s)s.value=fxFilter; }
+// ── showcase camera (GM Ctrl+click) — smooth pan/zoom + brief input lock ──
+function camFocus(x,y,zoom){
+  if(_camAnim)cancelAnimationFrame(_camAnim);
+  const z=Math.max(.05,Math.min(8,zoom||view.zoom));
+  const from={panX:view.panX,panY:view.panY,zoom:view.zoom};
+  const to={panX:cv.width/2-x*z,panY:cv.height/2-y*z,zoom:z};
+  const t0=performance.now(),dur=900; camLockUntil=Date.now()+2000;
+  (function step(t){ const k=Math.min(1,(t-t0)/dur), e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+    view.panX=from.panX+(to.panX-from.panX)*e; view.panY=from.panY+(to.panY-from.panY)*e; view.zoom=from.zoom+(to.zoom-from.zoom)*e; render();
+    if(k<1)_camAnim=requestAnimationFrame(step); else _camAnim=null; })(t0);
+}
+// ── soundboard — synthesized with WebAudio (no files to distribute) ──
+let _AC=null; function ac(){ if(!_AC)_AC=new (window.AudioContext||window.webkitAudioContext)(); if(_AC.state==='suspended')_AC.resume().catch(()=>{}); return _AC; }
+document.addEventListener('pointerdown',()=>{ try{ac();}catch(e){} },{once:true});
+function noiseBuf(sec){ const a=ac(),b=a.createBuffer(1,a.sampleRate*sec,a.sampleRate),d=b.getChannelData(0); let last=0; for(let i=0;i<d.length;i++){ const w=Math.random()*2-1; last=(last+0.02*w)/1.02; d[i]=last*3.5; } return b; }
+function playCue(cue){
+  let a; try{ a=ac(); }catch(e){ return; }
+  const now=a.currentTime, out=a.createGain(); out.gain.value=0.5; out.connect(a.destination);
+  if(cue==='thunder'){ const s=a.createBufferSource(); s.buffer=noiseBuf(2.2); const f=a.createBiquadFilter(); f.type='lowpass'; f.frequency.value=420;
+    const g=a.createGain(); g.gain.setValueAtTime(1.2,now); g.gain.exponentialRampToValueAtTime(0.001,now+2.1); s.connect(f).connect(g).connect(out); s.start(now); }
+  else if(cue==='sword'){ const s=a.createBufferSource(); s.buffer=noiseBuf(0.25); const f=a.createBiquadFilter(); f.type='highpass'; f.frequency.value=2600;
+    const g=a.createGain(); g.gain.setValueAtTime(0.9,now); g.gain.exponentialRampToValueAtTime(0.001,now+0.22); s.connect(f).connect(g).connect(out); s.start(now);
+    const o=a.createOscillator(); o.type='sine'; o.frequency.setValueAtTime(2200,now); o.frequency.exponentialRampToValueAtTime(300,now+0.28);
+    const g2=a.createGain(); g2.gain.setValueAtTime(0.35,now); g2.gain.exponentialRampToValueAtTime(0.001,now+0.3); o.connect(g2).connect(out); o.start(now); o.stop(now+0.32); }
+  else if(cue==='roar'){ const o=a.createOscillator(); o.type='sawtooth'; o.frequency.setValueAtTime(95,now); o.frequency.exponentialRampToValueAtTime(38,now+1.3);
+    const g=a.createGain(); g.gain.setValueAtTime(0.0001,now); g.gain.exponentialRampToValueAtTime(0.8,now+0.12); g.gain.exponentialRampToValueAtTime(0.001,now+1.5);
+    const s=a.createBufferSource(); s.buffer=noiseBuf(1.5); const f=a.createBiquadFilter(); f.type='lowpass'; f.frequency.value=700;
+    const g2=a.createGain(); g2.gain.setValueAtTime(0.5,now); g2.gain.exponentialRampToValueAtTime(0.001,now+1.4);
+    o.connect(g).connect(out); s.connect(f).connect(g2).connect(out); o.start(now); o.stop(now+1.55); s.start(now); }
+  else if(cue==='door'){ const o=a.createOscillator(); o.type='sawtooth'; const lfo=a.createOscillator(); lfo.frequency.value=2.6; const lg=a.createGain(); lg.gain.value=60;
+    o.frequency.setValueAtTime(240,now); o.frequency.linearRampToValueAtTime(410,now+1.1); lfo.connect(lg).connect(o.frequency);
+    const g=a.createGain(); g.gain.setValueAtTime(0.12,now); g.gain.linearRampToValueAtTime(0.001,now+1.25); o.connect(g).connect(out); o.start(now); lfo.start(now); o.stop(now+1.3); lfo.stop(now+1.3); }
+  else if(cue==='laugh'){ for(let i=0;i<4;i++){ const t=now+i*0.24; const o=a.createOscillator(); o.type='square'; o.frequency.setValueAtTime(190-i*18,t); o.frequency.exponentialRampToValueAtTime(110-i*12,t+0.16);
+    const g=a.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.28,t+0.03); g.gain.exponentialRampToValueAtTime(0.001,t+0.2); o.connect(g).connect(out); o.start(t); o.stop(t+0.22); } }
+}
+// ── Director panel ──
+function fxToggle(){ const p=document.getElementById('fxPanel'); if(!p)return; p.classList.toggle('show'); if(p.classList.contains('show'))fxRenderPanel(); }
+function fxRenderPanel(){
+  const p=document.getElementById('fxPanel'); if(!p)return;
+  p.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;"><b style="letter-spacing:2px;font-size:10px;color:var(--accent);">DIRECTOR FX</b><span style="cursor:pointer;color:var(--muted);" onclick="fxToggle()">×</span></div>
+    <div class="fx-sec">Screen</div>
+    <div class="fx-row"><button onclick="fxSend('shake',{amp:14})">Shake</button><button onclick="fxSend('shake',{amp:26})">Quake</button><button onclick="fxSend('lightning')">Lightning</button><button onclick="fxSend('flashbang')">Flashbang</button><button onclick="fxSend('psychic')">Psychic</button><button onclick="fxSend('blood')">Blood</button></div>
+    <div class="fx-sec">Weather</div>
+    <div class="fx-row"><select id="fx-weather" onchange="setWeather(this.value)"><option value="off">Off</option><option value="rain">Heavy rain</option><option value="embers">Ember drift</option><option value="mist">Mist crawl</option></select></div>
+    <div class="fx-sec">Filter</div>
+    <div class="fx-row"><select id="fx-filter" onchange="setFilter(this.value)"><option value="none">None</option><option value="noir">Noir</option><option value="nightvision">Night vision</option><option value="toxic">Toxic fog</option><option value="bloodrage">Blood rage</option></select></div>
+    <div class="fx-sec">Soundboard</div>
+    <div class="fx-row"><button onclick="fxSend('sound',{cue:'sword'})">Sword</button><button onclick="fxSend('sound',{cue:'roar'})">Roar</button><button onclick="fxSend('sound',{cue:'door'})">Door</button><button onclick="fxSend('sound',{cue:'thunder'})">Thunder</button><button onclick="fxSend('sound',{cue:'laugh'})">Laugh</button></div>
+    <div class="fx-note">Ctrl+click the map = Showcase: everyone's camera pans there. Weather &amp; filters stay on until changed.</div>`;
+  const w=document.getElementById('fx-weather'); if(w)w.value=fxWeather;
+  const f=document.getElementById('fx-filter'); if(f)f.value=fxFilter;
+}
 function openScenesMenu(ev){ closeActionMenu();
   const m=document.createElement('div'); m.className='act-menu'; m.id='actMenu';
   let h=Object.entries(scenes).map(([id,s])=>`<button onclick="switchScene('${id}');closeActionMenu()">${id===activeScene?'• ':'&nbsp;&nbsp;'}${esc(s.name||'Scene')}</button>`).join('');
@@ -1473,14 +1621,19 @@ async function vtJoinRoom(room,r,nm){
   VT.tableRef.child('combatants').on('value',s=>{ VT.actors=s.val()||{}; autoLinkTokens(); syncLinkedTokenHP(); if(sel&&sel.type==='token')renderProps(); render(); });
   VT.tableRef.child('state/time').on('value',s=>{ const t=s.val(); if(t&&role!=='gm'){ gameTime=Object.assign(gameTime,t); gtRender(); } });
   VT.tableRef.child('state/notes').on('value',s=>{ const n=s.val(); if(n!=null&&role!=='gm'){ const el=document.getElementById('hubNotes'); if(el&&document.activeElement!==el)el.value=n; } });
-  if(role==='gm')gtSync();
+  // persistent weather + filter (late joiners pick them up)
+  VT.ref.child('fx').on('value',s=>{ const f=s.val()||{}; if(role!=='gm'){ setWeatherLocal(f.weather||'off'); setFilterLocal(f.filter||'none'); } });
+  if(role==='gm'){ gtSync(); try{ VT.ref.child('fx').set({weather:fxWeather,filter:fxFilter}); }catch(e){} }
   VT._evStart=Date.now();
   VT.tableRef.child('events').on('child_added',s=>{ const e=s.val(); if(!e||(e.ts&&e.ts<VT._evStart))return;
     if(e.type==='roll')addVtLog(`${e.fromName} · ${e.label}: ${e.total}`);
     else if(e.type==='action'){ const tgts=(e.targetNames&&e.targetNames.length)?e.targetNames.join(', '):e.targetName; const ap=e.apply?` [${e.apply.type} ${e.apply.amount!=null?e.apply.amount:e.apply.expr||''}]`:''; addVtLog(`${e.fromName} → ${e.ability} on ${tgts||'—'}${ap}`);
       // everyone but the caster sees the red hitbox flash + a glow on hit tokens
       if(e.fromId!==VT.clientId){ if(e.hitbox&&!(e.meta&&e.meta.duration))addFlash(e.hitbox); (e.targetIds||[]).forEach(id=>{ const tk=map.tokens.find(t=>t.actor===id); if(tk)markHurt(tk); }); }
+      // blood spatter on MY screen when damage lands on my character
+      if(e.apply&&e.apply.type==='damage'&&(e.targetIds||[]).includes(VT.clientId))fxFlashFx('blood');
       vtApplyActionEvent(e); }
+    else if(e.type==='fx'){ fxHandle(e); }
     else if(e.type==='log')addVtLog(e.text); });
   // GM pushes current map; player pulls
   if(role==='gm'){ syncMap(true); }
