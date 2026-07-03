@@ -998,9 +998,37 @@ textarea { resize: vertical; border: 1px solid var(--border); }
         <option value="6">6 · Nyvilum</option>
       </select>
       <button class="btn" onclick="fetchCreatures(true)">Refresh from wiki</button>
+      <button class="btn prime" style="color:#fff;" onclick="editCreature(-1)">+ New creature</button>
       <span class="hint" id="arch-status">Creatures are fetched live from the wiki archive pages.</span>
     </div>
     <div class="modal-body"><div id="archiveBody"></div></div>
+  </div>
+</div>
+
+<!-- CREATURE EDITOR MODAL -->
+<div class="modal-bg" id="creatureEditModal">
+  <div class="modal-card" style="width:560px;">
+    <div class="modal-head"><span class="mt">Creature &mdash; Editor</span><span class="mx" onclick="closeCreatureEdit()">x</span></div>
+    <div class="modal-body">
+      <div class="field"><label>Name</label><input type="text" id="ce-name"></div>
+      <div class="field"><label>Class</label>
+        <select id="ce-class">
+          <option value="1">1 · Standard NPC / Monster</option><option value="2">2 · Anima</option>
+          <option value="3">3 · Alter Anima</option><option value="4">4 · Fractures</option>
+          <option value="5">5 · Doxa</option><option value="6">6 · Nyvilum</option>
+        </select>
+      </div>
+      <div class="field"><label>Stats &amp; keys (one per line, e.g. OFF: 14 — RANK/TIER/ANCHOR/CL/HP/CHP work too)</label>
+        <textarea id="ce-meta" style="min-height:110px;font-family:Consolas,monospace;font-size:11px;" placeholder="OFF: 14&#10;DEF: 12&#10;SPD: 10&#10;WIL: 8&#10;RANK: Operative"></textarea></div>
+      <div class="field"><label>Traits</label><input type="text" id="ce-traits" placeholder="Riot shield: +2 DR while braced"></div>
+      <div class="field"><label>Abilities / description (dice, ranges, areas &amp; durations become buttons)</label>
+        <textarea id="ce-desc" style="min-height:90px;" placeholder="Shock baton 1d8+2. Suppression volley 2d6, range 30 ft, cone."></textarea></div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn prime" style="color:#fff;" onclick="saveCreatureEdit()">Save</button>
+        <button class="btn" onclick="closeCreatureEdit()">Cancel</button>
+        <span class="hint">Saved to this device and merged into the Archive (marked custom). HP/DR compute from the class rules.</span>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1579,10 +1607,15 @@ function parseCreaturePage(wt,cls){
   });
   return out;
 }
+// custom creatures made/edited in the app — stored on this device, merged into the archive
+function myCreatures(){ try{return JSON.parse(localStorage.getItem('wte-my-creatures'))||[];}catch(e){return [];} }
+function myCreaturesSave(a){ try{localStorage.setItem('wte-my-creatures',JSON.stringify(a));}catch(e){} }
+function mergeCreatures(wiki){ const locals=myCreatures().map(c=>Object.assign({},c,{local:true})); return locals.concat(wiki||[]); }
 async function fetchCreatures(force){
   if(creatureCache&&!force){renderArchive();return creatureCache;}
   if(_archLoading)return creatureCache||[];
   _archLoading=true; const st=document.getElementById('arch-status'); if(st)st.textContent='Fetching archive pages…';
+  creatureCache=mergeCreatures([]); renderArchive();   // customs show instantly while the wiki loads
   const all=[];
   for(const p of CREATURE_PAGES){
     try{
@@ -1591,10 +1624,44 @@ async function fetchCreatures(force){
       all.push(...parseCreaturePage(j.parse.wikitext['*'],p.cls));
     }catch(e){}
   }
-  creatureCache=all; _archLoading=false;
-  if(st)st.textContent=all.length?(all.length+' creature(s) loaded from the wiki'):'No creatures found — create the archive pages first';
+  creatureCache=mergeCreatures(all); _archLoading=false;
+  if(st)st.textContent=(all.length+' from wiki · '+myCreatures().length+' custom');
   renderArchive();
-  return all;
+  return creatureCache;
+}
+// ── in-app creature editor (new / edit custom / copy a wiki creature) ──
+let _ceEditLid=null;
+function editCreature(i){
+  const c=(i>=0&&creatureCache)?creatureCache[i]:null;
+  _ceEditLid=(c&&c.local)?c.lid:null;   // editing an existing custom keeps its id; wiki → new copy
+  document.getElementById('ce-name').value=c?c.name+((c&&!c.local)?' (custom)':''):'';
+  document.getElementById('ce-class').value=String((c&&c.cls)||1);
+  document.getElementById('ce-meta').value=c?Object.entries(c.meta||{}).filter(([k])=>k!=='CLASS'&&k!=='TRAITS').map(([k,v])=>k+': '+v).join('\n'):'';
+  document.getElementById('ce-traits').value=(c&&c.meta&&c.meta.TRAITS)||'';
+  document.getElementById('ce-desc').value=(c&&c.desc)||'';
+  document.getElementById('creatureEditModal').classList.add('open');
+}
+function closeCreatureEdit(){ document.getElementById('creatureEditModal').classList.remove('open'); }
+document.getElementById('creatureEditModal').addEventListener('click',e=>{if(e.target.id==='creatureEditModal')closeCreatureEdit();});
+function saveCreatureEdit(){
+  const name=(document.getElementById('ce-name').value||'').trim(); if(!name){toast('Give it a name');return;}
+  const cls=parseInt(document.getElementById('ce-class').value)||1;
+  const meta={CLASS:String(cls)};
+  document.getElementById('ce-meta').value.split(/\n/).forEach(line=>{ const m=line.match(/([A-Za-z_ ]{2,14}):\s*(.+)/); if(m)meta[m[1].trim().toUpperCase()]=m[2].trim(); });
+  const traits=(document.getElementById('ce-traits').value||'').trim(); if(traits)meta.TRAITS=traits;
+  const entry={lid:_ceEditLid||('lc'+Date.now().toString(36)),name,cls,meta,desc:(document.getElementById('ce-desc').value||'').trim()};
+  const arr=myCreatures(); const ix=arr.findIndex(c=>c.lid===entry.lid);
+  if(ix>=0)arr[ix]=entry; else arr.push(entry);
+  myCreaturesSave(arr);
+  creatureCache=mergeCreatures((creatureCache||[]).filter(c=>!c.local));
+  closeCreatureEdit(); renderArchive(); toast('Saved '+name);
+}
+function deleteCreature(i){
+  const c=creatureCache&&creatureCache[i]; if(!c||!c.local)return;
+  if(!confirm('Delete custom creature "'+c.name+'"?'))return;
+  myCreaturesSave(myCreatures().filter(x=>x.lid!==c.lid));
+  creatureCache=mergeCreatures((creatureCache||[]).filter(x=>!x.local));
+  renderArchive(); toast('Deleted');
 }
 // class-specific HP / DR / flags per the W.T.E creature rules
 function computeCreature(c){
@@ -1626,7 +1693,7 @@ function renderArchive(){
     const statBits=Object.entries(c.meta).filter(([kk])=>!['CLASS','RANK','TIER','ANCHOR','CL','HP','CHP','TRAITS'].includes(kk)).map(([kk,v])=>kk+' '+esc(v)).join(' · ');
     return `<div style="border:1px solid var(--border);padding:8px 10px;margin-bottom:8px;display:flex;gap:12px;align-items:flex-start;">
       <div style="flex:1;">
-        <div style="font-size:13px;"><b>${esc(c.name)}</b> <span style="font-size:9px;letter-spacing:1px;color:var(--accent);text-transform:uppercase;">Class ${c.cls} · ${CLASS_NAMES[c.cls]||''}${k.note?(' · '+esc(k.note)):''}</span></div>
+        <div style="font-size:13px;"><b>${esc(c.name)}</b> <span style="font-size:9px;letter-spacing:1px;color:var(--accent);text-transform:uppercase;">Class ${c.cls} · ${CLASS_NAMES[c.cls]||''}${k.note?(' · '+esc(k.note)):''}${c.local?' · ✎ custom':''}</span></div>
         <div style="font-size:11px;color:var(--muted);">HP <b style="color:var(--ink);">${k.hp}</b>${k.dr?(' · DR <b style="color:var(--ink);">'+k.dr+'</b>'):''}${statBits?(' · '+statBits):''}</div>
         ${c.meta.TRAITS?`<div style="font-size:10.5px;color:var(--ink2);">${esc(c.meta.TRAITS)}</div>`:''}
         ${k.flags.length?`<div style="font-size:9.5px;color:#b88a20;">${k.flags.map(esc).join(' · ')}</div>`:''}
@@ -1634,6 +1701,8 @@ function renderArchive(){
       <div style="display:flex;flex-direction:column;gap:4px;">
         <button class="btn" onclick="archStatBlock(${idx})">Stat block</button>
         <button class="btn prime" style="color:#fff;" onclick="archSpawn(${idx})">Spawn to VTT</button>
+        <button class="btn" onclick="editCreature(${idx})">${c.local?'Edit':'Copy & edit'}</button>
+        ${c.local?`<button class="btn" onclick="deleteCreature(${idx})">Delete</button>`:''}
       </div></div>`;
   }).join('');
 }
@@ -2690,7 +2759,7 @@ function openExport(){
   document.getElementById('exportRender').innerHTML=buildExportHTML();
   document.getElementById('exportModal').classList.add('open');
 }
-function closeExport(){document.getElementById('exportModal').classList.remove('open');}
+function closeExport(){document.getElementById('exportModal').classList.remove('open'); if(typeof Table!=='undefined'&&Table.stopSheetWatch)Table.stopSheetWatch(true);}
 function copyExport(){
   const node=document.getElementById('exportRender');
   const range=document.createRange();range.selectNodeContents(node);
@@ -3032,7 +3101,20 @@ const Table={
   // ── open / closed room (Curator) ──
   setOpen(open){ if(this.connected&&this.role==='curator'){ this.ref.child('state/open').set(!!open); this.log('Curator '+(open?'opened':'closed')+' the room'); renderTablePanel(); } },
   // ── Curator: view a player's full sheet ──
-  async viewSheet(id){ if(!this.ref)return; try{ const s=await this.ref.child('sheets/'+id).once('value'); let d=s.val(); if(!d){toast('No sheet published yet');return;} if(typeof d==='string')d=JSON.parse(d); showSheetViewer(d,(this.combatants[id]||{}).name||'Player'); }catch(e){ toast('Could not load sheet'); } },
+  // Live sheet view: subscribes while the viewer is open (re-renders on every player edit).
+  viewSheet(id){ _svLive=true; this.watchSheet(id); },
+  watchSheet(id){
+    if(!this.ref)return;
+    this.stopSheetWatch(false);
+    this._sheetWatchId=id; this._sheetWatchRef=this.ref.child('sheets/'+id);
+    this._sheetWatchRef.on('value',s=>{
+      let d=s.val();
+      if(!d){ if(!_svData)toast('No sheet published yet'); return; }
+      try{ if(typeof d==='string')d=JSON.parse(d); }catch(e){ return; }
+      if(_svLive||!_svData)showSheetViewer(d,(this.combatants[id]||{}).name||'Player');
+    });
+  },
+  stopSheetWatch(clear){ try{ if(this._sheetWatchRef)this._sheetWatchRef.off(); }catch(e){} this._sheetWatchRef=null; if(clear!==false){ this._sheetWatchId=null; _svData=null; } },
   sendAction(ability,actions,targets,meta,apply){
     if(!this.connected)return;
     const ids=Array.isArray(targets)?targets:[targets];
@@ -3167,22 +3249,38 @@ async function renderMyRooms(){
   }).join('');
 }
 // Read-only viewer for a player's published sheet (Curator).
+// Live sheet viewer (Curator): re-renders as the player edits; freezable; rolls are testable.
+let _svData=null,_svName='',_svLive=true;
 function showSheetViewer(d,name){
   const m=document.getElementById('exportModal'); if(!m)return;
+  _svData=d; _svName=name||'Player';
   const get=(id)=>esc((d&&d[id]!=null?d[id]:'').toString());
-  const attrRows=ATTRS.map(a=>`<tr><td style="padding:3px 8px;border:1px solid #b8b2a6;">${a[1]}</td><td style="padding:3px 8px;border:1px solid #b8b2a6;text-align:center;">${get(a[0])||'0'}</td><td style="padding:3px 8px;border:1px solid #b8b2a6;text-align:center;">${get('m-'+a[0].slice(2))}</td></tr>`).join('');
-  const specRows=SPECS.map(s=>`<td style="padding:3px 8px;border:1px solid #b8b2a6;font-size:11px;">${s[1]}: <b>${get(s[0])||'0'}</b></td>`).reduce((acc,c,i)=>acc+c+((i%4===3)?'</tr><tr>':''),'');
+  const rollBtn=(fn)=>`<button onclick="${fn}" style="border:1px solid #8a6d3b;background:none;color:#8a6d3b;cursor:pointer;font-size:9px;padding:1px 6px;font-family:Georgia,serif;">roll</button>`;
+  const attrRows=ATTRS.map(a=>`<tr><td style="padding:3px 8px;border:1px solid #b8b2a6;">${a[1]}</td><td style="padding:3px 8px;border:1px solid #b8b2a6;text-align:center;">${get(a[0])||'0'}</td><td style="padding:3px 8px;border:1px solid #b8b2a6;text-align:center;">${get('m-'+a[0].slice(2))}</td><td style="padding:3px 6px;border:1px solid #b8b2a6;text-align:center;">${rollBtn(`svRollAttr('${a[0]}','${esc(a[1])}')`)}</td></tr>`).join('');
+  const specRows=SPECS.map(s=>`<td style="padding:3px 8px;border:1px solid #b8b2a6;font-size:11px;">${s[1]}: <b>${get(s[0])||'0'}</b> ${rollBtn(`svRollSpec('${s[0]}','${esc(s[1])}')`)}</td>`).reduce((acc,c,i)=>acc+c+((i%3===2)?'</tr><tr>':''),'');
   let h=`<div style="font-family:Georgia,serif;color:#1c1b19;">
-    <div style="font-size:20px;color:#2c3e50;">${get('f-name')||esc(name)}</div>
-    <div style="font-size:12px;color:#6b6760;margin-bottom:10px;">${get('f-species')} ${get('f-variant')?('— '+get('f-variant')):''} &middot; ${get('f-paradigm')} &middot; Rank ${get('f-level')||'0'} &middot; HP ${get('d-hpcur')}/${get('d-hpmax')} &middot; DHP ${get('d-dhpcur')} &middot; SS ${get('d-sscur')}</div>
-    <table style="border-collapse:collapse;margin-bottom:10px;"><tr><th style="padding:3px 8px;border:1px solid #b8b2a6;">Attr</th><th style="padding:3px 8px;border:1px solid #b8b2a6;">Score</th><th style="padding:3px 8px;border:1px solid #b8b2a6;">Mod</th></tr>${attrRows}</table>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div style="font-size:20px;color:#2c3e50;flex:1;">${get('f-name')||esc(_svName)}</div>
+      <span id="sv-live-dot" style="font-size:10px;letter-spacing:1px;color:${_svLive?'#3a8050':'#7a756e'};">${_svLive?'● LIVE':'❚❚ STATIC'}</span>
+      <button onclick="svToggleLive()" style="border:1px solid #8a6d3b;background:none;color:#8a6d3b;cursor:pointer;font-size:10px;padding:2px 9px;font-family:Georgia,serif;">${_svLive?'Freeze (make static)':'Go live'}</button>
+    </div>
+    <div style="font-size:12px;color:#6b6760;margin-bottom:10px;">${get('f-species')} ${get('f-variant')?('— '+get('f-variant')):''} &middot; ${get('f-paradigm')} &middot; Rank ${get('f-level')||'0'} &middot; HP <b>${get('d-hpcur')||get('d-hpmax')}</b>/${get('d-hpmax')} &middot; DHP ${get('d-dhpcur')||get('d-dhp')} &middot; SS ${get('d-sscur')||get('d-ss')}</div>
+    <table style="border-collapse:collapse;margin-bottom:10px;"><tr><th style="padding:3px 8px;border:1px solid #b8b2a6;">Attr</th><th style="padding:3px 8px;border:1px solid #b8b2a6;">Score</th><th style="padding:3px 8px;border:1px solid #b8b2a6;">Mod</th><th style="padding:3px 8px;border:1px solid #b8b2a6;">Test</th></tr>${attrRows}</table>
     <table style="border-collapse:collapse;width:100%;margin-bottom:10px;"><tr>${specRows}</tr></table>
     ${get('c-benefits')?`<div style="font-size:12px;"><b>Cipher:</b> ${get('c-benefits')}</div>`:''}
     ${get('notes')?`<div style="font-size:12px;margin-top:6px;"><b>Notes:</b> ${get('notes')}</div>`:''}
   </div>`;
   document.getElementById('exportRender').innerHTML=h;
-  document.querySelector('#exportModal .mt').textContent=(name||'Player')+' — Sheet (read-only)';
+  document.querySelector('#exportModal .mt').textContent=_svName+' — Sheet ('+(_svLive?'live':'frozen')+')';
   m.classList.add('open');
+}
+// Curator test-rolls using the viewed player's numbers (posted to the table log)
+function svRollAttr(id,label){ const sc=parseInt(_svData&&_svData[id])||0; performRoll(1,20,sc,`1d20+${sc}`,`${_svName}'s ${label} (Curator test)`); }
+function svRollSpec(id,label){ const pts=parseInt(_svData&&_svData[id])||0; const pen=pts<=25?-25:0; performRoll(1,40,pts+pen,`1d40${pts+pen>=0?'+':''}${pts+pen}`,`${_svName}'s ${label}${pen?' (untrained)':''} (Curator test)`); }
+function svToggleLive(){ _svLive=!_svLive;
+  if(_svLive&&Table._sheetWatchId){ Table.watchSheet(Table._sheetWatchId); }
+  else Table.stopSheetWatch(false);
+  if(_svData)showSheetViewer(_svData,_svName);
 }
 function addLogLine(html){
   const log=document.getElementById('table-log'); if(!log)return;
