@@ -153,6 +153,7 @@ body.wte-light .hub{background-image:radial-gradient(circle at 50% 30%, #f0ede6 
   <button class="tool gmonly" id="t-token" onclick="setTool('token')" title="Token (T)">Token</button>
   <button class="tool gmonly" id="t-wall" onclick="setTool('wall')" title="Wall (W)">Wall</button>
   <button class="tool gmonly" id="t-light" onclick="setTool('light')" title="Light (L)">Light</button>
+  <button class="tool gmonly" id="t-zone" onclick="setTool('zone')" title="Layout trigger zone — generates a room when players walk in">Zone</button>
   <button class="tool" id="t-measure" onclick="setTool('measure')" title="Measure (M)">Measure</button>
   <button class="tool" id="t-ping" onclick="setTool('ping')" title="Ping (P)">Ping</button>
   <span class="sep"></span>
@@ -328,14 +329,14 @@ let undoStack=[], redoStack=[], pings=[];
 function blankMap(){
   return { name:'Untitled Map', gridType:'square', gridSize:60, gridColor:'#5a564e',
     layers:{bg:{vis:true,lock:false},grid:{vis:true,lock:false},walls:{vis:true,lock:false},lights:{vis:true,lock:false},tokens:{vis:true,lock:false},fog:{vis:true,lock:false},measure:{vis:true,lock:false},sim:{vis:true,lock:false}},
-    bg:{src:'',x:0,y:0,scale:1}, walls:[], tokens:[], lights:[], effects:[] };
+    bg:{src:'',x:0,y:0,scale:1}, walls:[], tokens:[], lights:[], effects:[], zones:[], voidR:0 };
 }
 function uid(){return Math.random().toString(36).slice(2,9);}
 function ownedByMe(t){ if(role==='gm')return true;
   // linked to my character sheet? (sheet + VTT share the same client id in the app)
   if(t.actor&&VT.actors&&VT.actors[t.actor]&&VT.actors[t.actor].ownerId===VT.clientId)return true;
   if(!t.owner)return false; return t.owner.trim().toLowerCase()===myName.trim().toLowerCase(); }
-function normalizeMap(){ const def=blankMap(); map.layers=Object.assign({},def.layers,map.layers||{}); ['walls','tokens','lights','effects'].forEach(k=>{if(!Array.isArray(map[k]))map[k]=[];}); if(!map.bg)map.bg=def.bg; if(!map.gridSize)map.gridSize=def.gridSize; if(!map.gridType)map.gridType=def.gridType; }
+function normalizeMap(){ const def=blankMap(); map.layers=Object.assign({},def.layers,map.layers||{}); ['walls','tokens','lights','effects','zones'].forEach(k=>{if(!Array.isArray(map[k]))map[k]=[];}); if(!map.bg)map.bg=def.bg; if(!map.gridSize)map.gridSize=def.gridSize; if(!map.gridType)map.gridType=def.gridType; if(map.voidR==null)map.voidR=0; }
 
 // ════════════════════════════════════════════════ COORDS / SNAP
 function s2w(sx,sy){return {x:(sx-view.panX)/view.zoom, y:(sy-view.panY)/view.zoom};}
@@ -389,6 +390,8 @@ function draw(){ if(needsRender){needsRender=false;doDraw();} requestAnimationFr
 function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
 
 function doDraw(){
+  _voidR=(map.voidR||0)*map.gridSize; _voidTs=_voidR?activeTokens():null;   // sandbox: active-chunk cache
+  clampViewToVoid();
   ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height);
   ctx.fillStyle=getCSS('--canvas')||'#3a3833'; ctx.fillRect(0,0,cv.width,cv.height);
   ctx.setTransform(view.zoom,0,0,view.zoom,view.panX,view.panY);
@@ -399,11 +402,13 @@ function doDraw(){
   if(fogOn || (map.layers.lights.vis && map.lights.length)) vis=viewerVisionPolys();
   if(map.layers.lights.vis) drawLights();
   if(map.layers.walls.vis) drawWalls();
+  if(role==='gm'&&(zoneDraft||(map.zones&&map.zones.length)))drawZones();
   drawEffects();
   if(map.layers.tokens.vis) drawTokens();
   if(wallDraft) drawWallSeg(wallDraft,'rgba(216,178,90,.9)',true);
   drawPings();
   if(fogOn && map.layers.fog.vis) drawFog(vis||[]);
+  if(_voidR) drawVoid();
   ctx.setTransform(view.zoom,0,0,view.zoom,view.panX,view.panY); drawMeasurements();
   drawFlashes();
   if(VTaim){ ctx.setTransform(view.zoom,0,0,view.zoom,view.panX,view.panY); drawAimPreview(); }
@@ -431,6 +436,7 @@ function drawGrid(){
 }
 function drawLights(){
   map.lights.forEach(l=>{
+    if(role!=='gm'&&_voidR&&!inVoid(l.x,l.y,l.radius||map.gridSize*6))return;   // disintegrated chunk
     const poly=computeVisibility(l.x,l.y,l.radius||map.gridSize*6);
     if(!poly.length)return;
     ctx.save(); ctx.beginPath(); poly.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); ctx.closePath(); ctx.clip();
@@ -445,7 +451,8 @@ function drawLights(){
 }
 function hexA(hex,a){ const h=hex.replace('#',''); const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16); return `rgba(${r},${g},${b},${a})`; }
 function drawWalls(){
-  map.walls.forEach(w=>{ const seld=sel&&sel.type==='wall'&&sel.id===w.id;
+  map.walls.forEach(w=>{ if(role!=='gm'&&_voidR&&!inVoid((w.x1+w.x2)/2,(w.y1+w.y2)/2,Math.hypot(w.x2-w.x1,w.y2-w.y1)/2))return;
+    const seld=sel&&sel.type==='wall'&&sel.id===w.id;
     drawWallSeg(w,seld?getCSS('--sel'):(w.blocksVision!==false?'#c9c2b4':'#7e8a9a'),seld);
     if(role==='gm'&&(tool==='wall'||tool==='select')){ ctx.fillStyle=seld?getCSS('--sel'):'#6b665d'; [[w.x1,w.y1],[w.x2,w.y2]].forEach(([x,y])=>{ctx.beginPath();ctx.arc(x,y,4/view.zoom,0,7);ctx.fill();}); }
     if(role==='gm'&&(w.oneWayVision||w.oneWayMovement)){ const mx=(w.x1+w.x2)/2,my=(w.y1+w.y2)/2; let nx=-(w.y2-w.y1),ny=(w.x2-w.x1); if(w.flip){nx=-nx;ny=-ny;} const L=Math.hypot(nx,ny)||1; nx/=L;ny/=L; const al=15/view.zoom,ex=mx+nx*al,ey=my+ny*al,a=Math.atan2(ny,nx),ah=5/view.zoom; ctx.strokeStyle='#d8b25a';ctx.lineWidth=2/view.zoom; ctx.beginPath();ctx.moveTo(mx,my);ctx.lineTo(ex,ey);ctx.moveTo(ex,ey);ctx.lineTo(ex-ah*Math.cos(a-0.5),ey-ah*Math.sin(a-0.5));ctx.moveTo(ex,ey);ctx.lineTo(ex-ah*Math.cos(a+0.5),ey-ah*Math.sin(a+0.5)); ctx.stroke(); }
@@ -455,7 +462,9 @@ function drawWallSeg(w,color,strong){ ctx.lineWidth=(strong?5:4); ctx.strokeStyl
 const tokImgCache={};
 function getTokImg(src){ if(!src)return null; let im=tokImgCache[src]; if(!im){ im=new Image(); im.onload=()=>render(); im.src=src; tokImgCache[src]=im; } return im; }
 function drawTokens(){
-  map.tokens.forEach(t=>{ if(t.visible===false&&role!=='gm')return; const rad=(t.size*map.gridSize)/2;
+  map.tokens.forEach(t=>{ if(t.visible===false&&role!=='gm')return;
+    if(role!=='gm'&&_voidR&&!inVoid(t.x,t.y,(t.size||1)*map.gridSize))return;   // disintegrated chunk
+    const rad=(t.size*map.gridSize)/2;
     ctx.globalAlpha=(t.visible===false)?0.4:0.92;
     ctx.beginPath(); if(t.base==='square')ctx.rect(t.x-rad,t.y-rad,rad*2,rad*2); else ctx.arc(t.x,t.y,rad,0,7);
     const im=t.img?getTokImg(t.img):null;
@@ -546,6 +555,7 @@ cv.addEventListener('mousedown',e=>{
   if(tool==='measure'){ const v=snapVertex(p); measureDraft={x1:v.x,y1:v.y,x2:v.x,y2:v.y}; drag={mode:'measure'}; render(); return; }
   if(role==='gm'&&tool==='token'){ addToken(snapCell(p)); return; }
   if(role==='gm'&&tool==='light'){ addLight(snapCell(p)); return; }
+  if(role==='gm'&&tool==='zone'){ const v=snapVertex(p); zoneDraft={x0:v.x,y0:v.y,x1:v.x,y1:v.y}; drag={mode:'zone'}; render(); return; }
   if(role==='gm'&&tool==='wall'){ const v=snapVertex(p); if(!wallDraft)wallDraft={x1:v.x,y1:v.y,x2:v.x,y2:v.y}; else{addWall(wallDraft.x1,wallDraft.y1,v.x,v.y);wallDraft={x1:v.x,y1:v.y,x2:v.x,y2:v.y};} render(); return; }
   // select
   const t=tokenAt(p);
@@ -564,15 +574,17 @@ cv.addEventListener('mousemove',e=>{
   if(!drag)return;
   if(drag.mode==='pan'){ view.panX=drag.px+(e.offsetX-drag.sx); view.panY=drag.py+(e.offsetY-drag.sy); render(); return; }
   if(drag.mode==='measure'){ const v=snapVertex(p); measureDraft.x2=v.x;measureDraft.y2=v.y; render(); return; }
+  if(drag.mode==='zone'){ const v=snapVertex(p); zoneDraft.x1=v.x; zoneDraft.y1=v.y; render(); return; }
   if(drag.mode==='token'){ const t=byId('token',drag.id); if(t){const np=snapCell({x:p.x-drag.ox,y:p.y-drag.oy}); if(!(collisionOn&&moveBlocked(t.x,t.y,np.x,np.y))){t.x=np.x;t.y=np.y;drag.moved=true;render();}} return; }
   if(drag.mode==='light'){ const l=byId('light',drag.id); if(l){const np=snapCell({x:p.x-drag.ox,y:p.y-drag.oy});l.x=np.x;l.y=np.y;drag.moved=true;render();} return; }
   if(drag.mode==='wallmove'){ const w=byId('wall',drag.id); if(w){const v=snapVertex({x:drag.orig.x1+(p.x-drag.sx),y:drag.orig.y1+(p.y-drag.sy)});const ddx=v.x-drag.orig.x1,ddy=v.y-drag.orig.y1;w.x1=drag.orig.x1+ddx;w.y1=drag.orig.y1+ddy;w.x2=drag.orig.x2+ddx;w.y2=drag.orig.y2+ddy;drag.moved=true;render();} return; }
 });
 window.addEventListener('mouseup',()=>{
   cwrap.classList.remove('panning');
+  if(drag&&drag.mode==='zone'){ finalizeZone(); drag=null; render(); return; }
   if(drag&&drag.mode==='measure'){ if(measureDraft&&(Math.abs(measureDraft.x2-measureDraft.x1)>1||Math.abs(measureDraft.y2-measureDraft.y1)>1))measurements.push(measureDraft); measureDraft=null; render(); drag=null; return; }
   if(drag&&drag.moved){
-    if(drag.mode==='token'){ const t=byId('token',drag.id); if(t){ pushTokenPos(t); if(role==='gm')checkPortalEnter(t); } }
+    if(drag.mode==='token'){ const t=byId('token',drag.id); if(t){ pushTokenPos(t); if(role==='gm'){ checkPortalEnter(t); checkZoneEnter(t); } } }
     if(role==='gm'&&drag.mode!=='pan')syncMap();
     snapshot();
   }
@@ -595,7 +607,7 @@ window.addEventListener('keydown',e=>{
       let nx=t.x,ny=t.y;
       if(e.key==='ArrowLeft')nx-=step; else if(e.key==='ArrowRight')nx+=step; else if(e.key==='ArrowUp')ny-=step; else ny+=step;
       if(!e.shiftKey){ const sc=snapCell({x:nx,y:ny}); nx=sc.x; ny=sc.y; }
-      if(!(collisionOn&&moveBlocked(t.x,t.y,nx,ny))){ t.x=nx; t.y=ny; pushTokenPos(t); if(role==='gm')syncMap(); snapshot(); render(); }
+      if(!(collisionOn&&moveBlocked(t.x,t.y,nx,ny))){ t.x=nx; t.y=ny; pushTokenPos(t); if(role==='gm'){ checkPortalEnter(t); checkZoneEnter(t); syncMap(); } snapshot(); render(); }
     }
     return;
   }
@@ -611,10 +623,10 @@ function delSelected(){ if(!sel||role!=='gm'&&sel.type!=='token')return; const a
 function select(type,id){ sel=type?{type,id}:null; renderProps(); render(); }
 
 // ════════════════════════════════════════════════ TOOLS / UI
-function setTool(t){ if(role==='player'&&['token','wall','light'].includes(t)){toast('Only the GM can edit the map');return;} tool=t; wallDraft=null;
-  ['select','pan','token','wall','light','ping','measure'].forEach(x=>{const b=document.getElementById('t-'+x);if(b)b.classList.toggle('active',x===t);});
+function setTool(t){ if(role==='player'&&['token','wall','light','zone'].includes(t)){toast('Only the GM can edit the map');return;} tool=t; wallDraft=null;
+  ['select','pan','token','wall','light','zone','ping','measure'].forEach(x=>{const b=document.getElementById('t-'+x);if(b)b.classList.toggle('active',x===t);});
   cwrap.className='canvas-wrap tool-'+t;
-  document.getElementById('hint').textContent={select:'Drag tokens/walls/lights · click empty to pan',pan:'Drag to pan',token:'Click to place a token',wall:'Click points · right-click to finish',light:'Click to place a light',ping:'Click to ping (or Alt+click anytime)',measure:'Drag to measure · Esc clears measurements'}[t]||'';
+  document.getElementById('hint').textContent={select:'Drag tokens/walls/lights · click empty to pan',pan:'Drag to pan',token:'Click to place a token',wall:'Click points · right-click to finish',light:'Click to place a light',zone:'Drag a box · pick a generator · it populates when players walk in (click a zone to delete)',ping:'Click to ping (or Alt+click anytime)',measure:'Drag to measure · Esc clears measurements'}[t]||'';
   render();
 }
 function toggleFog(){ fogOn=!fogOn; if(fogOn)ensureExplored(); document.getElementById('fog-btn').textContent='Fog: '+(fogOn?'On':'Off'); document.getElementById('fog-btn').classList.toggle('on',fogOn); render(); }
@@ -874,6 +886,137 @@ function checkPortalEnter(movedTok){
   const hit=map.tokens.find(t=>t.portal&&t.id!==movedTok.id&&Math.hypot(t.x-movedTok.x,t.y-movedTok.y)<=map.gridSize*0.6);
   if(hit)firePortal(hit.id, movedTok);
 }
+// ════════════════════════════════════════════════ SANDBOX ENGINE — layout triggers + void fog
+let zoneDraft=null, _voidR=0, _voidTs=null;
+const ZONE_PROFILES=['Crypt Room','Ambush Forest','Merchant Camp','Cavern Nest','Treasure Vault'];
+function mulberry32(a){ return function(){ a|=0; a=(a+0x6D2B79F5)|0; let t=Math.imul(a^(a>>>15),1|a); t=(t+Math.imul(t^(t>>>7),61|t))^t; return ((t^(t>>>14))>>>0)/4294967296; }; }
+function finalizeZone(){
+  const d=zoneDraft; zoneDraft=null; if(!d)return;
+  const x=Math.min(d.x0,d.x1), y=Math.min(d.y0,d.y1), w=Math.abs(d.x1-d.x0), h=Math.abs(d.y1-d.y0), g=map.gridSize;
+  if(w<g*0.4&&h<g*0.4){ // a click — delete the zone under it
+    const z=(map.zones||[]).find(z=>d.x0>=z.x&&d.x0<=z.x+z.w&&d.y0>=z.y&&d.y0<=z.y+z.h);
+    if(z&&confirm('Delete zone "'+(z.profile||'zone')+'"?')){ map.zones=map.zones.filter(q=>q.id!==z.id); snapshot(); syncMap(); render(); }
+    return;
+  }
+  if(w<g||h<g){ toast('Zone too small'); return; }
+  showZoneMenu({x,y,w,h});
+}
+function showZoneMenu(rect){
+  closeActionMenu();
+  const m=document.createElement('div'); m.className='act-menu'; m.id='actMenu';
+  ZONE_PROFILES.forEach(pf=>{ const b=document.createElement('button'); b.textContent=pf;
+    b.onclick=()=>{ ensureZones(); map.zones.push({id:uid(),x:rect.x,y:rect.y,w:rect.w,h:rect.h,profile:pf,seed:Math.floor(Math.random()*1e9),done:false}); closeActionMenu(); snapshot(); syncMap(); render(); toast('Zone armed: '+pf); };
+    m.appendChild(b); });
+  const c=document.createElement('button'); c.textContent='Cancel'; c.onclick=closeActionMenu; m.appendChild(c);
+  document.body.appendChild(m);
+  const r=cv.getBoundingClientRect();
+  const sx=r.left+(rect.x+rect.w/2)*view.zoom+view.panX, sy=r.top+(rect.y+rect.h/2)*view.zoom+view.panY;
+  m.style.left=Math.max(8,Math.min(sx,window.innerWidth-190))+'px'; m.style.top=Math.max(8,Math.min(sy,window.innerHeight-240))+'px';
+  setTimeout(()=>document.addEventListener('click',closeActionMenu,{once:true}),0);
+}
+function ensureZones(){ if(!Array.isArray(map.zones))map.zones=[]; }
+function circleRect(cx,cy,r,z){ const nx=Math.max(z.x,Math.min(cx,z.x+z.w)), ny=Math.max(z.y,Math.min(cy,z.y+z.h)); return Math.hypot(cx-nx,cy-ny)<=r; }
+// GM-side: a player token stepping into an armed zone runs its generator + syncs the result
+function checkZoneEnter(t){
+  if(role!=='gm'||!Array.isArray(map.zones)||!t||t.portal)return;
+  if(!(t.owner||t.actor))return;   // only player-controlled tokens trigger
+  map.zones.forEach(z=>{ if(z.done)return;
+    if(circleRect(t.x,t.y,(t.size||1)*map.gridSize/2,z)){ z.done=true; generateZone(z);
+      addVtLog('ZONE: '+(z.profile||'area')+' generated'); toast('The area comes alive…');
+      snapshot(); syncMap(true); render(); } });
+}
+// Seed-based generators — same seed always produces the same room
+function generateZone(z){
+  const rnd=mulberry32(z.seed||1), g=map.gridSize, cx=z.x+z.w/2, cy=z.y+z.h/2;
+  const T=(x,y,color,label,opts)=>{ const t=Object.assign({id:uid(),x,y,size:1,base:'circle',color,label,hp:0,hpmax:0,vision:0,owner:'',visible:true,gen:true},opts||{}); map.tokens.push(t); return t; };
+  const W=(x1,y1,x2,y2,vis)=>{ map.walls.push({id:uid(),x1,y1,x2,y2,blocksVision:vis!==false,blocksMovement:true,blocksProjectiles:true,gen:true,auto:true}); };
+  const L=(x,y,r,col,inten)=>{ map.lights.push({id:uid(),x,y,radius:r,color:col||'#ffd9a0',intensity:inten!=null?inten:0.7}); };
+  const rx=pad=>z.x+pad+rnd()*(z.w-2*pad), ry=pad=>z.y+pad+rnd()*(z.h-2*pad);
+  const perimeter=(gapCount)=>{ // rect walls with door gaps
+    const sides=[[z.x,z.y,z.x+z.w,z.y],[z.x+z.w,z.y,z.x+z.w,z.y+z.h],[z.x+z.w,z.y+z.h,z.x,z.y+z.h],[z.x,z.y+z.h,z.x,z.y]];
+    const gaps=new Set(); while(gaps.size<Math.min(gapCount,4))gaps.add(Math.floor(rnd()*4));
+    sides.forEach((s,i)=>{ if(gaps.has(i)){ const pos=0.3+rnd()*0.4; const dx=s[2]-s[0],dy=s[3]-s[1],len=Math.hypot(dx,dy),ux=dx/len,uy=dy/len;
+        const mx=s[0]+dx*pos,my=s[1]+dy*pos; W(s[0],s[1],mx,my); W(mx+ux*g*1.6,my+uy*g*1.6,s[2],s[3]); }
+      else W(s[0],s[1],s[2],s[3]); });
+  };
+  if(z.profile==='Crypt Room'){
+    perimeter(1);
+    const n=2+Math.floor(rnd()*3); for(let i=0;i<n;i++)T(rx(g),ry(g),'#8a857c','Sarcophagus',{base:'square'});
+    const k=1+Math.floor(rnd()*3); for(let i=0;i<k;i++)T(rx(g),ry(g),'#a83a2a','Skeleton',{hp:12,hpmax:12});
+    if(rnd()<0.5)T(rx(g),ry(g),'#c9a227','Chest',{size:0.7,base:'square'});
+    L(cx,cy,g*4,'#9fb8ff',0.5);
+  } else if(z.profile==='Ambush Forest'){
+    const trees=4+Math.floor(rnd()*5); for(let i=0;i<trees;i++)T(rx(g*0.6),ry(g*0.6),'#2f6b3a','Tree',{size:1+rnd()*0.5});
+    const foes=2+Math.floor(rnd()*3); for(let i=0;i<foes;i++)T(rx(g*0.6),ry(g*0.6),'#a83a2a','Bandit',{hp:14,hpmax:14});
+    if(rnd()<0.4)T(rx(g),ry(g),'#c9a227','Hidden cache',{size:0.6,base:'square'});
+  } else if(z.profile==='Merchant Camp'){
+    // tent — three wall segments
+    const tx=rx(g*1.5), ty=ry(g*1.5);
+    W(tx-g,ty-g,tx+g,ty-g); W(tx-g,ty-g,tx-g,ty+g); W(tx+g,ty-g,tx+g,ty+g);
+    T(tx,ty,'#3f6fae','Merchant',{hp:10,hpmax:10});
+    const gd=1+Math.floor(rnd()*2); for(let i=0;i<gd;i++)T(rx(g),ry(g),'#6b6f7a','Guard',{hp:16,hpmax:16});
+    L(cx,cy,g*3.5,'#ffb066',0.85);   // campfire
+    T(cx,cy,'#c96a2a','Campfire',{size:0.6,flammable:true});
+  } else if(z.profile==='Cavern Nest'){
+    // jagged perimeter with one entrance
+    const pts=[],N=10+Math.floor(rnd()*6);
+    for(let i=0;i<N;i++){ const a=(i/N)*Math.PI*2; const rr=(0.5-rnd()*0.16); pts.push({x:cx+Math.cos(a)*z.w*rr,y:cy+Math.sin(a)*z.h*rr}); }
+    const skip=Math.floor(rnd()*N);
+    for(let i=0;i<N;i++){ if(i===skip)continue; const a=pts[i],b=pts[(i+1)%N]; W(a.x,a.y,b.x,b.y); }
+    const sp=3+Math.floor(rnd()*3); for(let i=0;i<sp;i++)T(cx+(rnd()-0.5)*z.w*0.5,cy+(rnd()-0.5)*z.h*0.5,'#5a3d6b','Broodling',{hp:8,hpmax:8,size:0.8});
+    T(cx,cy,'#7a2d8a','Nest Mother',{hp:30,hpmax:30,size:1.6});
+    L(cx,cy,g*2.5,'#8adf9f',0.35);
+  } else if(z.profile==='Treasure Vault'){
+    perimeter(1);
+    const ch=2+Math.floor(rnd()*3); for(let i=0;i<ch;i++)T(rx(g),ry(g),'#c9a227','Chest',{size:0.7,base:'square'});
+    T(cx,cy,'#8a1c1c','Guardian',{hp:34,hpmax:34,size:2});
+    L(cx,cy,g*3,'#ffd24a',0.8);
+  }
+}
+function drawZones(){
+  if(!map.zones||!map.zones.length&&!zoneDraft)return;
+  ctx.save(); ctx.lineWidth=1.5/view.zoom; ctx.font=`${11/view.zoom}px Georgia`;
+  (map.zones||[]).forEach(z=>{ ctx.setLineDash([8/view.zoom,6/view.zoom]);
+    ctx.strokeStyle=z.done?'rgba(130,130,130,.35)':'rgba(216,178,90,.85)'; ctx.strokeRect(z.x,z.y,z.w,z.h); ctx.setLineDash([]);
+    ctx.fillStyle=z.done?'rgba(130,130,130,.5)':'rgba(216,178,90,.9)'; ctx.fillText((z.done?'✓ ':'')+(z.profile||'zone'),z.x+5/view.zoom,z.y+15/view.zoom); });
+  if(zoneDraft){ ctx.setLineDash([6/view.zoom,5/view.zoom]); ctx.strokeStyle='rgba(216,178,90,.9)';
+    ctx.strokeRect(Math.min(zoneDraft.x0,zoneDraft.x1),Math.min(zoneDraft.y0,zoneDraft.y1),Math.abs(zoneDraft.x1-zoneDraft.x0),Math.abs(zoneDraft.y1-zoneDraft.y0)); ctx.setLineDash([]); }
+  ctx.restore();
+}
+// ── VOID FOG — infinite traversal: only space near player tokens is "real" ──
+let voidCv=null,voidCtx=null;
+function activeTokens(){ const arr=map.tokens.filter(t=>(t.owner||t.actor)&&!t.portal); return arr.length?arr:map.tokens; }
+function inVoid(x,y,m){ if(!_voidR||!_voidTs)return true; for(const t of _voidTs){ if(Math.hypot(t.x-x,t.y-y)<=_voidR+(m||0)+map.gridSize)return true; } return false; }
+function clampViewToVoid(){
+  if(!_voidR||!_voidTs||!_voidTs.length||role==='gm')return;
+  let x0=1e15,y0=1e15,x1=-1e15,y1=-1e15;
+  _voidTs.forEach(t=>{ x0=Math.min(x0,t.x-_voidR); y0=Math.min(y0,t.y-_voidR); x1=Math.max(x1,t.x+_voidR); y1=Math.max(y1,t.y+_voidR); });
+  let cx=(cv.width/2-view.panX)/view.zoom, cy=(cv.height/2-view.panY)/view.zoom;
+  const ncx=Math.max(x0,Math.min(x1,cx)), ncy=Math.max(y0,Math.min(y1,cy));
+  if(ncx!==cx||ncy!==cy){ view.panX=cv.width/2-ncx*view.zoom; view.panY=cv.height/2-ncy*view.zoom; }
+}
+function drawVoid(){
+  if(!_voidR||!_voidTs||!_voidTs.length)return;
+  if(!voidCv){ voidCv=document.createElement('canvas'); voidCtx=voidCv.getContext('2d'); }
+  if(voidCv.width!==cv.width||voidCv.height!==cv.height){ voidCv.width=cv.width; voidCv.height=cv.height; }
+  const vc=voidCtx, t=Date.now()/1000;
+  vc.setTransform(1,0,0,1,0,0); vc.globalCompositeOperation='source-over'; vc.clearRect(0,0,voidCv.width,voidCv.height);
+  vc.fillStyle='#050508'; vc.globalAlpha=1; vc.fillRect(0,0,voidCv.width,voidCv.height);
+  // drifting dark mist so the void feels alive
+  vc.globalAlpha=0.07;
+  for(let i=0;i<5;i++){ const bx=(Math.sin(t*0.09+i*2.3)*0.5+0.5)*voidCv.width, by=(Math.cos(t*0.12+i*1.9)*0.5+0.5)*voidCv.height;
+    const gr=vc.createRadialGradient(bx,by,0,bx,by,260); gr.addColorStop(0,'rgba(130,130,160,.9)'); gr.addColorStop(1,'rgba(130,130,160,0)');
+    vc.fillStyle=gr; vc.beginPath(); vc.arc(bx,by,260,0,7); vc.fill(); }
+  vc.globalAlpha=1; vc.globalCompositeOperation='destination-out';
+  _voidTs.forEach(tk=>{ const sx=tk.x*view.zoom+view.panX, sy=tk.y*view.zoom+view.panY, r=Math.max(30,_voidR*view.zoom);
+    const gr=vc.createRadialGradient(sx,sy,r*0.72,sx,sy,r); gr.addColorStop(0,'rgba(0,0,0,1)'); gr.addColorStop(1,'rgba(0,0,0,0)');
+    vc.fillStyle=gr; vc.beginPath(); vc.arc(sx,sy,r,0,7); vc.fill(); });
+  vc.globalCompositeOperation='source-over';
+  ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.globalAlpha=(role==='gm')?0.45:1; ctx.drawImage(voidCv,0,0); ctx.restore();
+}
+function setVoidR(v){ map.voidR=Math.max(0,parseInt(v)||0); snapshot(); syncMap(); render(); toast(map.voidR?('Void fog: '+map.voidR+' squares'):'Void fog off'); }
+setInterval(()=>{ if(map&&map.voidR>0)render(); },140);   // keep the void mist drifting
+
 // ════════════════════════════════════════════════ CAMPAIGN HUB (landing page)
 let hubMusic=[], hubTrack=-1, hubLoop=true;
 function openHub(){ const p=document.getElementById('hubPanel'); if(!p)return; hubLoadNotes(); hubRender(); p.classList.add('show'); }
@@ -1036,9 +1179,12 @@ function fxRenderPanel(){
     <div class="fx-row"><select id="fx-filter" onchange="setFilter(this.value)"><option value="none">None</option><option value="noir">Noir</option><option value="nightvision">Night vision</option><option value="toxic">Toxic fog</option><option value="bloodrage">Blood rage</option></select></div>
     <div class="fx-sec">Soundboard</div>
     <div class="fx-row"><button onclick="fxSend('sound',{cue:'sword'})">Sword</button><button onclick="fxSend('sound',{cue:'roar'})">Roar</button><button onclick="fxSend('sound',{cue:'door'})">Door</button><button onclick="fxSend('sound',{cue:'thunder'})">Thunder</button><button onclick="fxSend('sound',{cue:'laugh'})">Laugh</button></div>
-    <div class="fx-note">Ctrl+click the map = Showcase: everyone's camera pans there. Weather &amp; filters stay on until changed.</div>`;
+    <div class="fx-sec">Void Fog (render distance)</div>
+    <div class="fx-row"><select id="fx-void" onchange="setVoidR(this.value)"><option value="0">Off</option><option value="10">10 squares</option><option value="15">15 squares</option><option value="20">20 squares</option><option value="30">30 squares</option></select></div>
+    <div class="fx-note">Ctrl+click the map = Showcase: everyone's camera pans there. Void fog hides everything beyond render distance of player tokens (animated darkness, camera locked to explored space). Use the Zone tool to arm rooms that generate when players walk in.</div>`;
   const w=document.getElementById('fx-weather'); if(w)w.value=fxWeather;
   const f=document.getElementById('fx-filter'); if(f)f.value=fxFilter;
+  const v=document.getElementById('fx-void'); if(v)v.value=String(map.voidR||0);
 }
 function openScenesMenu(ev){ closeActionMenu();
   const m=document.createElement('div'); m.className='act-menu'; m.id='actMenu';
@@ -1643,7 +1789,7 @@ async function vtJoinRoom(room,r,nm){
         if(!VT._centered){ const mine=map.tokens.find(ownedByMe); if(mine){ view.panX=cv.width/2-mine.x*view.zoom; view.panY=cv.height/2-mine.y*view.zoom; VT._centered=true; render(); } } };
       if(sceneChanged) playSceneTransition(m.sceneFx||sceneFxType(), apply); else apply();
     } } });
-  VT.ref.child('tokenPos').on('value',s=>{ const tp=s.val()||{}; Object.entries(tp).forEach(([id,pos])=>{ const t=byId('token',id); if(t&&!(drag&&drag.id===id)){t.x=pos.x;t.y=pos.y; if(role==='gm')checkPortalEnter(t);} }); render(); });
+  VT.ref.child('tokenPos').on('value',s=>{ const tp=s.val()||{}; Object.entries(tp).forEach(([id,pos])=>{ const t=byId('token',id); if(t&&!(drag&&drag.id===id)){t.x=pos.x;t.y=pos.y; if(role==='gm'){ checkPortalEnter(t); checkZoneEnter(t); }} }); render(); });
   VT.ref.child('ping').on('value',s=>{ const p=s.val(); if(p&&Date.now()-p.ts<3000){ pings.push({x:p.x,y:p.y,by:p.by,ts:p.ts}); render(); } });
   document.body.classList.add('gated'); applyRoleUI(); closeConnect(); toast('Connected to '+room);
 }
