@@ -518,6 +518,7 @@ textarea { resize: vertical; border: 1px solid var(--border); }
     <button class="btn" onclick="saveSheet()">Save</button>
     <button class="btn" onclick="loadSheet()">Load</button>
     <button class="btn" onclick="openLibrary()">Library</button>
+    <button class="btn" onclick="openArchive()" title="Creature Archive — bestiary fetched live from the wiki">Archive</button>
     <button class="btn" onclick="clearSheet()">Clear</button>
     <span class="sep">|</span>
     <button class="btn" onclick="openStylus()" title="Stylus customization settings">Stylus</button>
@@ -978,6 +979,28 @@ textarea { resize: vertical; border: 1px solid var(--border); }
         <div class="formula-note">Right-click any ability / weapon / cipher / genus button to open its editor: set a custom PNG / JPG / SVG icon, idle &amp; click GIFs, dice success / failure / critical GIFs, and a success DC.</div>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- CREATURE ARCHIVE MODAL -->
+<div class="modal-bg" id="archiveModal">
+  <div class="modal-card" style="width:820px;">
+    <div class="modal-head"><span class="mt">Creature Archive &mdash; Bestiary</span><span class="mx" onclick="closeArchive()">x</span></div>
+    <div class="modal-tools">
+      <input type="text" id="arch-search" placeholder="search creatures…" style="width:180px;" oninput="renderArchive()">
+      <select id="arch-class" onchange="renderArchive()" style="width:210px;font-size:11px;">
+        <option value="">All classes</option>
+        <option value="1">1 · Standard NPC / Monster</option>
+        <option value="2">2 · Anima</option>
+        <option value="3">3 · Alter Anima</option>
+        <option value="4">4 · Fractures</option>
+        <option value="5">5 · Doxa</option>
+        <option value="6">6 · Nyvilum</option>
+      </select>
+      <button class="btn" onclick="fetchCreatures(true)">Refresh from wiki</button>
+      <span class="hint" id="arch-status">Creatures are fetched live from the wiki archive pages.</span>
+    </div>
+    <div class="modal-body"><div id="archiveBody"></div></div>
   </div>
 </div>
 
@@ -1535,6 +1558,108 @@ function updateCipherToggleBtn(){
   b.textContent=onlineCiphersOff?'Reactivate Online Ciphers':'Deactivate Online Ciphers';
   b.className='tp-btn'+(onlineCiphersOff?'':' ghost');
 }
+
+// ════════════════════════════════════════════════════
+// CREATURE ARCHIVE — bestiary fetched live from the wiki
+// ════════════════════════════════════════════════════
+const CREATURE_PAGES=[
+  {page:'Creature_Archive_Standard',cls:1},{page:'Creature_Archive_Anima',cls:2},
+  {page:'Creature_Archive_Alter_Anima',cls:3},{page:'Creature_Archive_Fractures',cls:4},
+  {page:'Creature_Archive_Doxa',cls:5},{page:'Creature_Archive_Nyvilum',cls:6}];
+const CLASS_NAMES={1:'Standard',2:'Anima',3:'Alter Anima',4:'Fracture',5:'Doxa',6:'Nyvilum'};
+let creatureCache=null,_archLoading=false;
+function parseCreaturePage(wt,cls){
+  const out=[];
+  String(wt).split(/class="wte-creature"/).slice(1).forEach(chunk=>{
+    const nm=chunk.match(/class="wte-creature-name"[^>]*>([^<]+)</); if(!nm)return;
+    const meta={}; let m; const re=/([A-Z][A-Z_ ]{1,14}):\s*<span[^>]*>([^<]*)<\/span>/g;
+    while((m=re.exec(chunk)))meta[m[1].trim()]=cleanWiki(m[2]).trim();
+    const dm=chunk.match(/class="wte-creature-desc"[^>]*>([\s\S]*?)<\/div>/);
+    out.push({name:cleanWiki(nm[1]).trim(),cls:parseInt(meta.CLASS)||cls,meta,desc:dm?cleanWiki(dm[1]).trim():''});
+  });
+  return out;
+}
+async function fetchCreatures(force){
+  if(creatureCache&&!force){renderArchive();return creatureCache;}
+  if(_archLoading)return creatureCache||[];
+  _archLoading=true; const st=document.getElementById('arch-status'); if(st)st.textContent='Fetching archive pages…';
+  const all=[];
+  for(const p of CREATURE_PAGES){
+    try{
+      const r=await fetch(WIKI_BASE+'/api.php?action=parse&prop=wikitext&format=json&origin=*&page='+encodeURIComponent(p.page));
+      if(!r.ok)continue; const j=await r.json(); if(j.error)continue;
+      all.push(...parseCreaturePage(j.parse.wikitext['*'],p.cls));
+    }catch(e){}
+  }
+  creatureCache=all; _archLoading=false;
+  if(st)st.textContent=all.length?(all.length+' creature(s) loaded from the wiki'):'No creatures found — create the archive pages first';
+  renderArchive();
+  return all;
+}
+// class-specific HP / DR / flags per the W.T.E creature rules
+function computeCreature(c){
+  const M=c.meta||{}, num=v=>parseInt(v)||0, mod=v=>Math.floor(num(v)/4);
+  let hp=0,dr=0,flags=[],note='';
+  if(c.cls===1){ const mult={GRUNT:5,OPERATIVE:10,ELITE:15,BOSS:25}[(M.RANK||'').toUpperCase()]||5;
+    hp=Math.floor((num(M.OFF)+num(M.DEF)+num(M.SPD)+num(M.WIL))/4)*mult; note=(M.RANK||'Grunt')+' ×'+mult; }
+  else if(c.cls===2){ const t=(M.TIER||'Nascent').toUpperCase();
+    if(t==='APEX'){hp=num(M.DEF)*20;dr=mod(M.DEF)+2;} else if(t==='MANIFESTED'){hp=num(M.DEF)*10;dr=mod(M.DEF);} else {hp=num(M.DEF)*5;dr=0;}
+    flags.push('Immune to psychic/emotional manipulation'); note=(M.TIER||'Nascent')+(M.ANCHOR?(' · '+M.ANCHOR):''); }
+  else if(c.cls===3){ hp=mod(M.CON)*10+num(M.DEF)*5; note='CL '+(M.CL||'1'); if(num(M.CL)>=3)flags.push('Human modifiers degraded (CL '+M.CL+')'); }
+  else if(c.cls===4){ hp=num(M.PHY)*5+mod(M.END)*15; flags.push('Primal Instinct: immune to mental deception/hacking; lure with physical distractions/pheromones','Writhing Biomass: advantage on physical adaptation & natural attacks'); }
+  else if(c.cls===5){ const fa=num(M.HP), col=num(M.WIL)*8+mod(M.INT)*12;
+    hp=fa||col; note='Facade '+(fa||'?')+' → Collapsed '+col; flags.push('Facade collapses on critical damage / emotional shock / Null exposure'); c.collapsedHP=col; }
+  else if(c.cls===6){ hp=num(M.CHP); note='CHP pool · regional TL −2.0'; flags.push('Colossal: conventional combat impossible — deplete CHP via Null-negation barriers / extraction arrays / orbital batteries','Awakening: regional Tech Level −2.0 — Online ciphers forced offline'); }
+  return {hp,dr,flags,note};
+}
+function openArchive(){ document.getElementById('archiveModal').classList.add('open'); if(!creatureCache)fetchCreatures(); else renderArchive(); }
+function closeArchive(){ document.getElementById('archiveModal').classList.remove('open'); }
+function renderArchive(){
+  const body=document.getElementById('archiveBody'); if(!body)return;
+  const q=(document.getElementById('arch-search').value||'').toLowerCase();
+  const cf=document.getElementById('arch-class').value;
+  if(!creatureCache){ body.innerHTML='<div style="color:var(--muted);font-style:italic;font-size:12px;">Loading…</div>'; return; }
+  const list=creatureCache.filter(c=>(!cf||String(c.cls)===cf)&&(!q||c.name.toLowerCase().includes(q)||(c.desc||'').toLowerCase().includes(q)));
+  if(!list.length){ body.innerHTML='<div style="color:var(--muted);font-style:italic;font-size:12px;">No creatures match. Add entries to the wiki archive pages, then Refresh.</div>'; return; }
+  body.innerHTML=list.map(c=>{
+    const idx=creatureCache.indexOf(c), k=computeCreature(c);
+    const statBits=Object.entries(c.meta).filter(([kk])=>!['CLASS','RANK','TIER','ANCHOR','CL','HP','CHP','TRAITS'].includes(kk)).map(([kk,v])=>kk+' '+esc(v)).join(' · ');
+    return `<div style="border:1px solid var(--border);padding:8px 10px;margin-bottom:8px;display:flex;gap:12px;align-items:flex-start;">
+      <div style="flex:1;">
+        <div style="font-size:13px;"><b>${esc(c.name)}</b> <span style="font-size:9px;letter-spacing:1px;color:var(--accent);text-transform:uppercase;">Class ${c.cls} · ${CLASS_NAMES[c.cls]||''}${k.note?(' · '+esc(k.note)):''}</span></div>
+        <div style="font-size:11px;color:var(--muted);">HP <b style="color:var(--ink);">${k.hp}</b>${k.dr?(' · DR <b style="color:var(--ink);">'+k.dr+'</b>'):''}${statBits?(' · '+statBits):''}</div>
+        ${c.meta.TRAITS?`<div style="font-size:10.5px;color:var(--ink2);">${esc(c.meta.TRAITS)}</div>`:''}
+        ${k.flags.length?`<div style="font-size:9.5px;color:#b88a20;">${k.flags.map(esc).join(' · ')}</div>`:''}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <button class="btn" onclick="archStatBlock(${idx})">Stat block</button>
+        <button class="btn prime" style="color:#fff;" onclick="archSpawn(${idx})">Spawn to VTT</button>
+      </div></div>`;
+  }).join('');
+}
+function archStatBlock(i){
+  const c=creatureCache&&creatureCache[i]; if(!c)return; const k=computeCreature(c);
+  let h='<div style="font-family:Georgia,serif;color:#1c1b19;">';
+  h+='<div style="font-size:20px;color:#2c3e50;">'+esc(c.name)+'</div>';
+  h+='<div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#8a6d3b;margin-bottom:8px;">Class '+c.cls+' · '+(CLASS_NAMES[c.cls]||'')+(k.note?(' · '+esc(k.note)):'')+'</div>';
+  h+='<div style="font-size:13px;margin-bottom:6px;">HP <b>'+k.hp+'</b>'+(k.dr?(' · DR <b>'+k.dr+'</b>'):'')+(c.collapsedHP?(' · Collapsed form <b>'+c.collapsedHP+'</b> HP'):'')+'</div>';
+  h+='<table style="border-collapse:collapse;margin-bottom:8px;"><tr>'+Object.entries(c.meta).map(([kk,v])=>'<td style="border:1px solid #b8b2a6;padding:3px 8px;font-size:11px;"><span style="font-size:8px;color:#6b6760;display:block;text-transform:uppercase;">'+esc(kk)+'</span>'+esc(v)+'</td>').join('')+'</tr></table>';
+  if(k.flags.length)h+='<div style="font-size:11px;color:#8a6d3b;margin-bottom:6px;">'+k.flags.map(esc).join('<br>')+'</div>';
+  if(c.desc)h+='<div style="font-size:12px;line-height:1.6;">'+esc(c.desc)+'</div>';
+  h+='</div>';
+  document.getElementById('exportRender').innerHTML=h;
+  document.querySelector('#exportModal .mt').textContent='Creature — '+c.name;
+  document.getElementById('exportModal').classList.add('open');
+}
+// Spawn: handed to the VTT tab via a storage event (both tabs stay loaded in the app)
+function archSpawn(i){
+  const c=creatureCache&&creatureCache[i]; if(!c)return; const k=computeCreature(c);
+  const colors={1:'#6b6f7a',2:'#c9a227',3:'#7a4b9a',4:'#8a3a2a',5:'#c33fbf',6:'#20202c'};
+  const payload={name:c.name,cls:c.cls,hp:k.hp,dr:k.dr,size:(c.cls===4?2:(c.cls===6?6:1)),color:colors[c.cls]||'#8a6d3b',flags:k.flags,ts:Date.now()};
+  try{ localStorage.setItem('wte-spawn-creature',JSON.stringify(payload)); }catch(e){ toast('Spawn failed'); return; }
+  toast(c.name+' → sent to the VTT (be its GM there)');
+}
+document.getElementById('archiveModal').addEventListener('click',e=>{if(e.target.id==='archiveModal')closeArchive();});
 
 // ════════════════════════════════════════════════════
 // PARADIGM & BACKGROUND

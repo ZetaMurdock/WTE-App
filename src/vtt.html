@@ -1965,7 +1965,17 @@ function closeStylus(){ document.getElementById('stylusModal').classList.remove(
 document.getElementById('stylusModal').addEventListener('click',e=>{if(e.target.id==='stylusModal')closeStylus();});
 wteLoadStylus(); wteApplyStylus();
 
-window.addEventListener('storage',e=>{ if(e.key==='wte-theme')wteApplyTheme(e.newValue||'dark'); else if(e.key==='wte-stylus'){ wteLoadStylus(); wteApplyStylus(); } });
+window.addEventListener('storage',e=>{ if(e.key==='wte-theme')wteApplyTheme(e.newValue||'dark'); else if(e.key==='wte-stylus'){ wteLoadStylus(); wteApplyStylus(); }
+  else if(e.key==='wte-spawn-creature'&&e.newValue){ // Creature Archive → token (GM side)
+    try{ const c=JSON.parse(e.newValue); if(!c||Date.now()-(c.ts||0)>20000)return;
+      if(role!=='gm'){ toast('Creature spawn ignored — you are not the GM here'); return; }
+      const p=snapCell(s2w(cv.width/2,cv.height/2));
+      const t={id:uid(),x:p.x,y:p.y,size:c.size||1,base:'circle',color:c.color||'#8a6d3b',label:c.name||'Creature',hp:c.hp||0,hpmax:c.hp||0,dhp:c.dr||0,vision:0,owner:'',visible:true,gen:true};
+      map.tokens.push(t); select('token',t.id); snapshot(); syncMap(); render();
+      addVtLog('ARCHIVE: '+t.label+' spawned (Class '+(c.cls||'?')+(c.dr?(' · DR '+c.dr):'')+' · HP '+(c.hp||0)+')');
+      (c.flags||[]).forEach(f=>addVtLog('· '+f));
+      toast(t.label+' spawned'); }catch(err){}
+  } });
 
 // ── Asset Library init (desktop app only) ──
 try{ assetFolders=JSON.parse(localStorage.getItem('wte-asset-folders'))||[]; }catch(e){ assetFolders=[]; }
