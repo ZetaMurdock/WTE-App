@@ -296,6 +296,23 @@ textarea { resize: vertical; border: 1px solid var(--border); }
 .equip-chips { grid-column: 1 / -1; }
 .equip-warn { font-size: 9px; color: #b03020; grid-column: 1 / -1; }
 .equip-hd { display: grid; grid-template-columns: 1.4fr 0.9fr 0.9fr 46px 1.6fr 24px; gap: 5px; font-size: 7.5px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); padding-bottom: 3px; }
+/* EDE — Equalizer / Extender / Dextender state machine */
+.ede-card { border: 1px solid var(--border); padding: 7px 9px; margin-bottom: 6px; background: var(--surface2); }
+.ede-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ede-name { font-size: 12px; font-weight: bold; color: var(--ink); }
+.ede-badge { font-size: 8px; letter-spacing: 1.5px; text-transform: uppercase; padding: 2px 8px; border: 1px solid; }
+.ede-badge.eq  { color: #3a8050; border-color: #3a8050; }
+.ede-badge.ext { color: #b88a20; border-color: #b88a20; background: rgba(184,138,32,0.08); }
+.ede-badge.dex { color: #b03020; border-color: #b03020; background: rgba(176,48,32,0.08); animation: edepulse 1.4s ease-in-out infinite; }
+@keyframes edepulse { 0%,100%{opacity:1;} 50%{opacity:0.55;} }
+.ede-rounds { font-size: 10px; font-family: Consolas, monospace; color: var(--ink2); }
+.ede-body { font-size: 10px; color: var(--ink2); margin-top: 5px; line-height: 1.55; }
+.ede-domain { border-left: 3px solid var(--accent); background: var(--surface); padding: 6px 9px; margin-top: 5px; font-size: 10px; color: var(--ink2); }
+.ede-domain b { color: var(--accent); }
+.ede-ctl { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+.ede-ctl select, .ede-ctl input { font-size: 10px; padding: 2px 4px; }
+.ede-warn { color: #b03020; font-size: 9.5px; }
+.ede-free { font-size: 10px; color: #3a8050; font-family: Consolas, monospace; }
 
 /* DICE PANEL */
 .dice-panel {
@@ -1000,6 +1017,16 @@ textarea { resize: vertical; border: 1px solid var(--border); }
       </div>
       <div id="equip-list"></div>
       <div class="formula-note">Modifiers: free text like <b>Weight +10, DHP +2, DEX −2</b> (attributes, specialties &amp; derived stats). Equipped gear feeds the derived-stat engine, Tax Burden &amp; Complexity automatically. Weight category sets the slot cost.</div>
+    </div>
+
+    <!-- EDE — three-state neural processor loop -->
+    <div id="ede-sec" style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);">EDE Core &mdash; Equalizer &middot; Extender &middot; Dextender</div>
+        <button class="btn" onclick="edeTick()" title="Advance one combat round — Extender durations count down and expired overclocks slam into Dextender backlash">Round &#9656;</button>
+      </div>
+      <div id="ede-list"></div>
+      <div class="formula-note" id="ede-note"></div>
     </div>
   </div>
 </div>
@@ -2206,11 +2233,13 @@ function addEquipItem(){
 function removeEquipItem(id){ equipment=equipment.filter(e=>e.id!==id); renderEquipList(); calcAll(); autosave(); }
 function updEquip(id,field,val){
   const it=equipment.find(e=>e.id===id); if(!it)return;
-  it[field]=(field==='equipped')?!!val:val;
+  it[field]=(field==='equipped'||field==='ede')?!!val:val;
   if(field==='fx'){ renderItemFx(it); }
-  else if(field==='wcat'||field==='equipped'){ renderEquipList(); calcAll(); }   // rebuild → budget, slot map & too-big flag
+  else if(field==='wcat'||field==='equipped'||field==='ede'){ renderEquipList(); calcAll(); }   // rebuild → budget, slot map, EDE panel
   else if(field==='slot'){ renderSlotMap(); }
   else if(field==='modText'){ calcAll(); }
+  else if(field==='domain'){ renderEDE(); }
+  else if(field==='ncBonus'){ calcAll(); renderEDE(); }
   autosave();
 }
 function renderItemFx(it){
@@ -2230,7 +2259,7 @@ function updateBudget(){
 }
 function renderEquipList(){
   const box=document.getElementById('equip-list'); if(!box)return;
-  if(!equipment.length){ box.innerHTML='<div class="formula-note" style="font-style:italic;">No equipment yet. Add items and mark them equipped to feed your stats.</div>'; updateBudget(); renderSlotMap(); return; }
+  if(!equipment.length){ box.innerHTML='<div class="formula-note" style="font-style:italic;">No equipment yet. Add items and mark them equipped to feed your stats.</div>'; updateBudget(); renderSlotMap(); renderEDE(); return; }
   const effIdx=effectiveSizeIndex();
   let h='<div class="equip-hd"><span>Item</span><span>Slot</span><span>Weight</span><span style="text-align:center;">Eq</span><span>Modifiers</span><span></span></div>';
   equipment.forEach(it=>{
@@ -2244,15 +2273,19 @@ function renderEquipList(){
       <input type="text" value="${esc(it.modText||'')}" placeholder="Weight +10, DHP +2, DEX −2" oninput="updEquip('${it.id}','modText',this.value)">
       <button class="btn" style="padding:2px 6px;" onclick="removeEquipItem('${it.id}')" title="remove">×</button>
       ${tooBig?`<div class="equip-warn">Too heavy for your size (needs ${SIZE_CLASSES[wc.minSize].label}+) — scale mismatch.</div>`:''}
+      <div style="grid-column:1/-1;display:flex;gap:6px;align-items:center;">
+        <input type="text" value="${esc(it.fx||'')}" placeholder="ability / effect text → roll &amp; aim chips (optional)" oninput="updEquip('${it.id}','fx',this.value)" style="flex:1;font-size:11px;padding:2px 4px;">
+        <label style="display:flex;align-items:center;gap:3px;font-size:9px;color:var(--muted);white-space:nowrap;" title="Enhanced Device Extension — three-state neural processor (Equalizer / Extender / Dextender)"><input type="checkbox" ${it.ede?'checked':''} onchange="updEquip('${it.id}','ede',this.checked)">EDE</label>
+        ${it.ede?`<select onchange="updEquip('${it.id}','domain',this.value)" title="Genus overclock domain" style="font-size:10px;width:88px;padding:1px 2px;">${['','Neutral','Elemental','Eldritch','Kinetic','Null'].map(dm=>`<option value="${dm}"${dm===(it.domain||'')?' selected':''}>${dm||'— domain —'}</option>`).join('')}</select><input type="number" min="0" max="9" value="${parseInt(it.ncBonus)||0}" onchange="updEquip('${it.id}','ncBonus',parseInt(this.value)||0)" title="NC bonus (Equalizer baseline; also the NC needed to Overclock)" style="width:34px;font-size:10px;padding:1px 2px;">`:''}
+      </div>
       <div style="grid-column:1/-1;">
-        <input type="text" value="${esc(it.fx||'')}" placeholder="ability / effect text → roll &amp; aim chips (optional)" oninput="updEquip('${it.id}','fx',this.value)" style="width:100%;font-size:11px;padding:2px 4px;">
         <div class="action-chips equip-chips" id="eqfx-${it.id}"></div>
       </div>
     </div>`;
   });
   box.innerHTML=h;
   equipment.forEach(it=>renderItemFx(it));
-  updateBudget(); renderSlotMap();
+  updateBudget(); renderSlotMap(); renderEDE();
 }
 
 // ── ARMORY — wiki equipment database. Auto-discovers every page in Category:Equipment,
@@ -2349,6 +2382,129 @@ function armoryAdd(i){
     ede:(m.EDE||'').toLowerCase()==='yes', domain:m.DOMAIN||''   // reserved for the v0.4.9+ EDE state machine
   });
   renderEquipList(); calcAll(); autosave(); toast(it.name+' added to loadout');
+}
+
+// ── EDE STATE MACHINE — Equalizer (ready) → Extender (overclocked) → Dextender (backlash) ──
+// Deterministic parts are automated (NC baseline, SS multipliers ×0.5/×1.8/×2.0, free Genus
+// casts up to ⌊NC/4⌋, round countdowns, auto backlash, re-attune). Contested domain effects
+// are guided: computed numbers + a Declare button that logs to the table for the Curator.
+function ncModVal(){ return Math.floor((getV('d-nc'))/4); }
+function tlog(text){ try{ if(typeof Table!=='undefined'&&Table.connected&&Table.log)Table.log(text); }catch(e){} }
+const EDE_DOMAINS={
+  Neutral:  ()=>`<b>Synaptic Freeze</b> — freeze the Synaptic Space of up to <b>${(parseInt(document.getElementById('sm-per')?.value)||0)+ncModVal()}</b> creatures (Perception mod + NC mod) within Perception range (<b>${getV('d-pr')}</b>). Frozen targets cannot cast Ciphers, use Genus abilities, or activate SS-consuming gear.`,
+  Elemental:()=>`<b>Environmental Overdrive</b> — instantly <b>double the duration, targets, and range</b> of any active Elemental status, hazard, or Genus condition.`,
+  Eldritch: ()=>`<b>Requirement Inversion</b> — intercept an incoming Genus targeted at you and rewrite its mechanical requirements; the attacker must immediately sacrifice the new requirements. Contested <b>Action Priority + INT</b> (your AP ${getV('a-ap')}, INT ${getV('a-int')}).`,
+  Kinetic:  ()=>`<b>Vector Echo</b> — the physical impact or Genus damage resolves <b>twice</b>; the second impact lands instantly with its damage <b>÷1.5</b>.`,
+  Null:     ()=>`<b>Spatial Propagation</b> — take any status/effect active on a creature and propagate it to another target within <b>35 ft</b>. Contested <b>Action Priority + INT</b>; on success, chain it to up to <b>2 more</b> targets in sequence.`,
+};
+function edeItems(){ return equipment.filter(e=>e.equipped&&e.ede); }
+function renderEDE(){
+  const box=document.getElementById('ede-list'); if(!box)return;
+  const items=edeItems();
+  const note=document.getElementById('ede-note');
+  if(!items.length){ box.innerHTML='<div class="formula-note" style="font-style:italic;">No EDE-capable gear equipped. Tick the EDE box on an item row, or add EDE hardware from the Armory.</div>'; if(note)note.textContent=''; return; }
+  const myNC=getV('d-nc');
+  box.innerHTML=items.map(it=>{
+    const st=it.edeState||'eq', req=parseInt(it.ncBonus)||0, can=myNC>=req;
+    const badge=st==='eq'?'<span class="ede-badge eq">Equalizer · Ready</span>'
+              :st==='ext'?`<span class="ede-badge ext">Extender · Overclocked</span><span class="ede-rounds">${it.edeRounds||0}r left</span>`
+              :`<span class="ede-badge dex">Dextender · Backlash</span><span class="ede-rounds">${it.edeRounds||0}r left</span>`;
+    let body='',ctl='';
+    if(st==='eq'){
+      body=`<div class="ede-body">Tuned and stable. Baseline NC bonus <b>+${req}</b> is active${it.domain?` · Domain: <b>${esc(it.domain)}</b>`:''}.</div>`;
+      ctl=`<div class="ede-ctl">
+        <select id="ede-mode-${it.id}">
+          <option value="genus">Genus Overclock — free casts + domain effect</option>
+          <option value="cipher-off">Cipher: Online &rarr; Offline — SS cost ×0.5, Operator severed</option>
+          <option value="cipher-on">Cipher: Offline &rarr; Online — live upgrade injection</option>
+        </select>
+        <span style="font-size:9px;color:var(--muted);">for</span><input type="number" id="ede-rounds-${it.id}" min="1" max="2" value="2" style="width:34px;">r
+        <button class="btn prime" ${can?'':'disabled title="Needs NC '+req+' — your Neuronal Capacity is '+myNC+'"'} onclick="edeOverclock('${it.id}')">&#9889; Overclock</button>
+        ${can?'':`<span class="ede-warn">needs NC ${req}</span>`}
+      </div>`;
+    }else if(st==='ext'){
+      const mode=it.edeMode||'genus';
+      if(mode==='genus'){
+        body=`<div class="ede-body">Sole-console overclock running. <span class="ede-free">Free Genus casts: ${it.edeFree||0} / ${ncModVal()}</span> — Cast chips cost 0 SS until spent.</div>`
+            +(it.domain&&EDE_DOMAINS[it.domain]?`<div class="ede-domain">${EDE_DOMAINS[it.domain]()}<div style="margin-top:5px;"><button class="btn" onclick="edeDeclare('${it.id}')">Declare domain effect &rarr; table log</button></div></div>`:'');
+      }else if(mode==='cipher-off'){
+        body=`<div class="ede-body">This unit is the <b>sole console</b> — remote Operator severed, Paradigm monitoring blind. <b>Cipher SS costs ×0.5</b> while this holds.</div>`;
+      }else{
+        body=`<div class="ede-body">Offline Cipher forced <b>Online</b> — live upgrade modules injecting from the local unit. Declare the upgraded behaviour with your Curator.</div>`;
+      }
+      body+=`<div class="ede-body ede-warn">When the overclock expires it slams into Dextender backlash (2 rounds).</div>`;
+      ctl=`<div class="ede-ctl"><button class="btn" onclick="edeReattune('${it.id}')" title="Spend a Prepared Action to re-stabilize now">Re-attune Core (Prepared Action)</button></div>`;
+    }else{
+      body=`<div class="ede-body ede-warn">Neural bottleneck. <b>Cipher SS ×1.8</b> — casting grants opponents immediate Action Priority (they may parry/react first). <b>Genus SS ×2.0</b> — all creatures in the timeline gain AP over you while you cast.</div>`;
+      ctl=`<div class="ede-ctl"><button class="btn" onclick="edeReattune('${it.id}')" title="Spend a Prepared Action to re-stabilize now">Re-attune Core (Prepared Action)</button><span style="font-size:9px;color:var(--muted);">or wait ${it.edeRounds||0} more round(s)</span></div>`;
+    }
+    return `<div class="ede-card"><div class="ede-head"><span class="ede-name">${esc(it.name||'EDE device')}</span>${badge}<span style="font-size:9px;color:var(--muted);">NC +${req}${it.domain?' · '+esc(it.domain):''}</span></div>${body}${ctl}</div>`;
+  }).join('');
+  if(note){
+    const bits=[];
+    if(items.some(i=>i.edeState==='dex'))bits.push('⚠ DEXTENDER active: Cipher SS ×1.8 · Genus SS ×2.0 · opponents gain Action Priority on your casts');
+    else{ if(items.some(i=>i.edeState==='ext'&&i.edeMode==='cipher-off'))bits.push('Cipher SS ×0.5 (Extender, Offline)');
+      const f=items.filter(i=>i.edeState==='ext'&&i.edeMode==='genus').reduce((a,i)=>a+(i.edeFree||0),0);
+      if(f)bits.push('Free Genus casts remaining: '+f); }
+    note.textContent=bits.join(' · ')||'Overclock = free action while your NC meets the item requirement. Expiry → 2-round Dextender backlash. Re-attune = Prepared Action in combat, Recovery Phase outside it.';
+  }
+}
+function edeOverclock(id){
+  const it=equipment.find(e=>e.id===id); if(!it||it.edeState==='ext')return;
+  const req=parseInt(it.ncBonus)||0;
+  if(getV('d-nc')<req){ toast('Needs NC '+req+' to overclock'); return; }
+  it.edeMode=(document.getElementById('ede-mode-'+id)||{}).value||'genus';
+  it.edeRounds=Math.max(1,Math.min(2,parseInt((document.getElementById('ede-rounds-'+id)||{}).value)||2));
+  it.edeState='ext';
+  if(it.edeMode==='genus')it.edeFree=ncModVal();
+  const modeTxt={genus:'Genus Overclock ('+(it.edeFree||0)+' free casts'+(it.domain?', '+it.domain+' domain':'')+')','cipher-off':'Cipher Online→Offline (SS ×0.5, Operator severed)','cipher-on':'Cipher Offline→Online (live upgrades)'}[it.edeMode];
+  tlog('⚡ '+(it.name||'EDE device')+' OVERCLOCKED — Extender, '+it.edeRounds+'r: '+modeTxt);
+  toast('⚡ '+(it.name||'Device')+' overclocked ('+it.edeRounds+'r)');
+  renderEDE(); autosave();
+}
+function edeTick(){
+  const items=edeItems(); if(!items.length){toast('No EDE gear equipped');return;}
+  let changed=false;
+  items.forEach(it=>{
+    if(it.edeState==='ext'){ it.edeRounds=(it.edeRounds||1)-1; changed=true;
+      if(it.edeRounds<=0){ it.edeState='dex'; it.edeRounds=2; it.edeFree=0;
+        tlog('💥 '+(it.name||'EDE device')+' overclock EXPIRED — Dextender backlash (2r): SS costs spike, opponents gain Action Priority'); } }
+    else if(it.edeState==='dex'){ it.edeRounds=(it.edeRounds||1)-1; changed=true;
+      if(it.edeRounds<=0){ it.edeState='eq'; tlog((it.name||'EDE device')+' re-stabilized — Equalizer'); } }
+  });
+  if(changed){ renderEDE(); autosave(); toast('EDE round advanced'); } else toast('All EDE devices are stable (Equalizer)');
+}
+function edeReattune(id){
+  const it=equipment.find(e=>e.id===id); if(!it)return;
+  it.edeState='eq'; it.edeRounds=0; it.edeFree=0;
+  tlog((it.name||'EDE device')+' — Prepared Action: Re-attune Core → Equalizer');
+  toast('Re-attuned to Equalizer'); renderEDE(); autosave();
+}
+function edeDeclare(id){
+  const it=equipment.find(e=>e.id===id); if(!it||!it.domain||!EDE_DOMAINS[it.domain])return;
+  const txt=EDE_DOMAINS[it.domain]().replace(/<[^>]+>/g,'');
+  tlog('🌀 '+(it.name||'EDE')+' DOMAIN EFFECT ['+it.domain+']: '+txt);
+  toast(it.domain+' domain effect declared — sent to table log');
+}
+// SS-cost adjustment for a Genus/Cipher cast. Dextender penalties override Extender perks.
+// Returns {cost, notes, log, commit} — commit() is called only when the spend actually happens.
+function edeAdjustSS(n,kind){
+  const items=edeItems(), out={cost:n,notes:[],log:'',commit:null};
+  if(!items.length||!kind)return out;
+  const dex=items.some(i=>i.edeState==='dex');
+  if(dex){
+    out.cost=Math.ceil(n*(kind==='genus'?2.0:1.8));
+    out.notes.push('×'+(kind==='genus'?'2.0':'1.8')+' Dextender');
+    out.log='⚠ Dextender cast — opponents gain immediate Action Priority '+(kind==='genus'?'(AP suppression)':'(reaction vulnerability)');
+    return out;
+  }
+  if(kind==='genus'){
+    const f=items.find(i=>i.edeState==='ext'&&i.edeMode==='genus'&&(i.edeFree||0)>0);
+    if(f){ out.cost=0; out.notes.push('free cast — '+(f.name||'Extender')); out.commit=()=>{ f.edeFree--; renderEDE(); }; }
+  }else if(kind==='cipher'){
+    if(items.some(i=>i.edeState==='ext'&&i.edeMode==='cipher-off')){ out.cost=Math.ceil(n*0.5); out.notes.push('×0.5 Offline (Extender)'); }
+  }
+  return out;
 }
 
 // ════════════════════════════════════════════════════
@@ -2876,16 +3032,24 @@ function metaBadgesHTML(meta){
 }
 // ── SYNAPTIC SPACE + DEFENSIVE HIT POINTS ──
 function ssCurrent(){ const c=document.getElementById('d-sscur'); const m=document.getElementById('d-ss'); let v=c&&c.value!==''?parseInt(c.value):NaN; if(isNaN(v))v=parseInt(m&&m.value)||0; return v; }
-// Spend Synaptic Space when a Genus/Cipher is used.
-function spendSS(n,label){
+// Spend Synaptic Space when a Genus/Cipher is used. kind ('genus'|'cipher') lets the EDE
+// state machine adjust the cost: Extender = free Genus casts / Cipher ×0.5 Offline;
+// Dextender backlash = Genus ×2.0 / Cipher ×1.8 + the opponents-gain-AP warning.
+function spendSS(n,label,kind){
   n=parseInt(n)||0; if(n<=0)return;
+  let adj={cost:n,notes:[],log:'',commit:null};
+  if(kind&&typeof edeAdjustSS==='function')adj=edeAdjustSS(n,kind);
+  if(adj.cost<=0){ adj.commit&&adj.commit();
+    toast(`${label||'Ability'} — FREE cast (${adj.notes.join(', ')||'Extender overclock'})`);
+    tlog('⚡ '+(label||'Ability')+' cast free — Extender overclock'); autosave(); return; }
   const c=document.getElementById('d-sscur'); const m=document.getElementById('d-ss');
   let cur=ssCurrent();
-  if(n>cur && !confirm(`${label||'Ability'} costs ${n} SS but you only have ${cur} Synaptic Space. Use anyway (overdraw)?`))return;
+  if(adj.cost>cur && !confirm(`${label||'Ability'} costs ${adj.cost} SS${adj.notes.length?' ('+adj.notes.join(', ')+')':''} but you only have ${cur} Synaptic Space. Use anyway (overdraw)?`))return;
   if(c.value===''&&m)c.value=m.value;            // seed current from max on first spend
-  c.value=ssCurrent()-n;
+  c.value=ssCurrent()-adj.cost;
+  adj.commit&&adj.commit(); if(adj.log)tlog(adj.log);
   calcAll(); autosave(); if(typeof publishCombatantDebounced==='function')publishCombatantDebounced();
-  toast(`${label||'Used'} — ${n} SS spent (${c.value} left)`);
+  toast(`${label||'Used'} — ${adj.cost} SS spent${adj.notes.length?' ('+adj.notes.join(', ')+')':''} (${c.value} left)`);
 }
 // Take damage: Defensive Hit Points absorb first, overflow hits HP — unless the ability bypasses DHP / is true damage.
 function applyIncomingDamage(amount,bypassDHP,label){
@@ -2981,7 +3145,9 @@ function renderActions(containerId,actions,prefix,sourceLabel,meta,castSS){
   // Cast chip — spends Synaptic Space when you use a Genus / Cipher
   if(castSS>0){ const b=document.createElement('button');b.type='button';b.className='act-chip';b.style.background='#5a4a8a';
     b.textContent='Cast −'+castSS+' SS'; b.title='Spend '+castSS+' Synaptic Space to use '+(sourceLabel||'this ability');
-    b.addEventListener('click',()=>spendSS(castSS,sourceLabel)); decorateChip(b,sourceLabel,'Cast'); el.appendChild(b); }
+    // genus vs cipher container → the EDE state machine adjusts the cost accordingly
+    const ssKind=containerId.indexOf('gn-')===0?'genus':(/^c(\d+-chips|ipher-chips)/.test(containerId)?'cipher':'');
+    b.addEventListener('click',()=>spendSS(castSS,sourceLabel,ssKind)); decorateChip(b,sourceLabel,'Cast'); el.appendChild(b); }
   actions.forEach(a=>{
     const b=document.createElement('button');b.type='button';b.className='act-chip';
     b.textContent=a.label; b.title='Roll '+a.label;
