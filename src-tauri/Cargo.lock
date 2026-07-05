@@ -4927,7 +4927,7 @@ dependencies = [
 
 [[package]]
 name = "wte-app"
-version = "0.4.7"
+version = "0.4.8"
 dependencies = [
  "open",
  "serde",

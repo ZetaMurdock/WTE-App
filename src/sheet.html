@@ -283,6 +283,19 @@ textarea { resize: vertical; border: 1px solid var(--border); }
 .ewpn { display: grid; grid-template-columns: 2fr 65px 75px; gap: 6px; margin-bottom: 5px; align-items: end; }
 .earm { display: grid; grid-template-columns: 2fr 65px; gap: 6px; align-items: end; }
 .wpn-type-hint { font-size: 9px; color: var(--muted); font-style: italic; margin-bottom: 4px; }
+/* SIZE & LOADOUT (v0.4.8) */
+.stat-mini-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(78px, 1fr)); gap: 5px; }
+.mini-stat { background: var(--surface2); border: 1px solid var(--border2); padding: 3px 6px; }
+.mini-stat .ml { display: block; font-size: 7.5px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
+.mini-stat .mv2 { font-size: 13px; color: var(--ink); font-family: Georgia; }
+#load-budget-note.over, #size-diff-out .mini-stat.warn .mv2 { color: #b03020; }
+.equip-row { display: grid; grid-template-columns: 1.4fr 0.9fr 0.9fr 46px 1.6fr 24px; gap: 5px; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.equip-row input[type="text"], .equip-row select { font-size: 11px; padding: 2px 4px; width: 100%; }
+.equip-row.toobig { background: rgba(176,48,32,0.08); }
+.equip-row .eq-eq { display: flex; align-items: center; justify-content: center; }
+.equip-chips { grid-column: 1 / -1; }
+.equip-warn { font-size: 9px; color: #b03020; grid-column: 1 / -1; }
+.equip-hd { display: grid; grid-template-columns: 1.4fr 0.9fr 0.9fr 46px 1.6fr 24px; gap: 5px; font-size: 7.5px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); padding-bottom: 3px; }
 
 /* DICE PANEL */
 .dice-panel {
@@ -923,6 +936,71 @@ textarea { resize: vertical; border: 1px solid var(--border); }
   </div>
 </div>
 
+<!-- SIZE & LOADOUT (v0.4.8) -->
+<div class="section">
+  <div class="section-head">Size &amp; Loadout <span id="load-budget-note">0 / 20 slots</span></div>
+  <div class="section-body">
+    <div class="row" style="gap:18px;flex-wrap:wrap;">
+      <!-- Size panel -->
+      <div style="flex:1;min-width:250px;">
+        <div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:5px;">Size Class</div>
+        <div class="row" style="gap:8px;align-items:flex-end;">
+          <div class="field" style="margin:0;flex:1;"><label>Class</label>
+            <select id="f-size" onchange="renderSizePanel();calcAll();autosave();">
+              <option value="auto">Auto (by species)</option>
+              <option value="tiny">Tiny</option><option value="small">Small</option><option value="moderate">Moderate</option>
+              <option value="large">Large</option><option value="huge">Huge</option><option value="colossal">Colossal</option>
+            </select>
+          </div>
+          <div class="field" style="margin:0;width:82px;"><label>Size shift</label>
+            <input type="number" id="size-shift" value="0" min="-3" max="3" onchange="renderSizePanel();calcAll();autosave();" title="Temporary ±class from size-modification abilities (Enlarge, Volume Increase…)">
+          </div>
+        </div>
+        <div style="display:flex;gap:4px;margin-top:5px;">
+          <button class="btn" onclick="sizeShiftBy(1)" title="Enlarge +1 class">Enlarge +1</button>
+          <button class="btn" onclick="sizeShiftBy(-1)" title="Shrink −1 class">Shrink −1</button>
+          <button class="btn" onclick="sizeShiftBy(0)" title="Clear size shift">Reset</button>
+        </div>
+        <div class="stat-mini-grid" id="size-readout" style="margin-top:7px;"></div>
+        <div class="formula-note" id="size-note" style="margin-top:3px;"></div>
+      </div>
+      <!-- Size-difference calculator -->
+      <div style="flex:0.8;min-width:210px;">
+        <div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:5px;">Size-Difference Combat</div>
+        <div class="field" style="margin:0;"><label>Target size</label>
+          <select id="size-diff-target" onchange="renderSizeDiff()">
+            <option value="tiny">Tiny</option><option value="small">Small</option><option value="moderate" selected>Moderate</option>
+            <option value="large">Large</option><option value="huge">Huge</option><option value="colossal">Colossal</option>
+          </select>
+        </div>
+        <div id="size-diff-out" class="stat-mini-grid" style="margin-top:7px;"></div>
+        <div class="formula-note">You (effective size) attacking the target. Reference only — apply at the table.</div>
+      </div>
+    </div>
+
+    <!-- Anatomical body plan -->
+    <div class="row" style="gap:12px;align-items:flex-end;margin-top:10px;border-top:1px solid var(--border);padding-top:8px;">
+      <div class="field" style="margin:0;width:230px;"><label>Anatomical Body Plan</label>
+        <select id="body-plan" onchange="renderEquipList();renderSlotMap();autosave();">
+          <option value="bipedal">Bipedal (default)</option><option value="mirga">Mirga (6 arms / segmented)</option>
+          <option value="spatian">Spatian (multi-limb)</option><option value="quad">Quadruped</option>
+        </select>
+      </div>
+      <div style="flex:1;font-size:9px;color:var(--muted);" id="slot-map"></div>
+    </div>
+
+    <!-- Equipment list -->
+    <div style="margin-top:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);">Equipment &mdash; equipped gear shifts your stats live</div>
+        <button class="btn prime" onclick="addEquipItem()">+ Add item</button>
+      </div>
+      <div id="equip-list"></div>
+      <div class="formula-note">Modifiers: free text like <b>Weight +10, DHP +2, DEX −2</b> (attributes, specialties &amp; derived stats). Equipped gear feeds the derived-stat engine, Tax Burden &amp; Complexity automatically. Weight category sets the slot cost.</div>
+    </div>
+  </div>
+</div>
+
 <!-- NOTES -->
 <div class="section">
   <div class="section-head">Notes &amp; Backstory</div>
@@ -1136,6 +1214,51 @@ const SPEC_TOTAL = 225, SPEC_MAX = 75;
 // ── DERIVED-STAT BALANCE KNOBS (tweak these to rebalance build-crafting) ──
 const RED_DIV = 3;        // reduction harshness: −1 per this many specialty pts (lower = harsher)
                           // no safety floor — a bad build can drop a derived stat to 0 or negative
+
+// ════════════════════════════════════════════════════
+// SIZE & EQUIPMENT (v0.4.8) — data tables from the wiki "Size Classes" page
+// ════════════════════════════════════════════════════
+// Ordered small→large; index drives budget, reach, move floor & size-difference combat.
+const SIZE_CLASSES=[
+  {key:'tiny',    label:'Tiny',    budget:8,  reach:0,  move:15, space:'adjacent only', note:'¼ weapon dmg · ½ AoE dmg · Minute-scale gear only'},
+  {key:'small',   label:'Small',   budget:13, reach:5,  move:25, space:'5 ft',  note:'Disadv vs Huge/Colossal · +1 Stealth in tight spaces · +1 grapple escape'},
+  {key:'moderate',label:'Moderate',budget:20, reach:5,  move:30, space:'5 ft',  note:'Baseline — no size modifiers'},
+  {key:'large',   label:'Large',   budget:27, reach:10, move:35, space:'10 ft', note:'Adv vs Small/Tiny · +1d4 melee · Large armor +2 DHP · −1 Stealth in the open'},
+  {key:'huge',    label:'Huge',    budget:35, reach:15, move:45, space:'15 ft', note:'Adv vs Moderate− · +2d6 melee · Stomp · cannot be Parried by Moderate−'},
+  {key:'colossal',label:'Colossal',budget:50, reach:25, move:60, space:'25+ ft',note:'Phase-event scale — standard combat breaks down'},
+];
+// Weight category → slot cost (design: Light 0.5 / Medium 1.0 / Heavy 2.0) + minimum usable size index.
+const WEIGHT_CATS=[
+  {key:'minute',  label:'Minute',  cost:0.25, minSize:0},
+  {key:'light',   label:'Light',   cost:0.5,  minSize:1},
+  {key:'standard',label:'Standard',cost:1.0,  minSize:2},
+  {key:'heavy',   label:'Heavy',   cost:2.0,  minSize:3},
+  {key:'massive', label:'Massive', cost:4.0,  minSize:4},
+  {key:'titanic', label:'Titanic', cost:8.0,  minSize:5},
+];
+// Default size per species (wiki) — used when Size Class is left on "Auto".
+const SPECIES_SIZE={Hyomen:'moderate',Voaulton:'moderate',Mirga:'small',Oriyu:'moderate',Insectoid:'small',SubDermin:'small',Inderi:'moderate',Seraph:'moderate',Stygians:'moderate'};
+// Anatomical body plans — the placement layer (independent of the size budget).
+const BODY_PLANS={
+  bipedal: {label:'Bipedal (default)',    slots:['HEAD','CHEST','L_ARM','R_ARM','LEGS','UTILITY','UTILITY','UTILITY']},
+  mirga:   {label:'Mirga (6 arms / segmented)', slots:['HEAD','CHEST','ARM1','ARM2','ARM3','ARM4','ARM5','ARM6','SEGMENT','SEGMENT','UTILITY','UTILITY']},
+  spatian: {label:'Spatian (multi-limb)', slots:['HEAD','CHEST','L_ARM','R_ARM','ARM3','ARM4','LEGS','LEGS','UTILITY','UTILITY']},
+  quad:    {label:'Quadruped',            slots:['HEAD','CHEST','FORELEG_L','FORELEG_R','HINDLEG_L','HINDLEG_R','UTILITY','UTILITY']},
+};
+// Free-text modifier aliases → stat ids. Longer names win via exact lookup ("perception range"→d-pr vs "perception"→s-per).
+const STAT_ALIASES={
+  'phy':'a-phy','strength':'a-phy','str':'a-phy','dex':'a-dex','dexterity':'a-dex','end':'a-end','endurance':'a-end',
+  'ap':'a-ap','action priority':'a-ap','wis':'a-wis','wisdom':'a-wis','cha':'a-con','con':'a-con','charisma':'a-con','int':'a-int','intelligence':'a-int',
+  'inspiration':'s-ins','insp':'s-ins','ins':'s-ins','versatility':'s-ver','ver':'s-ver','balance':'s-bal','bal':'s-bal','weight':'s-wt','wt':'s-wt',
+  'precision':'s-pre','prec':'s-pre','pre':'s-pre','control':'s-ctrl','ctrl':'s-ctrl','priority':'s-pri','pri':'s-pri',
+  'wpn mastery':'s-wm','weapon mastery':'s-wm','mastery':'s-wm','wm':'s-wm','mental fort':'s-mf','mental fortitude':'s-mf','fort':'s-mf','mf':'s-mf',
+  'perception':'s-per','per':'s-per','adaption':'s-adp','adaptation':'s-adp','adp':'s-adp','cunning':'s-cun','cun':'s-cun',
+  'attack':'d-atk','attack power':'d-atk','atk':'d-atk','dhp':'d-dhp','defensive hit points':'d-dhp','def hit points':'d-dhp',
+  'movement':'d-mv','move':'d-mv','mv':'d-mv','synaptic space':'d-ss','synaptic':'d-ss','ss':'d-ss','evasion':'d-ev','eva':'d-ev','ev':'d-ev',
+  'neuronal capacity':'d-nc','neuronal':'d-nc','nc':'d-nc','recovery rate':'d-rr','recovery':'d-rr','rr':'d-rr',
+  'action density':'d-ad','density':'d-ad','ad':'d-ad','influence':'d-inf','inf':'d-inf','perception range':'d-pr','range':'d-pr','pr':'d-pr',
+};
+let equipment=[];   // [{id,name,slot,wcat,equipped,modText,fx,notes}] — persisted as __equipment
 
 // ════════════════════════════════════════════════════
 // DYNAMIC ROWS
@@ -1380,7 +1503,7 @@ function renderSpecies(){
   renderSpeciesAbilities();
 }
 function onSpeciesChange(){
-  renderSpecies(); calcAll(); autosave();
+  renderSpecies(); calcAll(); if(typeof renderSizePanel==='function')renderSizePanel(); autosave();
   const sp=document.getElementById('f-species').value;
   if(sp&&SPECIES_DATA[sp]&&!wikiSpeciesCache[sp]){
     setSpeciesSync('loading');
@@ -1850,7 +1973,8 @@ function setRO(id,val){const el=document.getElementById(id);if(el&&el.readOnly)e
 function calcAll(){
   const bg=getBgBonuses();
   const spb=getSpeciesBonus();
-  const ab=(id)=>(bg[id]||0)+(spb[id]||0); // total external bonus for a stat
+  const eq=getEquipBonuses();               // equipped gear: {attrspec, derived}
+  const ab=(id)=>(bg[id]||0)+(spb[id]||0)+(eq.attrspec[id]||0); // total external bonus for a stat
   const raw={
     phy:getV('a-phy')+ab('a-phy'),
     dex:getV('a-dex')+ab('a-dex'),
@@ -1869,21 +1993,11 @@ function calcAll(){
   const totalSpB=Object.values(spb).reduce((x,y)=>x+y,0);
   document.getElementById('attr-bonus-note').textContent=totalSpB?('+ species bonus'):'';
 
-  // Specialties (with background bonuses, capped at SPEC_MAX)
-  const sp={
-    ins:Math.min(SPEC_MAX,getV('s-ins')+(bg['s-ins']||0)),
-    ver:Math.min(SPEC_MAX,getV('s-ver')+(bg['s-ver']||0)),
-    bal:Math.min(SPEC_MAX,getV('s-bal')+(bg['s-bal']||0)),
-    wt: Math.min(SPEC_MAX,getV('s-wt') +(bg['s-wt'] ||0)),
-    pre:Math.min(SPEC_MAX,getV('s-pre')+(bg['s-pre']||0)),
-    ctrl:Math.min(SPEC_MAX,getV('s-ctrl')+(bg['s-ctrl']||0)),
-    pri:Math.min(SPEC_MAX,getV('s-pri')+(bg['s-pri']||0)),
-    wm: Math.min(SPEC_MAX,getV('s-wm') +(bg['s-wm'] ||0)),
-    mf: Math.min(SPEC_MAX,getV('s-mf') +(bg['s-mf'] ||0)),
-    per:Math.min(SPEC_MAX,getV('s-per')+(bg['s-per']||0)),
-    adp:Math.min(SPEC_MAX,getV('s-adp')+(bg['s-adp']||0)),
-    cun:Math.min(SPEC_MAX,getV('s-cun')+(bg['s-cun']||0)),
-  };
+  // Specialties (background + equipped-gear bonuses, capped at SPEC_MAX)
+  const sp={};
+  ['ins','ver','bal','wt','pre','ctrl','pri','wm','mf','per','adp','cun'].forEach(k=>{
+    const id='s-'+k; sp[k]=Math.min(SPEC_MAX, getV(id)+(bg[id]||0)+(eq.attrspec[id]||0));
+  });
   const sm={};
   const spKeys=['ins','ver','bal','wt','pre','ctrl','pri','wm','mf','per','adp','cun'];
   const spIds=['s-ins','s-ver','s-bal','s-wt','s-pre','s-ctrl','s-pri','s-wm','s-mf','s-per','s-adp','s-cun'];
@@ -1912,20 +2026,23 @@ function calcAll(){
   const pr  = dv(raw.wis + sp.per + sp.cun,            red(sp.mf) + red(sp.bal));
 
   const ov=(id)=>parseInt(document.getElementById(id)?.value)||0;
-  // No clamp — a badly-built stat shows its true 0 or negative value as a liability.
-  setRO('d-atk', atk+ov('do-atk'));
-  setRO('d-dhp', dhp+ov('do-dhp'));
-  setRO('d-mv',  mv +ov('do-mv'));
-  setRO('d-ss',  ss +ov('do-ss'));
-  setRO('d-ev',  ev +ov('do-ev'));
-  setRO('d-nc',  nc +ov('do-nc'));
-  setRO('d-rr',  rr +ov('do-rr'));
-  setRO('d-ad',  ad +ov('do-ad'));
-  setRO('d-inf', inf+ov('do-inf'));
-  setRO('d-pr',  pr +ov('do-pr'));
+  // Each derived stat = base + manual override + equipped-gear derived bonus. No clamp — a
+  // badly-built stat shows its true 0 or negative value as a liability.
+  const setD=(id,base)=>setRO(id, base + ov('do'+id.slice(1)) + (eq.derived[id]||0));
+  const mvFloor=(typeof effectiveSize==='function')?effectiveSize().move:0;   // Size Class base move is a floor
+  setD('d-atk', atk);
+  setD('d-dhp', dhp);
+  setD('d-mv',  Math.max(mv, mvFloor));
+  setD('d-ss',  ss);
+  setD('d-ev',  ev);
+  setD('d-nc',  nc);
+  setD('d-rr',  rr);
+  setD('d-ad',  ad);
+  setD('d-inf', inf);
+  setD('d-pr',  pr);
 
   // HP = floor((DHP/2) × rankMult) + END mod (HP itself still bottoms out at 0 = death)
-  const dhpVal = dhp+ov('do-dhp');
+  const dhpVal = dhp+ov('do-dhp')+(eq.derived['d-dhp']||0);
   const hpMax  = Math.floor((dhpVal/2)*rankMult()) + m.end;
   setRO('d-hpmax', hpMax>0?hpMax:0);
 
@@ -1937,7 +2054,7 @@ function calcAll(){
   el.textContent=left; el.style.color=left<0?'#b03020':'';
 
   // Pressure Engine derived: Tax Burden & Complexity
-  let tax=0; REDUCERS.forEach(id=>tax+=Math.floor((getV(id)+(bg[id]||0))/10));
+  let tax=0; REDUCERS.forEach(id=>tax+=Math.floor((getV(id)+(bg[id]||0)+(eq.attrspec[id]||0))/10));
   const inspPts=Math.min(SPEC_MAX,getV('s-ins')+(bg['s-ins']||0));
   const complexity=inspPts-tax;
   document.getElementById('pe-cplx').textContent=(complexity>=0?'+':'')+complexity;
@@ -1945,6 +2062,144 @@ function calcAll(){
   updateRankBar();
   updatePEState();
   publishCombatantDebounced();
+}
+
+// ════════════════════════════════════════════════════
+// SIZE & EQUIPMENT (v0.4.8)
+// ════════════════════════════════════════════════════
+// Equipped gear feeds calcAll through a third bonus layer (next to background + species).
+function parseEquipMods(text){
+  const mods={}, dmods={};
+  String(text||'').replace(/−/g,'-').split(/[,;\n]+/).forEach(tok=>{
+    const m=tok.trim().match(/^(.+?)\s*([+-]\s*\d+)\s*$/); if(!m)return;
+    const name=m[1].trim().toLowerCase().replace(/\s+/g,' ');
+    const id=STAT_ALIASES[name]; if(!id)return;
+    const v=parseInt(m[2].replace(/\s+/g,''))||0;
+    if(id[0]==='d'){ dmods[id]=(dmods[id]||0)+v; } else { mods[id]=(mods[id]||0)+v; }
+  });
+  return {mods,dmods};
+}
+function getEquipBonuses(){
+  const attrspec={}, derived={};
+  equipment.forEach(it=>{ if(!it.equipped)return;
+    const {mods,dmods}=parseEquipMods(it.modText);
+    for(const id in mods)attrspec[id]=(attrspec[id]||0)+mods[id];
+    for(const id in dmods)derived[id]=(derived[id]||0)+dmods[id];
+    if(it.ncBonus)derived['d-nc']=(derived['d-nc']||0)+(parseInt(it.ncBonus)||0);   // reserved for EDE (v0.4.9)
+  });
+  return {attrspec,derived};
+}
+// ── effective size (base class or species-auto, ± temporary size shift) ──
+function effectiveSizeIndex(){
+  const v=(document.getElementById('f-size')||{}).value||'auto';
+  const baseKey = v==='auto' ? (SPECIES_SIZE[(document.getElementById('f-species')||{}).value]||'moderate') : v;
+  let i=SIZE_CLASSES.findIndex(s=>s.key===baseKey); if(i<0)i=2;
+  const shift=parseInt((document.getElementById('size-shift')||{}).value)||0;
+  return Math.max(0,Math.min(SIZE_CLASSES.length-1,i+shift));
+}
+function effectiveSize(){ return SIZE_CLASSES[effectiveSizeIndex()]; }
+function effectiveSizeKey(){ return effectiveSize().key; }
+function sizeShiftBy(n){ const el=document.getElementById('size-shift'); if(!el)return;
+  el.value = n===0 ? 0 : Math.max(-3,Math.min(3,(parseInt(el.value)||0)+n));
+  renderSizePanel(); calcAll(); autosave(); }
+function renderSizePanel(){
+  const s=effectiveSize();
+  const ro=document.getElementById('size-readout'); if(ro)ro.innerHTML=
+    `<div class="mini-stat"><span class="ml">Slot Budget</span><span class="mv2">${s.budget}</span></div>`+
+    `<div class="mini-stat"><span class="ml">Reach</span><span class="mv2">${s.reach} ft</span></div>`+
+    `<div class="mini-stat"><span class="ml">Base Move</span><span class="mv2">${s.move} ft</span></div>`+
+    `<div class="mini-stat"><span class="ml">Space</span><span class="mv2">${s.space}</span></div>`;
+  const auto=((document.getElementById('f-size')||{}).value==='auto');
+  const note=document.getElementById('size-note');
+  if(note)note.innerHTML=(auto?`Auto &rarr; <b>${s.label}</b> (from species). `:`Effective: <b>${s.label}</b>. `)+esc(s.note);
+  renderSizeDiff(); updateBudget();
+}
+function sizeDiffMods(d){
+  if(d===0)return {atk:'—',dmg:'—',grp:'Standard'};
+  if(d===1)return {atk:'+1',dmg:'+1d4',grp:'+2'};
+  if(d===2)return {atk:'+2',dmg:'+1d6',grp:'Adv'};
+  if(d>=3)return {atk:'+3 Adv',dmg:'+1d8',grp:'Auto'};
+  if(d===-1)return {atk:'Neutral',dmg:'−1d4',grp:'Disadv'};
+  if(d===-2)return {atk:'Disadv',dmg:'−2',grp:'Disadv'};
+  return {atk:'Disadv −2',dmg:'−4 · no Endure',grp:'Disadv'};
+}
+function renderSizeDiff(){
+  const out=document.getElementById('size-diff-out'); if(!out)return;
+  const tgt=(document.getElementById('size-diff-target')||{}).value||'moderate';
+  let ti=SIZE_CLASSES.findIndex(s=>s.key===tgt); if(ti<0)ti=2;
+  const m=sizeDiffMods(effectiveSizeIndex()-ti);
+  out.innerHTML=
+    `<div class="mini-stat"><span class="ml">Attack</span><span class="mv2">${m.atk}</span></div>`+
+    `<div class="mini-stat"><span class="ml">Damage</span><span class="mv2">${m.dmg}</span></div>`+
+    `<div class="mini-stat"><span class="ml">Grapple</span><span class="mv2">${m.grp}</span></div>`;
+}
+// ── anatomical body plan + slot placement ──
+function bodyPlanSlots(){ const bp=BODY_PLANS[((document.getElementById('body-plan')||{}).value)||'bipedal']||BODY_PLANS.bipedal; return bp.slots; }
+function bodyPlanSlotOptions(sel){ const uniq=[...new Set(bodyPlanSlots())];
+  if(sel&&!uniq.includes(sel))uniq.push(sel);   // keep an item's slot even if the plan changed
+  return uniq.map(s=>`<option value="${esc(s)}"${s===sel?' selected':''}>${esc(s)}</option>`).join(''); }
+function renderSlotMap(){
+  const el=document.getElementById('slot-map'); if(!el)return;
+  const slots=bodyPlanSlots(), cap={}; slots.forEach(s=>cap[s]=(cap[s]||0)+1);
+  const uniq=[...new Set(slots)], byslot={};
+  equipment.forEach(it=>{ if(!it.equipped)return; (byslot[it.slot]=byslot[it.slot]||[]).push(it.name||'item'); });
+  el.innerHTML=uniq.map(s=>{ const items=byslot[s]||[], over=items.length>(cap[s]||1);
+    return `<span style="display:inline-block;margin:0 10px 3px 0;${over?'color:#b03020;':''}"><b>${esc(s)}</b>${cap[s]>1?' ×'+cap[s]:''}: ${items.length?esc(items.join(', ')):'—'}${over?' ⚠':''}</span>`;
+  }).join('');
+}
+// ── equipment list CRUD ──
+function addEquipItem(){
+  equipment.push({id:'eq'+Math.random().toString(36).slice(2,8),name:'',slot:bodyPlanSlots()[0]||'UTILITY',wcat:'standard',equipped:true,modText:'',fx:'',notes:''});
+  renderEquipList(); calcAll(); autosave();
+}
+function removeEquipItem(id){ equipment=equipment.filter(e=>e.id!==id); renderEquipList(); calcAll(); autosave(); }
+function updEquip(id,field,val){
+  const it=equipment.find(e=>e.id===id); if(!it)return;
+  it[field]=(field==='equipped')?!!val:val;
+  if(field==='fx'){ renderItemFx(it); }
+  else if(field==='wcat'||field==='equipped'){ renderEquipList(); calcAll(); }   // rebuild → budget, slot map & too-big flag
+  else if(field==='slot'){ renderSlotMap(); }
+  else if(field==='modText'){ calcAll(); }
+  autosave();
+}
+function renderItemFx(it){
+  const el=document.getElementById('eqfx-'+it.id); if(!el)return;
+  const txt=it.fx||'';
+  if(!txt.trim()){ el.innerHTML=''; return; }
+  renderActions('eqfx-'+it.id, parseEffectActions(txt), 'Rolls', it.name||'Item', parseEffectMeta(txt));
+}
+function updateBudget(){
+  const budget=effectiveSize().budget; let used=0;
+  equipment.forEach(it=>{ if(!it.equipped)return; const wc=WEIGHT_CATS.find(w=>w.key===it.wcat); used+=wc?wc.cost:1; });
+  used=Math.round(used*100)/100;
+  const note=document.getElementById('load-budget-note');
+  if(note){ note.textContent=`${used} / ${budget} slots`; note.classList.toggle('over',used>budget); }
+}
+function renderEquipList(){
+  const box=document.getElementById('equip-list'); if(!box)return;
+  if(!equipment.length){ box.innerHTML='<div class="formula-note" style="font-style:italic;">No equipment yet. Add items and mark them equipped to feed your stats.</div>'; updateBudget(); renderSlotMap(); return; }
+  const effIdx=effectiveSizeIndex();
+  let h='<div class="equip-hd"><span>Item</span><span>Slot</span><span>Weight</span><span style="text-align:center;">Eq</span><span>Modifiers</span><span></span></div>';
+  equipment.forEach(it=>{
+    const wc=WEIGHT_CATS.find(w=>w.key===it.wcat)||WEIGHT_CATS[2];
+    const tooBig=wc.minSize>effIdx;
+    h+=`<div class="equip-row${tooBig?' toobig':''}">
+      <input type="text" value="${esc(it.name||'')}" placeholder="item name" oninput="updEquip('${it.id}','name',this.value)">
+      <select onchange="updEquip('${it.id}','slot',this.value)">${bodyPlanSlotOptions(it.slot)}</select>
+      <select onchange="updEquip('${it.id}','wcat',this.value)">${WEIGHT_CATS.map(w=>`<option value="${w.key}"${w.key===it.wcat?' selected':''}>${w.label} (${w.cost})</option>`).join('')}</select>
+      <span class="eq-eq"><input type="checkbox" ${it.equipped?'checked':''} onchange="updEquip('${it.id}','equipped',this.checked)" title="equipped"></span>
+      <input type="text" value="${esc(it.modText||'')}" placeholder="Weight +10, DHP +2, DEX −2" oninput="updEquip('${it.id}','modText',this.value)">
+      <button class="btn" style="padding:2px 6px;" onclick="removeEquipItem('${it.id}')" title="remove">×</button>
+      ${tooBig?`<div class="equip-warn">Too heavy for your size (needs ${SIZE_CLASSES[wc.minSize].label}+) — scale mismatch.</div>`:''}
+      <div style="grid-column:1/-1;">
+        <input type="text" value="${esc(it.fx||'')}" placeholder="ability / effect text → roll &amp; aim chips (optional)" oninput="updEquip('${it.id}','fx',this.value)" style="width:100%;font-size:11px;padding:2px 4px;">
+        <div class="action-chips equip-chips" id="eqfx-${it.id}"></div>
+      </div>
+    </div>`;
+  });
+  box.innerHTML=h;
+  equipment.forEach(it=>renderItemFx(it));
+  updateBudget(); renderSlotMap();
 }
 
 // ════════════════════════════════════════════════════
@@ -2073,6 +2328,7 @@ function collectAll(){
     __asymCount:asymCount, __genusCount:genusCount,
     __varnaAbilityCount:varnaAbilityCount, __cipherCount:cipherCount,
     __stage:currentStage, __cipher:cipherStatus, __icons:customIcons, __anims:buttonAnims,
+    __equipment:equipment,
   };
   document.querySelectorAll('input,textarea,select').forEach(el=>{if(el.id)d[el.id]=el.value;});
   document.querySelectorAll('[id^="bg-b"]').forEach(el=>{d[el.id]=el.value;});
@@ -2111,6 +2367,8 @@ function applyAll(d){
   // create paradigm/background sub-controls FIRST, then restore the bg-bonus selects
   onParadigmChange(); onBackgroundChange(false); // false = don't auto-overwrite the saved bonus picks
   document.querySelectorAll('[id^="bg-b"]').forEach(el=>{if(d[el.id]!==undefined)el.value=d[el.id];});
+  equipment=Array.isArray(d.__equipment)?d.__equipment.map(e=>Object.assign({id:'eq'+Math.random().toString(36).slice(2,8),name:'',slot:'UTILITY',wcat:'standard',equipped:true,modText:'',fx:'',notes:''},e)):[];
+  renderSizePanel(); renderEquipList();
   calcAll(); updateGenusBtn(); updateCipherBtn(); updatePEState(); refreshAllActionChips();
   // pull live cipher/genus data for this paradigm so pickers work after an old-file load
   if(d['f-paradigm']){loadGenusForParadigm();loadCiphersForParadigm();}
@@ -2170,8 +2428,10 @@ function blankSheet(){
   const gd=document.getElementById('genus-domain-note'); if(gd)gd.textContent='Pick a Paradigm to filter Genus by its energy domains.';
   const cd=document.getElementById('cipher-domain-note'); if(cd)cd.textContent='Pick a Paradigm to load its Ciphers.';
   const cb=document.getElementById('cipher-block-note'); if(cb)cb.style.display='none';
+  equipment=[];
   onParadigmChange(); onBackgroundChange(); onSpeciesChange();
   calcAll();updateGenusBtn();updateCipherBtn();updatePEState();refreshAllActionChips();
+  renderSizePanel(); renderEquipList();
 }
 function clearSheet(){
   if(!confirm('Clear this character to a blank rank-0 sheet?'))return;
@@ -3103,7 +3363,7 @@ const Table={
     if(!this.connected||!this.ref)return;
     this.ref.child('combatants/'+this.clientId).set({
       name:val('f-name')||this.name, ownerId:this.clientId, ownerName:this.name, role:this.role,
-      species:val('f-species'), variant:val('f-variant'),
+      species:val('f-species'), variant:val('f-variant'), size:effectiveSizeKey(),
       hpMax:getV('d-hpmax'), hpCur:getV('d-hpcur'), dhp:getV('d-dhpcur'), ss:getV('d-sscur'),
       abilities:gatherActorAbilities(), stats:gatherActorStats(),
       ts:Date.now()
@@ -3431,6 +3691,7 @@ const _active=rosterLoad().activeId;
 const _saved=_active?localStorage.getItem(charKey(_active)):localStorage.getItem('wte-sheet-v6');
 if(_saved){try{applyAll(JSON.parse(_saved));}catch(e){calcAll();updateGenusBtn();updateCipherBtn();}}
 else{calcAll();updateGenusBtn();updateCipherBtn();}
+renderSizePanel(); renderEquipList();   // ensure the Size & Loadout section renders on every boot path
 selectDie(40);
 updatePEState();
 refreshAllActionChips();
