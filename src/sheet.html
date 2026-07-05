@@ -1690,12 +1690,12 @@ function renderArchive(){
   if(!list.length){ body.innerHTML='<div style="color:var(--muted);font-style:italic;font-size:12px;">No creatures match. Add entries to the wiki archive pages, then Refresh.</div>'; return; }
   body.innerHTML=list.map(c=>{
     const idx=creatureCache.indexOf(c), k=computeCreature(c);
-    const statBits=Object.entries(c.meta).filter(([kk])=>!['CLASS','RANK','TIER','ANCHOR','CL','HP','CHP','TRAITS'].includes(kk)).map(([kk,v])=>kk+' '+esc(v)).join(' · ');
     return `<div style="border:1px solid var(--border);padding:8px 10px;margin-bottom:8px;display:flex;gap:12px;align-items:flex-start;">
       <div style="flex:1;">
         <div style="font-size:13px;"><b>${esc(c.name)}</b> <span style="font-size:9px;letter-spacing:1px;color:var(--accent);text-transform:uppercase;">Class ${c.cls} · ${CLASS_NAMES[c.cls]||''}${k.note?(' · '+esc(k.note)):''}${c.local?' · ✎ custom':''}</span></div>
-        <div style="font-size:11px;color:var(--muted);">HP <b style="color:var(--ink);">${k.hp}</b>${k.dr?(' · DR <b style="color:var(--ink);">'+k.dr+'</b>'):''}${statBits?(' · '+statBits):''}</div>
-        ${c.meta.TRAITS?`<div style="font-size:10.5px;color:var(--ink2);">${esc(c.meta.TRAITS)}</div>`:''}
+        <div style="font-size:11px;color:var(--muted);">HP <b style="color:var(--ink);">${k.hp}</b>${k.dr?(' · DR <b style="color:var(--ink);">'+k.dr+'</b>'):''}</div>
+        <div class="action-chips" id="arch-stats-${idx}"></div>
+        <div class="action-chips" id="arch-chips-${idx}"></div>
         ${k.flags.length?`<div style="font-size:9.5px;color:#b88a20;">${k.flags.map(esc).join(' · ')}</div>`:''}
       </div>
       <div style="display:flex;flex-direction:column;gap:4px;">
@@ -1705,6 +1705,25 @@ function renderArchive(){
         ${c.local?`<button class="btn" onclick="deleteCreature(${idx})">Delete</button>`:''}
       </div></div>`;
   }).join('');
+  list.forEach(c=>renderCreatureRolls(creatureCache.indexOf(c),c));
+}
+// Creature stat/ability chips — same look & behaviour as the character sheet
+function creatureMod(n){ return Math.floor((parseInt(n)||0)/4); }
+function crStatRoll(label,score){ score=parseInt(score)||0; if(typeof openPanelIfClosed==='function')openPanelIfClosed(); performRoll(1,20,score,`1d20+${score}`,label); }
+function renderCreatureRolls(idx,c){
+  const stats=document.getElementById('arch-stats-'+idx);
+  if(stats){
+    const numeric=Object.entries(c.meta||{}).filter(([k,v])=>/^-?\d+$/.test(String(v).trim())&&!['HP','CHP','CL'].includes(k));
+    stats.innerHTML=numeric.length
+      ? '<span class="act-chips-lbl">Checks</span>'+numeric.map(([k,v])=>{ const m=creatureMod(v); return `<button type="button" class="act-chip" title="1d20 + ${v}" onclick="crStatRoll('${esc(c.name)} — ${esc(k)} check',${parseInt(v)})">${esc(k)} <b style="opacity:.85;">${v}</b> (${m>=0?'+':''}${m})</button>`; }).join('')
+      : '';
+  }
+  const chips=document.getElementById('arch-chips-'+idx);
+  if(chips){
+    const txt=((c.meta&&c.meta.TRAITS?c.meta.TRAITS+'. ':'')+(c.desc||''));
+    const acts=parseEffectActions(txt).filter(a=>a.kind==='dice');   // creature stats aren't sheet attrs → keep dice only
+    renderActions('arch-chips-'+idx,acts,acts.length?'Abilities':'',c.name,parseEffectMeta(txt));
+  }
 }
 function archStatBlock(i){
   const c=creatureCache&&creatureCache[i]; if(!c)return; const k=computeCreature(c);
@@ -1712,7 +1731,7 @@ function archStatBlock(i){
   h+='<div style="font-size:20px;color:#2c3e50;">'+esc(c.name)+'</div>';
   h+='<div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#8a6d3b;margin-bottom:8px;">Class '+c.cls+' · '+(CLASS_NAMES[c.cls]||'')+(k.note?(' · '+esc(k.note)):'')+'</div>';
   h+='<div style="font-size:13px;margin-bottom:6px;">HP <b>'+k.hp+'</b>'+(k.dr?(' · DR <b>'+k.dr+'</b>'):'')+(c.collapsedHP?(' · Collapsed form <b>'+c.collapsedHP+'</b> HP'):'')+'</div>';
-  h+='<table style="border-collapse:collapse;margin-bottom:8px;"><tr>'+Object.entries(c.meta).map(([kk,v])=>'<td style="border:1px solid #b8b2a6;padding:3px 8px;font-size:11px;"><span style="font-size:8px;color:#6b6760;display:block;text-transform:uppercase;">'+esc(kk)+'</span>'+esc(v)+'</td>').join('')+'</tr></table>';
+  h+='<table style="border-collapse:collapse;margin-bottom:8px;"><tr>'+Object.entries(c.meta).map(([kk,v])=>{ const num=/^-?\d+$/.test(String(v).trim()); const m=num?creatureMod(v):null; return '<td style="border:1px solid #b8b2a6;padding:3px 8px;font-size:11px;"><span style="font-size:8px;color:#6b6760;display:block;text-transform:uppercase;">'+esc(kk)+'</span>'+esc(v)+(m!=null?' <span style="color:#8a6d3b;">('+(m>=0?'+':'')+m+')</span>':'')+'</td>'; }).join('')+'</tr></table>';
   if(k.flags.length)h+='<div style="font-size:11px;color:#8a6d3b;margin-bottom:6px;">'+k.flags.map(esc).join('<br>')+'</div>';
   if(c.desc)h+='<div style="font-size:12px;line-height:1.6;">'+esc(c.desc)+'</div>';
   h+='</div>';
