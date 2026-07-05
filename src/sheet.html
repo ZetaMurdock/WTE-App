@@ -993,7 +993,10 @@ textarea { resize: vertical; border: 1px solid var(--border); }
     <div style="margin-top:8px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
         <div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);">Equipment &mdash; equipped gear shifts your stats live</div>
-        <button class="btn prime" onclick="addEquipItem()">+ Add item</button>
+        <div style="display:flex;gap:5px;">
+          <button class="btn" onclick="openArmory()" title="Browse the wiki equipment database and add items to your loadout">Armory…</button>
+          <button class="btn prime" onclick="addEquipItem()">+ Add item</button>
+        </div>
       </div>
       <div id="equip-list"></div>
       <div class="formula-note">Modifiers: free text like <b>Weight +10, DHP +2, DEX −2</b> (attributes, specialties &amp; derived stats). Equipped gear feeds the derived-stat engine, Tax Burden &amp; Complexity automatically. Weight category sets the slot cost.</div>
@@ -1080,6 +1083,20 @@ textarea { resize: vertical; border: 1px solid var(--border); }
       <span class="hint" id="arch-status">Creatures are fetched live from the wiki archive pages.</span>
     </div>
     <div class="modal-body"><div id="archiveBody"></div></div>
+  </div>
+</div>
+
+<!-- ARMORY MODAL — wiki equipment browser (v0.4.9) -->
+<div class="modal-bg" id="armoryModal">
+  <div class="modal-card" style="width:820px;">
+    <div class="modal-head"><span class="mt">Armory &mdash; Equipment Database</span><span class="mx" onclick="closeArmory()">x</span></div>
+    <div class="modal-tools">
+      <input type="text" id="armory-search" placeholder="search equipment…" style="width:180px;" oninput="renderArmory()">
+      <select id="armory-type" onchange="renderArmory()" style="width:160px;font-size:11px;"><option value="">All types</option></select>
+      <button class="btn" onclick="armoryFetch(true)">Refresh from wiki</button>
+      <span class="hint" id="armory-status">Items are read from every wiki page in Category:Equipment.</span>
+    </div>
+    <div class="modal-body"><div id="armoryBody"></div></div>
   </div>
 </div>
 
@@ -2169,11 +2186,13 @@ function renderItemFx(it){
   renderActions('eqfx-'+it.id, parseEffectActions(txt), 'Rolls', it.name||'Item', parseEffectMeta(txt));
 }
 function updateBudget(){
-  const budget=effectiveSize().budget; let used=0;
-  equipment.forEach(it=>{ if(!it.equipped)return; const wc=WEIGHT_CATS.find(w=>w.key===it.wcat); used+=wc?wc.cost:1; });
-  used=Math.round(used*100)/100;
+  const budget=effectiveSize().budget; let used=0,wings=0;
+  // Wing gear has its own 5-slot allocation (wiki: Seraph wingspan rule) — doesn't draw from body slots.
+  equipment.forEach(it=>{ if(!it.equipped)return; const wc=WEIGHT_CATS.find(w=>w.key===it.wcat); const c=wc?wc.cost:1;
+    if(String(it.slot).toUpperCase()==='WINGS')wings+=c; else used+=c; });
+  used=Math.round(used*100)/100; wings=Math.round(wings*100)/100;
   const note=document.getElementById('load-budget-note');
-  if(note){ note.textContent=`${used} / ${budget} slots`; note.classList.toggle('over',used>budget); }
+  if(note){ note.textContent=`${used} / ${budget} slots`+(wings?` · wings ${wings} / 5`:''); note.classList.toggle('over',used>budget||wings>5); }
 }
 function renderEquipList(){
   const box=document.getElementById('equip-list'); if(!box)return;
@@ -2200,6 +2219,102 @@ function renderEquipList(){
   box.innerHTML=h;
   equipment.forEach(it=>renderItemFx(it));
   updateBudget(); renderSlotMap();
+}
+
+// ── ARMORY — wiki equipment database. Auto-discovers every page in Category:Equipment,
+// so new subpages need zero code changes. Parses <div class="wte-item"> blocks in BOTH
+// formats: the plain spec (wte-item-name / KEY: <span>) and the styled grid the live
+// wiki uses (bold-div name / <b>KEY</b> grid rows).
+let armoryCache=null,_armoryLoading=false;
+function parseArmoryPage(wt){
+  const out=[];
+  String(wt).split(/class="wte-item"/).slice(1).forEach(chunk=>{
+    let name=null,m=chunk.match(/class="wte-item-name"[^>]*>([^<]+)</);
+    if(m)name=cleanWiki(m[1]);
+    if(!name){ m=chunk.match(/<div[^>]*font-weight\s*:\s*bold[^>]*>\s*([\s\S]*?)\s*<\/div>/); if(m)name=cleanWiki(m[1]); }
+    if(!name)return;
+    const meta={}; let mm;
+    const re1=/([A-Z][A-Z_ ]{1,14}):\s*<span[^>]*>([^<]*)<\/span>/g;
+    while((mm=re1.exec(chunk)))meta[mm[1].trim()]=cleanWiki(mm[2]);
+    const re2=/<b>([A-Z][A-Z_ ]{1,14})<\/b>\s*<\/div>\s*<div[^>]*>([\s\S]*?)<\/div>/g;
+    while((mm=re2.exec(chunk)))meta[mm[1].trim()]=cleanWiki(mm[2]);
+    const dm=chunk.match(/class="wte-item-desc"[^>]*>([\s\S]*?)<\/div>/);
+    out.push({name,meta,desc:dm?cleanWiki(dm[1]):''});
+  });
+  return out;
+}
+async function armoryFetch(force){
+  let cached=null; try{cached=JSON.parse(localStorage.getItem('wte-armory-cache'));}catch(e){}
+  if(cached&&Array.isArray(cached.items))armoryCache=cached.items;
+  renderArmory();                                                        // instant paint from cache
+  const fresh=cached&&(Date.now()-(cached.ts||0)<6*3600*1000)&&(cached.items||[]).length;
+  if((!force&&fresh)||_armoryLoading)return;
+  _armoryLoading=true;
+  const st=document.getElementById('armory-status'); if(st)st.textContent='Fetching Category:Equipment…';
+  try{
+    const r=await fetch(WIKI_BASE+'/api.php?action=query&list=categorymembers&cmtitle=Category:Equipment&cmlimit=100&format=json&origin=*');
+    const j=await r.json();
+    const pages=((j.query&&j.query.categorymembers)||[]).map(x=>x.title);
+    const all=[];
+    for(const p of pages){
+      try{
+        const r2=await fetch(WIKI_BASE+'/api.php?action=parse&prop=wikitext&format=json&origin=*&page='+encodeURIComponent(p));
+        if(!r2.ok)continue; const j2=await r2.json(); if(j2.error)continue;
+        all.push(...parseArmoryPage(j2.parse.wikitext['*']));
+      }catch(e){}
+    }
+    const seen={},items=[];                                              // same item may sit on several pages
+    all.forEach(it=>{ const k=it.name.toLowerCase(); if(seen[k])return; seen[k]=1; items.push(it); });
+    if(items.length){ armoryCache=items; try{localStorage.setItem('wte-armory-cache',JSON.stringify({items,ts:Date.now()}));}catch(e){} }
+    if(st)st.textContent=items.length+' items · '+pages.length+' pages in Category:Equipment';
+  }catch(e){ if(st)st.textContent='Wiki unreachable — showing cached items.'; }
+  _armoryLoading=false; renderArmory();
+}
+function openArmory(){ document.getElementById('armoryModal').classList.add('open'); armoryFetch(); }
+function closeArmory(){ document.getElementById('armoryModal').classList.remove('open'); }
+document.getElementById('armoryModal').addEventListener('click',e=>{if(e.target.id==='armoryModal')closeArmory();});
+function renderArmory(){
+  const body=document.getElementById('armoryBody'); if(!body)return;
+  if(!armoryCache){ body.innerHTML='<div style="color:var(--muted);font-style:italic;font-size:12px;">Loading equipment database…</div>'; return; }
+  // rebuild the type filter from whatever TYPEs exist on the wiki
+  const tsel=document.getElementById('armory-type');
+  if(tsel){ const cur=tsel.value, types=[...new Set(armoryCache.map(it=>it.meta.TYPE).filter(Boolean))].sort();
+    tsel.innerHTML='<option value="">All types</option>'+types.map(t=>`<option value="${esc(t)}"${t===cur?' selected':''}>${esc(t)}</option>`).join(''); }
+  const q=(document.getElementById('armory-search').value||'').toLowerCase();
+  const tf=(document.getElementById('armory-type')||{}).value||'';
+  const list=armoryCache.filter(it=>(!tf||it.meta.TYPE===tf)&&(!q||it.name.toLowerCase().includes(q)||(it.desc||'').toLowerCase().includes(q)||(it.meta.MODS||'').toLowerCase().includes(q)));
+  if(!list.length){ body.innerHTML='<div style="color:var(--muted);font-style:italic;font-size:12px;">No items match. Add entries to the wiki Category:Equipment pages, then Refresh.</div>'; return; }
+  body.innerHTML=list.map(it=>{
+    const i=armoryCache.indexOf(it), m=it.meta;
+    const chips=[m.TYPE,m.SLOT,m.WEIGHT,(parseInt(m.NC)?('NC '+m.NC):''),((m.EDE||'').toLowerCase()==='yes'?('EDE'+(m.DOMAIN?' · '+m.DOMAIN:'')):'')].filter(Boolean);
+    return `<div style="border:1px solid var(--border);padding:8px 10px;margin-bottom:8px;display:flex;gap:12px;align-items:flex-start;">
+      <div style="flex:1;">
+        <div style="font-size:13px;"><b>${esc(it.name)}</b> <span style="font-size:9px;letter-spacing:1px;color:var(--accent);text-transform:uppercase;">${chips.map(esc).join(' · ')}</span></div>
+        ${m.MODS?`<div style="font-size:11px;color:var(--ink2);">Mods: <b>${esc(m.MODS)}</b></div>`:''}
+        ${it.desc?`<div style="font-size:10.5px;color:var(--muted);">${esc(it.desc)}</div>`:''}
+      </div>
+      <button class="btn prime" style="color:#fff;white-space:nowrap;" onclick="armoryAdd(${i})">Add to loadout</button>
+    </div>`;
+  }).join('');
+}
+function armoryAdd(i){
+  const it=armoryCache&&armoryCache[i]; if(!it)return;
+  const m=it.meta||{};
+  let wcat=String(m.WEIGHT||'standard').toLowerCase().trim();
+  if(wcat==='medium')wcat='standard';
+  if(!WEIGHT_CATS.some(w=>w.key===wcat))wcat='standard';
+  equipment.push({
+    id:'eq'+Math.random().toString(36).slice(2,8),
+    name:it.name,
+    slot:String(m.SLOT||'UTILITY').toUpperCase().replace(/\s+/g,'_'),
+    wcat, equipped:true,
+    modText:m.MODS||'',
+    fx:it.desc||'',
+    notes:m.TYPE||'',
+    ncBonus:parseInt(m.NC)||0,                                   // Equalizer baseline NC bonus (EDE spec)
+    ede:(m.EDE||'').toLowerCase()==='yes', domain:m.DOMAIN||''   // reserved for the v0.4.9+ EDE state machine
+  });
+  renderEquipList(); calcAll(); autosave(); toast(it.name+' added to loadout');
 }
 
 // ════════════════════════════════════════════════════
