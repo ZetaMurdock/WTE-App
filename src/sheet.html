@@ -1452,13 +1452,34 @@ function wParseVariants(wt){
   });
   return out;
 }
+// Per-variant Size Class from the species page (e.g. SubDermin → Construct: "Always Large").
+// Looks for a "Size Class" row within each variant block / heading; "Always X" or a range's
+// first size word wins ("Moderate–Large" → moderate as the typical member).
+function wParseSizes(wt){
+  const variants={};
+  const sizeRe=/Size\s*Class[\s\S]{0,220}?(?:Always\s+)?(Tiny|Small|Moderate|Large|Huge|Colossal)/i;
+  const alwaysRe=/Size\s*Class[\s\S]{0,220}?Always\s+(Tiny|Small|Moderate|Large|Huge|Colossal)/i;
+  const grab=(name,chunk)=>{ const k=name.toLowerCase();
+    if(variants[k]||/^(variants?|innate abilities|abilities|stats?|overview|profile|lineage|heritage)$/.test(k))return;   // skip section headings
+    const am=chunk.match(alwaysRe); if(am){variants[k]=am[1].toLowerCase();return;}
+    const sm=chunk.match(sizeRe); if(sm)variants[k]=sm[1].toLowerCase(); };
+  // styled variant blocks (same markers wParseVariants uses)
+  const re=/<div style="font-size:1\.1em;font-weight:bold;[^"]*font-family:monospace[^"]*">([^<]+)<\/div>/g;
+  const marks=[]; let m;
+  while((m=re.exec(wt)))marks.push({name:cleanWiki(m[1]),idx:m.index});
+  marks.forEach((mk,i)=>grab(mk.name, wt.slice(mk.idx, i+1<marks.length?marks[i+1].idx:Math.min(wt.length,mk.idx+4000))));
+  // plain "== Variant ==" heading sections with a stats table
+  const hre=/^==+\s*([A-Za-z'’\- ]+?)\s*==+\s*$/gm;
+  while((m=hre.exec(wt)))grab(cleanWiki(m[1]), wt.slice(m.index, m.index+3000));
+  return variants;
+}
 async function fetchSpeciesWiki(name){
   if(wikiSpeciesCache[name])return wikiSpeciesCache[name];
   const url=WIKI_BASE+'/api.php?action=parse&prop=wikitext&format=json&origin=*&page='+encodeURIComponent(name);
   const r=await fetch(url); if(!r.ok)throw new Error('HTTP '+r.status);
   const j=await r.json(); if(j.error)throw new Error(j.error.info||'wiki error');
   const wt=j.parse.wikitext['*'];
-  const data={innate:wParseAbilities(wAbilityTable(wSection(wt,'INNATE ABILITIES'))),variants:wParseVariants(wt),url:wikiPageUrl(name)};
+  const data={innate:wParseAbilities(wAbilityTable(wSection(wt,'INNATE ABILITIES'))),variants:wParseVariants(wt),sizes:wParseSizes(wt),url:wikiPageUrl(name)};
   wikiSpeciesCache[name]=data; return data;
 }
 function setSpeciesSync(state){
@@ -1525,7 +1546,7 @@ function onSpeciesChange(){
   if(sp&&SPECIES_DATA[sp]&&!wikiSpeciesCache[sp]){
     setSpeciesSync('loading');
     fetchSpeciesWiki(sp)
-      .then(()=>{ if(document.getElementById('f-species').value===sp){renderSpecies();setSpeciesSync('synced');autosave();} })
+      .then(()=>{ if(document.getElementById('f-species').value===sp){renderSpecies();setSpeciesSync('synced');if(typeof renderSizePanel==='function'){renderSizePanel();calcAll();}autosave();} })
       .catch(()=>{ if(document.getElementById('f-species').value===sp)setSpeciesSync('offline'); });
   }else if(sp&&wikiSpeciesCache[sp]){ setSpeciesSync('synced'); }
   else setSpeciesSync('');
@@ -1540,6 +1561,7 @@ function onVariantChange(){
     const va=(v&&d.variants[v]&&d.variants[v].length)?(' || '+v+': '+d.variants[v].map(a=>a.label).join('; ')):'';
     abEl.value=base+va;
   }
+  if(typeof renderSizePanel==='function'){renderSizePanel();calcAll();}   // variant can change Size Class (e.g. Construct = Large)
   autosave();
 }
 function renderSpeciesAbilities(){
@@ -2106,10 +2128,22 @@ function getEquipBonuses(){
   });
   return {attrspec,derived};
 }
-// ── effective size (base class or species-auto, ± temporary size shift) ──
+// ── effective size (base class or species/variant-auto, ± temporary size shift) ──
+// Auto: variant Size Class from the species wiki page wins (e.g. Construct = Always Large),
+// then the species default, then Moderate.
+function autoSizeInfo(){
+  const sp=(document.getElementById('f-species')||{}).value;
+  const variant=((document.getElementById('f-variant')||{}).value||'').trim();
+  const live=sp&&wikiSpeciesCache[sp];
+  if(variant&&live&&live.sizes){
+    const v=variant.toLowerCase();
+    for(const k in live.sizes){ if(k===v||k.includes(v)||v.includes(k))return {key:live.sizes[k],src:variant+' variant'}; }
+  }
+  return {key:SPECIES_SIZE[sp]||'moderate',src:'species'};
+}
 function effectiveSizeIndex(){
   const v=(document.getElementById('f-size')||{}).value||'auto';
-  const baseKey = v==='auto' ? (SPECIES_SIZE[(document.getElementById('f-species')||{}).value]||'moderate') : v;
+  const baseKey = v==='auto' ? autoSizeInfo().key : v;
   let i=SIZE_CLASSES.findIndex(s=>s.key===baseKey); if(i<0)i=2;
   const shift=parseInt((document.getElementById('size-shift')||{}).value)||0;
   return Math.max(0,Math.min(SIZE_CLASSES.length-1,i+shift));
@@ -2128,7 +2162,7 @@ function renderSizePanel(){
     `<div class="mini-stat"><span class="ml">Space</span><span class="mv2">${s.space}</span></div>`;
   const auto=((document.getElementById('f-size')||{}).value==='auto');
   const note=document.getElementById('size-note');
-  if(note)note.innerHTML=(auto?`Auto &rarr; <b>${s.label}</b> (from species). `:`Effective: <b>${s.label}</b>. `)+esc(s.note);
+  if(note)note.innerHTML=(auto?`Auto &rarr; <b>${s.label}</b> (from ${esc(autoSizeInfo().src)}). `:`Effective: <b>${s.label}</b>. `)+esc(s.note);
   renderSizeDiff(); updateBudget();
 }
 function sizeDiffMods(d){
