@@ -117,6 +117,14 @@ body.wte-light .hub{background-image:radial-gradient(circle at 50% 30%, #f0ede6 
 .layer .ll{cursor:pointer;color:var(--muted);width:14px;text-align:center;font-size:11px;}
 .layer .ln{flex:1;}
 .empty{font-size:11px;color:var(--muted);font-style:italic;}
+.summon-list{display:flex;flex-direction:column;gap:3px;max-height:240px;overflow-y:auto;margin:2px 0;}
+.summon-item{display:flex;align-items:center;gap:6px;padding:4px 6px;border:1px solid var(--line);background:var(--panel2);cursor:grab;font-size:11px;color:var(--ink);}
+.summon-item:hover{border-color:var(--accent);}
+.summon-item:active{cursor:grabbing;}
+.summon-item .snm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.summon-item .scl{font-size:8px;letter-spacing:1px;text-transform:uppercase;color:var(--accent2);}
+.summon-item .shp{font-size:9px;color:var(--muted);font-family:Consolas,monospace;}
+.canvas-wrap.drop-target{outline:2px dashed var(--accent);outline-offset:-3px;}
 .del{padding:4px 10px;border:1px solid #7a2e2a;background:none;color:#c8645c;cursor:pointer;font-family:'Georgia',serif;font-size:11px;}
 .del:hover{background:#7a2e2a;color:#fff;}
 .chk{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);cursor:pointer;}
@@ -169,6 +177,7 @@ body.wte-light .hub{background-image:radial-gradient(circle at 50% 30%, #f0ede6 
   <label class="chk" style="margin-left:4px;"><input type="checkbox" id="snap-toggle" checked onchange="snapOn=this.checked"> snap</label>
   <span class="sep"></span>
   <button class="tbtn" id="fog-btn" onclick="toggleFog()" title="Fog of War">Fog: Off</button>
+  <button class="tbtn gmonly" id="reveal-btn" onclick="spotlightReveal()" title="Reveal Spotlight (R) — reveal the selected token's area (or the current view) to players, as if they'd explored it">Reveal</button>
   <button class="tbtn gmonly" onclick="document.getElementById('bg-file').click()">Background…</button>
   <input type="file" id="bg-file" accept="image/*" style="display:none" onchange="loadBg(this.files[0])">
   <button class="tbtn gmonly" onclick="openAW()" title="Generate walls from the map image">Auto-Walls</button>
@@ -225,6 +234,14 @@ body.wte-light .hub{background-image:radial-gradient(circle at 50% 30%, #f0ede6 
   </div>
   <div class="side">
     <div class="sec"><div class="sec-h">Properties</div><div class="sec-b" id="props"><div class="empty">Nothing selected.</div></div></div>
+    <div class="sec gmonly" id="summonSec"><div class="sec-h">Summon &middot; Bestiary</div><div class="sec-b" id="summonPanel">
+      <div class="row"><input type="text" id="summon-search" placeholder="search bestiary…" oninput="renderSummon()" style="flex:1;"></div>
+      <div class="row"><select id="summon-class" onchange="renderSummon()" style="flex:1;">
+        <option value="">All classes</option><option value="1">1 · Standard</option><option value="2">2 · Anima</option><option value="3">3 · Alter Anima</option><option value="4">4 · Fracture</option><option value="5">5 · Doxa</option><option value="6">6 · Nyvilum</option>
+      </select><button class="tbtn" onclick="summonFetch(true)" title="Refresh the bestiary from the wiki">&#8635;</button></div>
+      <div id="summon-list" class="summon-list"><div class="empty">Loading bestiary…</div></div>
+      <div class="empty" style="font-size:9px;">Drag a creature onto the map to place it, or click to drop at center.</div>
+    </div></div>
     <div class="sec"><div class="sec-h">Layers</div><div class="sec-b" id="layers"></div></div>
     <div class="sec"><div class="sec-h">Map</div><div class="sec-b">
       <div class="row"><label>Name</label><input type="text" id="map-name" onchange="map.name=this.value;syncMap()"></div>
@@ -431,7 +448,7 @@ function doDraw(){
   drawPings();
   if(fogOn && map.layers.fog.vis) drawFog(vis||[]);
   if(_voidR) drawVoid();
-  ctx.setTransform(view.zoom,0,0,view.zoom,view.panX,view.panY); drawMeasurements();
+  ctx.setTransform(view.zoom,0,0,view.zoom,view.panX,view.panY); drawMeasurements(); drawShowcase();
   drawFlashes();
   if(VTaim){ ctx.setTransform(view.zoom,0,0,view.zoom,view.panX,view.panY); drawAimPreview(); }
   if(role==='player'&&fogOn&&!map.tokens.some(ownedByMe)){
@@ -514,6 +531,17 @@ function drawPings(){
     if(p.by){ctx.fillStyle=`rgba(255,255,255,${1-age})`;ctx.font=`${12/view.zoom}px Georgia`;ctx.textAlign='center';ctx.fillText(p.by,p.x,p.y-(16+age*36));} });
   if(pings.length)render();
 }
+// Showcase highlight — pulsing rings at the point everyone's camera was panned to (Ctrl+click).
+let showcaseFocus=null;
+function drawShowcase(){
+  if(!showcaseFocus)return;
+  const age=(Date.now()-showcaseFocus.ts)/1900;
+  if(age>=1){ showcaseFocus=null; return; }
+  for(let i=0;i<3;i++){ const ph=(age*2+i/3)%1, r=18+ph*100;
+    ctx.beginPath(); ctx.arc(showcaseFocus.x,showcaseFocus.y,r,0,7); ctx.lineWidth=3.5/view.zoom;
+    ctx.strokeStyle=`rgba(216,178,90,${(1-ph)*(1-age)})`; ctx.stroke(); }
+  render();
+}
 function drawMeasurements(){
   if(!map.layers.measure.vis)return;
   const all=measurements.concat(measureDraft?[measureDraft]:[]);
@@ -562,6 +590,23 @@ function ensureExplored(){
   exploredCtx=exploredCv.getContext('2d');
 }
 function resetFog(){ ensureExplored(); render(); toast('Explored memory cleared'); }
+// ── Reveal Spotlight — paint an area into every viewer's explored memory (as if they'd walked there) ──
+function revealRect(x,y,w,h){
+  if(!exploredCtx)ensureExplored();
+  if(!exploredCtx)return;
+  exploredCtx.fillStyle='#fff';
+  exploredCtx.fillRect((x-exploredOrigin.x)*MEM_SCALE,(y-exploredOrigin.y)*MEM_SCALE,w*MEM_SCALE,h*MEM_SCALE);
+  render();
+}
+function spotlightReveal(){
+  if(role!=='gm'){ toast('Only the GM can reveal areas'); return; }
+  let x,y,w,h,where;
+  const t=sel&&sel.type==='token'?byId('token',sel.id):null;
+  if(t){ const r=((t.vision>0?t.vision:8)+0.5)*map.gridSize; x=t.x-r; y=t.y-r; w=r*2; h=r*2; where='around '+(t.label||'the token'); }
+  else { const tl=s2w(0,0),br=s2w(cv.width,cv.height); x=tl.x; y=tl.y; w=br.x-tl.x; h=br.y-tl.y; where='the current view'; }
+  fxSend('reveal',{x,y,w,h});
+  toast('Fog revealed ('+where+')'+(fogOn?'':' — turn Fog on to preview it'));
+}
 
 // ════════════════════════════════════════════════ HIT TEST
 function tokenAt(p){ for(let i=map.tokens.length-1;i>=0;i--){const t=map.tokens[i];const rad=(t.size*map.gridSize)/2; if(Math.hypot(p.x-t.x,p.y-t.y)<=rad)return t;} return null; }
@@ -624,6 +669,7 @@ window.addEventListener('keydown',e=>{
   if((e.ctrlKey||e.metaKey)&&(e.key==='y'||(e.shiftKey&&e.key==='z'))){e.preventDefault();redo();return;}
   if(e.key==='Delete'||e.key==='Backspace'){delSelected();return;}
   if(e.key==='Escape'){cancelAim();wallDraft=null;measurements=[];measureDraft=null;select(null);render();return;}
+  if((e.key==='r'||e.key==='R')&&!e.ctrlKey&&!e.metaKey&&role==='gm'){e.preventDefault();spotlightReveal();return;}
   // Arrow keys move the selected token (one cell; Shift = fine nudge). GM or owner only.
   if(/^Arrow(Left|Right|Up|Down)$/.test(e.key)){
     const t=sel&&sel.type==='token'?byId('token',sel.id):null;
@@ -660,6 +706,8 @@ function toggleFog(){ fogOn=!fogOn; if(fogOn)ensureExplored(); document.getEleme
 function getActorById(id){ if(!id)return null; if(String(id).indexOf('c:')===0)return (map.creatures||{})[String(id).slice(2)]||null; return (VT.actors||{})[id]||null; }
 function tokenForActorId(id){ if(!id)return null; if(String(id).indexOf('c:')===0){ const cid=String(id).slice(2); return map.tokens.find(t=>t.creature===cid)||null; } return map.tokens.find(t=>t.actor===id)||null; }
 function actorIdFor(t){ return t.actor?t.actor:(t.creature?('c:'+t.creature):null); }
+// Stat → modifier, identical to the character sheet's creatureMod (score ÷ 4, floored).
+function vtScoreMod(n){ return Math.floor((parseInt(n)||0)/4); }
 function actorAbilitiesHTML(t){
   const aid=actorIdFor(t);
   const a=getActorById(aid);
@@ -673,7 +721,11 @@ function actorAbilitiesHTML(t){
     if(meta.area)badges.push('AoE '+(meta.area.size?meta.area.size+' ':'')+(meta.pattern||meta.area.shape));
     if(meta.duration)badges.push('Dur '+meta.duration+'r'+(meta.attach?'/'+meta.attach:''));
     h+=`<div style="font-size:9px;color:var(--muted);margin-top:5px;">${esc(grp.name)}${badges.length?` <span style="color:#8a6d3b;">${esc(badges.join(' '))}</span>`:''}</div><div>`;
-    (grp.actions||[]).forEach((act,ai)=>{ const idle=(act.anim&&act.anim.idle)||act.icon; const ico=idle?`<img class="chip-ico" src="${esc(idle)}">`:''; h+=`<button class="act-chip${idle?' has-icon':''}" data-fxid="${gi}-${ai}" title="roll or aim at a target" onclick="showActionMenu(event,'${aid}',${gi},${ai})">${ico}${esc(act.label)}</button>`; });
+    (grp.actions||[]).forEach((act,ai)=>{ const idle=(act.anim&&act.anim.idle)||act.icon; const ico=idle?`<img class="chip-ico" src="${esc(idle)}">`:'';
+      // Score/Mod chips — identical to the character sheet: "OFF 14 (+3)" for a d20+stat check.
+      let lbl=esc(act.label), tip='roll or aim at a target';
+      if(act.kind==='cstat'&&a.stats&&a.stats[act.stat]!=null){ const sc=parseInt(a.stats[act.stat])||0, mo=vtScoreMod(sc); lbl=`${esc(act.stat)} <b style="opacity:.85;">${sc}</b> (${mo>=0?'+':''}${mo})`; tip=`1d20 + ${sc}`; }
+      h+=`<button class="act-chip${idle?' has-icon':''}" data-fxid="${gi}-${ai}" title="${esc(tip)}" onclick="showActionMenu(event,'${aid}',${gi},${ai})">${ico}${lbl}</button>`; });
     h+=`</div>`; });
   return h;
 }
@@ -787,6 +839,86 @@ function renderLayers(){
 }
 function toggleLayer(k,prop){ map.layers[k][prop]=!map.layers[k][prop]; renderLayers(); render(); }
 function esc(s){return (s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+
+// ════════════════════════════════════════════════ QUICK-SUMMON (bestiary in the VTT sidebar)
+// Mirrors the character sheet's Creature Archive so the GM can summon without leaving the VTT.
+// The rules/parsing below are ported from sheet.html — keep the two copies in sync when editing.
+const SUMMON_WIKI='https://wonderland-of-the-enigma.fandom.com';
+const SUMMON_PAGES=[{page:'Creature_Archive_Standard',cls:1},{page:'Creature_Archive_Anima',cls:2},{page:'Creature_Archive_Alter_Anima',cls:3},{page:'Creature_Archive_Fractures',cls:4},{page:'Creature_Archive_Doxa',cls:5},{page:'Creature_Archive_Nyvilum',cls:6}];
+const SUMMON_COLORS={1:'#6b6f7a',2:'#c9a227',3:'#7a4b9a',4:'#8a3a2a',5:'#c33fbf',6:'#20202c'};
+let summonCache=null, _summonLoading=false, _summonDragIdx=null;
+function summonCleanWiki(s){ return (s||'').replace(/<br\s*\/?>/gi,' ').replace(/'''?/g,'').replace(/\[\[[^\]|]*\|([^\]]*)\]\]/g,'$1').replace(/\[\[([^\]]*)\]\]/g,'$1').replace(/<[^>]+>/g,'').replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&mdash;/gi,'—').replace(/&minus;/gi,'−').replace(/\s+/g,' ').trim(); }
+function summonParsePage(wt,cls){ const out=[];
+  String(wt).split(/class="wte-creature"/).slice(1).forEach(chunk=>{
+    const nm=chunk.match(/class="wte-creature-name"[^>]*>([^<]+)</); if(!nm)return;
+    const meta={}; let m; const re=/([A-Z][A-Z_ ]{1,14}):\s*<span[^>]*>([^<]*)<\/span>/g;
+    while((m=re.exec(chunk)))meta[m[1].trim()]=summonCleanWiki(m[2]).trim();
+    const dm=chunk.match(/class="wte-creature-desc"[^>]*>([\s\S]*?)<\/div>/);
+    out.push({name:summonCleanWiki(nm[1]).trim(),cls:parseInt(meta.CLASS)||cls,meta,desc:dm?summonCleanWiki(dm[1]).trim():''});
+  }); return out; }
+function summonComputeCreature(c){ const M=c.meta||{}, num=v=>parseInt(v)||0, mod=v=>Math.floor(num(v)/4); let hp=0,dr=0,flags=[],note='';
+  if(c.cls===1){ const mult={GRUNT:5,OPERATIVE:10,ELITE:15,BOSS:25}[(M.RANK||'').toUpperCase()]||5; hp=Math.floor((num(M.OFF)+num(M.DEF)+num(M.SPD)+num(M.WIL))/4)*mult; note=(M.RANK||'Grunt')+' ×'+mult; }
+  else if(c.cls===2){ const t=(M.TIER||'Nascent').toUpperCase(); if(t==='APEX'){hp=num(M.DEF)*20;dr=mod(M.DEF)+2;} else if(t==='MANIFESTED'){hp=num(M.DEF)*10;dr=mod(M.DEF);} else {hp=num(M.DEF)*5;dr=0;} flags.push('Immune to psychic/emotional manipulation'); note=(M.TIER||'Nascent')+(M.ANCHOR?(' · '+M.ANCHOR):''); }
+  else if(c.cls===3){ hp=mod(M.CON)*10+num(M.DEF)*5; note='CL '+(M.CL||'1'); if(num(M.CL)>=3)flags.push('Human modifiers degraded (CL '+M.CL+')'); }
+  else if(c.cls===4){ hp=num(M.PHY)*5+mod(M.END)*15; flags.push('Primal Instinct: immune to mental deception/hacking; lure with physical distractions/pheromones','Writhing Biomass: advantage on physical adaptation & natural attacks'); }
+  else if(c.cls===5){ const fa=num(M.HP), col=num(M.WIL)*8+mod(M.INT)*12; hp=fa||col; note='Facade '+(fa||'?')+' → Collapsed '+col; flags.push('Facade collapses on critical damage / emotional shock / Null exposure'); c.collapsedHP=col; }
+  else if(c.cls===6){ hp=num(M.CHP); note='CHP pool · regional TL −2.0'; flags.push('Colossal: conventional combat impossible — deplete CHP via Null-negation barriers / extraction arrays / orbital batteries','Awakening: regional Tech Level −2.0 — Online ciphers forced offline'); }
+  return {hp,dr,flags,note}; }
+function summonMyCreatures(){ try{return JSON.parse(localStorage.getItem('wte-my-creatures'))||[];}catch(e){return [];} }
+function summonMerge(wiki){ const locals=summonMyCreatures().map(c=>Object.assign({},c,{local:true})); return locals.concat(wiki||[]); }
+async function summonFetch(force){
+  let cached=null; try{ cached=JSON.parse(localStorage.getItem('wte-bestiary-cache')); }catch(e){}
+  summonCache=summonMerge((cached&&cached.wiki)||[]); renderSummon();                    // instant paint from cache
+  const fresh = cached && (Date.now()-(cached.ts||0) < 6*3600*1000) && (cached.wiki||[]).length;
+  if((!force && fresh) || _summonLoading) return;                                         // cache still good → skip network
+  _summonLoading=true;
+  const all=[];
+  for(const p of SUMMON_PAGES){ try{ const r=await fetch(SUMMON_WIKI+'/api.php?action=parse&prop=wikitext&format=json&origin=*&page='+encodeURIComponent(p.page)); if(!r.ok)continue; const j=await r.json(); if(j.error)continue; all.push(...summonParsePage(j.parse.wikitext['*'],p.cls)); }catch(e){} }
+  _summonLoading=false;
+  if(all.length){ try{ localStorage.setItem('wte-bestiary-cache',JSON.stringify({wiki:all,ts:Date.now()})); }catch(e){} summonCache=summonMerge(all); }
+  renderSummon();
+}
+function renderSummon(){
+  const box=document.getElementById('summon-list'); if(!box)return;
+  if(summonCache==null){ box.innerHTML='<div class="empty">Loading bestiary…</div>'; return; }
+  const q=(document.getElementById('summon-search').value||'').toLowerCase();
+  const cf=document.getElementById('summon-class').value;
+  const list=summonCache.filter(c=>(!cf||String(c.cls)===cf)&&(!q||(c.name||'').toLowerCase().includes(q)||(c.desc||'').toLowerCase().includes(q)));
+  if(!list.length){ box.innerHTML='<div class="empty">'+(summonCache.length?'No creatures match.':'No creatures yet — open the Sheet’s Creature Archive once, or add custom ones.')+'</div>'; return; }
+  box.innerHTML=list.slice(0,150).map(c=>{ const i=summonCache.indexOf(c), k=summonComputeCreature(c);
+    return `<div class="summon-item" draggable="true" ondragstart="summonDragStart(event,${i})" onclick="summonSpawnIdx(${i})" title="Drag onto the map, or click to drop at center">
+      <span class="snm">${esc(c.name||'Creature')}${c.local?' ✎':''}</span>
+      <span class="scl">C${c.cls}</span><span class="shp">${k.hp}hp${k.dr?('/'+k.dr):''}</span></div>`; }).join('');
+}
+function summonBuildPayload(i){ const c=summonCache&&summonCache[i]; if(!c)return null; const k=summonComputeCreature(c);
+  const stats={}; Object.entries(c.meta||{}).forEach(([kk,v])=>{ if(!['CLASS','RANK','TIER','ANCHOR','CL','HP','CHP','TRAITS'].includes(kk)&&/^-?\d+$/.test(String(v).trim()))stats[kk]=parseInt(v); });
+  return {name:c.name,cls:c.cls,hp:k.hp,dr:k.dr,size:(c.cls===4?2:(c.cls===6?6:1)),color:SUMMON_COLORS[c.cls]||'#8a6d3b',flags:k.flags,stats,traits:(c.meta&&c.meta.TRAITS)||'',desc:(c.desc||'').slice(0,1400),ts:Date.now()}; }
+function summonSpawnIdx(i){ const p=summonBuildPayload(i); if(p)vtSpawnCreature(p); }
+function summonDragStart(ev,i){ _summonDragIdx=i; try{ ev.dataTransfer.setData('text/wte-summon',String(i)); ev.dataTransfer.effectAllowed='copy'; }catch(e){} }
+// Shared spawn — used by the sheet's Archive (storage event) AND the Summon sidebar/drag-drop.
+function vtSpawnCreature(c,pos){
+  if(role!=='gm'){ toast('Only the GM can summon here'); return null; }
+  const p=pos||snapCell(s2w(cv.width/2,cv.height/2));
+  const t={id:uid(),x:p.x,y:p.y,size:c.size||1,base:'circle',color:c.color||'#8a6d3b',label:c.name||'Creature',hp:c.hp||0,hpmax:c.hp||0,dhp:c.dr||0,vision:0,owner:'',visible:true,gen:true};
+  if(!map.creatures)map.creatures={};
+  const cid=uid(); const abilText=((c.traits?c.traits+'. ':'')+(c.desc||'')).trim();
+  map.creatures[cid]=buildCreatureActor(c.name||'Creature',c.stats||{},abilText);
+  t.creature=cid;
+  map.tokens.push(t); select('token',t.id); snapshot(); syncMap(); render();
+  addVtLog('ARCHIVE: '+t.label+' spawned (Class '+(c.cls||'?')+(c.dr?(' · DR '+c.dr):'')+' · HP '+(c.hp||0)+')');
+  (c.flags||[]).forEach(f=>addVtLog('· '+f));
+  toast(t.label+' spawned');
+  return t;
+}
+// Drag-and-drop a bestiary creature from the Summon sidebar onto the map.
+cwrap.addEventListener('dragover',e=>{ const types=(e.dataTransfer&&Array.from(e.dataTransfer.types||[]))||[]; if(_summonDragIdx==null&&!types.includes('text/wte-summon'))return; e.preventDefault(); try{e.dataTransfer.dropEffect='copy';}catch(_){}; cwrap.classList.add('drop-target'); });
+cwrap.addEventListener('dragleave',e=>{ if(e.target===cwrap)cwrap.classList.remove('drop-target'); });
+cwrap.addEventListener('drop',e=>{ cwrap.classList.remove('drop-target');
+  let i=_summonDragIdx; try{ const d=e.dataTransfer.getData('text/wte-summon'); if(d!=='')i=parseInt(d); }catch(_){}
+  if(i==null||isNaN(i))return; e.preventDefault();
+  const rect=cv.getBoundingClientRect(); const wp=snapCell(s2w(e.clientX-rect.left,e.clientY-rect.top));
+  const p=summonBuildPayload(i); _summonDragIdx=null; if(p)vtSpawnCreature(p,wp);
+});
 
 // ════════════════════════════════════════════════ BG / VIEW / PERSIST
 // Shrink big images so the map can actually sync (Firebase caps a single write at ~16MB;
@@ -1239,7 +1371,8 @@ function fxHandle(e){
     case 'flashbang': fxFlashFx('flashbang'); break;
     case 'psychic': fxFlashFx('psychic'); break;
     case 'blood': fxFlashFx('blood'); break;
-    case 'focus': camFocus(e.x,e.y,e.zoom||1); break;
+    case 'focus': camFocus(e.x,e.y,e.zoom||1); showcaseFocus={x:e.x,y:e.y,ts:Date.now()}; render(); break;
+    case 'reveal': revealRect(e.x,e.y,e.w,e.h); break;
     case 'sound': playCue(e.cue); break;
   }
 }
@@ -1348,7 +1481,7 @@ function fxRenderPanel(){
     <div class="fx-row"><button onclick="fxSend('sound',{cue:'sword'})">Sword</button><button onclick="fxSend('sound',{cue:'roar'})">Roar</button><button onclick="fxSend('sound',{cue:'door'})">Door</button><button onclick="fxSend('sound',{cue:'thunder'})">Thunder</button><button onclick="fxSend('sound',{cue:'laugh'})">Laugh</button></div>
     <div class="fx-sec">Void Fog (render distance)</div>
     <div class="fx-row"><select id="fx-void" onchange="setVoidR(this.value)"><option value="0">Off</option><option value="10">10 squares</option><option value="15">15 squares</option><option value="20">20 squares</option><option value="30">30 squares</option></select></div>
-    <div class="fx-note">Ctrl+click the map = Showcase: everyone's camera pans there. Void fog hides everything beyond render distance of player tokens (animated darkness, camera locked to explored space). Use the Zone tool to arm rooms that generate when players walk in.</div>`;
+    <div class="fx-note">Ctrl+click the map = Showcase: everyone's camera pans there with a highlight pulse. Press R = Reveal Spotlight: reveals the selected token's area (or the current view) to players, as if they'd explored it. Void fog hides everything beyond render distance of player tokens (animated darkness, camera locked to explored space). Use the Zone tool to arm rooms that generate when players walk in.</div>`;
   const w=document.getElementById('fx-weather'); if(w)w.value=fxWeather;
   const f=document.getElementById('fx-filter'); if(f)f.value=fxFilter;
   const v=document.getElementById('fx-void'); if(v)v.value=String(map.voidR||0);
@@ -2043,18 +2176,10 @@ window.addEventListener('storage',e=>{ if(e.key==='wte-theme')wteApplyTheme(e.ne
   else if(e.key==='wte-spawn-creature'&&e.newValue){ // Creature Archive → token (GM side)
     try{ const c=JSON.parse(e.newValue); if(!c||Date.now()-(c.ts||0)>20000)return;
       if(role!=='gm'){ toast('Creature spawn ignored — you are not the GM here'); return; }
-      const p=snapCell(s2w(cv.width/2,cv.height/2));
-      const t={id:uid(),x:p.x,y:p.y,size:c.size||1,base:'circle',color:c.color||'#8a6d3b',label:c.name||'Creature',hp:c.hp||0,hpmax:c.hp||0,dhp:c.dr||0,vision:0,owner:'',visible:true,gen:true};
-      // pilotable: build a map-local actor so its abilities/rolls work like a character sheet
-      if(!map.creatures)map.creatures={};
-      const cid=uid(); const abilText=((c.traits?c.traits+'. ':'')+(c.desc||'')).trim();
-      map.creatures[cid]=buildCreatureActor(c.name||'Creature',c.stats||{},abilText);
-      t.creature=cid;
-      map.tokens.push(t); select('token',t.id); snapshot(); syncMap(); render();
-      addVtLog('ARCHIVE: '+t.label+' spawned (Class '+(c.cls||'?')+(c.dr?(' · DR '+c.dr):'')+' · HP '+(c.hp||0)+')');
-      (c.flags||[]).forEach(f=>addVtLog('· '+f));
-      toast(t.label+' spawned'); }catch(err){}
-  } });
+      vtSpawnCreature(c); }catch(err){}
+  }
+  else if(e.key==='wte-my-creatures'){ summonCache=null; summonFetch(); }   // sheet edited a custom → refresh the sidebar
+  });
 
 // ── Asset Library init (desktop app only) ──
 try{ assetFolders=JSON.parse(localStorage.getItem('wte-asset-folders'))||[]; }catch(e){ assetFolders=[]; }
@@ -2065,6 +2190,7 @@ if(!(VT&&VT.connected&&role==='player'))setTimeout(openHub,150);   // land on th
 // bring up Firebase + auth so the VTT auto-rejoins your last room once signed in
 if(fbConfig()){ vtEnsureDb().catch(()=>{}); }
 if(window.__TAURI__){ if(assetFolders.length)assetScan(); } else { const ab=document.getElementById('assets-btn'); if(ab)ab.style.display='none'; }
+summonFetch();   // load the bestiary into the Summon sidebar (instant from cache, refreshes from wiki)
 
 draw();
 </script>
