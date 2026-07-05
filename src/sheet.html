@@ -2222,7 +2222,7 @@ function renderSlotMap(){
   const uniq=[...new Set(slots)], byslot={};
   equipment.forEach(it=>{ if(!it.equipped)return; (byslot[it.slot]=byslot[it.slot]||[]).push(it.name||'item'); });
   el.innerHTML=uniq.map(s=>{ const items=byslot[s]||[], over=items.length>(cap[s]||1);
-    return `<span style="display:inline-block;margin:0 10px 3px 0;${over?'color:#b03020;':''}"><b>${esc(s)}</b>${cap[s]>1?' ×'+cap[s]:''}: ${items.length?esc(items.join(', ')):'—'}${over?' ⚠':''}</span>`;
+    return `<span style="display:inline-block;margin:0 10px 3px 0;${over?'color:#b03020;':''}"><b>${esc(s)}</b>${cap[s]>1?' ×'+cap[s]:''}: ${items.length?esc(items.join(', ')):'—'}${over?' (over capacity)':''}</span>`;
   }).join('');
 }
 // ── equipment list CRUD ──
@@ -2419,7 +2419,7 @@ function renderEDE(){
           <option value="cipher-on">Cipher: Offline &rarr; Online — live upgrade injection</option>
         </select>
         <span style="font-size:9px;color:var(--muted);">for</span><input type="number" id="ede-rounds-${it.id}" min="1" max="2" value="2" style="width:34px;">r
-        <button class="btn prime" ${can?'':'disabled title="Needs NC '+req+' — your Neuronal Capacity is '+myNC+'"'} onclick="edeOverclock('${it.id}')">&#9889; Overclock</button>
+        <button class="btn prime" ${can?'':'disabled title="Needs NC '+req+' — your Neuronal Capacity is '+myNC+'"'} onclick="edeOverclock('${it.id}')">Overclock</button>
         ${can?'':`<span class="ede-warn">needs NC ${req}</span>`}
       </div>`;
     }else if(st==='ext'){
@@ -2442,7 +2442,7 @@ function renderEDE(){
   }).join('');
   if(note){
     const bits=[];
-    if(items.some(i=>i.edeState==='dex'))bits.push('⚠ DEXTENDER active: Cipher SS ×1.8 · Genus SS ×2.0 · opponents gain Action Priority on your casts');
+    if(items.some(i=>i.edeState==='dex'))bits.push('DEXTENDER active: Cipher SS ×1.8 · Genus SS ×2.0 · opponents gain Action Priority on your casts');
     else{ if(items.some(i=>i.edeState==='ext'&&i.edeMode==='cipher-off'))bits.push('Cipher SS ×0.5 (Extender, Offline)');
       const f=items.filter(i=>i.edeState==='ext'&&i.edeMode==='genus').reduce((a,i)=>a+(i.edeFree||0),0);
       if(f)bits.push('Free Genus casts remaining: '+f); }
@@ -2458,8 +2458,8 @@ function edeOverclock(id){
   it.edeState='ext';
   if(it.edeMode==='genus')it.edeFree=ncModVal();
   const modeTxt={genus:'Genus Overclock ('+(it.edeFree||0)+' free casts'+(it.domain?', '+it.domain+' domain':'')+')','cipher-off':'Cipher Online→Offline (SS ×0.5, Operator severed)','cipher-on':'Cipher Offline→Online (live upgrades)'}[it.edeMode];
-  tlog('⚡ '+(it.name||'EDE device')+' OVERCLOCKED — Extender, '+it.edeRounds+'r: '+modeTxt);
-  toast('⚡ '+(it.name||'Device')+' overclocked ('+it.edeRounds+'r)');
+  tlog((it.name||'EDE device')+' OVERCLOCKED — Extender, '+it.edeRounds+'r: '+modeTxt);
+  toast((it.name||'Device')+' overclocked ('+it.edeRounds+'r)');
   renderEDE(); autosave();
 }
 function edeTick(){
@@ -2468,7 +2468,7 @@ function edeTick(){
   items.forEach(it=>{
     if(it.edeState==='ext'){ it.edeRounds=(it.edeRounds||1)-1; changed=true;
       if(it.edeRounds<=0){ it.edeState='dex'; it.edeRounds=2; it.edeFree=0;
-        tlog('💥 '+(it.name||'EDE device')+' overclock EXPIRED — Dextender backlash (2r): SS costs spike, opponents gain Action Priority'); } }
+        tlog((it.name||'EDE device')+' overclock EXPIRED — Dextender backlash (2r): SS costs spike, opponents gain Action Priority'); } }
     else if(it.edeState==='dex'){ it.edeRounds=(it.edeRounds||1)-1; changed=true;
       if(it.edeRounds<=0){ it.edeState='eq'; tlog((it.name||'EDE device')+' re-stabilized — Equalizer'); } }
   });
@@ -2483,7 +2483,7 @@ function edeReattune(id){
 function edeDeclare(id){
   const it=equipment.find(e=>e.id===id); if(!it||!it.domain||!EDE_DOMAINS[it.domain])return;
   const txt=EDE_DOMAINS[it.domain]().replace(/<[^>]+>/g,'');
-  tlog('🌀 '+(it.name||'EDE')+' DOMAIN EFFECT ['+it.domain+']: '+txt);
+  tlog((it.name||'EDE')+' DOMAIN EFFECT ['+it.domain+']: '+txt);
   toast(it.domain+' domain effect declared — sent to table log');
 }
 // SS-cost adjustment for a Genus/Cipher cast. Dextender penalties override Extender perks.
@@ -2495,7 +2495,7 @@ function edeAdjustSS(n,kind){
   if(dex){
     out.cost=Math.ceil(n*(kind==='genus'?2.0:1.8));
     out.notes.push('×'+(kind==='genus'?'2.0':'1.8')+' Dextender');
-    out.log='⚠ Dextender cast — opponents gain immediate Action Priority '+(kind==='genus'?'(AP suppression)':'(reaction vulnerability)');
+    out.log='Dextender cast — opponents gain immediate Action Priority '+(kind==='genus'?'(AP suppression)':'(reaction vulnerability)');
     return out;
   }
   if(kind==='genus'){
@@ -3041,7 +3041,7 @@ function spendSS(n,label,kind){
   if(kind&&typeof edeAdjustSS==='function')adj=edeAdjustSS(n,kind);
   if(adj.cost<=0){ adj.commit&&adj.commit();
     toast(`${label||'Ability'} — FREE cast (${adj.notes.join(', ')||'Extender overclock'})`);
-    tlog('⚡ '+(label||'Ability')+' cast free — Extender overclock'); autosave(); return; }
+    tlog((label||'Ability')+' cast free — Extender overclock'); autosave(); return; }
   const c=document.getElementById('d-sscur'); const m=document.getElementById('d-ss');
   let cur=ssCurrent();
   if(adj.cost>cur && !confirm(`${label||'Ability'} costs ${adj.cost} SS${adj.notes.length?' ('+adj.notes.join(', ')+')':''} but you only have ${cur} Synaptic Space. Use anyway (overdraw)?`))return;
