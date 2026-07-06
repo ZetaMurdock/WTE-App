@@ -118,47 +118,70 @@ async fn google_signin(
     .map_err(|e| e.to_string())?
 }
 
-fn get_rules_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    // 1. App Data custom rules (only if it contains at least one markdown rules file)
+// Rules are resolved as an OVERLAY: App Data custom rules (imported updates) take priority
+// per-file, but bundled/dev pages that were not overridden stay reachable. This means a
+// partial rulebook update zip (e.g. just Home.md) no longer hides every other page.
+fn get_rules_dirs(app: &tauri::AppHandle) -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    // 1. App Data custom rules — highest priority (imported updates)
     if let Ok(app_data) = app.path().app_data_dir() {
         let custom_rules = app_data.join("rules");
-        if custom_rules.exists() && custom_rules.is_dir() {
-            if let Ok(entries) = std::fs::read_dir(&custom_rules) {
-                let has_files = entries.filter_map(|e| e.ok()).any(|e| {
-                    e.path().is_file() && e.path().extension().and_then(|s| s.to_str()) == Some("md")
-                });
-                if has_files {
-                    return Ok(custom_rules);
+        if custom_rules.is_dir() {
+            dirs.push(custom_rules);
+        }
+    }
+    // 2. Bundled resource rules
+    if let Ok(res_dir) = app.path().resource_dir() {
+        let bundled_rules = res_dir.join("rules");
+        if bundled_rules.is_dir() {
+            dirs.push(bundled_rules);
+        }
+    }
+    // 3. Dev mode relative fallbacks
+    if let Ok(curr_dir) = std::env::current_dir() {
+        for cand in [curr_dir.join("src").join("rules"), curr_dir.join("..").join("src").join("rules")] {
+            if cand.is_dir() {
+                dirs.push(cand);
+            }
+        }
+    }
+    dirs
+}
+
+// Every .md rules file across the overlay, first (highest-priority) hit per name wins.
+fn collect_rule_files(app: &tauri::AppHandle) -> Vec<(String, PathBuf)> {
+    let mut seen = std::collections::HashSet::new();
+    let mut files = Vec::new();
+    for dir in get_rules_dirs(app) {
+        if let Ok(entries) = std::fs::read_dir(&dir) {
+            for entry in entries.filter_map(|e| e.ok()) {
+                let path = entry.path();
+                if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("md") {
+                    if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                        if seen.insert(stem.to_lowercase()) {
+                            files.push((stem.to_string(), path));
+                        }
+                    }
                 }
             }
         }
     }
-    
-    // 2. Bundled resource rules
-    if let Ok(res_dir) = app.path().resource_dir() {
-        let bundled_rules = res_dir.join("rules");
-        if bundled_rules.exists() {
-            return Ok(bundled_rules);
-        }
+    files
+}
+
+#[tauri::command]
+async fn wte_list_pages(app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    let mut names: Vec<String> = collect_rule_files(&app).into_iter().map(|(n, _)| n).collect();
+    names.sort_by_key(|n| n.to_lowercase());
+    Ok(names)
+}
+
+#[tauri::command]
+async fn open_external(url: String) -> Result<(), String> {
+    if !(url.starts_with("http://") || url.starts_with("https://")) {
+        return Err("Only http(s) links may be opened externally".into());
     }
-    
-    // 3. Dev mode relative fallbacks
-    if let Ok(curr_dir) = std::env::current_dir() {
-        let dev_rules1 = curr_dir.join("src").join("rules");
-        if dev_rules1.exists() {
-            return Ok(dev_rules1);
-        }
-        let dev_rules2 = curr_dir.join("..").join("src").join("rules");
-        if dev_rules2.exists() {
-            return Ok(dev_rules2);
-        }
-    }
-    
-    // 4. Default fallback: create in App Data
-    let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let custom_rules = app_data.join("rules");
-    std::fs::create_dir_all(&custom_rules).map_err(|e| e.to_string())?;
-    Ok(custom_rules)
+    open::that(&url).map_err(|e| e.to_string())
 }
 
 #[derive(Serialize)]
@@ -171,20 +194,11 @@ struct SearchResult {
 
 #[tauri::command]
 async fn wte_search(app: tauri::AppHandle, query: String) -> Result<Vec<SearchResult>, String> {
-    let rules_dir = get_rules_dir(&app)?;
-    if !rules_dir.exists() {
-        return Ok(Vec::new());
-    }
-    
     let query_lower = query.to_lowercase();
     let mut results = Vec::new();
-    
-    let entries = std::fs::read_dir(rules_dir).map_err(|e| e.to_string())?;
-    for entry in entries {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let path = entry.path();
-        if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("md") {
-            let filename = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+
+    for (filename, path) in collect_rule_files(&app) {
+        {
             let title = filename.replace('_', " ");
             let content = std::fs::read_to_string(&path).unwrap_or_default();
             
@@ -238,18 +252,18 @@ async fn wte_search(app: tauri::AppHandle, query: String) -> Result<Vec<SearchRe
 
 #[tauri::command]
 async fn wte_load_page(app: tauri::AppHandle, path: String) -> Result<String, String> {
-    let rules_dir = get_rules_dir(&app)?;
     let clean_stem = Path::new(&path)
         .file_stem()
         .and_then(|s| s.to_str())
         .ok_or_else(|| "Invalid page reference".to_string())?;
-    
-    let file_path = rules_dir.join(clean_stem).with_extension("md");
-    if !file_path.exists() {
-        return Err(format!("Page not found: {}", clean_stem));
+
+    let want = clean_stem.to_lowercase();
+    for (stem, file_path) in collect_rule_files(&app) {
+        if stem.to_lowercase() == want {
+            return std::fs::read_to_string(&file_path).map_err(|e| e.to_string());
+        }
     }
-    
-    std::fs::read_to_string(&file_path).map_err(|e| e.to_string())
+    Err(format!("Page not found: {}", clean_stem))
 }
 
 #[tauri::command]
@@ -298,7 +312,9 @@ fn main() {
             google_signin,
             wte_search,
             wte_load_page,
-            wte_import_zip
+            wte_import_zip,
+            wte_list_pages,
+            open_external
         ])
         .run(tauri::generate_context!())
         .expect("error while running W.T.E application");

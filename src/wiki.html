@@ -286,6 +286,52 @@ body {
   padding: 2px 4px;
   font-size: 11px;
 }
+.codex-page h4 {
+  font-size: 12px;
+  color: var(--accent2);
+  margin-top: 12px;
+  margin-bottom: 6px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.codex-page table {
+  border-collapse: collapse;
+  margin: 12px 0 16px;
+  width: 100%;
+}
+.codex-page th, .codex-page td {
+  border: 1px solid var(--line);
+  padding: 5px 10px;
+  text-align: left;
+  font-size: 12px;
+}
+.codex-page th {
+  background: var(--panel2);
+  color: var(--accent2);
+  font-weight: normal;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.codex-page tr:nth-child(even) td {
+  background: rgba(0,0,0,0.06);
+}
+.index-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+.index-grid a {
+  display: block;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  padding: 8px 12px;
+  text-decoration: none;
+}
+.index-grid a:hover {
+  border-color: var(--accent);
+}
 
 /* BESTIARY LISTS */
 .bestiary-grid {
@@ -424,14 +470,14 @@ body {
   <div class="browser-controls">
     <button class="nav-btn" id="btn-back" onclick="goBack()" title="Back">&#8592;</button>
     <button class="nav-btn" id="btn-forward" onclick="goForward()" title="Forward">&#8594;</button>
-    <button class="nav-btn" id="btn-home" onclick="goHome()" title="Home">&#127968;</button>
+    <button class="nav-btn" id="btn-home" onclick="goHome()" title="Home">&#8962;</button>
     <button class="nav-btn" id="btn-refresh" onclick="refreshPage()" title="Refresh">&#8635;</button>
     <div class="address-bar-wrap">
       <input type="text" class="address-bar" id="address-bar" value="wte://rules/Home" onkeydown="handleAddressKey(event)" onfocus="showSearch()" onblur="hideSearchLater()" oninput="searchOmnibar(this.value)">
       <div class="search-dropdown" id="search-dropdown"></div>
     </div>
+    <button class="tbtn" onclick="navigateTo('wte://index')" title="Every page in the Codex">Index</button>
     <button class="tbtn" onclick="triggerImport()" title="Import rulebook wiki updates (.zip)">Import Update</button>
-    <input type="file" id="import-file" accept=".zip" style="display:none" onchange="performImport(this.files[0])">
   </div>
   <div class="browser-tabs" id="tab-container"></div>
 </div>
@@ -631,6 +677,10 @@ async function navigateViewport(url, updateTabTitle) {
       renderSearchResults(q);
       if (updateTabTitle) updateActiveTabTitle(`Search: ${q}`);
     }
+    else if (url === 'wte://index') {
+      await renderCodexIndex();
+      if (updateTabTitle) updateActiveTabTitle("Index");
+    }
     else if (url.startsWith('http://') || url.startsWith('https://')) {
       // General Fandom Wiki web page fetch fallback
       if (url.includes('wonderland-of-the-enigma.fandom.com')) {
@@ -726,12 +776,28 @@ function renderMarkdown(md) {
   html = html.replace(/<!--[\s\S]*?-->/g, '');
   
   // Headers
-  html = html.replace(/^# (.*?)$/gm, '<h1>$1</h1>');
-  html = html.replace(/^## (.*?)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^#### (.*?)$/gm, '<h4>$1</h4>');
   html = html.replace(/^### (.*?)$/gm, '<h3>$1</h3>');
-  
+  html = html.replace(/^## (.*?)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^# (.*?)$/gm, '<h1>$1</h1>');
+
   // Horizontal Rules
-  html = html.replace(/^---$/gm, '<hr>');
+  html = html.replace(/^-{3,}$/gm, '<hr>');
+
+  // Pipe tables: | a | b | rows; a |---|---| line after the first row makes it the header.
+  html = html.replace(/((?:^\|.*\|[ \t]*\n?)+)/gm, (block) => {
+    const rows = block.trim().split('\n').map(r => r.trim()).filter(Boolean);
+    if (rows.length < 2) return block;
+    let hasHeader = /^\|[\s:\-|]+\|$/.test(rows[1]);
+    const cells = r => r.replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+    let out = '<table>';
+    rows.forEach((r, i) => {
+      if (hasHeader && i === 1) return;                       // the |---| separator line
+      const tag = (hasHeader && i === 0) ? 'th' : 'td';
+      out += '<tr>' + cells(r).map(c => `<${tag}>${c}</${tag}>`).join('') + '</tr>';
+    });
+    return out + '</table>\n';
+  });
   
   // Blockquotes
   html = html.replace(/^> (.*?)$/gm, '<blockquote>$1</blockquote>');
@@ -762,10 +828,12 @@ function renderMarkdown(md) {
   html = lines.map(l => {
     l = l.trim();
     if (!l) return '';
-    if (l.startsWith('<h') || l.startsWith('<hr') || l.startsWith('<blockquote') || l.startsWith('<ul') || l.startsWith('<li')) return l;
+    // any block already starting with a tag (headers, lists, tables, or the author's own
+    // raw HTML — divs, styled blocks, whatever) passes through untouched
+    if (l.startsWith('<')) return l;
     return `<p>${l}</p>`;
-  }).join('');
-  
+  }).join('\n');
+
   return html;
 }
 
@@ -869,46 +937,88 @@ function hideSearchLater() {
 }
 
 // ════════════════════════════════════════════════ BESTIARY PAGE RENDER
-function loadBestiaryCache() {
-  // Read custom creatures, and merge standard offline placeholders
-  const standardOffline = [
-    { name: "Skeleton", cls: 1, hp: 12, meta: { CLASS: "1", HP: "12", DHP: "0" }, desc: "A brittle undead warrior reanimated by cognitive ripples in deep CAS containment sectors." },
-    { name: "Bandit", cls: 1, hp: 14, meta: { CLASS: "1", HP: "14", DHP: "1" }, desc: "A desperate wanderer scavaging in ruin sectors, Proficient with Medium Kinetic weapons." },
-    { name: "Broodling", cls: 1, hp: 8, meta: { CLASS: "1", HP: "8", DHP: "0" }, desc: "A fast, skittering insectoid spawn that attacks in packs. Ignores difficult terrain." },
-    { name: "Nest Mother", cls: 6, hp: 30, meta: { CLASS: "6", HP: "30", DHP: "3" }, desc: "A terrifying arachnid construct that anchors nest domains. Generates webs blocking player movement." },
-    { name: "Guardian", cls: 4, hp: 34, meta: { CLASS: "4", HP: "34", DHP: "4" }, desc: "An armored mechanical defense construct guarding remnant vaults. Emits a high-frequency displacement field." }
-  ];
-  
-  try {
-    const custom = JSON.parse(localStorage.getItem('wte-my-creatures')) || [];
-    bestiaryCache = custom.map(c => Object.assign({}, c, { local: true })).concat(standardOffline);
-  } catch (e) {
-    bestiaryCache = standardOffline;
-  }
+// The REAL wiki bestiary — same source, cache (wte-bestiary-cache) and class rules as the
+// sheet's Creature Archive and the VTT's Quick-Summon sidebar. Ported from sheet.html /
+// vtt.html — keep the copies in sync when editing.
+const CODEX_WIKI='https://wonderland-of-the-enigma.fandom.com';
+const CODEX_PAGES=[{page:'Creature_Archive_Standard',cls:1},{page:'Creature_Archive_Anima',cls:2},{page:'Creature_Archive_Alter_Anima',cls:3},{page:'Creature_Archive_Fractures',cls:4},{page:'Creature_Archive_Doxa',cls:5},{page:'Creature_Archive_Nyvilum',cls:6}];
+const CODEX_CLASS_NAMES={1:'Standard',2:'Anima',3:'Alter Anima',4:'Fracture',5:'Doxa',6:'Nyvilum'};
+let _bestiaryLoading=false;
+function codexCleanWiki(s){ return (s||'').replace(/<br\s*\/?>/gi,' ').replace(/'''?/g,'').replace(/\[\[[^\]|]*\|([^\]]*)\]\]/g,'$1').replace(/\[\[([^\]]*)\]\]/g,'$1').replace(/<[^>]+>/g,'').replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&mdash;/gi,'—').replace(/&minus;/gi,'−').replace(/\s+/g,' ').trim(); }
+function codexParsePage(wt,cls){ const out=[];
+  String(wt).split(/class="wte-creature"/).slice(1).forEach(chunk=>{
+    const nm=chunk.match(/class="wte-creature-name"[^>]*>([^<]+)</); if(!nm)return;
+    const meta={}; let m; const re=/([A-Z][A-Z_ ]{1,14}):\s*<span[^>]*>([^<]*)<\/span>/g;
+    while((m=re.exec(chunk)))meta[m[1].trim()]=codexCleanWiki(m[2]);
+    const dm=chunk.match(/class="wte-creature-desc"[^>]*>([\s\S]*?)<\/div>/);
+    out.push({name:codexCleanWiki(nm[1]),cls:parseInt(meta.CLASS)||cls,meta,desc:dm?codexCleanWiki(dm[1]):''});
+  }); return out; }
+function codexComputeCreature(c){ const M=c.meta||{}, num=v=>parseInt(v)||0, mod=v=>Math.floor(num(v)/4); let hp=0,dr=0,flags=[],note='';
+  if(c.cls===1){ const mult={GRUNT:5,OPERATIVE:10,ELITE:15,BOSS:25}[(M.RANK||'').toUpperCase()]||5; hp=Math.floor((num(M.OFF)+num(M.DEF)+num(M.SPD)+num(M.WIL))/4)*mult; note=(M.RANK||'Grunt')+' ×'+mult; }
+  else if(c.cls===2){ const t=(M.TIER||'Nascent').toUpperCase(); if(t==='APEX'){hp=num(M.DEF)*20;dr=mod(M.DEF)+2;} else if(t==='MANIFESTED'){hp=num(M.DEF)*10;dr=mod(M.DEF);} else {hp=num(M.DEF)*5;dr=0;} flags.push('Immune to psychic/emotional manipulation'); note=(M.TIER||'Nascent')+(M.ANCHOR?(' · '+M.ANCHOR):''); }
+  else if(c.cls===3){ hp=mod(M.CON)*10+num(M.DEF)*5; note='CL '+(M.CL||'1'); if(num(M.CL)>=3)flags.push('Human modifiers degraded (CL '+M.CL+')'); }
+  else if(c.cls===4){ hp=num(M.PHY)*5+mod(M.END)*15; flags.push('Primal Instinct: immune to mental deception/hacking; lure with physical distractions/pheromones','Writhing Biomass: advantage on physical adaptation & natural attacks'); }
+  else if(c.cls===5){ const fa=num(M.HP), col=num(M.WIL)*8+mod(M.INT)*12; hp=fa||col; note='Facade '+(fa||'?')+' → Collapsed '+col; flags.push('Facade collapses on critical damage / emotional shock / Null exposure'); }
+  else if(c.cls===6){ hp=num(M.CHP); note='CHP pool · regional TL −2.0'; flags.push('Colossal: conventional combat impossible — deplete CHP via Null-negation barriers / extraction arrays / orbital batteries','Awakening: regional Tech Level −2.0 — Online ciphers forced offline'); }
+  return {hp,dr,flags,note}; }
+function codexNumericStats(c){ const stats={}; Object.entries((c&&c.meta)||{}).forEach(([k,v])=>{ if(!['CLASS','RANK','TIER','ANCHOR','CL','HP','CHP','TRAITS'].includes(k)&&/^-?\d+$/.test(String(v).trim()))stats[k]=parseInt(v); }); return stats; }
+function codexMergeCustoms(wiki){
+  let customs=[]; try{ customs=(JSON.parse(localStorage.getItem('wte-my-creatures'))||[]).map(c=>Object.assign({},c,{local:true})); }catch(e){}
+  // dedupe by name — customs win, then the first wiki entry (same rule as the Armory)
+  const seen={}, out=[];
+  customs.concat(wiki||[]).forEach(c=>{ const k=(c.name||'').toLowerCase(); if(!k||seen[k])return; seen[k]=1; out.push(c); });
+  return out;
+}
+async function loadBestiaryCache(force){
+  let cached=null; try{ cached=JSON.parse(localStorage.getItem('wte-bestiary-cache')); }catch(e){}
+  bestiaryCache=codexMergeCustoms((cached&&cached.wiki)||[]);                       // instant from the shared cache
+  const fresh=cached&&(Date.now()-(cached.ts||0)<6*3600*1000)&&(cached.wiki||[]).length;
+  if((!force&&fresh)||_bestiaryLoading)return;
+  _bestiaryLoading=true;
+  const all=[];
+  for(const p of CODEX_PAGES){ try{
+    const r=await fetch(CODEX_WIKI+'/api.php?action=parse&prop=wikitext&format=json&origin=*&page='+encodeURIComponent(p.page));
+    if(!r.ok)continue; const j=await r.json(); if(j.error)continue;
+    all.push(...codexParsePage(j.parse.wikitext['*'],p.cls));
+  }catch(e){} }
+  _bestiaryLoading=false;
+  if(all.length){ try{ localStorage.setItem('wte-bestiary-cache',JSON.stringify({wiki:all,ts:Date.now()})); }catch(e){} bestiaryCache=codexMergeCustoms(all); }
+  // live-refresh the bestiary views if one is on screen
+  const t=getActiveTab();
+  if(t&&(t.url==='wte://bestiary'||t.url.startsWith('wte://creatures/')))navigateViewport(t.url,false);
 }
 
+let bestiaryFilter={q:'',cls:''};
 function renderBestiaryIndex() {
   const contentEl = document.getElementById('page-content');
-  
   let h = `<h1>Creature Archive</h1>`;
-  h += `<p>Select a creature record from the archive database to inspect stats, roll attributes, or spawn pilotable tokens directly onto the active VTT battlemap.</p>`;
+  h += `<p>The live bestiary — wiki archive creatures plus your saved customs. Inspect a record, roll its stats, save it to your collection, or spawn a pilotable token straight onto the VTT battlemap.</p>`;
+  h += `<div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;">
+    <input type="text" id="best-search" value="${esc(bestiaryFilter.q)}" placeholder="search creatures…" style="flex:1;background:var(--panel2);border:1px solid var(--line);color:var(--ink);font-family:Georgia,serif;font-size:12px;padding:4px 8px;" oninput="bestiaryFilter.q=this.value;renderBestiaryIndex();">
+    <select style="background:var(--panel2);border:1px solid var(--line);color:var(--ink);font-size:11px;padding:4px;" onchange="bestiaryFilter.cls=this.value;renderBestiaryIndex();">
+      <option value="">All classes</option>${[1,2,3,4,5,6].map(n=>`<option value="${n}"${String(n)===bestiaryFilter.cls?' selected':''}>${n} · ${CODEX_CLASS_NAMES[n]}</option>`).join('')}
+    </select>
+    <button class="tbtn" onclick="loadBestiaryCache(true);toast('Refreshing from wiki…')">Refresh</button>
+  </div>`;
+  const q=bestiaryFilter.q.toLowerCase();
+  const list=bestiaryCache.filter(c=>(!bestiaryFilter.cls||String(c.cls)===bestiaryFilter.cls)&&(!q||(c.name||'').toLowerCase().includes(q)||(c.desc||'').toLowerCase().includes(q)));
+  if(!list.length){ h+=`<p style="color:var(--muted);font-style:italic;">${bestiaryCache.length?'No creatures match.':'Bestiary loading from the wiki — or add customs in the Character Sheet archive.'}</p>`; }
   h += `<div class="bestiary-grid">`;
-  
-  bestiaryCache.forEach(c => {
-    const clsName = {1:'Standard', 2:'Anima', 3:'Alter Anima', 4:'Fracture', 5:'Doxa', 6:'Nyvilum'}[c.cls] || 'Standard';
+  list.forEach(c => {
+    const k=codexComputeCreature(c), nameEnc=encodeURIComponent(c.name);
     h += `
       <div class="creature-card">
-        <span class="cls">${esc(clsName)}</span>
-        <span class="name"><a onclick="navigateTo('wte://creatures/${encodeURIComponent(c.name)}')">${esc(c.name)}</a></span>
-        <span class="hp">HP: <b>${c.hp || (c.meta && c.meta.HP) || 0}</b></span>
+        <span class="cls">Class ${c.cls} · ${esc(CODEX_CLASS_NAMES[c.cls]||'Standard')}${c.local?' · custom':''}</span>
+        <span class="name"><a onclick="navigateTo('wte://creatures/${nameEnc}')">${esc(c.name)}</a></span>
+        <span class="hp">HP <b>${k.hp}</b>${k.dr?` · DR <b>${k.dr}</b>`:''}${k.note?` · ${esc(k.note)}`:''}</span>
         <div class="actions">
-          <button class="tbtn" onclick="navigateTo('wte://creatures/${encodeURIComponent(c.name)}')">Details</button>
-          <button class="tbtn live" onclick="spawnCreatureDirect('${esc(c.name)}')">Spawn to VTT</button>
+          <button class="tbtn" onclick="navigateTo('wte://creatures/${nameEnc}')">Details</button>
+          ${c.local?'':`<button class="tbtn" onclick="saveCreatureLocal('${nameEnc}')" title="Save a copy to My Creatures — appears in the Sheet archive & VTT Summon sidebar">Save</button>`}
+          <button class="tbtn live" onclick="spawnCreatureDirect('${nameEnc}')">Spawn to VTT</button>
         </div>
       </div>
     `;
   });
-  
   h += `</div>`;
   contentEl.innerHTML = h;
 }
@@ -917,98 +1027,113 @@ function renderCreatureDetail(name) {
   const contentEl = document.getElementById('page-content');
   const c = bestiaryCache.find(x => x.name === name);
   if (!c) {
-    contentEl.innerHTML = `<h1>Creature Not Found</h1><p>Record for "<b>${esc(name)}</b>" does not exist in local bestiary.</p>`;
+    contentEl.innerHTML = `<h1>Creature Not Found</h1><p>Record for "<b>${esc(name)}</b>" does not exist in the bestiary. <a onclick="navigateTo('wte://bestiary')">Back to the archive</a>.</p>`;
     return;
   }
-  
-  const clsName = {1:'Standard', 2:'Anima', 3:'Alter Anima', 4:'Fracture', 5:'Doxa', 6:'Nyvilum'}[c.cls] || 'Standard';
-  
+  const k=codexComputeCreature(c), nameEnc=encodeURIComponent(c.name);
   let h = `
     <div class="creature-detail-header">
       <h1 style="border-bottom:none; margin:0; padding:0;">${esc(c.name)}</h1>
-      <span class="meta-lbl" style="font-size:11px; color:var(--accent);">${esc(clsName)} class</span>
+      <span class="meta-lbl" style="font-size:11px; color:var(--accent);">Class ${c.cls} · ${esc(CODEX_CLASS_NAMES[c.cls]||'Standard')}${k.note?` · ${esc(k.note)}`:''}</span>
     </div>
-    
     <div class="creature-detail-meta">
-      <div class="meta-field"><span class="meta-lbl">Health (HP)</span><span class="meta-val">${c.hp || (c.meta && c.meta.HP) || 0}</span></div>
-      <div class="meta-field"><span class="meta-lbl">Defense (DHP)</span><span class="meta-val">${(c.meta && c.meta.DHP) || 0}</span></div>
-      <div class="meta-field"><span class="meta-lbl">Size</span><span class="meta-val">${c.cls===4?2:(c.cls===6?6:1)} cell(s)</span></div>
-      <div class="meta-field"><span class="meta-lbl">Source</span><span class="meta-val">${c.local?'Custom':'Core Rules'}</span></div>
+      <div class="meta-field"><span class="meta-lbl">Health (HP)</span><span class="meta-val">${k.hp}</span></div>
+      <div class="meta-field"><span class="meta-lbl">Damage Red. (DR)</span><span class="meta-val">${k.dr}</span></div>
+      <div class="meta-field"><span class="meta-lbl">Token Size</span><span class="meta-val">${c.cls===4?2:(c.cls===6?6:1)} cell(s)</span></div>
+      <div class="meta-field"><span class="meta-lbl">Source</span><span class="meta-val">${c.local?'My Creatures (custom)':'Wiki Archive'}</span></div>
+      ${Object.entries(c.meta||{}).filter(([kk])=>!['TRAITS'].includes(kk)).map(([kk,v])=>`<div class="meta-field"><span class="meta-lbl">${esc(kk)}</span><span class="meta-val">${esc(String(v))}</span></div>`).join('')}
     </div>
   `;
-  
-  // Render rolls/actions for stats
-  h += `<h3>Attributes & Checks</h3>`;
-  h += `<div class="creature-rolls">`;
-  const defaultStats = { PHY: 10, DEX: 10, END: 10, AP: 10, WIS: 10, CHA: 10, INT: 10 };
-  const stats = Object.assign({}, defaultStats, c.stats || {});
-  Object.entries(stats).forEach(([stat, val]) => {
-    h += `<button class="roll-chip" onclick="rollCreatureStat('${esc(c.name)}','${stat}',${val})">${stat}: ${val} (roll)</button>`;
-  });
-  h += `</div>`;
-  
-  if (c.desc) {
-    h += `<hr>`;
-    h += `<h3>Description & Abilities</h3>`;
-    h += `<p>${esc(c.desc)}</p>`;
+  // Score/Mod check chips — identical convention to the sheet & VTT: "OFF 14 (+3)", roll = 1d20 + score
+  const stats=codexNumericStats(c);
+  if(Object.keys(stats).length){
+    h += `<h3>Checks</h3><div class="creature-rolls">`;
+    Object.entries(stats).forEach(([stat, val]) => {
+      const mod=Math.floor(val/4);
+      h += `<button class="roll-chip" title="1d20 + ${val}" onclick="rollCreatureStat('${nameEnc}','${esc(stat)}',${val})">${esc(stat)} <b style="opacity:.85;">${val}</b> (${mod>=0?'+':''}${mod})</button>`;
+    });
+    h += `</div>`;
   }
-  
+  if (c.meta && c.meta.TRAITS) h += `<h3>Traits</h3><p>${esc(c.meta.TRAITS)}</p>`;
+  if (k.flags.length) h += `<h3>Class Rulings</h3><ul>${k.flags.map(f=>`<li>${esc(f)}</li>`).join('')}</ul>`;
+  if (c.desc) h += `<hr><h3>Description &amp; Abilities</h3><p>${esc(c.desc)}</p>`;
   h += `<hr>`;
   h += `<div style="display:flex; gap:8px;">
-    <button class="tbtn live" style="padding:6px 16px; font-size:12px;" onclick="spawnCreatureDirect('${esc(c.name)}')">Spawn to VTT Map</button>
+    <button class="tbtn live" style="padding:6px 16px; font-size:12px;" onclick="spawnCreatureDirect('${nameEnc}')">Spawn to VTT Map</button>
+    ${c.local?'':`<button class="tbtn" style="padding:6px 16px; font-size:12px;" onclick="saveCreatureLocal('${nameEnc}')">Save to My Creatures</button>`}
     <button class="tbtn" style="padding:6px 16px; font-size:12px;" onclick="navigateTo('wte://bestiary')">Back to Bestiary</button>
   </div>`;
-  
   contentEl.innerHTML = h;
 }
 
 // ════════════════════════════════════════════════ DICE ROLLING INTEGRATION
-function rollCreatureStat(creatureName, statName, score) {
-  const mod = Math.floor(score / 4);
+// Same convention as the sheet's crStatRoll / VTT cstat: 1d20 + full score.
+function rollCreatureStat(nameEnc, statName, score) {
+  const creatureName = decodeURIComponent(nameEnc);
+  score = parseInt(score) || 0;
   const r = Math.floor(Math.random() * 20) + 1;
-  const tot = r + mod;
-  
-  // Alert player
-  toast(`${creatureName} ${statName} check: ${r} + ${mod} = ${tot}`);
-  
-  // Sync to shared table if multiplayer is active (we write to the localStorage log)
+  const tot = r + score;
+  toast(`${creatureName} — ${statName} check: ${r} + ${score} = ${tot}`);
+  // hand the roll to the VTT via its storage listener → table log + room event
   try {
-    const logItem = {
-      by: creatureName,
-      expr: `1d20+${mod}`,
-      val: tot,
-      breakdown: `[${r}] + ${mod}`,
-      ts: Date.now()
-    };
-    // Hand to the active room database via VTT/sheet storage listener
-    localStorage.setItem('wte-dice-roll-sync', JSON.stringify(logItem));
+    localStorage.setItem('wte-dice-roll-sync', JSON.stringify({ by: creatureName, label: statName + ' check', expr: '1d20+' + score, val: tot, breakdown: '[' + r + '] + ' + score, ts: Date.now() }));
   } catch (e) {}
 }
 
-function spawnCreatureDirect(name) {
+// Save a wiki creature into My Creatures (wte-my-creatures) — it immediately shows up in the
+// Character Sheet's archive and the VTT's Summon sidebar through their storage listeners.
+function saveCreatureLocal(nameEnc) {
+  const name = decodeURIComponent(nameEnc);
   const c = bestiaryCache.find(x => x.name === name);
   if (!c) return;
-  
+  let customs = []; try { customs = JSON.parse(localStorage.getItem('wte-my-creatures')) || []; } catch (e) {}
+  if (customs.some(x => x.name === c.name)) { toast(c.name + ' is already in My Creatures'); return; }
+  customs.push({ name: c.name, cls: c.cls, meta: Object.assign({}, c.meta), desc: c.desc || '', lid: 'cx' + Date.now().toString(36) });
+  try { localStorage.setItem('wte-my-creatures', JSON.stringify(customs)); } catch (e) { toast('Save failed'); return; }
+  loadBestiaryCache();
+  toast(c.name + ' saved to My Creatures');
+}
+
+function spawnCreatureDirect(nameEnc) {
+  const name = decodeURIComponent(nameEnc);
+  const c = bestiaryCache.find(x => x.name === name);
+  if (!c) return;
+  const k=codexComputeCreature(c);
   const colors = {1:'#6b6f7a', 2:'#c9a227', 3:'#7a4b9a', 4:'#8a3a2a', 5:'#c33fbf', 6:'#20202c'};
+  // identical payload shape to the sheet's archSpawn / VTT summonBuildPayload
   const payload = {
-    name: c.name,
-    cls: c.cls,
-    hp: c.hp || (c.meta && c.meta.HP) || 10,
-    dr: (c.meta && c.meta.DHP) || 0,
+    name: c.name, cls: c.cls, hp: k.hp, dr: k.dr,
     size: (c.cls === 4 ? 2 : (c.cls === 6 ? 6 : 1)),
-    color: colors[c.cls] || '#8a6d3b',
-    flags: c.flags || [],
-    stats: c.stats || { PHY: 10, DEX: 10, END: 10, AP: 10, WIS: 10, CHA: 10, INT: 10 },
-    desc: c.desc || '',
-    ts: Date.now()
+    color: colors[c.cls] || '#8a6d3b', flags: k.flags,
+    stats: codexNumericStats(c),
+    traits: (c.meta && c.meta.TRAITS) || '',
+    desc: (c.desc || '').slice(0, 1400), ts: Date.now()
   };
-  
   try {
     localStorage.setItem('wte-spawn-creature', JSON.stringify(payload));
-    toast(`${c.name} sent to VTT!`);
+    toast(c.name + ' sent to the VTT (be its GM there)');
   } catch (e) {
     toast("Spawn failed");
   }
+}
+
+// ════════════════════════════════════════════════ CODEX INDEX (dynamic page list)
+async function listRulePages() {
+  if (window.__TAURI__) {
+    try { return await window.__TAURI__.core.invoke('wte_list_pages'); } catch (e) { return []; }
+  }
+  // browser dev fallback — the bundled seed pages
+  return ['Home','Attributes','CAS_Zones','Derived_Statistics','Paradigms','Pressure_Engine','Specialties','Species'];
+}
+async function renderCodexIndex() {
+  const contentEl = document.getElementById('page-content');
+  const pages = await listRulePages();
+  let h = `<h1>Codex Index</h1><p>Every page in the Codex — bundled rules plus anything added through <b>Import Update</b>. New pages appear here automatically.</p>`;
+  h += `<div class="index-grid">`;
+  pages.forEach(p => { h += `<a onclick="navigateTo('wte://rules/${encodeURIComponent(p)}')">${esc(p.replace(/_/g,' '))}</a>`; });
+  h += `<a onclick="navigateTo('wte://bestiary')" style="border-color:var(--accent);">Bestiary (Creature Archive)</a>`;
+  h += `</div>`;
+  contentEl.innerHTML = h;
 }
 
 // ════════════════════════════════════════════════ WTE SEARCH PAGE
@@ -1037,27 +1162,23 @@ async function renderSearchResults(query) {
 }
 
 // ════════════════════════════════════════════════ ZIP UPDATE IMPORT
-function triggerImport() {
-  document.getElementById('import-file').click();
-}
-
-async function performImport(file) {
-  if (!file) return;
-  if (window.__TAURI__) {
-    const dialog = window.__TAURI__.dialog;
-    const path = file.path; // Tauri injected file system path
-    
-    toast("Importing rules package...");
-    try {
-      const msg = await window.__TAURI__.core.invoke('wte_import_zip', { zipPath: path });
-      toast(msg);
-      // Reload current tab
-      refreshPage();
-    } catch (e) {
-      alert("Import failed: " + e);
-    }
-  } else {
-    alert("Wiki updates require running the native Tauri desktop app.");
+// Pick the .zip through the Tauri dialog plugin — a plain <input type="file"> File has no
+// filesystem path in Tauri v2, so the dialog is the only way to hand a real path to Rust.
+async function triggerImport() {
+  if (!window.__TAURI__) { alert("Rulebook updates require the W.T.E desktop app."); return; }
+  let path = null;
+  try {
+    const sel = await window.__TAURI__.dialog.open({ multiple: false, title: 'Import rulebook update (.zip)', filters: [{ name: 'Rulebook zip', extensions: ['zip'] }] });
+    path = Array.isArray(sel) ? sel[0] : sel;
+  } catch (e) { alert("Could not open the file picker: " + e); return; }
+  if (!path) return;
+  toast("Importing rules package...");
+  try {
+    const msg = await window.__TAURI__.core.invoke('wte_import_zip', { zipPath: path });
+    toast(msg);
+    refreshPage();
+  } catch (e) {
+    alert("Import failed: " + e);
   }
 }
 
@@ -1096,6 +1217,12 @@ window.wteApplyTheme = wteApplyTheme;
 try {
   wteApplyTheme(localStorage.getItem('wte-theme') || 'dark');
 } catch (e) {}
+// Live-sync with the rest of the app: theme flips, and creatures saved/edited in the
+// Sheet or VTT refresh the Codex bestiary immediately.
+window.addEventListener('storage', e => {
+  if (e.key === 'wte-theme') wteApplyTheme(e.newValue || 'dark');
+  else if (e.key === 'wte-my-creatures' || e.key === 'wte-bestiary-cache') loadBestiaryCache();
+});
 
 // Launch
 initBrowser();

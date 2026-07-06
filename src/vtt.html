@@ -2178,7 +2178,13 @@ window.addEventListener('storage',e=>{ if(e.key==='wte-theme')wteApplyTheme(e.ne
       if(role!=='gm'){ toast('Creature spawn ignored — you are not the GM here'); return; }
       vtSpawnCreature(c); }catch(err){}
   }
-  else if(e.key==='wte-my-creatures'){ summonCache=null; summonFetch(); }   // sheet edited a custom → refresh the sidebar
+  else if(e.key==='wte-my-creatures'){ summonCache=null; summonFetch(); }   // sheet/Codex edited a custom → refresh the sidebar
+  else if(e.key==='wte-dice-roll-sync'&&e.newValue){ // Codex creature roll → table log + room event
+    try{ const r=JSON.parse(e.newValue); if(!r||Date.now()-(r.ts||0)>10000)return;
+      addVtLog(`${r.by} · ${r.label||r.expr}: ${r.val}`);
+      if(VT.connected&&VT.tableRef)VT.tableRef.child('events').push({type:'roll',fromId:VT.clientId,fromName:r.by,label:r.label||r.expr,total:r.val,ts:Date.now()});
+    }catch(err){}
+  }
   });
 
 // ── Asset Library init (desktop app only) ──
