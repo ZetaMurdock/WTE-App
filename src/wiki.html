@@ -477,6 +477,9 @@ body {
       <div class="search-dropdown" id="search-dropdown"></div>
     </div>
     <button class="tbtn" onclick="navigateTo('wte://index')" title="Every page in the Codex">Index</button>
+    <button class="tbtn" onclick="openEditor()" title="Edit the current rules page (saved locally; Admin can publish to everyone)">Edit</button>
+    <button class="tbtn" onclick="mirrorWiki()" title="Copy the ENTIRE W.T.E wiki into the Codex as permanent, editable local pages">Mirror Wiki</button>
+    <button class="tbtn" onclick="codexAdmin()" title="Unlock (or create) the Codex admin key — lets the owner publish rule edits to every player">Admin</button>
     <button class="tbtn" onclick="triggerImport()" title="Import rulebook wiki updates (.zip)">Import Update</button>
   </div>
   <div class="browser-tabs" id="tab-container"></div>
@@ -844,6 +847,10 @@ function bindInternalLinks() {
       navigateTo(url);
     };
   });
+  // mirrored pages rewrite external links to data-ext-link at scrape time
+  document.querySelectorAll('[data-ext-link]').forEach(el => {
+    el.onclick = () => openExternalBrowser(el.getAttribute('data-ext-link'));
+  });
 }
 
 function cleanFandomHtml(html) {
@@ -1182,6 +1189,201 @@ async function triggerImport() {
   }
 }
 
+// ════════════════════════════════════════════════ WIKI MIRROR — copy every wiki page locally
+// Saves each page as "# Title" + parsed Fandom HTML with internal links rewritten to
+// data-wte-link, so the whole wiki works offline and every page is editable in-app.
+function scrapeCleanHtml(html) {
+  const d = document.createElement('div');
+  d.innerHTML = html;
+  d.querySelectorAll('script, style, noscript, .mw-editsection, .nomobile, #toc').forEach(el => el.remove());
+  d.querySelectorAll('a').forEach(el => {
+    const href = el.getAttribute('href') || '';
+    el.removeAttribute('href'); el.removeAttribute('title'); el.removeAttribute('onclick'); el.removeAttribute('target');
+    if (href.startsWith('/wiki/')) {
+      const page = decodeURIComponent(href.replace('/wiki/', '')).split('#')[0];
+      if (page) el.setAttribute('data-wte-link', 'wte://rules/' + page);
+    } else if (/^https?:/.test(href)) {
+      el.setAttribute('data-ext-link', href);
+    } else {
+      const span = document.createElement('span'); span.innerHTML = el.innerHTML; el.replaceWith(span);
+    }
+  });
+  return d.innerHTML;
+}
+let _mirrorRunning = false;
+async function mirrorWiki() {
+  if (!window.__TAURI__) { alert('Mirroring the wiki requires the W.T.E desktop app.'); return; }
+  if (_mirrorRunning) { toast('Mirror already running'); return; }
+  if (!confirm('Mirror the ENTIRE W.T.E wiki into the Codex?\n\nEvery page is fetched and saved as a permanent, editable local copy — existing local copies with the same names are OVERWRITTEN. Published admin pages are re-applied afterward.\n\nThis takes a couple of minutes.')) return;
+  _mirrorRunning = true;
+  const contentEl = document.getElementById('page-content');
+  contentEl.innerHTML = `<h1>Mirroring the W.T.E Wiki</h1>
+    <div id="mirror-status" style="font-family:Consolas,monospace;font-size:11px;">Enumerating pages…</div>
+    <div style="height:7px;background:var(--panel2);border:1px solid var(--line);margin-top:10px;"><i id="mirror-fill" style="display:block;height:100%;width:0;background:var(--accent);"></i></div>
+    <div id="mirror-err" style="color:#b03020;font-size:11px;margin-top:6px;"></div>
+    <p style="margin-top:12px;color:var(--muted);font-style:italic;">Keep this tab on this page — navigating away aborts the mirror.</p>`;
+  updateActiveTabTitle('Mirroring…');
+  let titles = [], cont = null;
+  try {
+    do {
+      const u = CODEX_WIKI + '/api.php?action=query&list=allpages&aplimit=500&format=json&origin=*' + (cont ? '&apcontinue=' + encodeURIComponent(cont) : '');
+      const j = await (await fetch(u)).json();
+      titles.push(...((j.query && j.query.allpages) || []).map(p => p.title));
+      cont = j.continue && j.continue.apcontinue;
+    } while (cont);
+  } catch (e) {
+    contentEl.innerHTML = `<h1>Mirror failed</h1><p>Could not enumerate the wiki pages: ${esc(String(e))}</p>`;
+    _mirrorRunning = false; return;
+  }
+  let done = 0, errs = 0;
+  for (const title of titles) {
+    const st = document.getElementById('mirror-status');
+    if (!st) { _mirrorRunning = false; toast('Mirror aborted'); return; }   // user navigated away
+    st.textContent = (done + 1) + ' / ' + titles.length + ' — ' + title;
+    try {
+      const j = await (await fetch(CODEX_WIKI + '/api.php?action=parse&prop=text&format=json&origin=*&page=' + encodeURIComponent(title.replace(/ /g, '_')))).json();
+      if (j.parse && j.parse.text) {
+        const body = scrapeCleanHtml(j.parse.text['*']);
+        await window.__TAURI__.core.invoke('wte_save_page', { name: title.replace(/ /g, '_'), content: '# ' + title + '\n\n' + body });
+      } else errs++;
+    } catch (e) { errs++; }
+    done++;
+    const f = document.getElementById('mirror-fill'); if (f) f.style.width = Math.round(done / titles.length * 100) + '%';
+    const ee = document.getElementById('mirror-err'); if (ee && errs) ee.textContent = errs + ' page(s) failed';
+    await new Promise(r => setTimeout(r, 120));
+  }
+  await reapplyPublished();
+  _mirrorRunning = false;
+  toast('Mirror complete — ' + (done - errs) + ' pages saved' + (errs ? (', ' + errs + ' failed') : ''));
+  navigateTo('wte://index');
+}
+
+// ════════════════════════════════════════════════ PAGE EDITOR (local save / delete / publish)
+let editorState = null;
+async function openEditor() {
+  const t = getActiveTab();
+  if (!t || !t.url.startsWith('wte://rules/')) { toast('Open a rules page first, then Edit'); return; }
+  if (!window.__TAURI__) { alert('Editing pages requires the W.T.E desktop app.'); return; }
+  const page = t.url.replace('wte://rules/', '');
+  let raw = '';
+  try { raw = await loadRulefile(page); } catch (e) { raw = '# ' + page.replace(/_/g, ' ') + '\n\n'; }
+  editorState = { name: page };
+  const contentEl = document.getElementById('page-content');
+  contentEl.innerHTML = `<div class="creature-detail-header"><h1 style="border-bottom:none;margin:0;padding:0;">Editing: ${esc(page.replace(/_/g, ' '))}</h1></div>
+    <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">
+      <button class="tbtn live" onclick="saveEditor()">Save</button>
+      <button class="tbtn" onclick="refreshPage()">Cancel</button>
+      <button class="tbtn" onclick="deleteLocalPage()" title="Remove this device's local copy (reverts to the bundled page if one exists)">Delete local copy</button>
+      <button class="tbtn" id="publish-btn" onclick="publishFromEditor()" style="display:${codexAdminUnlocked() ? 'inline-block' : 'none'};border-color:var(--accent);color:var(--sel);" title="Push this page to every player's Codex through your shared Firebase">Publish to everyone</button>
+    </div>
+    <div style="font-size:10px;color:var(--muted);font-style:italic;margin-bottom:6px;">Markdown and raw HTML both work — pages render exactly how you format them. Save keeps the copy on this device; Publish (Admin) pushes it to every player.</div>`;
+  const ta = document.createElement('textarea');
+  ta.id = 'editor-ta';
+  ta.style.cssText = 'width:100%;height:62vh;background:var(--panel2);border:1px solid var(--line);color:var(--ink);font-family:Consolas,monospace;font-size:11px;padding:10px;line-height:1.5;resize:vertical;';
+  ta.value = raw;
+  contentEl.appendChild(ta);
+}
+async function saveEditor() {
+  const ta = document.getElementById('editor-ta'); if (!ta || !editorState) return;
+  try {
+    await window.__TAURI__.core.invoke('wte_save_page', { name: editorState.name, content: ta.value });
+    toast('Saved to this device'); refreshPage();
+  } catch (e) { alert('Save failed: ' + e); }
+}
+async function deleteLocalPage() {
+  if (!editorState) return;
+  if (!confirm('Delete this device\'s local copy of "' + editorState.name.replace(/_/g, ' ') + '"?\n(The bundled version, if any, becomes visible again.)')) return;
+  try {
+    await window.__TAURI__.core.invoke('wte_delete_page', { name: editorState.name });
+    toast('Local copy deleted'); refreshPage();
+  } catch (e) { alert('Delete failed: ' + e); }
+}
+async function publishFromEditor() {
+  const ta = document.getElementById('editor-ta'); if (!ta || !editorState) return;
+  await codexPublish(editorState.name, ta.value);
+}
+
+// ════════════════════════════════════════════════ ADMIN KEY + FIREBASE PUBLISH
+// The owner claims a passphrase once (SHA-256 hash at codex/adminKey in the shared Firebase).
+// Unlocked admins publish pages to codex/pages/<stem>; every player's Codex syncs those onto
+// disk automatically (Firebase is the transport, disk is the truth — search/index/offline all
+// see published pages through the normal overlay).
+function sanitizeStemJs(s) { return String(s).replace(/[\\\/:*?"<>|#$\[\].]/g, '_').trim(); }
+let _cxDb = null;
+function loadScriptOnce(src) { return new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = src; sc.onload = res; sc.onerror = () => rej(new Error('script load failed')); document.head.appendChild(sc); }); }
+async function codexDb() {
+  if (_cxDb) return _cxDb;
+  let cfg = null; try { cfg = JSON.parse(localStorage.getItem('wte-fb-config') || 'null'); } catch (e) {}
+  if (!cfg) throw new Error('No Firebase config — set up your table connection in the VTT first.');
+  if (!window.firebase) await loadScriptOnce('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js');
+  if (!window.firebase.database) await loadScriptOnce('https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js');
+  if (!firebase.apps.length) firebase.initializeApp(cfg);
+  _cxDb = firebase.database();
+  return _cxDb;
+}
+async function sha256hex(s) { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join(''); }
+function codexAdminUnlocked() { try { return sessionStorage.getItem('wte-codex-admin') === '1'; } catch (e) { return false; } }
+async function codexAdmin() {
+  try {
+    const db = await codexDb();
+    const snap = await db.ref('codex/adminKey').get();
+    const existing = snap.val();
+    if (!existing) {
+      const p = prompt('No Codex admin key exists yet.\n\nCreate the admin passphrase now — whoever holds it can publish rule edits that appear in every player\'s Codex. Keep it safe.');
+      if (!p) return;
+      await db.ref('codex/adminKey').set(await sha256hex(p));
+      try { sessionStorage.setItem('wte-codex-admin', '1'); } catch (e) {}
+      toast('Admin key created — publishing unlocked for this session');
+    } else {
+      const p = prompt('Enter the Codex admin passphrase:');
+      if (!p) return;
+      if (await sha256hex(p) === existing) { try { sessionStorage.setItem('wte-codex-admin', '1'); } catch (e) {} toast('Admin unlocked — you can publish pages'); }
+      else { toast('Wrong passphrase'); return; }
+    }
+    const pb = document.getElementById('publish-btn'); if (pb) pb.style.display = codexAdminUnlocked() ? 'inline-block' : 'none';
+  } catch (e) { alert('Admin: ' + (e.message || e)); }
+}
+async function codexPublish(name, content) {
+  if (!codexAdminUnlocked()) { toast('Unlock Admin first (toolbar)'); return; }
+  try {
+    const db = await codexDb();
+    await db.ref('codex/pages/' + sanitizeStemJs(name)).set({ md: content, ts: Date.now(), by: 'admin' });
+    toast('Published — every player\'s Codex will pick this up');
+  } catch (e) { alert('Publish failed: ' + (e.message || e)); }
+}
+let _pubts = {}; try { _pubts = JSON.parse(localStorage.getItem('wte-codex-pubts')) || {}; } catch (e) {}
+async function codexSubscribe() {
+  if (!window.__TAURI__) return;                       // disk sync needs the desktop app
+  let cfg = null; try { cfg = JSON.parse(localStorage.getItem('wte-fb-config') || 'null'); } catch (e) {}
+  if (!cfg) return;
+  try {
+    const db = await codexDb();
+    db.ref('codex/pages').on('value', async s => {
+      const pages = s.val() || {}; let synced = 0;
+      for (const stem in pages) {
+        const p = pages[stem]; if (!p || !p.md) continue;
+        if ((_pubts[stem] || 0) >= (p.ts || 1)) continue;
+        try { await window.__TAURI__.core.invoke('wte_save_page', { name: stem, content: p.md }); _pubts[stem] = p.ts || Date.now(); synced++; } catch (e) {}
+      }
+      try { localStorage.setItem('wte-codex-pubts', JSON.stringify(_pubts)); } catch (e) {}
+      if (synced) { toast(synced + ' published page(s) synced from the table admin'); refreshPage(); }
+    });
+  } catch (e) {}
+}
+async function reapplyPublished() {
+  if (!window.__TAURI__) return;
+  try {
+    const db = await codexDb();
+    const s = await db.ref('codex/pages').get();
+    const pages = s.val() || {};
+    for (const stem in pages) {
+      const p = pages[stem]; if (!p || !p.md) continue;
+      try { await window.__TAURI__.core.invoke('wte_save_page', { name: stem, content: p.md }); _pubts[stem] = p.ts || Date.now(); } catch (e) {}
+    }
+    try { localStorage.setItem('wte-codex-pubts', JSON.stringify(_pubts)); } catch (e) {}
+  } catch (e) {}
+}
+
 // ════════════════════════════════════════════════ UTILS
 function esc(str) {
   if (!str) return '';
@@ -1222,10 +1424,14 @@ try {
 window.addEventListener('storage', e => {
   if (e.key === 'wte-theme') wteApplyTheme(e.newValue || 'dark');
   else if (e.key === 'wte-my-creatures' || e.key === 'wte-bestiary-cache') loadBestiaryCache();
+  else if (e.key === 'wte-codex-nav' && e.newValue) {   // sheet/VTT ask the Codex to open a page
+    try { const n = JSON.parse(e.newValue); if (n && n.url && Date.now() - (n.ts || 0) < 5000) navigateTo(n.url); } catch (err) {}
+  }
 });
 
 // Launch
 initBrowser();
+codexSubscribe();   // pull published admin pages down to disk (no-op without Firebase config)
 
 </script>
 </body>

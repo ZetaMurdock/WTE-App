@@ -140,6 +140,12 @@ body.wte-light .hub{background-image:radial-gradient(circle at 50% 30%, #f0ede6 
 .act-menu button{text-align:left;background:none;border:none;border-bottom:1px solid var(--line);color:var(--ink);font-family:'Georgia',serif;font-size:12px;padding:7px 11px;cursor:pointer;}
 .act-menu button:hover{background:var(--panel2);}
 .vt-log{position:absolute;left:8px;bottom:30px;display:flex;flex-direction:column;gap:2px;max-width:360px;pointer-events:none;}
+#cmd-input{position:absolute;left:8px;top:8px;width:250px;background:rgba(20,18,16,.82);border:1px solid var(--line);color:var(--ink);font-family:Consolas,monospace;font-size:10.5px;padding:4px 8px;z-index:45;opacity:.55;transition:opacity .15s;}
+#cmd-input:hover,#cmd-input:focus{opacity:1;border-color:var(--accent);outline:none;}
+body.wte-light #cmd-input{background:rgba(236,234,229,.9);}
+#statusTip{position:fixed;display:none;z-index:3000;background:rgba(20,18,16,.96);border:1px solid var(--accent);color:var(--ink);font-family:Georgia,serif;font-size:11px;line-height:1.5;padding:8px 11px;max-width:300px;box-shadow:0 4px 14px rgba(0,0,0,.5);pointer-events:none;}
+#statusTip b{color:var(--sel);display:block;font-size:11.5px;margin-bottom:2px;letter-spacing:.5px;}
+body.wte-light #statusTip{background:rgba(236,234,229,.97);}
 .vt-log div{font-size:10.5px;color:var(--ink);background:rgba(0,0,0,.44);padding:2px 8px;align-self:flex-start;}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:50;}
 .modal.open{display:flex;}
@@ -231,6 +237,8 @@ body.wte-light .hub{background-image:radial-gradient(circle at 50% 30%, #f0ede6 
     </div>
     <div class="role-badge" id="role-badge">Solo · GM</div>
     <div class="vt-log" id="vt-log"></div>
+    <input type="text" id="cmd-input" placeholder="/rule &lt;term&gt; — table rule lookup" onkeydown="cmdInputKey(event)" title="Type /rule Evasion (or any term) to print the rule from the Codex into the table log for everyone">
+    <div id="statusTip"></div>
   </div>
   <div class="side">
     <div class="sec"><div class="sec-h">Properties</div><div class="sec-b" id="props"><div class="empty">Nothing selected.</div></div></div>
@@ -310,6 +318,7 @@ body.wte-light .hub{background-image:radial-gradient(circle at 50% 30%, #f0ede6 
         <div id="hubMusic"></div>
         <div class="hub-sec" style="margin-top:14px;">Notes</div>
         <textarea id="hubNotes" placeholder="Session notes, plot threads, NPCs…" oninput="hubNotesSave()"></textarea>
+        <div id="hubLore" style="margin-top:5px;font-size:10px;color:var(--muted);display:flex;gap:5px;flex-wrap:wrap;align-items:center;"></div>
       </div>
     </div>
   </div>
@@ -329,6 +338,8 @@ body.wte-light .hub{background-image:radial-gradient(circle at 50% 30%, #f0ede6 
   <div class="card">
     <div class="card-h"><span>Creature Sheet</span><span class="x" onclick="closeCreature()">x</span></div>
     <div class="card-b">
+      <div class="row"><label>Search Codex</label><input type="text" id="cr-search" list="cr-search-options" placeholder="type a creature name — stats auto-fill" oninput="crSearchPick(this.value)" autocomplete="off"></div>
+      <datalist id="cr-search-options"></datalist>
       <div class="row"><label>Name</label><input type="text" id="cr-name"></div>
       <div class="row"><label>HP</label><input type="number" id="cr-hp" style="width:70px;"><label style="min-width:36px;">DR</label><input type="number" id="cr-dr" style="width:70px;"></div>
       <div class="row"><label>Stats</label><textarea id="cr-stats" placeholder="OFF: 14&#10;DEF: 12&#10;SPD: 10&#10;WIL: 8" style="min-height:70px;font-family:Consolas,monospace;font-size:11px;"></textarea></div>
@@ -640,6 +651,7 @@ cv.addEventListener('mousedown',e=>{
 cv.addEventListener('mousemove',e=>{
   const p=s2w(e.offsetX,e.offsetY);
   document.getElementById('status').textContent=`${Math.round(p.x)}, ${Math.round(p.y)}`;
+  if(!drag&&!VTaim)statusTipCheck(p,e); else hideStatusTip();
   if(VTaim){ VTaimCursor=p; updateAimCount(); render(); }
   if(wallDraft&&tool==='wall'){ const v=snapVertex(p); wallDraft.x2=v.x;wallDraft.y2=v.y; render(); }
   if(!drag)return;
@@ -816,6 +828,8 @@ function openCreature(){
   document.getElementById('cr-dr').value=t.dhp||'';
   document.getElementById('cr-stats').value=c?Object.entries(c.stats||{}).map(([k,v])=>k+': '+v).join('\n'):'';
   document.getElementById('cr-abil').value=(c&&c.abilText)||'';
+  const cs=document.getElementById('cr-search'); if(cs)cs.value='';
+  crSearchOptions();   // Codex bestiary auto-fill suggestions
   document.getElementById('creatureModal').classList.add('open');
 }
 function closeCreature(){ document.getElementById('creatureModal').classList.remove('open'); }
@@ -1354,8 +1368,8 @@ function hubPrev(){ if(!hubMusic.length)return; let n=hubTrack-1; if(n<0)n=hubLo
 function hubSaveMusic(){ try{ localStorage.setItem('wte-hub-music', JSON.stringify(hubMusic.filter(t=>t.path).map(t=>({name:t.name,path:t.path})))); }catch(e){} }
 function hubLoadMusic(){ try{ const arr=JSON.parse(localStorage.getItem('wte-hub-music'))||[]; const T=window.__TAURI__; if(T&&T.core)hubMusic=arr.map(t=>({name:t.name,path:t.path,url:T.core.convertFileSrc(t.path)})); }catch(e){} }
 // ── notes ──
-function hubNotesSave(){ const v=document.getElementById('hubNotes').value; try{localStorage.setItem('wte-hub-notes',v);}catch(e){} if(VT.connected&&role==='gm'&&VT.tableRef){ try{VT.tableRef.child('state/notes').set(v);}catch(e){} } }
-function hubLoadNotes(){ const el=document.getElementById('hubNotes'); if(el)try{el.value=localStorage.getItem('wte-hub-notes')||'';}catch(e){} }
+function hubNotesSave(){ const v=document.getElementById('hubNotes').value; try{localStorage.setItem('wte-hub-notes',v);}catch(e){} if(VT.connected&&role==='gm'&&VT.tableRef){ try{VT.tableRef.child('state/notes').set(v);}catch(e){} } if(typeof scheduleLoreScan==='function')scheduleLoreScan(); }
+function hubLoadNotes(){ const el=document.getElementById('hubNotes'); if(el)try{el.value=localStorage.getItem('wte-hub-notes')||'';}catch(e){} if(typeof scheduleLoreScan==='function')scheduleLoreScan(); }
 
 // ════════════════════════════════════════════════ DIRECTOR FX — cinematic screen effects
 let fxWeather='off', fxFilter='none', camLockUntil=0, _fxAnim=false, shakeAmp=0;
@@ -2006,6 +2020,122 @@ function simPropsHTML(t){ ensureSim(t); const s=t.sim;
     <div style="margin-top:5px;">${(t.statuses||[]).map(st=>`<button class="act-chip" style="background:#4a463e;" title="clear" onclick="clearStatus('${t.id}','${st}')">${st} x</button>`).join('')||'<span class="empty" style="font-size:10px;">No active statuses</span>'}</div>`;
 }
 function upd2(k,v){ const o=byId(sel.type,sel.id); if(!o)return; ensureSim(o); o.sim[k]=v; render(); clearTimeout(upd._t); upd._t=setTimeout(()=>{snapshot();syncMap();},400); }
+
+// ── STATUS TOOLTIPS — hover a token's status badge to see the exact rule mechanics ──
+// Text mirrors the real simulation engine (applySim / tickSim) — keep in sync when editing.
+const STATUS_RULES={
+  Burning:'Takes 1d6 damage at the start of every round (Round button) — hits integrity and HP. Extinguished instantly by Soaked. Ignition: "ignite/combust" effects, or heat 100°+ on flammable tokens.',
+  Electrified:'Charged with +70 energy. Arcs to conductive or Soaked tokens within ~1.6 cells, spreading the status. Charge decays −25 per round until it fades.',
+  Soaked:'+60 moisture, −30° temperature. Prevents and extinguishes Burning, but makes the token conductive — Electrified arcs will jump to it. Moisture decays −15 per round.',
+  Frozen:'Applied when temperature falls to −20° or below (cold effects −70°). Temperature drifts ~25% back toward 20° each round until the token thaws.',
+  Suppressed:'Null exposure — resonance zeroed. The token counts as nullified/drained until the status is cleared.',
+  Corrupted:'Eldritch distortion — integrity −10 per application; reality-warping effects treat this token as marked.',
+};
+function statusBadgeHit(p){
+  if(!(map.layers.sim&&map.layers.sim.vis))return null;
+  for(let i=map.tokens.length-1;i>=0;i--){ const t=map.tokens[i];
+    if(!t.statuses||!t.statuses.length)continue;
+    if(t.visible===false&&role!=='gm')continue;
+    const rad=(t.size||1)*map.gridSize/2;
+    const by=t.y-rad-(t.hpmax>0?15:5)/view.zoom, br=6/view.zoom;   // same geometry as drawTokens
+    let bx=t.x-((t.statuses.length-1)*(br*2.3))/2;
+    for(const st of t.statuses){ if(Math.hypot(p.x-bx,p.y-by)<=br*1.6)return {token:t,status:st}; bx+=br*2.3; }
+  }
+  return null;
+}
+function statusTipCheck(p,e){
+  const tip=document.getElementById('statusTip'); if(!tip)return;
+  const hit=statusBadgeHit(p);
+  if(!hit){ tip.style.display='none'; return; }
+  tip.innerHTML=`<b>${hit.status}</b>${STATUS_RULES[hit.status]||'House-ruled status — ask your Curator.'}`;
+  tip.style.display='block';
+  const pad=14, w=tip.offsetWidth||280, h=tip.offsetHeight||60;
+  tip.style.left=Math.min(e.clientX+pad,window.innerWidth-w-8)+'px';
+  tip.style.top=Math.min(e.clientY+pad,window.innerHeight-h-8)+'px';
+}
+function hideStatusTip(){ const tip=document.getElementById('statusTip'); if(tip)tip.style.display='none'; }
+cv.addEventListener('mouseleave',hideStatusTip);
+
+// ── CREATURE SHEET SEARCH — auto-fill the modal from the Codex/wiki bestiary ──
+function crSearchOptions(){
+  const dl=document.getElementById('cr-search-options'); if(!dl)return;
+  dl.innerHTML=(summonCache||[]).map(c=>`<option value="${esc(c.name||'')}">C${c.cls}${c.local?' · custom':''}</option>`).join('');
+}
+function crSearchPick(v){
+  const c=(summonCache||[]).find(x=>(x.name||'').toLowerCase()===(v||'').trim().toLowerCase());
+  if(!c)return;   // fires per keystroke — only fill on an exact datalist match
+  const k=summonComputeCreature(c);
+  document.getElementById('cr-name').value=c.name||'';
+  document.getElementById('cr-hp').value=k.hp||'';
+  document.getElementById('cr-dr').value=k.dr||'';
+  const stats={}; Object.entries(c.meta||{}).forEach(([kk,val])=>{ if(!['CLASS','TRAITS'].includes(kk)&&/^-?\d+$/.test(String(val).trim()))stats[kk]=parseInt(val); });
+  document.getElementById('cr-stats').value=Object.entries(stats).map(([kk,val])=>kk+': '+val).join('\n');
+  document.getElementById('cr-abil').value=(((c.meta&&c.meta.TRAITS)?c.meta.TRAITS+'. ':'')+(c.desc||'')).trim();
+  toast(c.name+' loaded from the Codex — Save to apply to this token');
+}
+
+// ── /rule — query the Codex search engine and print the ruling into the table log ──
+function cmdInputKey(e){
+  if(e.key==='Escape'){ e.target.value=''; e.target.blur(); return; }
+  if(e.key!=='Enter')return;
+  const raw=(e.target.value||'').trim(); if(!raw)return;
+  const m=raw.match(/^\/rules?\s+(.+)$/i);
+  const term=m?m[1].trim():raw;      // bare text works too — /rule is the canonical form
+  e.target.value='';
+  cmdRuleLookup(term);
+}
+async function cmdRuleLookup(term){
+  if(!window.__TAURI__){ toast('Rule lookup needs the desktop app'); return; }
+  let head='RULE: no match for "'+term+'"', body='';
+  try{
+    const results=await window.__TAURI__.core.invoke('wte_search',{query:term});
+    if(results&&results.length){
+      const best=results[0];
+      const page=best.url.replace('wte://rules/','');
+      head='RULE ['+best.title+']:';
+      try{
+        const raw=await window.__TAURI__.core.invoke('wte_load_page',{path:page});
+        const text=String(raw||'').replace(/<[^>]+>/g,' ').replace(/^#+\s*/gm,'').replace(/\s+/g,' ').trim();
+        const idx=text.toLowerCase().indexOf(term.toLowerCase());
+        body=idx>=0 ? (idx>60?'…':'')+text.slice(Math.max(0,idx-60),idx+300)+'…' : best.snippet;
+      }catch(err){ body=best.snippet; }
+    }
+  }catch(err){ head='RULE: lookup failed'; }
+  const lines=[head]; if(body)lines.push(body);
+  lines.forEach(t=>addVtLog(t));
+  if(VT.connected&&VT.tableRef){ try{ lines.forEach(t=>VT.tableRef.child('events').push({type:'log',text:t,ts:Date.now()})); }catch(err){} }
+}
+
+// ── LORE-LINKING — highlight Codex page names mentioned in the Campaign Hub notes ──
+let _lorePages=null,_lorePagesTs=0,_loreT=null;
+async function lorePageList(){
+  if(_lorePages&&Date.now()-_lorePagesTs<600000)return _lorePages;
+  if(!window.__TAURI__)return [];
+  try{ _lorePages=await window.__TAURI__.core.invoke('wte_list_pages'); _lorePagesTs=Date.now(); }catch(e){ _lorePages=[]; }
+  return _lorePages;
+}
+function scheduleLoreScan(){ clearTimeout(_loreT); _loreT=setTimeout(loreScan,500); }
+async function loreScan(){
+  const box=document.getElementById('hubLore'); if(!box)return;
+  const notes=((document.getElementById('hubNotes')||{}).value||'').toLowerCase();
+  if(!notes.trim()){ box.innerHTML=''; return; }
+  const pages=await lorePageList(); if(!pages.length){ box.innerHTML=''; return; }
+  const hits=[];
+  for(const p of pages){
+    const readable=p.replace(/_/g,' ').toLowerCase();
+    if(readable.length<4)continue;
+    if(notes.includes(readable))hits.push(p);
+    if(hits.length>=12)break;
+  }
+  box.innerHTML=hits.length
+    ? '<span style="letter-spacing:1px;text-transform:uppercase;font-size:8px;">Lore:</span>'+hits.map(p=>`<button class="tbtn" style="padding:1px 8px;font-size:10px;" onclick="openCodexPage('${encodeURIComponent(p)}')" title="Open in the Codex">${esc(p.replace(/_/g,' '))}</button>`).join('')
+    : '';
+}
+function openCodexPage(stemEnc){
+  const stem=decodeURIComponent(stemEnc);
+  try{ localStorage.setItem('wte-codex-nav',JSON.stringify({url:'wte://rules/'+stem,ts:Date.now()})); }catch(e){}
+  try{ if(parent&&parent.wteTab)parent.wteTab('wiki'); }catch(e){}
+}
 VT.clientId=(()=>{let id=localStorage.getItem('wte-client-id');if(!id){id='c'+Math.random().toString(36).slice(2,10);localStorage.setItem('wte-client-id',id);}return id;})();
 function fbConfig(){ try{return JSON.parse(localStorage.getItem('wte-fb-config')||'null');}catch(e){return null;} }
 function loadFirebase(){ if(window.firebase&&firebase.database&&firebase.auth)return Promise.resolve(); if(window.__fb)return window.__fb;

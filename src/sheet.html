@@ -296,6 +296,33 @@ textarea { resize: vertical; border: 1px solid var(--border); }
 .equip-chips { grid-column: 1 / -1; }
 .equip-warn { font-size: 9px; color: #b03020; grid-column: 1 / -1; }
 .equip-hd { display: grid; grid-template-columns: 1.4fr 0.9fr 0.9fr 46px 1.6fr 24px; gap: 5px; font-size: 7.5px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); padding-bottom: 3px; }
+/* "?" EXPLAIN-THIS DRAWER (Codex rule lookups inside the sheet) */
+.help-q { display:inline-flex; align-items:center; justify-content:center; width:13px; height:13px; margin-left:4px; padding:0; border:1px solid var(--border2); border-radius:50%; background:none; color:var(--muted); font-family:Georgia,serif; font-size:9px; line-height:1; cursor:pointer; vertical-align:middle; }
+.help-q:hover { border-color: var(--accent); color: var(--accent); }
+#helpDrawer { position:fixed; top:0; right:-420px; width:400px; max-width:92vw; height:100vh; background:var(--surface); border-left:2px solid var(--accent); box-shadow:-6px 0 22px rgba(0,0,0,0.35); z-index:60; display:flex; flex-direction:column; transition:right 0.22s ease; }
+#helpDrawer.open { right:0; }
+.hd-head { background:var(--page-ink); color:#fff; padding:9px 14px; display:flex; justify-content:space-between; align-items:center; font-size:10px; letter-spacing:2.5px; text-transform:uppercase; }
+.hd-head .hx { cursor:pointer; color:rgba(255,255,255,0.6); font-size:14px; }
+.hd-head .hx:hover { color:#fff; }
+.hd-body { flex:1; overflow-y:auto; padding:14px 16px; font-size:12px; line-height:1.6; color:var(--ink); }
+.hd-body h1 { font-size:16px; color:var(--page-ink); border-bottom:1px solid var(--accent); padding-bottom:5px; margin-bottom:10px; }
+.hd-body h2 { font-size:13px; color:var(--accent); margin:14px 0 6px; }
+.hd-body h3, .hd-body h4 { font-size:12px; color:var(--ink); margin:10px 0 5px; }
+.hd-body ul { padding-left:18px; margin-bottom:10px; }
+.hd-body p { margin-bottom:9px; }
+.hd-body table { border-collapse:collapse; margin:8px 0; width:100%; }
+.hd-body th, .hd-body td { border:1px solid var(--border); padding:3px 7px; font-size:10.5px; text-align:left; }
+.hd-body .hd-hit { background:rgba(138,109,59,0.22); outline:2px solid var(--accent); }
+.hd-foot { border-top:1px solid var(--border); padding:8px 14px; display:flex; justify-content:space-between; align-items:center; }
+/* CIPHER & GENUS LIBRARY */
+.lib-btn { float:right; background:none; border:1px solid rgba(255,255,255,0.35); color:rgba(255,255,255,0.85); font-family:Georgia,serif; font-size:9px; letter-spacing:1px; text-transform:uppercase; padding:1px 8px; cursor:pointer; }
+.lib-btn:hover { border-color:#fff; color:#fff; }
+.lib-row { border:1px solid var(--border); padding:7px 10px; margin-bottom:7px; display:flex; gap:12px; align-items:flex-start; }
+.lib-row .ln { font-size:13px; color:var(--ink); }
+.lib-row .lm { font-size:9px; letter-spacing:1px; text-transform:uppercase; color:var(--accent); }
+.lib-row .le { font-size:10.5px; color:var(--muted); margin-top:2px; }
+.lib-ss-ok { font-size:9px; letter-spacing:1px; text-transform:uppercase; color:#3a8050; border:1px solid #3a8050; padding:1px 6px; white-space:nowrap; }
+.lib-ss-no { font-size:9px; letter-spacing:1px; text-transform:uppercase; color:#b03020; border:1px solid #b03020; padding:1px 6px; white-space:nowrap; }
 /* EDE — Equalizer / Extender / Dextender state machine */
 .ede-card { border: 1px solid var(--border); padding: 7px 9px; margin-bottom: 6px; background: var(--surface2); }
 .ede-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -843,7 +870,7 @@ textarea { resize: vertical; border: 1px solid var(--border); }
 
 <!-- GENUS LOADOUT -->
 <div class="section">
-  <div class="section-head">Genus Loadout <span id="genus-head-note">5 at creation &middot; +1 per rank</span></div>
+  <div class="section-head">Genus Loadout <span id="genus-head-note">5 at creation &middot; +1 per rank</span><button class="lib-btn" onclick="openCgLib('genus')" title="Browse every Genus in your domains — descriptions, SS costs, one-click add">Library&hellip;</button></div>
   <div class="section-body" style="padding:7px 10px;">
     <div class="wpn-type-hint" id="genus-domain-note">Pick a Paradigm to filter Genus by its energy domains.</div>
     <datalist id="genus-options"></datalist>
@@ -889,7 +916,7 @@ textarea { resize: vertical; border: 1px solid var(--border); }
   </div>
 
   <div class="section" style="flex:0.70">
-    <div class="section-head">Paradigm Cipher</div>
+    <div class="section-head">Paradigm Cipher<button class="lib-btn" onclick="openCgLib('cipher')" title="Browse your Paradigm's Ciphers — descriptions, SS costs, equippability, one-click add">Library&hellip;</button></div>
     <div class="section-body">
       <div style="font-size:9px;color:var(--muted);margin-bottom:6px;">DNA-locked. Offline TL&le;2.0 &middot; Online TL&ge;3.0. Grows with rank.</div>
       <div class="wpn-type-hint" id="cipher-domain-note">Pick a Paradigm to load its Ciphers.</div>
@@ -1110,6 +1137,29 @@ textarea { resize: vertical; border: 1px solid var(--border); }
       <span class="hint" id="arch-status">Creatures are fetched live from the wiki archive pages.</span>
     </div>
     <div class="modal-body"><div id="archiveBody"></div></div>
+  </div>
+</div>
+
+<!-- "?" EXPLAIN-THIS DRAWER -->
+<div id="helpDrawer">
+  <div class="hd-head"><span id="hd-title">Rule Reference</span><span class="hx" onclick="closeHelp()">x</span></div>
+  <div class="hd-body" id="hd-body">Loading…</div>
+  <div class="hd-foot">
+    <span style="font-size:9px;color:var(--muted);" id="hd-src"></span>
+    <button class="btn" onclick="openHelpInCodex()">Open in Codex &rarr;</button>
+  </div>
+</div>
+
+<!-- CIPHER & GENUS LIBRARY MODAL (distinct from the character-sheet Library) -->
+<div class="modal-bg" id="cgLibModal">
+  <div class="modal-card" style="width:760px;">
+    <div class="modal-head"><span class="mt" id="cglib-title">Cipher Library</span><span class="mx" onclick="closeCgLib()">x</span></div>
+    <div class="modal-tools">
+      <input type="text" id="cglib-search" placeholder="search…" style="width:200px;" oninput="renderCgLib()">
+      <select id="cglib-sec" onchange="renderCgLib()" style="width:130px;font-size:11px;"></select>
+      <span class="hint" id="cglib-status"></span>
+    </div>
+    <div class="modal-body"><div id="cgLibBody"></div></div>
   </div>
 </div>
 
@@ -2505,6 +2555,147 @@ function edeAdjustSS(n,kind){
     if(items.some(i=>i.edeState==='ext'&&i.edeMode==='cipher-off')){ out.cost=Math.ceil(n*0.5); out.notes.push('×0.5 Offline (Extender)'); }
   }
   return out;
+}
+
+// ════════════════════════════════════════════════════
+// "?" EXPLAIN-THIS DRAWER — Codex rule lookups without leaving the sheet
+// ════════════════════════════════════════════════════
+const RULE_HELP={'a-':'Attributes','d-':'Derived_Statistics','s-':'Specialties'};
+function injectHelpButtons(){
+  document.querySelectorAll('.stat-table tbody tr').forEach(tr=>{
+    const inp=tr.querySelector('input[id]'); const sn=tr.querySelector('td.sn');
+    if(!inp||!sn||sn.querySelector('.help-q'))return;
+    const page=Object.keys(RULE_HELP).find(p=>inp.id.startsWith(p)&&!/^(sm|m)-/.test(inp.id));
+    if(!page)return;
+    // highlight term: attributes use the full word (span.ss, e.g. "Strength"); others the label
+    const span=sn.querySelector('span.ss');
+    const term=(span?span.textContent:sn.childNodes[0]?sn.childNodes[0].textContent:sn.textContent).trim();
+    const title=sn.textContent.trim().replace(/\s+/g,' ');
+    const b=document.createElement('button');
+    b.type='button'; b.className='help-q'; b.textContent='?'; b.title='Explain this — open the rule from the Codex';
+    b.onclick=(e)=>{e.stopPropagation();openHelp(RULE_HELP[page],term,title);};
+    sn.appendChild(b);
+  });
+}
+let helpCtx=null;
+async function openHelp(page,term,title){
+  helpCtx={page,term};
+  document.getElementById('hd-title').textContent=title||term||'Rule Reference';
+  document.getElementById('hd-src').textContent='Codex · '+page.replace(/_/g,' ');
+  const body=document.getElementById('hd-body'); body.innerHTML='Loading…';
+  document.getElementById('helpDrawer').classList.add('open');
+  let raw=null;
+  try{
+    if(window.__TAURI__)raw=await window.__TAURI__.core.invoke('wte_load_page',{path:page});
+    else{ const r=await fetch('rules/'+page+'.md'); if(r.ok)raw=await r.text(); }
+  }catch(e){}
+  if(!raw){ body.innerHTML='<p style="color:var(--muted);font-style:italic;">Could not load this rule page. Open the Codex tab and run Mirror Wiki to build the local rules database.</p>'; return; }
+  body.innerHTML=helpRenderMd(raw);
+  body.querySelectorAll('[data-wte-link]').forEach(el=>{ el.style.color='var(--accent)'; el.style.cursor='pointer'; el.style.textDecoration='underline'; el.onclick=()=>openInCodex(el.getAttribute('data-wte-link')); });
+  if(term){
+    const t=term.toLowerCase();
+    const els=[...body.querySelectorAll('h1,h2,h3,h4,li,p,td,th,b,strong')];
+    const hit=els.find(el=>el.children.length===0&&el.textContent.toLowerCase().includes(t))||els.find(el=>el.textContent.toLowerCase().includes(t));
+    if(hit){ hit.classList.add('hd-hit'); body.scrollTop=Math.max(0,hit.getBoundingClientRect().top-body.getBoundingClientRect().top+body.scrollTop-90); return; }
+  }
+  body.scrollTop=0;
+}
+function closeHelp(){ document.getElementById('helpDrawer').classList.remove('open'); }
+function openHelpInCodex(){ if(helpCtx)openInCodex('wte://rules/'+helpCtx.page); }
+// Hop to the Codex tab and navigate it (the Codex listens for wte-codex-nav storage events).
+function openInCodex(url){
+  try{localStorage.setItem('wte-codex-nav',JSON.stringify({url,ts:Date.now()}));}catch(e){}
+  try{ if(parent&&parent.wteTab)parent.wteTab('wiki'); }catch(e){}
+}
+// Lite markdown renderer for the drawer — same rules as the Codex renderer (raw HTML passes
+// through, pipe tables, headers). Keep in sync with wiki.html renderMarkdown when editing.
+function helpRenderMd(md){
+  let html=String(md||'').replace(/<!--[\s\S]*?-->/g,'');
+  html=html.replace(/^#### (.*?)$/gm,'<h4>$1</h4>').replace(/^### (.*?)$/gm,'<h3>$1</h3>').replace(/^## (.*?)$/gm,'<h2>$1</h2>').replace(/^# (.*?)$/gm,'<h1>$1</h1>');
+  html=html.replace(/^-{3,}$/gm,'<hr>');
+  html=html.replace(/((?:^\|.*\|[ \t]*\n?)+)/gm,(block)=>{
+    const rows=block.trim().split('\n').map(r=>r.trim()).filter(Boolean);
+    if(rows.length<2)return block;
+    const hasHeader=/^\|[\s:\-|]+\|$/.test(rows[1]);
+    const cells=r=>r.replace(/^\||\|$/g,'').split('|').map(c=>c.trim());
+    let out='<table>';
+    rows.forEach((r,i)=>{ if(hasHeader&&i===1)return; const tag=(hasHeader&&i===0)?'th':'td';
+      out+='<tr>'+cells(r).map(c=>`<${tag}>${c}</${tag}>`).join('')+'</tr>'; });
+    return out+'</table>\n';
+  });
+  html=html.replace(/^> (.*?)$/gm,'<blockquote>$1</blockquote>');
+  html=html.replace(/^\*\s+(.*?)$/gm,'<li>$1</li>').replace(/^-\s+(.*?)$/gm,'<li>$1</li>');
+  html=html.replace(/(<li>.*?<\/li>)/gs,'<ul>$1</ul>').replace(/<\/ul>\s*<ul>/g,'');
+  html=html.replace(/\*\*(.*?)\*\*/g,'<b>$1</b>').replace(/`(.*?)`/g,'<code>$1</code>');
+  html=html.replace(/\[([^\]]+)\]\((wte:\/\/[^\)]+)\)/g,'<a data-wte-link="$2">$1</a>');
+  return html.split('\n\n').map(l=>{ l=l.trim(); if(!l)return ''; if(l.startsWith('<'))return l; return `<p>${l}</p>`; }).join('\n');
+}
+
+// ════════════════════════════════════════════════════
+// CIPHER & GENUS LIBRARY — searchable drawer over the wiki caches, one-click add.
+// (CgLib naming: the sheet already has a character "Library" — openLibrary/renderLibrary
+// at the bottom of this file belong to it; do not reuse those names.)
+// ════════════════════════════════════════════════════
+let cgLibKind='cipher';
+async function openCgLib(kind){
+  cgLibKind=kind;
+  document.getElementById('cglib-title').textContent=kind==='cipher'?'Cipher Library':'Genus Library';
+  document.getElementById('cglib-search').value='';
+  document.getElementById('cgLibModal').classList.add('open');
+  renderCgLib();
+  try{ if(kind==='cipher')await loadCiphersForParadigm(); else await loadGenusForParadigm(); }catch(e){}
+  renderCgLib();
+}
+function closeCgLib(){ document.getElementById('cgLibModal').classList.remove('open'); }
+document.getElementById('cgLibModal').addEventListener('click',e=>{if(e.target.id==='cgLibModal')closeCgLib();});
+function cgLibItems(){
+  if(cgLibKind==='cipher')return (cipherCache[val('f-paradigm')]||[]).slice();
+  const out=[]; paradigmDomains().forEach(d=>out.push(...(genusCache[d]||[]))); return out;
+}
+function renderCgLib(){
+  const body=document.getElementById('cgLibBody'); if(!body)return;
+  const items=cgLibItems();
+  const sel=document.getElementById('cglib-sec'); const cur=sel.value;
+  const secs=[...new Set(items.map(x=>cgLibKind==='cipher'?x.section:x.domain))].filter(Boolean).sort();
+  sel.innerHTML='<option value="">'+(cgLibKind==='cipher'?'All sections':'All domains')+'</option>'+secs.map(s=>`<option${s===cur?' selected':''}>${esc(s)}</option>`).join('');
+  const q=(document.getElementById('cglib-search').value||'').toLowerCase(), sec=sel.value;
+  const list=items.filter(x=>{ const s=cgLibKind==='cipher'?x.section:x.domain;
+    return (!sec||s===sec)&&(!q||x.name.toLowerCase().includes(q)||(x.effect||'').toLowerCase().includes(q)); });
+  const maxSS=getV('d-ss');
+  const st=document.getElementById('cglib-status');
+  if(st)st.textContent=items.length
+    ? list.length+' of '+items.length+(cgLibKind==='cipher'?(' · '+(val('f-paradigm')||'')): ' · '+paradigmDomains().join(', '))
+    : (cgLibKind==='cipher'&&!val('f-paradigm')?'Pick a Paradigm on the sheet first':'Loading from wiki… (or offline)');
+  if(!items.length){ body.innerHTML='<div style="color:var(--muted);font-style:italic;font-size:12px;">'+((cgLibKind==='cipher'&&!val('f-paradigm'))?'Select a Paradigm first, then reopen the Library.':'Nothing loaded yet — the wiki may be unreachable.')+'</div>'; return; }
+  body.innerHTML=list.map(x=>{
+    const ok=(x.ss||0)<=maxSS;
+    const meta=cgLibKind==='cipher'
+      ? `${esc(x.section||'')} · ${x.ss||0} SS${x.type?' · '+esc(x.type):''}${x.rank?' · '+esc(x.rank):''}`
+      : `${esc(x.domain||'')} · ${x.ss||0} SS${x.activation?' · '+esc(x.activation):''}`;
+    return `<div class="lib-row">
+      <div style="flex:1;">
+        <div><span class="ln"><b>${esc(x.name)}</b></span> <span class="lm">${meta}</span></div>
+        <div class="le">${esc((x.effect||'').slice(0,240))}${(x.effect||'').length>240?'…':''}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
+        <span class="${ok?'lib-ss-ok':'lib-ss-no'}" title="Compared against your max Synaptic Space (${maxSS})">${ok?'Equippable':'Needs '+(x.ss||0)+' SS · you have '+maxSS}</span>
+        <button class="btn prime" style="color:#fff;white-space:nowrap;" onclick="cgLibAdd('${encodeURIComponent(x.name)}')">Add to sheet</button>
+      </div></div>`;
+  }).join('');
+}
+function cgLibAdd(nameEnc){
+  const name=decodeURIComponent(nameEnc);
+  if(cgLibKind==='cipher'){
+    const main=document.getElementById('c-pick');
+    if(main&&!main.value.trim()){ main.value=name; onCipherPick(); toast(name+' set as your Paradigm Cipher'); closeCgLib(); return; }
+    for(let i=2;i<=cipherCount;i++){ const el=document.getElementById('c'+i); if(el&&!el.value.trim()){ el.value=name; onAdditionalCipherPick(i); toast(name+' added — cipher slot '+i); closeCgLib(); return; } }
+    const before=cipherCount; addCipher();
+    if(cipherCount>before){ const el=document.getElementById('c'+cipherCount); if(el){ el.value=name; onAdditionalCipherPick(cipherCount); toast(name+' added — cipher slot '+cipherCount); closeCgLib(); } }
+  } else {
+    for(let i=1;i<=genusCount;i++){ const el=document.getElementById('gn-name-'+i); if(el&&!el.value.trim()){ el.value=name; onGenusPick(i); toast(name+' added — Genus slot '+i); closeCgLib(); return; } }
+    const before=genusCount; addGenusRow();
+    if(genusCount>before){ const el=document.getElementById('gn-name-'+genusCount); if(el){ el.value=name; onGenusPick(genusCount); toast(name+' added — Genus slot '+genusCount); closeCgLib(); } }
+  }
 }
 
 // ════════════════════════════════════════════════════
@@ -4007,6 +4198,7 @@ const _saved=_active?localStorage.getItem(charKey(_active)):localStorage.getItem
 if(_saved){try{applyAll(JSON.parse(_saved));}catch(e){calcAll();updateGenusBtn();updateCipherBtn();}}
 else{calcAll();updateGenusBtn();updateCipherBtn();}
 renderSizePanel(); renderEquipList();   // ensure the Size & Loadout section renders on every boot path
+injectHelpButtons();                    // "?" rule-lookup buttons on every stat label
 selectDie(40);
 updatePEState();
 refreshAllActionChips();

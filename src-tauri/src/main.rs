@@ -3,7 +3,7 @@
 
 use std::io::{Read, Write};
 use std::net::TcpListener;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use serde::Serialize;
 use tauri::Manager;
 
@@ -169,6 +169,62 @@ fn collect_rule_files(app: &tauri::AppHandle) -> Vec<(String, PathBuf)> {
     files
 }
 
+// Wiki titles like "Anima: Envy" or "Equipment/Armor" must become valid Windows filenames
+// (and Firebase keys). Applied consistently at save AND lookup so wte://rules/<title> works.
+fn sanitize_stem(s: &str) -> String {
+    s.chars()
+        .map(|c| match c {
+            '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | '#' | '$' | '[' | ']' | '.' => '_',
+            _ => c,
+        })
+        .collect::<String>()
+        .trim()
+        .to_string()
+}
+
+#[tauri::command]
+async fn wte_save_page(app: tauri::AppHandle, name: String, content: String) -> Result<String, String> {
+    let stem = sanitize_stem(&name);
+    if stem.is_empty() {
+        return Err("Invalid page name".into());
+    }
+    let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let rules_dir = app_data.join("rules");
+    std::fs::create_dir_all(&rules_dir).map_err(|e| e.to_string())?;
+    let file_path = rules_dir.join(&stem).with_extension("md");
+    std::fs::write(&file_path, content).map_err(|e| e.to_string())?;
+    Ok(stem)
+}
+
+#[tauri::command]
+async fn wte_delete_page(app: tauri::AppHandle, name: String) -> Result<(), String> {
+    let stem = sanitize_stem(&name);
+    let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let file_path = app_data.join("rules").join(&stem).with_extension("md");
+    if !file_path.exists() {
+        return Err("No local copy of that page exists".into());
+    }
+    std::fs::remove_file(&file_path).map_err(|e| e.to_string())
+}
+
+// Mirrored pages are HTML-heavy — strip tags so search scoring & snippets read the text.
+fn strip_tags(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut in_tag = false;
+    for c in s.chars() {
+        match c {
+            '<' => in_tag = true,
+            '>' => {
+                in_tag = false;
+                out.push(' ');
+            }
+            _ if !in_tag => out.push(c),
+            _ => {}
+        }
+    }
+    out
+}
+
 #[tauri::command]
 async fn wte_list_pages(app: tauri::AppHandle) -> Result<Vec<String>, String> {
     let mut names: Vec<String> = collect_rule_files(&app).into_iter().map(|(n, _)| n).collect();
@@ -197,29 +253,33 @@ async fn wte_search(app: tauri::AppHandle, query: String) -> Result<Vec<SearchRe
     let query_lower = query.to_lowercase();
     let mut results = Vec::new();
 
+    // clamp byte offsets to char boundaries — wiki text is full of multibyte chars (— ’ ·)
+    fn floor_char(s: &str, mut i: usize) -> usize { while i > 0 && !s.is_char_boundary(i) { i -= 1; } i }
+    fn ceil_char(s: &str, mut i: usize) -> usize { while i < s.len() && !s.is_char_boundary(i) { i += 1; } i }
+
     for (filename, path) in collect_rule_files(&app) {
         {
             let title = filename.replace('_', " ");
-            let content = std::fs::read_to_string(&path).unwrap_or_default();
-            
+            let content = strip_tags(&std::fs::read_to_string(&path).unwrap_or_default());
+
             let mut score = 0;
             let title_lower = title.to_lowercase();
             let content_lower = content.to_lowercase();
-            
+
             if title_lower == query_lower {
                 score += 150;
             } else if title_lower.contains(&query_lower) {
                 score += 80;
             }
-            
+
             let matches_count = content_lower.matches(&query_lower).count();
             score += (matches_count * 10) as i32;
-            
+
             if score > 0 {
                 let snippet = if let Some(idx) = content_lower.find(&query_lower) {
-                    let start = idx.saturating_sub(60);
-                    let end = std::cmp::min(content.len(), idx + query_lower.len() + 60);
-                    let mut text = content[start..end].replace('\n', " ");
+                    let start = floor_char(&content, idx.saturating_sub(60));
+                    let end = ceil_char(&content, std::cmp::min(content.len(), idx + query_lower.len() + 60));
+                    let mut text = content[start..end].split_whitespace().collect::<Vec<_>>().join(" ");
                     if start > 0 {
                         text = format!("...{}", text);
                     }
@@ -228,14 +288,14 @@ async fn wte_search(app: tauri::AppHandle, query: String) -> Result<Vec<SearchRe
                     }
                     text
                 } else {
-                    let limit = std::cmp::min(content.len(), 120);
-                    let mut text = content[..limit].replace('\n', " ");
+                    let limit = ceil_char(&content, std::cmp::min(content.len(), 120));
+                    let mut text = content[..limit].split_whitespace().collect::<Vec<_>>().join(" ");
                     if content.len() > 120 {
                         text = format!("{}...", text);
                     }
                     text
                 };
-                
+
                 results.push(SearchResult {
                     title,
                     url: format!("wte://rules/{}", filename),
@@ -252,14 +312,18 @@ async fn wte_search(app: tauri::AppHandle, query: String) -> Result<Vec<SearchRe
 
 #[tauri::command]
 async fn wte_load_page(app: tauri::AppHandle, path: String) -> Result<String, String> {
-    let clean_stem = Path::new(&path)
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .ok_or_else(|| "Invalid page reference".to_string())?;
+    // Take the whole reference (titles may contain / like "Equipment/Armor" — Path::file_stem
+    // would wrongly strip the prefix) and sanitize it exactly like wte_save_page does, so
+    // wte://rules/Anima:_Envy finds the sanitized Anima__Envy.md on disk.
+    let raw = path.trim();
+    let clean_stem = raw.strip_suffix(".md").unwrap_or(raw);
+    if clean_stem.is_empty() {
+        return Err("Invalid page reference".to_string());
+    }
 
-    let want = clean_stem.to_lowercase();
+    let want = sanitize_stem(clean_stem).to_lowercase();
     for (stem, file_path) in collect_rule_files(&app) {
-        if stem.to_lowercase() == want {
+        if sanitize_stem(&stem).to_lowercase() == want {
             return std::fs::read_to_string(&file_path).map_err(|e| e.to_string());
         }
     }
@@ -314,6 +378,8 @@ fn main() {
             wte_load_page,
             wte_import_zip,
             wte_list_pages,
+            wte_save_page,
+            wte_delete_page,
             open_external
         ])
         .run(tauri::generate_context!())
