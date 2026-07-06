@@ -3,6 +3,9 @@
 
 use std::io::{Read, Write};
 use std::net::TcpListener;
+use std::path::{Path, PathBuf};
+use serde::Serialize;
+use tauri::Manager;
 
 // Desktop Google sign-in (loopback flow): open the system browser to Google's
 // consent screen, capture the redirect on 127.0.0.1, exchange the code (PKCE)
@@ -115,6 +118,164 @@ async fn google_signin(
     .map_err(|e| e.to_string())?
 }
 
+fn get_rules_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    // 1. App Data custom rules
+    if let Ok(app_data) = app.path().app_data_dir() {
+        let custom_rules = app_data.join("rules");
+        if custom_rules.exists() && custom_rules.is_dir() {
+            return Ok(custom_rules);
+        }
+    }
+    
+    // 2. Bundled resource rules
+    if let Ok(res_dir) = app.path().resource_dir() {
+        let bundled_rules = res_dir.join("rules");
+        if bundled_rules.exists() {
+            return Ok(bundled_rules);
+        }
+    }
+    
+    // 3. Dev mode relative fallback
+    if let Ok(curr_dir) = std::env::current_dir() {
+        let dev_rules = curr_dir.join("src").join("rules");
+        if dev_rules.exists() {
+            return Ok(dev_rules);
+        }
+    }
+    
+    // 4. Default fallback: create in App Data
+    let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let custom_rules = app_data.join("rules");
+    std::fs::create_dir_all(&custom_rules).map_err(|e| e.to_string())?;
+    Ok(custom_rules)
+}
+
+#[derive(Serialize)]
+struct SearchResult {
+    title: String,
+    url: String,
+    snippet: String,
+    score: i32,
+}
+
+#[tauri::command]
+async fn wte_search(app: tauri::AppHandle, query: String) -> Result<Vec<SearchResult>, String> {
+    let rules_dir = get_rules_dir(&app)?;
+    if !rules_dir.exists() {
+        return Ok(Vec::new());
+    }
+    
+    let query_lower = query.to_lowercase();
+    let mut results = Vec::new();
+    
+    let entries = std::fs::read_dir(rules_dir).map_err(|e| e.to_string())?;
+    for entry in entries {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+        if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("md") {
+            let filename = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+            let title = filename.replace('_', " ");
+            let content = std::fs::read_to_string(&path).unwrap_or_default();
+            
+            let mut score = 0;
+            let title_lower = title.to_lowercase();
+            let content_lower = content.to_lowercase();
+            
+            if title_lower == query_lower {
+                score += 150;
+            } else if title_lower.contains(&query_lower) {
+                score += 80;
+            }
+            
+            let matches_count = content_lower.matches(&query_lower).count();
+            score += (matches_count * 10) as i32;
+            
+            if score > 0 {
+                let snippet = if let Some(idx) = content_lower.find(&query_lower) {
+                    let start = idx.saturating_sub(60);
+                    let end = std::cmp::min(content.len(), idx + query_lower.len() + 60);
+                    let mut text = content[start..end].replace('\n', " ");
+                    if start > 0 {
+                        text = format!("...{}", text);
+                    }
+                    if end < content.len() {
+                        text = format!("{}...", text);
+                    }
+                    text
+                } else {
+                    let limit = std::cmp::min(content.len(), 120);
+                    let mut text = content[..limit].replace('\n', " ");
+                    if content.len() > 120 {
+                        text = format!("{}...", text);
+                    }
+                    text
+                };
+                
+                results.push(SearchResult {
+                    title,
+                    url: format!("wte://rules/{}", filename),
+                    snippet,
+                    score,
+                });
+            }
+        }
+    }
+    
+    results.sort_by(|a, b| b.score.cmp(&a.score));
+    Ok(results)
+}
+
+#[tauri::command]
+async fn wte_load_page(app: tauri::AppHandle, path: String) -> Result<String, String> {
+    let rules_dir = get_rules_dir(&app)?;
+    let clean_stem = Path::new(&path)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| "Invalid page reference".to_string())?;
+    
+    let file_path = rules_dir.join(clean_stem).with_extension("md");
+    if !file_path.exists() {
+        return Err(format!("Page not found: {}", clean_stem));
+    }
+    
+    std::fs::read_to_string(&file_path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn wte_import_zip(app: tauri::AppHandle, zip_path: String) -> Result<String, String> {
+    let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let custom_rules_dir = app_data.join("rules");
+    std::fs::create_dir_all(&custom_rules_dir).map_err(|e| e.to_string())?;
+    
+    let file = std::fs::File::open(&zip_path).map_err(|e| e.to_string())?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+    
+    let mut count = 0;
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
+        let outpath = match file.enclosed_name() {
+            Some(path) => {
+                if let Some(filename) = path.file_name() {
+                    custom_rules_dir.join(filename)
+                } else {
+                    continue;
+                }
+            }
+            None => continue,
+        };
+
+        if file.name().ends_with('/') {
+            continue;
+        } else {
+            let mut outfile = std::fs::File::create(&outpath).map_err(|e| e.to_string())?;
+            std::io::copy(&mut file, &mut outfile).map_err(|e| e.to_string())?;
+            count += 1;
+        }
+    }
+    
+    Ok(format!("Successfully imported {} rule files.", count))
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -122,7 +283,12 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_persisted_scope::init())
-        .invoke_handler(tauri::generate_handler![google_signin])
+        .invoke_handler(tauri::generate_handler![
+            google_signin,
+            wte_search,
+            wte_load_page,
+            wte_import_zip
+        ])
         .run(tauri::generate_context!())
         .expect("error while running W.T.E application");
 }

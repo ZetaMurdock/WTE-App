@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>W.T.E — Codex</title>
+<style>
+:root {
+  --bg: #23211e;
+  --panel: #2c2a26;
+  --panel2: #34322d;
+  --line: #403d37;
+  --ink: #e7e2d8;
+  --muted: #9a948a;
+  --accent: #8a6d3b;
+  --accent2: #a07f44;
+  --rule: #1c1b19;
+  --canvas: #3a3833;
+  --sel: #d8b25a;
+}
+/* LIGHT THEME */
+body.wte-light {
+  --bg: #dcd8ce;
+  --panel: #eceae5;
+  --panel2: #e2ded6;
+  --line: #c2bdb4;
+  --ink: #1f1e1c;
+  --muted: #6b665f;
+  --accent: #8a6d3b;
+  --accent2: #a07f44;
+  --rule: #2c3e50;
+  --canvas: #c9c5bc;
+  --sel: #8a6d3b;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Georgia', serif;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* BROWSER BAR */
+.browser-bar {
+  display: flex;
+  flex-direction: column;
+  background: var(--rule);
+  border-bottom: 1px solid var(--line);
+  padding: 4px 8px 0 8px;
+  flex-shrink: 0;
+}
+.browser-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 4px;
+}
+.nav-btn {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  cursor: pointer;
+  width: 26px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: Georgia, serif;
+  font-size: 14px;
+}
+.nav-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--sel);
+}
+.nav-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.address-bar-wrap {
+  flex: 1;
+  position: relative;
+}
+.address-bar {
+  width: 100%;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  padding: 4px 8px;
+  outline: none;
+}
+.address-bar:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 4px rgba(138, 109, 59, 0.4);
+}
+
+/* BROWSER TABS */
+.browser-tabs {
+  display: flex;
+  gap: 2px;
+  margin-top: 2px;
+  overflow-x: auto;
+}
+.browser-tabs::-webkit-scrollbar {
+  height: 2px;
+}
+.browser-tab {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-bottom: none;
+  color: var(--muted);
+  padding: 5px 12px;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 100px;
+  max-width: 180px;
+  white-space: nowrap;
+}
+.browser-tab:hover {
+  color: var(--ink);
+}
+.browser-tab.active {
+  background: var(--bg);
+  color: var(--sel);
+  border-color: var(--line);
+  border-top: 2px solid var(--accent);
+}
+.browser-tab .close-tab {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  line-height: 12px;
+  text-align: center;
+}
+.browser-tab .close-tab:hover {
+  color: #ff6b6b;
+}
+.new-tab-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0 8px;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+}
+.new-tab-btn:hover {
+  color: var(--ink);
+}
+
+/* OMNIBAR SEARCH DROPDOWN */
+.search-dropdown {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.55);
+  z-index: 100;
+  display: none;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.search-dropdown.show {
+  display: block;
+}
+.search-item {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+}
+.search-item:hover, .search-item.selected {
+  background: var(--panel2);
+}
+.search-item .title {
+  color: var(--sel);
+  font-weight: bold;
+  font-size: 11px;
+}
+.search-item .snippet {
+  color: var(--muted);
+  font-size: 9px;
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+.search-item .url {
+  color: var(--accent);
+  font-family: Consolas, monospace;
+  font-size: 8px;
+  margin-top: 1px;
+}
+
+/* MAIN VIEWPORT */
+.viewport {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  line-height: 1.6;
+}
+.codex-page {
+  max-width: 860px;
+  margin: 0 auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  padding: 28px 36px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+
+/* WIKI CONTENT MARKDOWN STYLES */
+.codex-page h1 {
+  font-size: 24px;
+  color: var(--sel);
+  border-bottom: 1.5px solid var(--accent);
+  padding-bottom: 8px;
+  margin-bottom: 20px;
+  font-weight: normal;
+  letter-spacing: 0.5px;
+}
+.codex-page h2 {
+  font-size: 16px;
+  color: var(--accent2);
+  margin-top: 24px;
+  margin-bottom: 12px;
+  font-weight: normal;
+}
+.codex-page h3 {
+  font-size: 13px;
+  color: var(--ink);
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+.codex-page p {
+  margin-bottom: 14px;
+}
+.codex-page ul, .codex-page ol {
+  margin-bottom: 16px;
+  padding-left: 20px;
+}
+.codex-page li {
+  margin-bottom: 6px;
+}
+.codex-page hr {
+  border: none;
+  border-top: 1px dashed var(--line);
+  margin: 20px 0;
+}
+.codex-page blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: 12px;
+  color: var(--muted);
+  font-style: italic;
+  margin: 14px 0;
+}
+.codex-page a {
+  color: var(--sel);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.codex-page a:hover {
+  color: var(--accent2);
+}
+.codex-page code {
+  font-family: Consolas, monospace;
+  background: var(--panel2);
+  padding: 2px 4px;
+  font-size: 11px;
+}
+
+/* BESTIARY LISTS */
+.bestiary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.creature-card {
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.creature-card:hover {
+  border-color: var(--accent);
+}
+.creature-card .name {
+  font-size: 14px;
+  color: var(--sel);
+  font-weight: normal;
+}
+.creature-card .cls {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--accent);
+}
+.creature-card .hp {
+  font-size: 11px;
+  color: var(--muted);
+}
+.creature-card .actions {
+  display: flex;
+  gap: 4px;
+  margin-top: auto;
+}
+.tbtn {
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  cursor: pointer;
+  font-family: 'Georgia', serif;
+  font-size: 11px;
+}
+.tbtn:hover {
+  color: var(--ink);
+  border-color: var(--accent);
+}
+.tbtn.live {
+  border-color: #3a8050;
+  color: #7bbf86;
+}
+.tbtn.live:hover {
+  background: #3a8050;
+  color: #fff;
+}
+
+/* CREATURE DETAIL VIEW */
+.creature-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 2px solid var(--accent);
+  padding-bottom: 6px;
+  margin-bottom: 12px;
+}
+.creature-detail-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 8px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  padding: 10px;
+  margin-bottom: 14px;
+}
+.meta-field {
+  display: flex;
+  flex-direction: column;
+}
+.meta-lbl {
+  font-size: 8px;
+  text-transform: uppercase;
+  color: var(--muted);
+  letter-spacing: 1px;
+}
+.meta-val {
+  font-size: 12px;
+  color: var(--ink);
+}
+.creature-rolls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 12px 0;
+}
+.roll-chip {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-family: Georgia, serif;
+  font-size: 10.5px;
+  padding: 3px 8px;
+}
+.roll-chip:hover {
+  background: var(--accent2);
+}
+
+/* TOAST */
+.toast {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--rule);
+  border: 1px solid var(--accent);
+  color: var(--sel);
+  padding: 6px 16px;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  z-index: 999;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+</style>
+</head>
+<body>
+
+<div class="browser-bar">
+  <div class="browser-controls">
+    <button class="nav-btn" id="btn-back" onclick="goBack()" title="Back">&#8592;</button>
+    <button class="nav-btn" id="btn-forward" onclick="goForward()" title="Forward">&#8594;</button>
+    <button class="nav-btn" id="btn-home" onclick="goHome()" title="Home">&#127968;</button>
+    <button class="nav-btn" id="btn-refresh" onclick="refreshPage()" title="Refresh">&#8635;</button>
+    <div class="address-bar-wrap">
+      <input type="text" class="address-bar" id="address-bar" value="wte://rules/Home" onkeydown="handleAddressKey(event)" onfocus="showSearch()" onblur="hideSearchLater()" oninput="searchOmnibar(this.value)">
+      <div class="search-dropdown" id="search-dropdown"></div>
+    </div>
+    <button class="tbtn" onclick="triggerImport()" title="Import rulebook wiki updates (.zip)">Import Update</button>
+    <input type="file" id="import-file" accept=".zip" style="display:none" onchange="performImport(this.files[0])">
+  </div>
+  <div class="browser-tabs" id="tab-container"></div>
+</div>
+
+<div class="viewport" id="viewport">
+  <div class="codex-page" id="page-content">Loading...</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════════ STATE
+let tabs = [];
+let activeTabId = null;
+let bestiaryCache = [];
+
+// Initialize first tab
+function initBrowser() {
+  createNewTab("Home", "wte://rules/Home");
+  loadBestiaryCache();
+}
+
+// ════════════════════════════════════════════════ TAB MANAGEMENT
+function createNewTab(title, url) {
+  const id = 'tab-' + Math.random().toString(36).substring(2, 9);
+  const tab = {
+    id,
+    title,
+    url,
+    history: [url],
+    historyIndex: 0
+  };
+  tabs.push(tab);
+  setActiveTab(id);
+}
+
+function setActiveTab(id) {
+  activeTabId = id;
+  const t = getActiveTab();
+  if (t) {
+    document.getElementById('address-bar').value = t.url;
+    renderTabButtons();
+    navigateViewport(t.url, false);
+  }
+}
+
+function getActiveTab() {
+  return tabs.find(x => x.id === activeTabId);
+}
+
+function closeTab(id, event) {
+  if (event) event.stopPropagation();
+  if (tabs.length <= 1) return; // don't close last tab
+  
+  const idx = tabs.findIndex(x => x.id === id);
+  tabs = tabs.filter(x => x.id !== id);
+  
+  if (activeTabId === id) {
+    const nextActive = tabs[Math.max(0, idx - 1)];
+    setActiveTab(nextActive.id);
+  } else {
+    renderTabButtons();
+  }
+}
+
+function renderTabButtons() {
+  const container = document.getElementById('tab-container');
+  container.innerHTML = '';
+  
+  tabs.forEach(t => {
+    const activeClass = t.id === activeTabId ? 'active' : '';
+    const btn = document.createElement('div');
+    btn.className = `browser-tab ${activeClass}`;
+    btn.onclick = () => setActiveTab(t.id);
+    
+    let displayTitle = t.title;
+    if (displayTitle.startsWith('wte://rules/')) displayTitle = displayTitle.replace('wte://rules/', '').replace(/_/g, ' ');
+    if (displayTitle.length > 20) displayTitle = displayTitle.substring(0, 18) + '...';
+    
+    btn.innerHTML = `<span>${esc(displayTitle)}</span>`;
+    
+    if (tabs.length > 1) {
+      const close = document.createElement('span');
+      close.className = 'close-tab';
+      close.innerHTML = 'x';
+      close.onclick = (e) => closeTab(t.id, e);
+      btn.appendChild(close);
+    }
+    
+    container.appendChild(btn);
+  });
+  
+  // Add "+" new tab button
+  const addBtn = document.createElement('button');
+  addBtn.className = 'new-tab-btn';
+  addBtn.innerHTML = '+';
+  addBtn.onclick = () => createNewTab("Home", "wte://rules/Home");
+  container.appendChild(addBtn);
+}
+
+// ════════════════════════════════════════════════ NAVIGATION CONTROLS
+function goBack() {
+  const t = getActiveTab();
+  if (t && t.historyIndex > 0) {
+    t.historyIndex--;
+    t.url = t.history[t.historyIndex];
+    document.getElementById('address-bar').value = t.url;
+    navigateViewport(t.url, false);
+    updateNavButtons();
+  }
+}
+
+function goForward() {
+  const t = getActiveTab();
+  if (t && t.historyIndex < t.history.length - 1) {
+    t.historyIndex++;
+    t.url = t.history[t.historyIndex];
+    document.getElementById('address-bar').value = t.url;
+    navigateViewport(t.url, false);
+    updateNavButtons();
+  }
+}
+
+function goHome() {
+  navigateTo("wte://rules/Home");
+}
+
+function refreshPage() {
+  const t = getActiveTab();
+  if (t) navigateViewport(t.url, false);
+}
+
+function updateNavButtons() {
+  const t = getActiveTab();
+  document.getElementById('btn-back').disabled = !(t && t.historyIndex > 0);
+  document.getElementById('btn-forward').disabled = !(t && t.historyIndex < t.history.length - 1);
+}
+
+function navigateTo(url) {
+  const t = getActiveTab();
+  if (!t) return;
+  
+  // Truncate forward history if navigating from a back state
+  if (t.historyIndex < t.history.length - 1) {
+    t.history = t.history.slice(0, t.historyIndex + 1);
+  }
+  
+  // Prevent duplicate consecutive entries
+  if (t.history[t.historyIndex] !== url) {
+    t.history.push(url);
+    t.historyIndex++;
+  }
+  
+  t.url = url;
+  document.getElementById('address-bar').value = url;
+  navigateViewport(url, true);
+  updateNavButtons();
+}
+
+function handleAddressKey(e) {
+  if (e.key === 'Enter') {
+    let url = e.target.value.trim();
+    if (!url.startsWith('wte://') && !url.startsWith('http')) {
+      // Treat as search query
+      url = 'wte://search?q=' + encodeURIComponent(url);
+    }
+    navigateTo(url);
+    hideSearch();
+    e.target.blur();
+  }
+}
+
+// ════════════════════════════════════════════════ PAGE LOAD & VIEWPORT RENDER
+async function navigateViewport(url, updateTabTitle) {
+  const contentEl = document.getElementById('page-content');
+  contentEl.innerHTML = 'Loading...';
+  
+  try {
+    if (url.startsWith('wte://rules/')) {
+      const page = url.replace('wte://rules/', '');
+      const rawMd = await loadRulefile(page);
+      contentEl.innerHTML = renderMarkdown(rawMd);
+      if (updateTabTitle) updateActiveTabTitle(page.replace(/_/g, ' '));
+      bindInternalLinks();
+    } 
+    else if (url === 'wte://bestiary') {
+      renderBestiaryIndex();
+      if (updateTabTitle) updateActiveTabTitle("Bestiary");
+    }
+    else if (url.startsWith('wte://creatures/')) {
+      const name = decodeURIComponent(url.replace('wte://creatures/', ''));
+      renderCreatureDetail(name);
+      if (updateTabTitle) updateActiveTabTitle(name);
+    }
+    else if (url.startsWith('wte://search')) {
+      const q = decodeURIComponent(url.split('?q=')[1] || '');
+      renderSearchResults(q);
+      if (updateTabTitle) updateActiveTabTitle(`Search: ${q}`);
+    }
+    else if (url.startsWith('http://') || url.startsWith('https://')) {
+      // General Fandom Wiki web page fetch fallback
+      if (url.includes('wonderland-of-the-enigma.fandom.com')) {
+        const pageName = url.split('/wiki/')[1];
+        if (pageName) {
+          contentEl.innerHTML = 'Loading from Fandom Wiki...';
+          const r = await fetch('https://wonderland-of-the-enigma.fandom.com/api.php?action=parse&prop=text&format=json&origin=*&page=' + pageName);
+          const j = await r.json();
+          if (j.parse && j.parse.text) {
+            contentEl.innerHTML = `<h1>${esc(pageName.replace(/_/g, ' '))}</h1>` + cleanFandomHtml(j.parse.text['*']);
+            if (updateTabTitle) updateActiveTabTitle(pageName.replace(/_/g, ' '));
+            bindInternalLinks();
+          } else {
+            contentEl.innerHTML = `<h1>Page Not Found</h1><p>The Fandom Wiki page <b>${esc(pageName)}</b> was not found.</p>`;
+          }
+        }
+      } else {
+        contentEl.innerHTML = `<h1>External Link Rejected</h1><p>This pseudo-browser is locked to WTE content. External URL: <a href="#" onclick="openExternalBrowser('${url}')">${esc(url)}</a></p>`;
+      }
+    }
+    else {
+      contentEl.innerHTML = `<h1>404 Page Not Found</h1><p>The requested WTE link <b>${esc(url)}</b> could not be parsed.</p>`;
+    }
+  } catch (err) {
+    contentEl.innerHTML = `<h1>Error Loading Page</h1><p>${esc(err.message || String(err))}</p>`;
+  }
+  
+  // scroll viewport back to top
+  document.getElementById('viewport').scrollTop = 0;
+  updateNavButtons();
+}
+
+function updateActiveTabTitle(title) {
+  const t = getActiveTab();
+  if (t) {
+    t.title = title;
+    renderTabButtons();
+  }
+}
+
+// ════════════════════════════════════════════════ TAURI BRIDGE
+async function loadRulefile(page) {
+  if (window.__TAURI__) {
+    try {
+      return await window.__TAURI__.core.invoke('wte_load_page', { path: page });
+    } catch (e) {
+      throw new Error(`Failed to load rule file via Tauri: ${e}`);
+    }
+  } else {
+    // Fallback in web browser mode (fetch rules directly from local dev directory)
+    const r = await fetch(`rules/${page}.md`);
+    if (!r.ok) throw new Error(`Could not find rule file: ${page}`);
+    return await r.text();
+  }
+}
+
+async function searchRulesNative(query) {
+  if (window.__TAURI__) {
+    try {
+      return await window.__TAURI__.core.invoke('wte_search', { query });
+    } catch (e) {
+      console.error(e);
+      return [];
+    }
+  } else {
+    // Basic local browser fallback search
+    const docs = [
+      { t: "Home", p: "Home", body: "WTE Codex Core Mechanics Specialties Species Bestiary" },
+      { t: "Pressure Engine", p: "Pressure_Engine", body: "Pressure states Calm Tense Critical Catastrophic timeline gated actions" },
+      { t: "Attributes", p: "Attributes", body: "PHY DEX END AP WIS CHA INT Modifiers modifiers checks d20" },
+      { t: "Specialties", p: "Specialties", body: "Specialties Inspiration Versatility Balance Weight Precision Control Priority Weapon Mastery Mental Fortitude Perception Adaptation Cunning 1d40" },
+      { t: "Derived Statistics", p: "Derived_Statistics", body: "Derived Stats Attack Power DHP Movement Synaptic Space Evasion Recovery Rate Action Density Influence Perception" },
+      { t: "CAS Zones", p: "CAS_Zones", body: "CAS Zones Open Managed Sanction Zoned Sealed Absolute anomalies psychic powers" },
+      { t: "Species Codex", p: "Species", body: "Species Hyomen Voaulton Mirga Oriyu Insectoid SubDermin Inderi Seraph Stygians" },
+      { t: "Paradigm Records", p: "Paradigms", body: "Paradigms Science Simulation Remnant Cognition Evolution Warfare training domains" }
+    ];
+    const q = query.toLowerCase();
+    return docs.filter(d => d.t.toLowerCase().includes(q) || d.body.toLowerCase().includes(q)).map(d => ({
+      title: d.t,
+      url: `wte://rules/${d.p}`,
+      snippet: d.body.substring(0, 100) + '...',
+      score: 10
+    }));
+  }
+}
+
+// ════════════════════════════════════════════════ MARKDOWN RENDERER
+function renderMarkdown(md) {
+  if (!md) return '';
+  
+  let html = md;
+  // Strip comments
+  html = html.replace(/<!--[\s\S]*?-->/g, '');
+  
+  // Headers
+  html = html.replace(/^# (.*?)$/gm, '<h1>$1</h1>');
+  html = html.replace(/^## (.*?)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^### (.*?)$/gm, '<h3>$1</h3>');
+  
+  // Horizontal Rules
+  html = html.replace(/^---$/gm, '<hr>');
+  
+  // Blockquotes
+  html = html.replace(/^> (.*?)$/gm, '<blockquote>$1</blockquote>');
+  
+  // Unordered list items (bullets)
+  html = html.replace(/^\*\s+(.*?)$/gm, '<li>$1</li>');
+  html = html.replace(/^-\s+(.*?)$/gm, '<li>$1</li>');
+  // Wrap li's in ul's (simple regex pass)
+  html = html.replace(/(<li>.*?<\/li>)/gs, '<ul>$1</ul>');
+  // Fix nested double-wrapping of lists
+  html = html.replace(/<\/ul>\s*<ul>/g, '');
+  
+  // Bold and Italic
+  html = html.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+  html = html.replace(/\*(.*?)\*/g, '<i>$1</i>');
+  
+  // Inline code
+  html = html.replace(/`(.*?)`/g, '<code>$1</code>');
+  
+  // Custom links: [text](wte://...)
+  html = html.replace(/\[([^\]]+)\]\((wte:\/\/[^\)]+)\)/g, '<a data-wte-link="$2">$1</a>');
+  // Web links: [text](http...)
+  html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '<a onclick="openExternalBrowser(\'$2\')">$1</a>');
+  
+  // Paragraph gaps (convert double line breaks to paragraphs)
+  // Avoid wrapping existing block level elements
+  const lines = html.split('\n\n');
+  html = lines.map(l => {
+    l = l.trim();
+    if (!l) return '';
+    if (l.startsWith('<h') || l.startsWith('<hr') || l.startsWith('<blockquote') || l.startsWith('<ul') || l.startsWith('<li')) return l;
+    return `<p>${l}</p>`;
+  }).join('');
+  
+  return html;
+}
+
+function bindInternalLinks() {
+  document.querySelectorAll('[data-wte-link]').forEach(el => {
+    el.onclick = () => {
+      const url = el.getAttribute('data-wte-link');
+      navigateTo(url);
+    };
+  });
+}
+
+function cleanFandomHtml(html) {
+  // Strip Fandom specific scripts, sidebars, and ads, keeping just content body
+  let d = document.createElement('div');
+  d.innerHTML = html;
+  
+  // Remove unwanted elements
+  d.querySelectorAll('script, style, .mw-editsection, .nomobile, #toc').forEach(el => el.remove());
+  
+  // Rewire wiki internal links
+  d.querySelectorAll('a').forEach(el => {
+    let href = el.getAttribute('href') || '';
+    if (href.startsWith('/wiki/')) {
+      let pageName = href.replace('/wiki/', '');
+      el.removeAttribute('href');
+      el.style.textDecoration = 'underline';
+      el.style.cursor = 'pointer';
+      el.onclick = () => navigateTo('https://wonderland-of-the-enigma.fandom.com/wiki/' + pageName);
+    } else if (href.startsWith('#')) {
+      el.remove(); // Remove hash links
+    } else {
+      el.setAttribute('onclick', `openExternalBrowser('${href}')`);
+      el.removeAttribute('href');
+    }
+  });
+  
+  return d.innerHTML;
+}
+
+// ════════════════════════════════════════════════ OMNIBAR SEARCH & SUGGESTIONS
+let searchTimer = null;
+function searchOmnibar(val) {
+  clearTimeout(searchTimer);
+  if (!val.trim()) {
+    hideSearch();
+    return;
+  }
+  
+  searchTimer = setTimeout(async () => {
+    const results = await searchRulesNative(val);
+    const dropdown = document.getElementById('search-dropdown');
+    dropdown.innerHTML = '';
+    
+    // Add Bestiary matching if search matches monsters
+    const q = val.toLowerCase();
+    const beastMatches = bestiaryCache.filter(c => c.name.toLowerCase().includes(q) || (c.desc||'').toLowerCase().includes(q));
+    
+    const allResults = [];
+    beastMatches.slice(0, 3).forEach(c => {
+      allResults.push({
+        title: `Creature: ${c.name}`,
+        url: `wte://creatures/${encodeURIComponent(c.name)}`,
+        snippet: c.desc || 'No description available',
+        score: 120
+      });
+    });
+    
+    allResults.push(...results);
+    
+    if (allResults.length === 0) {
+      dropdown.innerHTML = '<div class="search-item" style="color:var(--muted);font-style:italic;">No matches found</div>';
+    } else {
+      allResults.slice(0, 8).forEach(res => {
+        const item = document.createElement('div');
+        item.className = 'search-item';
+        item.onclick = () => {
+          navigateTo(res.url);
+          hideSearch();
+        };
+        item.innerHTML = `
+          <span class="title">${esc(res.title)}</span>
+          <span class="snippet">${esc(res.snippet)}</span>
+          <span class="url">${esc(res.url)}</span>
+        `;
+        dropdown.appendChild(item);
+      });
+    }
+    showSearch();
+  }, 150);
+}
+
+function showSearch() {
+  document.getElementById('search-dropdown').classList.add('show');
+}
+function hideSearch() {
+  document.getElementById('search-dropdown').classList.remove('show');
+}
+function hideSearchLater() {
+  setTimeout(hideSearch, 200); // Allow clicks on dropdown to register first
+}
+
+// ════════════════════════════════════════════════ BESTIARY PAGE RENDER
+function loadBestiaryCache() {
+  // Read custom creatures, and merge standard offline placeholders
+  const standardOffline = [
+    { name: "Skeleton", cls: 1, hp: 12, meta: { CLASS: "1", HP: "12", DHP: "0" }, desc: "A brittle undead warrior reanimated by cognitive ripples in deep CAS containment sectors." },
+    { name: "Bandit", cls: 1, hp: 14, meta: { CLASS: "1", HP: "14", DHP: "1" }, desc: "A desperate wanderer scavaging in ruin sectors, Proficient with Medium Kinetic weapons." },
+    { name: "Broodling", cls: 1, hp: 8, meta: { CLASS: "1", HP: "8", DHP: "0" }, desc: "A fast, skittering insectoid spawn that attacks in packs. Ignores difficult terrain." },
+    { name: "Nest Mother", cls: 6, hp: 30, meta: { CLASS: "6", HP: "30", DHP: "3" }, desc: "A terrifying arachnid construct that anchors nest domains. Generates webs blocking player movement." },
+    { name: "Guardian", cls: 4, hp: 34, meta: { CLASS: "4", HP: "34", DHP: "4" }, desc: "An armored mechanical defense construct guarding remnant vaults. Emits a high-frequency displacement field." }
+  ];
+  
+  try {
+    const custom = JSON.parse(localStorage.getItem('wte-my-creatures')) || [];
+    bestiaryCache = custom.map(c => Object.assign({}, c, { local: true })).concat(standardOffline);
+  } catch (e) {
+    bestiaryCache = standardOffline;
+  }
+}
+
+function renderBestiaryIndex() {
+  const contentEl = document.getElementById('page-content');
+  
+  let h = `<h1>Creature Archive</h1>`;
+  h += `<p>Select a creature record from the archive database to inspect stats, roll attributes, or spawn pilotable tokens directly onto the active VTT battlemap.</p>`;
+  h += `<div class="bestiary-grid">`;
+  
+  bestiaryCache.forEach(c => {
+    const clsName = {1:'Standard', 2:'Anima', 3:'Alter Anima', 4:'Fracture', 5:'Doxa', 6:'Nyvilum'}[c.cls] || 'Standard';
+    h += `
+      <div class="creature-card">
+        <span class="cls">${esc(clsName)}</span>
+        <span class="name"><a onclick="navigateTo('wte://creatures/${encodeURIComponent(c.name)}')">${esc(c.name)}</a></span>
+        <span class="hp">HP: <b>${c.hp || (c.meta && c.meta.HP) || 0}</b></span>
+        <div class="actions">
+          <button class="tbtn" onclick="navigateTo('wte://creatures/${encodeURIComponent(c.name)}')">Details</button>
+          <button class="tbtn live" onclick="spawnCreatureDirect('${esc(c.name)}')">Spawn to VTT</button>
+        </div>
+      </div>
+    `;
+  });
+  
+  h += `</div>`;
+  contentEl.innerHTML = h;
+}
+
+function renderCreatureDetail(name) {
+  const contentEl = document.getElementById('page-content');
+  const c = bestiaryCache.find(x => x.name === name);
+  if (!c) {
+    contentEl.innerHTML = `<h1>Creature Not Found</h1><p>Record for "<b>${esc(name)}</b>" does not exist in local bestiary.</p>`;
+    return;
+  }
+  
+  const clsName = {1:'Standard', 2:'Anima', 3:'Alter Anima', 4:'Fracture', 5:'Doxa', 6:'Nyvilum'}[c.cls] || 'Standard';
+  
+  let h = `
+    <div class="creature-detail-header">
+      <h1 style="border-bottom:none; margin:0; padding:0;">${esc(c.name)}</h1>
+      <span class="meta-lbl" style="font-size:11px; color:var(--accent);">${esc(clsName)} class</span>
+    </div>
+    
+    <div class="creature-detail-meta">
+      <div class="meta-field"><span class="meta-lbl">Health (HP)</span><span class="meta-val">${c.hp || (c.meta && c.meta.HP) || 0}</span></div>
+      <div class="meta-field"><span class="meta-lbl">Defense (DHP)</span><span class="meta-val">${(c.meta && c.meta.DHP) || 0}</span></div>
+      <div class="meta-field"><span class="meta-lbl">Size</span><span class="meta-val">${c.cls===4?2:(c.cls===6?6:1)} cell(s)</span></div>
+      <div class="meta-field"><span class="meta-lbl">Source</span><span class="meta-val">${c.local?'Custom':'Core Rules'}</span></div>
+    </div>
+  `;
+  
+  // Render rolls/actions for stats
+  h += `<h3>Attributes & Checks</h3>`;
+  h += `<div class="creature-rolls">`;
+  const defaultStats = { PHY: 10, DEX: 10, END: 10, AP: 10, WIS: 10, CHA: 10, INT: 10 };
+  const stats = Object.assign({}, defaultStats, c.stats || {});
+  Object.entries(stats).forEach(([stat, val]) => {
+    h += `<button class="roll-chip" onclick="rollCreatureStat('${esc(c.name)}','${stat}',${val})">${stat}: ${val} (roll)</button>`;
+  });
+  h += `</div>`;
+  
+  if (c.desc) {
+    h += `<hr>`;
+    h += `<h3>Description & Abilities</h3>`;
+    h += `<p>${esc(c.desc)}</p>`;
+  }
+  
+  h += `<hr>`;
+  h += `<div style="display:flex; gap:8px;">
+    <button class="tbtn live" style="padding:6px 16px; font-size:12px;" onclick="spawnCreatureDirect('${esc(c.name)}')">Spawn to VTT Map</button>
+    <button class="tbtn" style="padding:6px 16px; font-size:12px;" onclick="navigateTo('wte://bestiary')">Back to Bestiary</button>
+  </div>`;
+  
+  contentEl.innerHTML = h;
+}
+
+// ════════════════════════════════════════════════ DICE ROLLING INTEGRATION
+function rollCreatureStat(creatureName, statName, score) {
+  const mod = Math.floor(score / 4);
+  const r = Math.floor(Math.random() * 20) + 1;
+  const tot = r + mod;
+  
+  // Alert player
+  toast(`${creatureName} ${statName} check: ${r} + ${mod} = ${tot}`);
+  
+  // Sync to shared table if multiplayer is active (we write to the localStorage log)
+  try {
+    const logItem = {
+      by: creatureName,
+      expr: `1d20+${mod}`,
+      val: tot,
+      breakdown: `[${r}] + ${mod}`,
+      ts: Date.now()
+    };
+    // Hand to the active room database via VTT/sheet storage listener
+    localStorage.setItem('wte-dice-roll-sync', JSON.stringify(logItem));
+  } catch (e) {}
+}
+
+function spawnCreatureDirect(name) {
+  const c = bestiaryCache.find(x => x.name === name);
+  if (!c) return;
+  
+  const colors = {1:'#6b6f7a', 2:'#c9a227', 3:'#7a4b9a', 4:'#8a3a2a', 5:'#c33fbf', 6:'#20202c'};
+  const payload = {
+    name: c.name,
+    cls: c.cls,
+    hp: c.hp || (c.meta && c.meta.HP) || 10,
+    dr: (c.meta && c.meta.DHP) || 0,
+    size: (c.cls === 4 ? 2 : (c.cls === 6 ? 6 : 1)),
+    color: colors[c.cls] || '#8a6d3b',
+    flags: c.flags || [],
+    stats: c.stats || { PHY: 10, DEX: 10, END: 10, AP: 10, WIS: 10, CHA: 10, INT: 10 },
+    desc: c.desc || '',
+    ts: Date.now()
+  };
+  
+  try {
+    localStorage.setItem('wte-spawn-creature', JSON.stringify(payload));
+    toast(`${c.name} sent to VTT!`);
+  } catch (e) {
+    toast("Spawn failed");
+  }
+}
+
+// ════════════════════════════════════════════════ WTE SEARCH PAGE
+async function renderSearchResults(query) {
+  const contentEl = document.getElementById('page-content');
+  contentEl.innerHTML = `<h1>Search results for: "${esc(query)}"</h1>`;
+  
+  const results = await searchRulesNative(query);
+  if (results.length === 0) {
+    contentEl.innerHTML += `<p>No pages matched your search query. Try searching for "Pressure", "Specialties", "Hyomen", or "Derived".</p>`;
+    return;
+  }
+  
+  let h = `<ul style="list-style:none; padding:0; display:flex; flex-direction:column; gap:16px;">`;
+  results.forEach(res => {
+    h += `
+      <li style="border-bottom:1px dashed var(--line); padding-bottom:12px;">
+        <span style="font-size:14px; display:block;"><a onclick="navigateTo('${res.url}')">${esc(res.title)}</a></span>
+        <span style="font-size:11px; color:var(--muted); font-style:italic; display:block; margin:2px 0;">${esc(res.snippet)}</span>
+        <span style="font-family:Consolas,monospace; font-size:9px; color:var(--accent);">${esc(res.url)}</span>
+      </li>
+    `;
+  });
+  h += `</ul>`;
+  contentEl.innerHTML += h;
+}
+
+// ════════════════════════════════════════════════ ZIP UPDATE IMPORT
+function triggerImport() {
+  document.getElementById('import-file').click();
+}
+
+async function performImport(file) {
+  if (!file) return;
+  if (window.__TAURI__) {
+    const dialog = window.__TAURI__.dialog;
+    const path = file.path; // Tauri injected file system path
+    
+    toast("Importing rules package...");
+    try {
+      const msg = await window.__TAURI__.core.invoke('wte_import_zip', { zipPath: path });
+      toast(msg);
+      // Reload current tab
+      refreshPage();
+    } catch (e) {
+      alert("Import failed: " + e);
+    }
+  } else {
+    alert("Wiki updates require running the native Tauri desktop app.");
+  }
+}
+
+// ════════════════════════════════════════════════ UTILS
+function esc(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function openExternalBrowser(url) {
+  if (window.__TAURI__) {
+    // Open in user default desktop browser
+    window.__TAURI__.core.invoke('open_external', { url });
+  } else {
+    window.open(url, '_blank');
+  }
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.opacity = 1;
+  setTimeout(() => t.style.opacity = 0, 2400);
+}
+
+// Support Theme Sync from index.html / localStorage
+function wteApplyTheme(theme) {
+  document.body.classList.toggle('wte-light', theme === 'light');
+}
+window.wteApplyTheme = wteApplyTheme;
+try {
+  wteApplyTheme(localStorage.getItem('wte-theme') || 'dark');
+} catch (e) {}
+
+// Launch
+initBrowser();
+
+</script>
+</body>
+</html>
