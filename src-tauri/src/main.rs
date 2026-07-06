@@ -119,11 +119,18 @@ async fn google_signin(
 }
 
 fn get_rules_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    // 1. App Data custom rules
+    // 1. App Data custom rules (only if it contains at least one markdown rules file)
     if let Ok(app_data) = app.path().app_data_dir() {
         let custom_rules = app_data.join("rules");
         if custom_rules.exists() && custom_rules.is_dir() {
-            return Ok(custom_rules);
+            if let Ok(entries) = std::fs::read_dir(&custom_rules) {
+                let has_files = entries.filter_map(|e| e.ok()).any(|e| {
+                    e.path().is_file() && e.path().extension().and_then(|s| s.to_str()) == Some("md")
+                });
+                if has_files {
+                    return Ok(custom_rules);
+                }
+            }
         }
     }
     
@@ -135,11 +142,15 @@ fn get_rules_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         }
     }
     
-    // 3. Dev mode relative fallback
+    // 3. Dev mode relative fallbacks
     if let Ok(curr_dir) = std::env::current_dir() {
-        let dev_rules = curr_dir.join("src").join("rules");
-        if dev_rules.exists() {
-            return Ok(dev_rules);
+        let dev_rules1 = curr_dir.join("src").join("rules");
+        if dev_rules1.exists() {
+            return Ok(dev_rules1);
+        }
+        let dev_rules2 = curr_dir.join("..").join("src").join("rules");
+        if dev_rules2.exists() {
+            return Ok(dev_rules2);
         }
     }
     
