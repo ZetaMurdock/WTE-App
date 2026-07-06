@@ -1323,15 +1323,36 @@ async function codexDb() {
 }
 async function sha256hex(s) { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join(''); }
 function codexAdminUnlocked() { try { return sessionStorage.getItem('wte-codex-admin') === '1'; } catch (e) { return false; } }
+// Many Firebase setups only open the paths the app already uses (tables/*, users/*), so a
+// brand-new root node gets "permission denied". The Codex therefore works across TWO bases:
+// the clean root "codex" when rules allow it, and "tables/__CODEX__" (guaranteed writable —
+// the whole VTT depends on tables/*) as the zero-config fallback. Reads check both (root
+// preferred); writes take the first base that accepts; subscribers listen to both.
+const CODEX_BASES = ['codex', 'tables/__CODEX__/codex'];
+async function cxGet(path) {
+  const db = await codexDb();
+  for (const base of CODEX_BASES) {
+    try { const v = (await db.ref(base + '/' + path).get()).val(); if (v !== null && v !== undefined) return v; }
+    catch (e) { /* permission denied on this base — try the next */ }
+  }
+  return null;
+}
+async function cxSet(path, val) {
+  const db = await codexDb();
+  let lastErr = null;
+  for (const base of CODEX_BASES) {
+    try { await db.ref(base + '/' + path).set(val); return base; }
+    catch (e) { lastErr = e; if (!/permission|denied/i.test(String((e && e.message) || e))) throw e; }
+  }
+  throw lastErr || new Error('write failed');
+}
 async function codexAdmin() {
   try {
-    const db = await codexDb();
-    const snap = await db.ref('codex/adminKey').get();
-    const existing = snap.val();
+    const existing = await cxGet('adminKey');
     if (!existing) {
       const p = prompt('No Codex admin key exists yet.\n\nCreate the admin passphrase now — whoever holds it can publish rule edits that appear in every player\'s Codex. Keep it safe.');
       if (!p) return;
-      await db.ref('codex/adminKey').set(await sha256hex(p));
+      await cxSet('adminKey', await sha256hex(p));
       try { sessionStorage.setItem('wte-codex-admin', '1'); } catch (e) {}
       toast('Admin key created — publishing unlocked for this session');
     } else {
@@ -1341,47 +1362,49 @@ async function codexAdmin() {
       else { toast('Wrong passphrase'); return; }
     }
     const pb = document.getElementById('publish-btn'); if (pb) pb.style.display = codexAdminUnlocked() ? 'inline-block' : 'none';
-  } catch (e) { alert('Admin: ' + (e.message || e)); }
+  } catch (e) {
+    const msg = String((e && e.message) || e);
+    if (/permission|denied/i.test(msg)) {
+      alert('Admin: your Firebase database rules block the Codex paths.\n\nEasiest fix: nothing — the app already tried the tables/__CODEX__ fallback; if you still see this, your rules also restrict tables/*.\n\nClean fix (optional): in Firebase Console → Realtime Database → Rules, add\n  "codex": { ".read": true, ".write": true }\nalongside your existing rules.');
+    } else alert('Admin: ' + msg);
+  }
 }
 async function codexPublish(name, content) {
   if (!codexAdminUnlocked()) { toast('Unlock Admin first (toolbar)'); return; }
   try {
-    const db = await codexDb();
-    await db.ref('codex/pages/' + sanitizeStemJs(name)).set({ md: content, ts: Date.now(), by: 'admin' });
+    await cxSet('pages/' + sanitizeStemJs(name), { md: content, ts: Date.now(), by: 'admin' });
     toast('Published — every player\'s Codex will pick this up');
-  } catch (e) { alert('Publish failed: ' + (e.message || e)); }
+  } catch (e) { alert('Publish failed: ' + ((e && e.message) || e)); }
 }
 let _pubts = {}; try { _pubts = JSON.parse(localStorage.getItem('wte-codex-pubts')) || {}; } catch (e) {}
+async function cxSyncPages(pages) {
+  let synced = 0;
+  for (const stem in (pages || {})) {
+    const p = pages[stem]; if (!p || !p.md) continue;
+    if ((_pubts[stem] || 0) >= (p.ts || 1)) continue;
+    try { await window.__TAURI__.core.invoke('wte_save_page', { name: stem, content: p.md }); _pubts[stem] = p.ts || Date.now(); synced++; } catch (e) {}
+  }
+  try { localStorage.setItem('wte-codex-pubts', JSON.stringify(_pubts)); } catch (e) {}
+  return synced;
+}
 async function codexSubscribe() {
   if (!window.__TAURI__) return;                       // disk sync needs the desktop app
   let cfg = null; try { cfg = JSON.parse(localStorage.getItem('wte-fb-config') || 'null'); } catch (e) {}
   if (!cfg) return;
   try {
     const db = await codexDb();
-    db.ref('codex/pages').on('value', async s => {
-      const pages = s.val() || {}; let synced = 0;
-      for (const stem in pages) {
-        const p = pages[stem]; if (!p || !p.md) continue;
-        if ((_pubts[stem] || 0) >= (p.ts || 1)) continue;
-        try { await window.__TAURI__.core.invoke('wte_save_page', { name: stem, content: p.md }); _pubts[stem] = p.ts || Date.now(); synced++; } catch (e) {}
-      }
-      try { localStorage.setItem('wte-codex-pubts', JSON.stringify(_pubts)); } catch (e) {}
-      if (synced) { toast(synced + ' published page(s) synced from the table admin'); refreshPage(); }
+    CODEX_BASES.forEach(base => {                       // listen on both bases; denied ones just cancel silently
+      db.ref(base + '/pages').on('value', async s => {
+        const synced = await cxSyncPages(s.val());
+        if (synced) { toast(synced + ' published page(s) synced from the table admin'); refreshPage(); }
+      }, () => {});
     });
   } catch (e) {}
 }
 async function reapplyPublished() {
   if (!window.__TAURI__) return;
-  try {
-    const db = await codexDb();
-    const s = await db.ref('codex/pages').get();
-    const pages = s.val() || {};
-    for (const stem in pages) {
-      const p = pages[stem]; if (!p || !p.md) continue;
-      try { await window.__TAURI__.core.invoke('wte_save_page', { name: stem, content: p.md }); _pubts[stem] = p.ts || Date.now(); } catch (e) {}
-    }
-    try { localStorage.setItem('wte-codex-pubts', JSON.stringify(_pubts)); } catch (e) {}
-  } catch (e) {}
+  _pubts = {};   // the mirror just overwrote disk — force every published page to re-apply
+  try { await cxSyncPages(await cxGet('pages')); } catch (e) {}
 }
 
 // ════════════════════════════════════════════════ UTILS
