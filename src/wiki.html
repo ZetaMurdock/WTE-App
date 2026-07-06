@@ -516,18 +516,20 @@ body {
     <button class="nav-btn" id="btn-forward" onclick="goForward()" title="Forward">&#8594;</button>
     <button class="nav-btn" id="btn-home" onclick="goHome()" title="Home">&#8962;</button>
     <button class="nav-btn" id="btn-refresh" onclick="refreshPage()" title="Refresh">&#8635;</button>
+    <button class="nav-btn" id="btn-bookmark" onclick="toggleBookmarkCurrent()" title="Pin this page to favorites">&#9734;</button>
     <div class="address-bar-wrap">
-      <input type="text" class="address-bar" id="address-bar" value="wte://rules/Home" onkeydown="handleAddressKey(event)" onfocus="showSearch()" onblur="hideSearchLater()" oninput="searchOmnibar(this.value)">
+      <input type="text" class="address-bar" id="address-bar" value="wte://rules/Home" onkeydown="handleAddressKey(event)" onfocus="searchFocus()" onblur="hideSearchLater()" oninput="searchOmnibar(this.value)">
       <div class="search-dropdown" id="search-dropdown"></div>
     </div>
     <button class="tbtn" onclick="navigateTo('wte://index')" title="Every page in the Codex">Index</button>
     <button class="tbtn" onclick="navigateTo('wte://books')" title="Rule tomes — covers, chapters, digital-novel reading">Books</button>
     <button class="tbtn" onclick="navigateTo('wte://workshop')" title="Experimental — the WTE Community Lab: publish, rate and subscribe to homebrew packs">Lab</button>
-    <button class="tbtn" onclick="navigateTo('wte://new')" title="Create a new Codex page from a template">New</button>
-    <button class="tbtn" onclick="openEditor()" title="Edit the current rules page (saved locally; Admin can publish to everyone)">Edit</button>
-    <button class="tbtn" onclick="mirrorWiki()" title="Copy the ENTIRE W.T.E wiki into the Codex as permanent, editable local pages">Mirror Wiki</button>
-    <button class="tbtn" onclick="codexAdmin()" title="Unlock (or create) the Codex admin key — lets the owner publish rule edits to every player">Admin</button>
-    <button class="tbtn" onclick="triggerImport()" title="Import rulebook wiki updates (.zip)">Import Update</button>
+    <button class="tbtn perm-create" onclick="navigateTo('wte://new')" title="Create a new Codex page from a template" style="display:none;">New</button>
+    <button class="tbtn perm-edit" onclick="openEditor()" title="Edit the current rules page (saved locally; publishers can push to everyone)" style="display:none;">Edit</button>
+    <button class="tbtn perm-mirror" onclick="mirrorWiki()" title="Copy the ENTIRE W.T.E wiki into the Codex as permanent, editable local pages" style="display:none;">Mirror Wiki</button>
+    <button class="tbtn perm-roles" onclick="navigateTo('wte://roles')" title="Grant roles &amp; permissions to signed-in members" style="display:none;">Roles</button>
+    <button class="tbtn" onclick="navigateTo('wte://downloads')" title="Rulebook Download Manager — mirrors, imports, pack subscriptions">Downloads</button>
+    <button class="tbtn" onclick="navigateTo('wte://profile')" title="Profile, account, security &amp; data">Profile</button>
   </div>
   <div class="browser-tabs" id="tab-container"></div>
 </div>
@@ -546,7 +548,7 @@ let bestiaryCache = [];
 
 // Initialize first tab
 function initBrowser() {
-  if (!restoreTabState()) createNewTab("Home", "wte://rules/Home");   // tabs & groups survive relaunch
+  if (!restoreTabState()) createNewTab("New Tab", "wte://home");   // tabs & groups survive relaunch
   loadBestiaryCache();
 }
 
@@ -661,7 +663,7 @@ function renderTabButtons() {
   const addBtn = document.createElement('button');
   addBtn.className = 'new-tab-btn';
   addBtn.innerHTML = '+';
-  addBtn.onclick = () => createNewTab("Home", "wte://rules/Home");
+  addBtn.onclick = () => createNewTab("New Tab", "wte://home");
   container.appendChild(addBtn);
 }
 
@@ -704,8 +706,19 @@ function groupMenu(e, gid) {
     { label: g.collapsed ? 'Expand' : 'Collapse', fn: () => toggleGroup(gid) },
     { label: 'Rename…', fn: () => { const n = (prompt('Group name:', g.name) || '').trim(); if (n) { g.name = n; renderTabButtons(); saveTabState(); } } },
     { label: 'Next color', fn: () => { g.color = GROUP_COLORS[(GROUP_COLORS.indexOf(g.color) + 1 + GROUP_COLORS.length) % GROUP_COLORS.length]; renderTabButtons(); saveTabState(); } },
+    { label: 'Custom color…', fn: () => pickGroupColor(gid) },
     { label: 'Dissolve group (keep tabs)', fn: () => { tabs.forEach(t => { if (t.group === gid) t.group = null; }); delete tabGroups[gid]; renderTabButtons(); saveTabState(); } },
   ]);
+}
+function pickGroupColor(gid) {
+  const g = tabGroups[gid]; if (!g) return;
+  const inp = document.createElement('input'); inp.type = 'color';
+  inp.value = /^#[0-9a-f]{6}$/i.test(g.color) ? g.color : '#8a6d3b';
+  inp.style.cssText = 'position:fixed;left:-9999px;';
+  document.body.appendChild(inp);
+  inp.oninput = () => { g.color = inp.value; renderTabButtons(); saveTabState(); };
+  inp.onchange = () => { setTimeout(() => inp.remove(), 100); };
+  inp.click();
 }
 function _fmClose(ev) { const m = document.getElementById('floatMenu'); if (m && !m.contains(ev.target)) closeFloatMenu(); }
 function closeFloatMenu() { const m = document.getElementById('floatMenu'); if (m) m.remove(); document.removeEventListener('mousedown', _fmClose); }
@@ -743,7 +756,7 @@ function goForward() {
 }
 
 function goHome() {
-  navigateTo("wte://rules/Home");
+  navigateTo("wte://home");
 }
 
 function refreshPage() {
@@ -850,6 +863,22 @@ async function navigateViewport(url, updateTabTitle) {
       renderNewPage();
       if (updateTabTitle) updateActiveTabTitle("New Page");
     }
+    else if (url === 'wte://home' || url === 'wte://newtab') {
+      renderHomeDash();
+      if (updateTabTitle) updateActiveTabTitle("New Tab");
+    }
+    else if (url === 'wte://roles') {
+      await renderRoles();
+      if (updateTabTitle) updateActiveTabTitle("Roles");
+    }
+    else if (url === 'wte://downloads') {
+      renderDownloads();
+      if (updateTabTitle) updateActiveTabTitle("Downloads");
+    }
+    else if (url === 'wte://profile') {
+      await renderProfile();
+      if (updateTabTitle) updateActiveTabTitle("Profile");
+    }
     else if (url.startsWith('http://') || url.startsWith('https://')) {
       // General Fandom Wiki web page fetch fallback
       if (url.includes('wonderland-of-the-enigma.fandom.com')) {
@@ -880,6 +909,9 @@ async function navigateViewport(url, updateTabTitle) {
   // scroll viewport back to top
   document.getElementById('viewport').scrollTop = 0;
   updateNavButtons();
+  const at = getActiveTab();
+  if (at) pushRecent(at.url, at.title);
+  updateBookmarkStar();
 }
 
 function updateActiveTabTitle(title) {
@@ -1118,6 +1150,26 @@ function searchOmnibar(val) {
 
 function showSearch() {
   document.getElementById('search-dropdown').classList.add('show');
+}
+// Focusing the empty omnibar surfaces quick suggestions — bookmarks then recents — so the
+// dropdown is useful before a single character is typed.
+function searchFocus() {
+  const bar = document.getElementById('address-bar');
+  if (bar.value.trim()) { searchOmnibar(bar.value); return; }
+  const bm = getBookmarks(), rec = getRecents();
+  const items = [];
+  bm.slice(0, 4).forEach(b => items.push({ title: '★ ' + (b.title || b.url), url: b.url, snippet: 'Pinned favorite' }));
+  rec.filter(r => !bm.some(b => b.url === r.url)).slice(0, 6 - items.length).forEach(r => items.push({ title: r.title || r.url, url: r.url, snippet: 'Recently visited' }));
+  if (!items.length) return;
+  _searchItems = items; searchSel = -1;
+  const dd = document.getElementById('search-dropdown'); dd.innerHTML = '';
+  items.forEach((res, i) => {
+    const el = document.createElement('div'); el.className = 'search-item'; el.dataset.i = i;
+    el.onmousedown = ev => { ev.preventDefault(); navigateTo(res.url); hideSearch(); };
+    el.innerHTML = `<span class="title">${esc(res.title)}</span><span class="snippet">${esc(res.snippet)}</span><span class="url">${esc(res.url)}</span>`;
+    dd.appendChild(el);
+  });
+  showSearch();
 }
 function hideSearch() {
   document.getElementById('search-dropdown').classList.remove('show');
@@ -1365,9 +1417,13 @@ async function triggerImport() {
   toast("Importing rules package...");
   try {
     const msg = await window.__TAURI__.core.invoke('wte_import_zip', { zipPath: path });
+    _titleCache = null;
+    const n = (msg.match(/\d+/) || [])[0];
+    logDownload({ type: 'zip', name: (path.split(/[\\/]/).pop() || 'rulebook.zip'), count: n ? +n : null, status: 'imported' });
     toast(msg);
     refreshPage();
   } catch (e) {
+    logDownload({ type: 'zip', name: 'rulebook import', status: 'error' });
     alert("Import failed: " + e);
   }
 }
@@ -1438,6 +1494,7 @@ async function mirrorWiki() {
   await reapplyPublished();
   _mirrorRunning = false;
   _titleCache = null;   // smart search picks up the freshly mirrored titles
+  logDownload({ type: 'mirror', name: 'W.T.E Wiki', count: done - errs, status: errs ? 'done (' + errs + ' failed)' : 'done' });
   toast('Mirror complete — ' + (done - errs) + ' pages saved' + (errs ? (', ' + errs + ' failed') : ''));
   navigateTo('wte://index');
 }
@@ -1459,9 +1516,9 @@ async function openEditor() {
       <button class="tbtn" onclick="refreshPage()">Cancel</button>
       <button class="tbtn" onclick="editorInsertImage()" title="Embed an image into the page (downscaled and stored inside the page text)">Insert image&hellip;</button>
       <button class="tbtn" onclick="deleteLocalPage()" title="Remove this device's local copy (reverts to the bundled page if one exists)">Delete local copy</button>
-      <button class="tbtn" id="publish-btn" onclick="publishFromEditor()" style="display:${codexAdminUnlocked() ? 'inline-block' : 'none'};border-color:var(--accent);color:var(--sel);" title="Push this page to every player's Codex through your shared Firebase">Publish to everyone</button>
+      <button class="tbtn" id="publish-btn" onclick="publishFromEditor()" style="display:${hasPerm('publish') ? 'inline-block' : 'none'};border-color:var(--accent);color:var(--sel);" title="Push this page to every player's Codex through your shared Firebase">Publish to everyone</button>
     </div>
-    <div style="font-size:10px;color:var(--muted);font-style:italic;margin-bottom:6px;">Markdown and raw HTML both work — pages render exactly how you format them. Save keeps the copy on this device; Publish (Admin) pushes it to every player.</div>`;
+    <div style="font-size:10px;color:var(--muted);font-style:italic;margin-bottom:6px;">Markdown and raw HTML both work — pages render exactly how you format them. Save keeps the copy on this device; Publish pushes it to every player (needs publish permission).</div>`;
   const ta = document.createElement('textarea');
   ta.id = 'editor-ta';
   ta.style.cssText = 'width:100%;height:62vh;background:var(--panel2);border:1px solid var(--line);color:var(--ink);font-family:Consolas,monospace;font-size:11px;padding:10px;line-height:1.5;resize:vertical;';
@@ -1497,18 +1554,139 @@ async function publishFromEditor() {
 function sanitizeStemJs(s) { return String(s).replace(/[\\\/:*?"<>|#$\[\].]/g, '_').trim(); }
 let _cxDb = null;
 function loadScriptOnce(src) { return new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = src; sc.onload = res; sc.onerror = () => rej(new Error('script load failed')); document.head.appendChild(sc); }); }
+function fbCfg() { try { return JSON.parse(localStorage.getItem('wte-fb-config') || 'null'); } catch (e) { return null; } }
 async function codexDb() {
   if (_cxDb) return _cxDb;
-  let cfg = null; try { cfg = JSON.parse(localStorage.getItem('wte-fb-config') || 'null'); } catch (e) {}
+  const cfg = fbCfg();
   if (!cfg) throw new Error('No Firebase config — set up your table connection in the VTT first.');
   if (!window.firebase) await loadScriptOnce('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js');
   if (!window.firebase.database) await loadScriptOnce('https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js');
+  if (!window.firebase.auth) await loadScriptOnce('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js');
   if (!firebase.apps.length) firebase.initializeApp(cfg);
   _cxDb = firebase.database();
+  // Google auth persists per-origin, so the shell's sign-in is visible here. Recompute
+  // permissions and refresh the toolbar whenever the signed-in user changes.
+  try { firebase.auth().onAuthStateChanged(() => { refreshPerms(); }); } catch (e) {}
   return _cxDb;
 }
+function cxUser() { try { return (window.firebase && firebase.auth && firebase.apps.length) ? firebase.auth().currentUser : null; } catch (e) { return null; } }
+function cxUid() { const u = cxUser(); return u ? u.uid : null; }
+
+// ════════════════════════════════════════════════ ACCOUNTS, ROLES & PERMISSIONS
+// The owner (claimed once, gated by the admin passphrase) can grant roles to signed-in
+// members; roles carry permission flags. Members with the "roles" + "delegate" flags can
+// grant a limited subset onward — enough for moderators once the app is public. Enforcement
+// is client-side (best-effort, like the admin key); tighten with Firebase security rules for
+// a truly public deployment. With no Firebase config or before an owner is claimed, the app
+// is "unmanaged" and every button shows — a solo local install is never locked out.
+const PERM_KEYS = ['mirror', 'edit', 'create', 'publish', 'roles', 'delegate'];
+const PERM_ALL = { mirror: 1, edit: 1, create: 1, publish: 1, roles: 1, delegate: 1, all: 1 };
+const ROLE_PRESETS = {
+  owner:     { mirror: 1, edit: 1, create: 1, publish: 1, roles: 1, delegate: 1 },
+  admin:     { mirror: 1, edit: 1, create: 1, publish: 1, roles: 1, delegate: 1 },
+  moderator: { edit: 1, create: 1, publish: 1, roles: 1 },
+  creator:   { edit: 1, create: 1 },
+  member:    {},
+};
+const DELEGATABLE = ['edit', 'create', 'publish'];   // what a non-owner roles-manager may grant
+let _ownerUid = null, _myRole = 'member', _myPerms = PERM_ALL, _permsReady = false;
+function hasPerm(p) { return !!(_myPerms && (_myPerms.all || _myPerms[p])); }
+function applyPerms() {
+  const set = (cls, on) => document.querySelectorAll(cls).forEach(el => el.style.display = on ? '' : 'none');
+  set('.perm-mirror', hasPerm('mirror'));
+  set('.perm-edit', hasPerm('edit'));
+  set('.perm-create', hasPerm('create'));
+  set('.perm-roles', hasPerm('roles'));
+}
+async function registerMember() {
+  const u = cxUser(); if (!u) return;
+  try {
+    const existing = await cxGet('members/' + u.uid) || {};
+    await cxSet('members/' + u.uid, Object.assign({ handle: '' }, existing, { email: u.email || '', name: u.displayName || '', ts: Date.now() }));
+  } catch (e) {}
+}
+async function refreshPerms() {
+  if (!fbCfg()) { _myPerms = PERM_ALL; _myRole = 'owner'; _permsReady = true; applyPerms(); return; }   // solo/local
+  try {
+    _ownerUid = await cxGet('owner');
+    const uid = cxUid();
+    if (uid) registerMember();
+    if (!_ownerUid) { _myPerms = PERM_ALL; _myRole = 'unclaimed'; }        // nobody owns it yet → open
+    else if (uid && uid === _ownerUid) { _myPerms = ROLE_PRESETS.owner; _myRole = 'owner'; }
+    else if (uid) { const r = await cxGet('roles/' + uid); _myRole = (r && r.role) || 'member'; _myPerms = (r && r.perms) || ROLE_PRESETS[_myRole] || {}; }
+    else { _myPerms = {}; _myRole = 'guest'; }                             // managed codex, not signed in
+  } catch (e) { _myPerms = PERM_ALL; _myRole = 'offline'; }                // backend unreachable → don't lock out
+  _permsReady = true; applyPerms();
+}
+
+// ── ROLES PAGE ──
+async function renderRoles() {
+  const el = document.getElementById('page-content');
+  if (!fbCfg()) { el.innerHTML = '<h1>Roles &amp; Permissions</h1><p>This install has no shared table (Firebase config) — you have full local access. Connect to a table in the VTT to manage members.</p>'; return; }
+  el.innerHTML = '<h1>Roles &amp; Permissions</h1><p style="color:var(--muted);">Loading members…</p>';
+  await codexDb().catch(() => {});
+  const uid = cxUid();
+  if (!uid) { el.innerHTML = '<h1>Roles &amp; Permissions</h1><p>Sign in with your Google account (top bar of the app) to manage roles.</p>'; return; }
+  _ownerUid = await cxGet('owner');
+  if (!_ownerUid) {
+    el.innerHTML = `<h1>Claim Ownership</h1><p>No owner has claimed this Codex yet. As the creator, claim it now — you'll control who can mirror, edit, publish and grant roles.</p>
+      <button class="tbtn live" onclick="claimOwnership()">Claim ownership</button>`;
+    return;
+  }
+  const amOwner = uid === _ownerUid;
+  if (!amOwner && !hasPerm('roles')) { el.innerHTML = '<h1>Roles &amp; Permissions</h1><p>You don\'t have permission to manage roles. Ask the owner or a moderator.</p>'; return; }
+  const members = await cxGet('members') || {};
+  const roles = await cxGet('roles') || {};
+  let h = `<h1>Roles &amp; Permissions</h1><p>${amOwner ? 'You are the <b>owner</b>.' : 'You can grant a limited set of permissions.'} Assign roles to signed-in members; permissions gate the toolbar (Mirror, New, Edit, Publish, Roles).</p>`;
+  h += `<table><tr><th>Member</th><th>Role</th><th>Permissions</th></tr>`;
+  Object.entries(members).forEach(([mid, m]) => {
+    const isOwnerRow = mid === _ownerUid;
+    const r = roles[mid] || {}; const role = isOwnerRow ? 'owner' : (r.role || 'member');
+    const perms = isOwnerRow ? ROLE_PRESETS.owner : (r.perms || ROLE_PRESETS[role] || {});
+    const who = esc((m.handle || m.name || m.email || mid).toString());
+    const roleOpts = ['member', 'creator', 'moderator', 'admin'].map(x => `<option value="${x}"${x === role ? ' selected' : ''}>${x}</option>`).join('');
+    const permChips = PERM_KEYS.filter(k => k !== 'delegate').map(k => {
+      const on = !!perms[k];
+      const canToggle = amOwner || (DELEGATABLE.includes(k) && hasPerm('delegate') !== false);
+      return `<label style="font-size:9px;margin-right:7px;${canToggle ? '' : 'opacity:.4;'}"><input type="checkbox" ${on ? 'checked' : ''} ${canToggle && !isOwnerRow ? '' : 'disabled'} onchange="setPerm('${mid}','${k}',this.checked)"> ${k}</label>`;
+    }).join('');
+    h += `<tr><td>${who}${isOwnerRow ? ' <span style="color:var(--accent);font-size:9px;">OWNER</span>' : ''}<div style="font-size:8px;color:var(--muted);">${esc((m.email || '').toString())}</div></td>
+      <td>${isOwnerRow ? '<b>owner</b>' : `<select onchange="setRole('${mid}',this.value)" ${amOwner ? '' : 'disabled'}>${roleOpts}</select>`}</td>
+      <td>${permChips}</td></tr>`;
+  });
+  h += `</table><p style="font-size:10px;color:var(--muted);margin-top:10px;">Roles preset the permissions; owner (and delegators, for edit/create/publish) can fine-tune each flag. Sign-in is per Google account — members appear here once they open the Codex signed in.</p>`;
+  el.innerHTML = h;
+}
+async function claimOwnership() {
+  const uid = cxUid(); if (!uid) { toast('Sign in first'); return; }
+  const existingKey = await cxGet('adminKey');
+  const p = prompt(existingKey ? 'Enter the Codex admin passphrase to claim ownership:' : 'Create the owner passphrase (kept as a hashed recovery credential):');
+  if (!p) return;
+  const hash = await sha256hex(p);
+  if (existingKey && hash !== existingKey) { toast('Wrong passphrase'); return; }
+  try {
+    if (!existingKey) await cxSet('adminKey', hash);
+    await cxSet('owner', uid);
+    await registerMember();
+    toast('You are now the owner');
+    await refreshPerms();
+    renderRoles();
+  } catch (e) { alert('Claim failed: ' + ((e && e.message) || e)); }
+}
+async function setRole(mid, role) {
+  try {
+    await cxSet('roles/' + mid, { role, perms: ROLE_PRESETS[role] || {}, by: cxUid(), ts: Date.now() });
+    toast('Role set: ' + role); renderRoles();
+  } catch (e) { toast('Failed'); }
+}
+async function setPerm(mid, key, on) {
+  try {
+    const r = await cxGet('roles/' + mid) || { role: 'member', perms: {} };
+    r.perms = r.perms || {}; r.perms[key] = on ? 1 : 0; r.by = cxUid(); r.ts = Date.now();
+    await cxSet('roles/' + mid, r); toast((on ? 'Granted ' : 'Revoked ') + key);
+  } catch (e) { toast('Failed'); }
+}
 async function sha256hex(s) { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join(''); }
-function codexAdminUnlocked() { try { return sessionStorage.getItem('wte-codex-admin') === '1'; } catch (e) { return false; } }
 // Many Firebase setups only open the paths the app already uses (tables/*, users/*), so a
 // brand-new root node gets "permission denied". The Codex therefore works across TWO bases:
 // the clean root "codex" when rules allow it, and "tables/__CODEX__" (guaranteed writable —
@@ -1532,35 +1710,16 @@ async function cxSet(path, val) {
   }
   throw lastErr || new Error('write failed');
 }
-async function codexAdmin() {
+async function codexPublish(name, content) {
+  if (!hasPerm('publish')) { toast('You don\'t have publish permission'); return; }
   try {
-    const existing = await cxGet('adminKey');
-    if (!existing) {
-      const p = prompt('No Codex admin key exists yet.\n\nCreate the admin passphrase now — whoever holds it can publish rule edits that appear in every player\'s Codex. Keep it safe.');
-      if (!p) return;
-      await cxSet('adminKey', await sha256hex(p));
-      try { sessionStorage.setItem('wte-codex-admin', '1'); } catch (e) {}
-      toast('Admin key created — publishing unlocked for this session');
-    } else {
-      const p = prompt('Enter the Codex admin passphrase:');
-      if (!p) return;
-      if (await sha256hex(p) === existing) { try { sessionStorage.setItem('wte-codex-admin', '1'); } catch (e) {} toast('Admin unlocked — you can publish pages'); }
-      else { toast('Wrong passphrase'); return; }
-    }
-    const pb = document.getElementById('publish-btn'); if (pb) pb.style.display = codexAdminUnlocked() ? 'inline-block' : 'none';
+    await cxSet('pages/' + sanitizeStemJs(name), { md: content, ts: Date.now(), by: cxUid() || 'admin' });
+    toast('Published — every player\'s Codex will pick this up');
   } catch (e) {
     const msg = String((e && e.message) || e);
-    if (/permission|denied/i.test(msg)) {
-      alert('Admin: your Firebase database rules block the Codex paths.\n\nEasiest fix: nothing — the app already tried the tables/__CODEX__ fallback; if you still see this, your rules also restrict tables/*.\n\nClean fix (optional): in Firebase Console → Realtime Database → Rules, add\n  "codex": { ".read": true, ".write": true }\nalongside your existing rules.');
-    } else alert('Admin: ' + msg);
+    if (/permission|denied/i.test(msg)) alert('Publish blocked: your Firebase database rules restrict the Codex paths.\n\nOptional clean fix — in Firebase Console → Realtime Database → Rules add:\n  "codex": { ".read": true, ".write": true }');
+    else alert('Publish failed: ' + msg);
   }
-}
-async function codexPublish(name, content) {
-  if (!codexAdminUnlocked()) { toast('Unlock Admin first (toolbar)'); return; }
-  try {
-    await cxSet('pages/' + sanitizeStemJs(name), { md: content, ts: Date.now(), by: 'admin' });
-    toast('Published — every player\'s Codex will pick this up');
-  } catch (e) { alert('Publish failed: ' + ((e && e.message) || e)); }
 }
 let _pubts = {}; try { _pubts = JSON.parse(localStorage.getItem('wte-codex-pubts')) || {}; } catch (e) {}
 async function cxSyncPages(pages) {
@@ -1571,6 +1730,7 @@ async function cxSyncPages(pages) {
     try { await window.__TAURI__.core.invoke('wte_save_page', { name: stem, content: p.md }); _pubts[stem] = p.ts || Date.now(); synced++; } catch (e) {}
   }
   try { localStorage.setItem('wte-codex-pubts', JSON.stringify(_pubts)); } catch (e) {}
+  if (synced) { _titleCache = null; logDownload({ type: 'publish', name: 'Table admin update', count: synced, status: 'synced' }); }
   return synced;
 }
 async function codexSubscribe() {
@@ -1766,6 +1926,7 @@ async function wsSubscribe(id) {
     let ok = 0;
     for (const s of stems) { try { await window.__TAURI__.core.invoke('wte_save_page', { name: s, content: p.pages[s] }); ok++; } catch (e) {} }
     _titleCache = null;
+    logDownload({ type: 'pack', name: p.name || 'Community pack', count: ok, status: 'installed' });
     toast('"' + (p.name || 'pack') + '" installed — ' + ok + ' pages added to your Codex');
   } catch (e) { alert('Subscribe failed: ' + ((e && e.message) || e)); }
 }
@@ -1839,6 +2000,136 @@ function editorInsertImage() {
   inp.click();
 }
 
+// ════════════════════════════════════════════════ RULEBOOK DOWNLOAD MANAGER
+function logDownload(entry) {
+  let arr = []; try { arr = JSON.parse(localStorage.getItem('wte-codex-downloads')) || []; } catch (e) {}
+  arr.unshift(Object.assign({ ts: Date.now() }, entry));
+  try { localStorage.setItem('wte-codex-downloads', JSON.stringify(arr.slice(0, 80))); } catch (e) {}
+}
+const DL_ICON = { mirror: 'Wiki mirror', pack: 'Community pack', zip: 'Rulebook import', publish: 'Published update', book: 'Book' };
+function renderDownloads() {
+  const el = document.getElementById('page-content');
+  let arr = []; try { arr = JSON.parse(localStorage.getItem('wte-codex-downloads')) || []; } catch (e) {}
+  let h = `<h1>Rulebook Download Manager</h1>
+    <p>Everything pulled into your Codex — wiki mirrors, rulebook imports, community subscriptions and published updates.</p>
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+      <button class="tbtn perm-mirror" onclick="mirrorWiki()" style="${hasPerm('mirror') ? '' : 'display:none;'}">Mirror the Wiki</button>
+      <button class="tbtn" onclick="triggerImport()">Import rulebook (.zip)</button>
+      <button class="tbtn" onclick="navigateTo('wte://workshop')">Community Lab</button>
+      <button class="tbtn" onclick="if(confirm('Clear the download history?')){localStorage.removeItem('wte-codex-downloads');renderDownloads();}">Clear history</button>
+    </div>`;
+  if (!arr.length) { h += '<p style="color:var(--muted);font-style:italic;">No downloads yet. Mirror the wiki or subscribe to a Community Lab pack to populate your Codex.</p>'; el.innerHTML = h; return; }
+  h += '<table><tr><th>Type</th><th>Name</th><th>Pages</th><th>Status</th><th>When</th></tr>';
+  arr.forEach(d => {
+    const when = new Date(d.ts); const ago = Math.round((Date.now() - d.ts) / 60000);
+    const whenTxt = ago < 1 ? 'just now' : ago < 60 ? ago + 'm ago' : ago < 1440 ? Math.round(ago / 60) + 'h ago' : when.toLocaleDateString();
+    h += `<tr><td>${esc(DL_ICON[d.type] || d.type || '?')}</td><td>${esc(d.name || '')}</td><td>${d.count != null ? d.count : ''}</td>
+      <td style="color:${d.status === 'error' ? '#b03020' : '#3a8050'};">${esc(d.status || 'done')}</td><td style="color:var(--muted);font-size:10px;">${whenTxt}</td></tr>`;
+  });
+  h += '</table>';
+  el.innerHTML = h;
+}
+
+// ════════════════════════════════════════════════ PROFILE & DATA
+async function renderProfile() {
+  const el = document.getElementById('page-content');
+  await codexDb().catch(() => {});
+  const u = cxUser();
+  let mem = {}; if (u) { try { mem = await cxGet('members/' + u.uid) || {}; } catch (e) {} }
+  const cacheKeys = { 'wte-bestiary-cache': 'Bestiary', 'wte-armory-cache': 'Armory', 'wte-codex-pubts': 'Publish sync record', 'wte-codex-tabs': 'Saved tabs & groups', 'wte-codex-downloads': 'Download history', 'wte-codex-recents': 'Recent pages', 'wte-codex-bookmarks': 'Bookmarks' };
+  let bytes = 0; for (const k in localStorage) { try { bytes += (localStorage[k] || '').length; } catch (e) {} }
+  let h = `<h1>Profile &amp; Data</h1>`;
+  h += `<h2>Account</h2>`;
+  if (u) {
+    h += `<div class="creature-detail-meta">
+      <div class="meta-field"><span class="meta-lbl">Signed in as</span><span class="meta-val">${esc(u.displayName || 'W.T.E user')}</span></div>
+      <div class="meta-field"><span class="meta-lbl">Email</span><span class="meta-val">${esc(u.email || '')}</span></div>
+      <div class="meta-field"><span class="meta-lbl">Codex role</span><span class="meta-val">${esc(_myRole)}</span></div>
+      <div class="meta-field"><span class="meta-lbl">User ID</span><span class="meta-val" style="font-size:9px;">${esc(u.uid)}</span></div>
+    </div>
+    <div class="field-row"><label>Display handle</label><input type="text" id="pf-handle" value="${esc(mem.handle || '')}" placeholder="your table handle"><button class="tbtn" onclick="saveHandle()">Save</button></div>
+    <div style="margin-top:6px;"><button class="tbtn" onclick="shellAccount()">Sign out / switch account</button></div>`;
+  } else {
+    h += `<p>You're not signed in. Use <b>Sign in</b> in the app's top bar to link your Google account — required for roles, publishing and the Community Lab.</p>
+      <button class="tbtn live" onclick="shellAccount()">Sign in with Google</button>`;
+  }
+  h += `<h2>Security</h2><ul>
+    <li>Your login is your <b>Google account</b> — passwords are managed by Google, not stored in W.T.E.</li>
+    ${(_myRole === 'owner' || _ownerUid === (u && u.uid)) ? '<li><a onclick="changeOwnerPass()">Change the owner passphrase</a> — the recovery credential for claiming ownership.</li>' : ''}
+    <li><a onclick="clearOAuthSecret()">Clear the stored Google OAuth client secret</a> on this device.</li>
+  </ul>`;
+  h += `<h2>Data &amp; Cache</h2><p>This device is using about <b>${(bytes / 1024).toFixed(0)} KB</b> of local storage.</p>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+    ${Object.entries(cacheKeys).map(([k, lbl]) => `<button class="tbtn" onclick="clearCacheKey('${k}','${esc(lbl)}')">Clear ${esc(lbl)}</button>`).join('')}
+    </div>
+    <p style="margin-top:10px;"><button class="tbtn" style="border-color:#b03020;color:#c8645c;" onclick="wipeCodexData()">Reset all Codex local data</button></p>
+    <p style="font-size:10px;color:var(--muted);">Resetting clears caches, tabs, downloads and bookmarks on this device. Your mirrored rules pages (and anything published) are unaffected.</p>`;
+  el.innerHTML = h;
+}
+async function saveHandle() {
+  const u = cxUser(); if (!u) { toast('Sign in first'); return; }
+  const v = (document.getElementById('pf-handle').value || '').trim();
+  try { const m = await cxGet('members/' + u.uid) || {}; m.handle = v; m.email = u.email || m.email; m.name = u.displayName || m.name; m.ts = Date.now(); await cxSet('members/' + u.uid, m); toast('Handle saved'); }
+  catch (e) { toast('Save failed'); }
+}
+function shellAccount() { try { if (parent && parent.wteAccount) { parent.wteAccount(); return; } } catch (e) {} alert('Use the Sign in button in the app\'s top bar.'); }
+async function changeOwnerPass() {
+  const p = prompt('New owner passphrase:'); if (!p) return;
+  try { await cxSet('adminKey', await sha256hex(p)); toast('Owner passphrase updated'); } catch (e) { toast('Failed'); }
+}
+function clearOAuthSecret() { try { const o = JSON.parse(localStorage.getItem('wte-oauth') || '{}'); delete o.clientSecret; localStorage.setItem('wte-oauth', JSON.stringify(o)); } catch (e) {} toast('OAuth secret cleared on this device'); }
+function clearCacheKey(k, lbl) { try { localStorage.removeItem(k); } catch (e) {} if (k === 'wte-bestiary-cache') loadBestiaryCache(); _titleCache = null; toast((lbl || 'Cache') + ' cleared'); }
+function wipeCodexData() {
+  if (!confirm('Reset all Codex local data on this device? (mirrored pages are kept)')) return;
+  ['wte-bestiary-cache', 'wte-armory-cache', 'wte-codex-pubts', 'wte-codex-tabs', 'wte-codex-downloads', 'wte-codex-recents', 'wte-codex-bookmarks'].forEach(k => { try { localStorage.removeItem(k); } catch (e) {} });
+  _titleCache = null; toast('Codex local data reset'); location.reload();
+}
+
+// ════════════════════════════════════════════════ HOME DASHBOARD + RECENTS + BOOKMARKS
+function getRecents() { try { return JSON.parse(localStorage.getItem('wte-codex-recents')) || []; } catch (e) { return []; } }
+function pushRecent(url, title) {
+  if (!/^wte:\/\/(rules|book|creatures)\//.test(url)) return;
+  let arr = getRecents().filter(r => r.url !== url);
+  arr.unshift({ url, title: title || url, ts: Date.now() });
+  try { localStorage.setItem('wte-codex-recents', JSON.stringify(arr.slice(0, 24))); } catch (e) {}
+}
+function getBookmarks() { try { return JSON.parse(localStorage.getItem('wte-codex-bookmarks')) || []; } catch (e) { return []; } }
+function isBookmarked(url) { return getBookmarks().some(b => b.url === url); }
+function toggleBookmarkCurrent() {
+  const t = getActiveTab(); if (!t) return;
+  if (!/^wte:\/\/(rules|book|creatures)\//.test(t.url)) { toast('Only Codex pages can be pinned'); return; }
+  let arr = getBookmarks();
+  if (isBookmarked(t.url)) { arr = arr.filter(b => b.url !== t.url); toast('Unpinned'); }
+  else { arr.unshift({ url: t.url, title: t.title || t.url, ts: Date.now() }); toast('Pinned to favorites'); }
+  try { localStorage.setItem('wte-codex-bookmarks', JSON.stringify(arr.slice(0, 40))); } catch (e) {}
+  updateBookmarkStar();
+}
+function updateBookmarkStar() {
+  const b = document.getElementById('btn-bookmark'); if (!b) return;
+  const t = getActiveTab(); const on = t && isBookmarked(t.url);
+  b.innerHTML = on ? '&#9733;' : '&#9734;'; b.style.color = on ? 'var(--sel)' : '';
+}
+function renderHomeDash() {
+  const el = document.getElementById('page-content');
+  const rec = getRecents(), bm = getBookmarks();
+  const title = u => esc((u.title || u.url).replace(/^wte:\/\/(rules|book|creatures)\//, '').replace(/_/g, ' ').replace(/\/.*$/, m => ' › ' + m.slice(1).replace(/_/g, ' ')));
+  let h = `<div style="text-align:center;margin-bottom:22px;"><div style="font-size:26px;color:var(--sel);letter-spacing:2px;">W.T.E CODEX</div>
+    <div style="color:var(--muted);font-size:12px;">Your offline browser for the Wonderland of the Enigma</div></div>`;
+  h += `<div class="book-grid">
+    <div class="book-cover" style="cursor:pointer;padding:16px;" onclick="navigateTo('wte://rules/Home')"><div class="bc-title">Home</div><div class="bc-author">Codex front page</div></div>
+    <div class="book-cover" style="cursor:pointer;padding:16px;" onclick="navigateTo('wte://index')"><div class="bc-title">Index</div><div class="bc-author">Every page</div></div>
+    <div class="book-cover" style="cursor:pointer;padding:16px;" onclick="navigateTo('wte://books')"><div class="bc-title">Books</div><div class="bc-author">Rule tomes</div></div>
+    <div class="book-cover" style="cursor:pointer;padding:16px;" onclick="navigateTo('wte://workshop')"><div class="bc-title">Community Lab</div><div class="bc-author">Experimental homebrew</div></div>
+  </div>`;
+  h += `<h2 style="color:var(--accent2);font-size:14px;margin-top:22px;">Pinned Favorites</h2>`;
+  h += bm.length ? `<div class="index-grid">${bm.map(b => `<a onclick="navigateTo('${esc(b.url)}')">&#9733; ${title(b)}</a>`).join('')}</div>`
+    : `<p style="color:var(--muted);font-style:italic;font-size:12px;">No favorites yet — open a page and press the &#9734; star in the toolbar to pin it here.</p>`;
+  h += `<h2 style="color:var(--accent2);font-size:14px;margin-top:20px;">Recently Visited</h2>`;
+  h += rec.length ? `<div class="index-grid">${rec.slice(0, 12).map(r => `<a onclick="navigateTo('${esc(r.url)}')">${title(r)}</a>`).join('')}</div>`
+    : `<p style="color:var(--muted);font-style:italic;font-size:12px;">Your recently visited pages will appear here.</p>`;
+  el.innerHTML = h;
+}
+
 // ════════════════════════════════════════════════ UTILS
 function esc(str) {
   if (!str) return '';
@@ -1887,6 +2178,7 @@ window.addEventListener('storage', e => {
 // Launch
 initBrowser();
 codexSubscribe();   // pull published admin pages down to disk (no-op without Firebase config)
+refreshPerms();     // resolve account permissions → show/hide gated toolbar buttons
 
 </script>
 </body>
