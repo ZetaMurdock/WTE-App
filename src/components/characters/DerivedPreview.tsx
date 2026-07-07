@@ -1,4 +1,14 @@
-import { DERIVED, computeDerived, bgBonuses, type Attributes, type Specialties, type Background } from "../../game/wte";
+import {
+  DERIVED,
+  computeDerived,
+  bgBonuses,
+  aggregateEquip,
+  sizeOf,
+  type Attributes,
+  type Specialties,
+  type Background,
+  type EquipmentItem,
+} from "../../game/wte";
 
 interface Props {
   attributes: Attributes;
@@ -6,12 +16,20 @@ interface Props {
   speciesId?: string;
   rank?: number;
   background?: Background;
+  equipment?: EquipmentItem[];
+  sizeId?: string;
 }
 
 // Live grid of the 10 derived stats + max HP. Negative values (over-specialized builds)
 // are highlighted as liabilities, matching the legacy sheet's "no clamp" behaviour.
-export function DerivedPreview({ attributes, specialties, speciesId, rank, background }: Props) {
-  const d = computeDerived(attributes, specialties, { speciesId, rank, bgBonuses: bgBonuses(background) });
+export function DerivedPreview({ attributes, specialties, speciesId, rank, background, equipment, sizeId }: Props) {
+  const d = computeDerived(attributes, specialties, {
+    speciesId,
+    rank,
+    bgBonuses: bgBonuses(background),
+    equip: aggregateEquip(equipment),
+    sizeMove: sizeOf(sizeId, speciesId).move,
+  });
   return (
     <div className="derived-grid">
       {DERIVED.map((stat) => (

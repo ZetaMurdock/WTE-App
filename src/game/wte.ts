@@ -3,6 +3,9 @@
 // public/sheet.html calcAll() (core layer only: no equipment / size / rank / pressure)
 // so native results match the old sheet exactly.
 
+import genusData from "./data/genus.json";
+import cipherData from "./data/ciphers.json";
+
 export type AttrKey = "phy" | "dex" | "end" | "ap" | "wis" | "cha" | "int";
 export type SpecKey =
   | "ins" | "ver" | "bal" | "wt" | "pre" | "ctrl"
@@ -235,16 +238,158 @@ export function getParadigm(id?: string): Paradigm | undefined {
   return PARADIGMS.find((p) => p.id === id);
 }
 
+// ── Size, weight & equipment (ported from the legacy sheet) ───────────────
+export interface SizeClass {
+  key: string;
+  label: string;
+  budget: number;
+  reach: number;
+  move: number;
+  note: string;
+}
+export const SIZE_CLASSES: SizeClass[] = [
+  { key: "tiny", label: "Tiny", budget: 8, reach: 0, move: 15, note: "¼ weapon dmg · ½ AoE · Minute gear only" },
+  { key: "small", label: "Small", budget: 13, reach: 5, move: 25, note: "Disadv vs Huge+ · +1 Stealth (tight) · +1 grapple escape" },
+  { key: "moderate", label: "Moderate", budget: 20, reach: 5, move: 30, note: "Baseline — no size modifiers" },
+  { key: "large", label: "Large", budget: 27, reach: 10, move: 35, note: "Adv vs Small/Tiny · +1d4 melee · Large armor +2 DHP · −1 Stealth (open)" },
+  { key: "huge", label: "Huge", budget: 35, reach: 15, move: 45, note: "Adv vs Moderate− · +2d6 melee · Stomp" },
+  { key: "colossal", label: "Colossal", budget: 50, reach: 25, move: 60, note: "Phase-event scale" },
+];
+
+export type WeightKey = "minute" | "light" | "standard" | "heavy" | "massive" | "titanic";
+export interface WeightCat {
+  key: WeightKey;
+  label: string;
+  cost: number;
+  minSize: number;
+}
+export const WEIGHT_CATS: WeightCat[] = [
+  { key: "minute", label: "Minute", cost: 0.25, minSize: 0 },
+  { key: "light", label: "Light", cost: 0.5, minSize: 1 },
+  { key: "standard", label: "Standard", cost: 1.0, minSize: 2 },
+  { key: "heavy", label: "Heavy", cost: 2.0, minSize: 3 },
+  { key: "massive", label: "Massive", cost: 4.0, minSize: 4 },
+  { key: "titanic", label: "Titanic", cost: 8.0, minSize: 5 },
+];
+
+/** Default size per species id, used when a character's size is left on "auto". */
+export const SPECIES_SIZE: Record<string, string> = {
+  hyomen: "moderate", voaulton: "moderate", mirga: "small", oriyu: "moderate",
+  insectoid: "small", subdermin: "small", inderi: "moderate", seraph: "moderate", stygians: "moderate",
+};
+
+export interface EquipmentItem {
+  id: string;
+  name: string;
+  weight: WeightKey;
+  equipped: boolean;
+  /** Free-text stat mods, e.g. "DEX +2, DHP +3, Weight -1". */
+  mods: string;
+  notes?: string;
+}
+
+// Free-text mod name → target ("a:phy" attr, "s:wt" specialty, "d:atk" derived). Longer names win.
+const STAT_ALIASES: Record<string, string> = {
+  phy: "a:phy", strength: "a:phy", str: "a:phy", dex: "a:dex", dexterity: "a:dex", end: "a:end", endurance: "a:end",
+  ap: "a:ap", "action priority": "a:ap", wis: "a:wis", wisdom: "a:wis", cha: "a:cha", con: "a:cha", charisma: "a:cha",
+  int: "a:int", intelligence: "a:int",
+  inspiration: "s:ins", insp: "s:ins", ins: "s:ins", versatility: "s:ver", ver: "s:ver", balance: "s:bal", bal: "s:bal",
+  weight: "s:wt", wt: "s:wt", precision: "s:pre", prec: "s:pre", pre: "s:pre", control: "s:ctrl", ctrl: "s:ctrl",
+  priority: "s:pri", pri: "s:pri", "wpn mastery": "s:wm", "weapon mastery": "s:wm", mastery: "s:wm", wm: "s:wm",
+  "mental fort": "s:mf", "mental fortitude": "s:mf", fort: "s:mf", mf: "s:mf", perception: "s:per", per: "s:per",
+  adaption: "s:adp", adaptation: "s:adp", adp: "s:adp", cunning: "s:cun", cun: "s:cun",
+  attack: "d:atk", "attack power": "d:atk", atk: "d:atk", dhp: "d:dhp", "defensive hit points": "d:dhp", "def hit points": "d:dhp",
+  movement: "d:mv", move: "d:mv", mv: "d:mv", "synaptic space": "d:ss", synaptic: "d:ss", ss: "d:ss", evasion: "d:ev", eva: "d:ev", ev: "d:ev",
+  "neuronal capacity": "d:nc", neuronal: "d:nc", nc: "d:nc", "recovery rate": "d:rr", recovery: "d:rr", rr: "d:rr",
+  "action density": "d:ad", density: "d:ad", ad: "d:ad", influence: "d:inf", inf: "d:inf", "perception range": "d:pr", range: "d:pr", pr: "d:pr",
+};
+
+export interface EquipMods {
+  attr: Partial<Record<AttrKey, number>>;
+  spec: Partial<Record<SpecKey, number>>;
+  derived: Partial<Record<DerivedKey, number>>;
+}
+export function parseEquipMods(text: string): EquipMods {
+  const out: EquipMods = { attr: {}, spec: {}, derived: {} };
+  String(text || "").replace(/−/g, "-").split(/[,;\n]+/).forEach((tok) => {
+    const m = tok.trim().match(/^(.+?)\s*([+-]\s*\d+)\s*$/);
+    if (!m) return;
+    const name = m[1].trim().toLowerCase().replace(/\s+/g, " ");
+    const ref = STAT_ALIASES[name];
+    if (!ref) return;
+    const v = parseInt(m[2].replace(/\s+/g, ""), 10) || 0;
+    const key = ref.slice(2);
+    if (ref[0] === "a") out.attr[key as AttrKey] = (out.attr[key as AttrKey] || 0) + v;
+    else if (ref[0] === "s") out.spec[key as SpecKey] = (out.spec[key as SpecKey] || 0) + v;
+    else out.derived[key as DerivedKey] = (out.derived[key as DerivedKey] || 0) + v;
+  });
+  return out;
+}
+export function aggregateEquip(items?: EquipmentItem[]): EquipMods {
+  const out: EquipMods = { attr: {}, spec: {}, derived: {} };
+  (items || []).forEach((it) => {
+    if (!it.equipped) return;
+    const m = parseEquipMods(it.mods);
+    for (const k in m.attr) out.attr[k as AttrKey] = (out.attr[k as AttrKey] || 0) + (m.attr[k as AttrKey] || 0);
+    for (const k in m.spec) out.spec[k as SpecKey] = (out.spec[k as SpecKey] || 0) + (m.spec[k as SpecKey] || 0);
+    for (const k in m.derived) out.derived[k as DerivedKey] = (out.derived[k as DerivedKey] || 0) + (m.derived[k as DerivedKey] || 0);
+  });
+  return out;
+}
+export function sizeIndexOf(sizeId: string | undefined, speciesId?: string): number {
+  const key = !sizeId || sizeId === "auto" ? SPECIES_SIZE[speciesId || ""] || "moderate" : sizeId;
+  const i = SIZE_CLASSES.findIndex((s) => s.key === key);
+  return i < 0 ? 2 : i;
+}
+export function sizeOf(sizeId: string | undefined, speciesId?: string): SizeClass {
+  return SIZE_CLASSES[sizeIndexOf(sizeId, speciesId)];
+}
+
+// ── Genus & Ciphers (baked from the Codex wiki mirror) ────────────────────
+export interface GenusAbility {
+  name: string;
+  ss: number | null;
+}
+export interface CipherAbility {
+  name: string;
+  ss: number | null;
+  tier: string;
+}
+const GENUS_DATA = genusData as Record<string, GenusAbility[]>;
+const CIPHER_DATA = cipherData as Record<string, CipherAbility[]>;
+
+/** Genus abilities available to a paradigm, grouped by its accessible energy domains. */
+export function genusForParadigm(paradigmId?: string): { domain: string; abilities: GenusAbility[] }[] {
+  const p = getParadigm(paradigmId);
+  if (!p) return [];
+  return p.domains
+    .map((d) => ({ domain: d, abilities: GENUS_DATA[d] || [] }))
+    .filter((g) => g.abilities.length > 0);
+}
+/** Ciphers for a paradigm, in page order (each carries its tier: offline/online/special). */
+export function ciphersForParadigm(paradigmId?: string): CipherAbility[] {
+  return CIPHER_DATA[paradigmId || ""] || [];
+}
+export const CIPHER_TIERS = ["offline", "online", "special"] as const;
+
+/** Specialties with equipment bonuses folded in (used for rolls + mod boxes). */
+export function effectiveSpecialties(base: Specialties, equipSpec?: Partial<Record<SpecKey, number>>): Specialties {
+  const out = { ...base };
+  if (equipSpec) for (const k of SPEC_KEYS) out[k] = (out[k] || 0) + (equipSpec[k] || 0);
+  return out;
+}
+
 /** Base attributes with the selected species' innate bonuses and any background additions folded in. */
 export function effectiveAttributes(
   base: Attributes,
   speciesId?: string,
-  bg?: Partial<Record<AttrKey, number>>
+  bg?: Partial<Record<AttrKey, number>>,
+  equipAttr?: Partial<Record<AttrKey, number>>
 ): Attributes {
   const sp = getSpecies(speciesId);
   const out = { ...base };
   for (const k of ATTR_KEYS) {
-    out[k] = (out[k] || 0) + (sp?.bonuses[k] || 0) + (bg?.[k] || 0);
+    out[k] = (out[k] || 0) + (sp?.bonuses[k] || 0) + (bg?.[k] || 0) + (equipAttr?.[k] || 0);
   }
   return out;
 }
@@ -255,15 +400,18 @@ export interface DerivedOpts {
   speciesId?: string;
   rank?: number;
   bgBonuses?: Partial<Record<AttrKey, number>>;
+  equip?: EquipMods;
+  /** Movement is floored at the size class's base move. */
+  sizeMove?: number;
 }
 export function computeDerived(
   attrsIn: Attributes,
   specsIn: Specialties,
   opts: DerivedOpts = {}
 ): Derived & { hpMax: number } {
-  const a = effectiveAttributes(attrsIn, opts.speciesId, opts.bgBonuses);
+  const a = effectiveAttributes(attrsIn, opts.speciesId, opts.bgBonuses, opts.equip?.attr);
   const s = { ...specsIn };
-  for (const k of SPEC_KEYS) s[k] = Math.min(SPEC_MAX, s[k] || 0);
+  for (const k of SPEC_KEYS) s[k] = Math.min(SPEC_MAX, (s[k] || 0) + (opts.equip?.spec?.[k] || 0));
 
   const red = (pts: number) => Math.floor(pts / RED_DIV);
   const dv = (contribs: number, reductions: number) => {
@@ -284,6 +432,9 @@ export function computeDerived(
     inf: dv(a.cha + s.cun + s.ins + s.ver, red(s.adp) + red(s.per)),
     pr: dv(a.wis + s.per + s.cun, red(s.mf) + red(s.bal)),
   };
+  const ed = opts.equip?.derived;
+  if (ed) for (const stat of DERIVED) d[stat.key] += ed[stat.key] || 0;
+  if (opts.sizeMove != null) d.mv = Math.max(d.mv, opts.sizeMove);
   const hpMax = Math.max(0, Math.floor((d.dhp / 2) * rankMult(opts.rank ?? 0)) + attrMod(a.end));
   return { ...d, hpMax };
 }

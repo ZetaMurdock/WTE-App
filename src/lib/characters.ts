@@ -40,6 +40,10 @@ function parseSheet(raw: string | null): CharacterSheet {
       paradigmId: p.paradigmId,
       rank: typeof p.rank === "number" ? p.rank : 0,
       background: p.background,
+      sizeId: p.sizeId || "auto",
+      equipment: Array.isArray(p.equipment) ? p.equipment : [],
+      genusLoadout: Array.isArray(p.genusLoadout) ? p.genusLoadout : [],
+      cipherLoadout: Array.isArray(p.cipherLoadout) ? p.cipherLoadout : [],
       notes: p.notes || "",
     };
   } catch {

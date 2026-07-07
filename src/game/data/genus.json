@@ -1,0 +1,404 @@
+{
+  "Kinetic": [
+    {
+      "name": "Vector Swing",
+      "ss": 1
+    },
+    {
+      "name": "Frictionless Advance",
+      "ss": 3
+    },
+    {
+      "name": "Enhanced Strike",
+      "ss": 1
+    },
+    {
+      "name": "Blitz",
+      "ss": 5
+    },
+    {
+      "name": "Inverse Dodge",
+      "ss": 4
+    },
+    {
+      "name": "Reverse Reaction",
+      "ss": 4
+    },
+    {
+      "name": "Reverted Advance",
+      "ss": 5
+    },
+    {
+      "name": "Long Jump",
+      "ss": 3
+    },
+    {
+      "name": "Teleport",
+      "ss": 8
+    },
+    {
+      "name": "Mirage Step",
+      "ss": 4
+    },
+    {
+      "name": "Mirror Movement",
+      "ss": 5
+    },
+    {
+      "name": "Vector Swap",
+      "ss": 5
+    },
+    {
+      "name": "Vector Decentralization",
+      "ss": 6
+    },
+    {
+      "name": "Vibrate",
+      "ss": 3
+    },
+    {
+      "name": "Animate Object",
+      "ss": 4
+    },
+    {
+      "name": "Phase",
+      "ss": 7
+    },
+    {
+      "name": "Hover",
+      "ss": null
+    },
+    {
+      "name": "Atomic Reverberation",
+      "ss": 9
+    },
+    {
+      "name": "Vibration Link",
+      "ss": 4
+    },
+    {
+      "name": "Lock Move",
+      "ss": 5
+    }
+  ],
+  "Eldritch": [
+    {
+      "name": "Lark",
+      "ss": 5
+    },
+    {
+      "name": "Varken",
+      "ss": 4
+    },
+    {
+      "name": "Borne",
+      "ss": 7
+    },
+    {
+      "name": "Armor Increase",
+      "ss": 3
+    },
+    {
+      "name": "Enlarge",
+      "ss": 6
+    },
+    {
+      "name": "Chattering Touch",
+      "ss": 4
+    },
+    {
+      "name": "Passive Death",
+      "ss": null
+    },
+    {
+      "name": "Fyber Mutation",
+      "ss": 7
+    },
+    {
+      "name": "Antheosis",
+      "ss": 15
+    },
+    {
+      "name": "Harlingsine",
+      "ss": 6
+    },
+    {
+      "name": "Luscinian Embrace",
+      "ss": 5
+    },
+    {
+      "name": "Inverse Reverse",
+      "ss": 5
+    },
+    {
+      "name": "Reverse",
+      "ss": 7
+    },
+    {
+      "name": "Unfloor",
+      "ss": 4
+    },
+    {
+      "name": "Room Enhancement",
+      "ss": 10
+    },
+    {
+      "name": "Energic Change",
+      "ss": 6
+    },
+    {
+      "name": "Fabian Laugh",
+      "ss": 3
+    },
+    {
+      "name": "Seekth",
+      "ss": 4
+    }
+  ],
+  "Elemental": [
+    {
+      "name": "Solidify",
+      "ss": 4
+    },
+    {
+      "name": "Vorpal",
+      "ss": 10
+    },
+    {
+      "name": "Wisperian",
+      "ss": 5
+    },
+    {
+      "name": "Chain Reaction",
+      "ss": 6
+    },
+    {
+      "name": "Chain Element",
+      "ss": 5
+    },
+    {
+      "name": "Spontaneous Combustion",
+      "ss": 7
+    },
+    {
+      "name": "Living Element",
+      "ss": 8
+    },
+    {
+      "name": "Elevated Leap",
+      "ss": 4
+    },
+    {
+      "name": "Charge",
+      "ss": null
+    },
+    {
+      "name": "Dominate Element",
+      "ss": 9
+    },
+    {
+      "name": "Meta Change",
+      "ss": 15
+    },
+    {
+      "name": "Geothian",
+      "ss": 6
+    },
+    {
+      "name": "Hail Rain",
+      "ss": 5
+    },
+    {
+      "name": "Metalargy",
+      "ss": 5
+    },
+    {
+      "name": "Purify Water",
+      "ss": 2
+    },
+    {
+      "name": "Purify Element",
+      "ss": 4
+    },
+    {
+      "name": "Photonic Cleave",
+      "ss": 6
+    },
+    {
+      "name": "Tachyeonic",
+      "ss": 8
+    },
+    {
+      "name": "Heat",
+      "ss": 2
+    }
+  ],
+  "Neutral": [
+    {
+      "name": "Animate Animationless",
+      "ss": 4
+    },
+    {
+      "name": "Reduce Object",
+      "ss": 2
+    },
+    {
+      "name": "Composite Creation",
+      "ss": 5
+    },
+    {
+      "name": "Hearth",
+      "ss": 10
+    },
+    {
+      "name": "Deus",
+      "ss": 12
+    },
+    {
+      "name": "Sure Fire",
+      "ss": 3
+    },
+    {
+      "name": "Auto Aim",
+      "ss": 2
+    },
+    {
+      "name": "View Organism",
+      "ss": 3
+    },
+    {
+      "name": "Corporeal Shift",
+      "ss": 6
+    },
+    {
+      "name": "Manifest Weakness",
+      "ss": 4
+    },
+    {
+      "name": "True Intentions",
+      "ss": 5
+    },
+    {
+      "name": "Internal Break",
+      "ss": 5
+    },
+    {
+      "name": "Desentralization",
+      "ss": 4
+    },
+    {
+      "name": "Disperss Vibe",
+      "ss": 3
+    },
+    {
+      "name": "Meld Memory",
+      "ss": 6
+    },
+    {
+      "name": "Meld Mind",
+      "ss": 9
+    },
+    {
+      "name": "Distant Grasp",
+      "ss": 3
+    },
+    {
+      "name": "Create Glass of Water",
+      "ss": 1
+    },
+    {
+      "name": "Material Locate",
+      "ss": 3
+    },
+    {
+      "name": "Link",
+      "ss": 4
+    }
+  ],
+  "Null": [
+    {
+      "name": "Deconstruct",
+      "ss": 5
+    },
+    {
+      "name": "Construct",
+      "ss": 1
+    },
+    {
+      "name": "Reconstruct",
+      "ss": null
+    },
+    {
+      "name": "Composite Nullification",
+      "ss": 1
+    },
+    {
+      "name": "Exchange",
+      "ss": null
+    },
+    {
+      "name": "Volume Increase",
+      "ss": 3
+    },
+    {
+      "name": "Mass Increase",
+      "ss": 4
+    },
+    {
+      "name": "Abstraction",
+      "ss": 8
+    },
+    {
+      "name": "Virulent Expunge",
+      "ss": 6
+    },
+    {
+      "name": "Silience",
+      "ss": 3
+    },
+    {
+      "name": "Manifold Inversion",
+      "ss": 9
+    },
+    {
+      "name": "Reality Break",
+      "ss": 15
+    },
+    {
+      "name": "Bastion Creation",
+      "ss": 8
+    },
+    {
+      "name": "Shape Change",
+      "ss": 5
+    },
+    {
+      "name": "Corrode Material",
+      "ss": 4
+    },
+    {
+      "name": "Meld Form",
+      "ss": 7
+    },
+    {
+      "name": "Decisive Grasp",
+      "ss": 5
+    },
+    {
+      "name": "Negate",
+      "ss": null
+    },
+    {
+      "name": "Reflect",
+      "ss": null
+    },
+    {
+      "name": "Create Being",
+      "ss": 12
+    },
+    {
+      "name": "Inhibit",
+      "ss": 5
+    }
+  ]
+}

@@ -9,6 +9,8 @@ import {
   ATTR_MAX,
   RANK_MAX,
   effectiveAttributes,
+  effectiveSpecialties,
+  aggregateEquip,
   bgBonuses,
   rollMod,
   specRollMod,
@@ -25,10 +27,13 @@ import {
   type AttrKey,
   type SpecKey,
   type RollResult,
+  type EquipmentItem,
 } from "../../game/wte";
 import { DerivedPreview } from "./DerivedPreview";
 import { RollFeed, useRollFeed } from "./RollFeed";
 import { SpeciesVariantsPanel } from "./SpeciesVariantsPanel";
+import { EquipmentPanel } from "./EquipmentPanel";
+import { AbilitiesPanel } from "./AbilitiesPanel";
 
 interface Props {
   characterId: string;
@@ -46,6 +51,8 @@ function intOf(v: string): number {
 export function CharacterSheet({ characterId, campaignId, curator, onBack, onChanged }: Props) {
   const [rec, setRec] = useState<CharacterRecord | null>(null);
   const [variantsOpen, setVariantsOpen] = useState(false);
+  const [equipmentOpen, setEquipmentOpen] = useState(false);
+  const [abilitiesOpen, setAbilitiesOpen] = useState(false);
   const { items: feedItems, push: pushFeed } = useRollFeed();
   const saveTimer = useRef<number | undefined>(undefined);
   const pending = useRef<CharacterRecord | null>(null);
@@ -81,7 +88,9 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
 
   const sheet = rec.sheet;
   const rank = sheet.rank ?? 0;
-  const eff = effectiveAttributes(sheet.attributes, sheet.speciesId, bgBonuses(sheet.background));
+  const equip = aggregateEquip(sheet.equipment);
+  const eff = effectiveAttributes(sheet.attributes, sheet.speciesId, bgBonuses(sheet.background), equip.attr);
+  const effSpec = effectiveSpecialties(sheet.specialties, equip.spec);
   const remaining = specialtyRemaining(sheet.specialties);
   const validation = validateSheet(sheet.attributes, sheet.specialties);
   const species = getSpecies(sheet.speciesId);
@@ -113,6 +122,18 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   function setVariant(name: string | undefined) {
     persist({ ...rec!, sheet: { ...sheet, variantName: name } });
   }
+  function setSize(sizeId: string) {
+    persist({ ...rec!, sheet: { ...sheet, sizeId } });
+  }
+  function setEquipment(items: EquipmentItem[]) {
+    persist({ ...rec!, sheet: { ...sheet, equipment: items } });
+  }
+  function setGenus(names: string[]) {
+    persist({ ...rec!, sheet: { ...sheet, genusLoadout: names } });
+  }
+  function setCiphers(names: string[]) {
+    persist({ ...rec!, sheet: { ...sheet, cipherLoadout: names } });
+  }
 
   async function doRoll(roll: RollResult) {
     pushFeed(roll);
@@ -129,6 +150,12 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
           <h1 className="dash-title">{rec.name}</h1>
         </div>
         <div className="sheet-head-actions">
+          <button className="ghost-btn" onClick={() => setAbilitiesOpen(true)}>
+            Abilities
+          </button>
+          <button className="ghost-btn" onClick={() => setEquipmentOpen(true)}>
+            Equipment & Size
+          </button>
           <button className="ghost-btn" onClick={() => setVariantsOpen(true)}>
             Species Variants
           </button>
@@ -204,7 +231,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
           </div>
           <div className="stat-editor">
             {SPECIALTIES.map((s) => {
-              const pts = Math.min(SPEC_MAX, sheet.specialties[s.key]);
+              const pts = Math.min(SPEC_MAX, effSpec[s.key]);
               return (
                 <div className="stat-row" key={s.key}>
                   <div className="stat-info">
@@ -239,7 +266,27 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
             speciesId={sheet.speciesId}
             rank={rank}
             background={sheet.background}
+            equipment={sheet.equipment}
+            sizeId={sheet.sizeId}
           />
+
+          {(sheet.genusLoadout?.length ?? 0) + (sheet.cipherLoadout?.length ?? 0) > 0 && (
+            <>
+              <div className="panel-title mt">Loadout</div>
+              <div className="chip-list">
+                {(sheet.genusLoadout ?? []).map((n) => (
+                  <span key={"g" + n} className="load-chip">
+                    {n}
+                  </span>
+                ))}
+                {(sheet.cipherLoadout ?? []).map((n) => (
+                  <span key={"c" + n} className="load-chip cipher">
+                    {n}
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
 
           <div className="panel-title mt">Roll feed</div>
           <RollFeed items={feedItems} />
@@ -254,6 +301,26 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
         </div>
       </div>
 
+      <AbilitiesPanel
+        open={abilitiesOpen}
+        onClose={() => setAbilitiesOpen(false)}
+        paradigmId={sheet.paradigmId}
+        rank={rank}
+        genusLoadout={sheet.genusLoadout ?? []}
+        cipherLoadout={sheet.cipherLoadout ?? []}
+        onGenus={setGenus}
+        onCiphers={setCiphers}
+      />
+      <EquipmentPanel
+        open={equipmentOpen}
+        onClose={() => setEquipmentOpen(false)}
+        speciesId={sheet.speciesId}
+        sizeId={sheet.sizeId}
+        equipment={sheet.equipment}
+        curator={curator}
+        onSize={setSize}
+        onEquipment={setEquipment}
+      />
       <SpeciesVariantsPanel
         open={variantsOpen}
         onClose={() => setVariantsOpen(false)}

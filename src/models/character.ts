@@ -1,4 +1,4 @@
-import type { Attributes, Specialties, Background } from "../game/wte";
+import type { Attributes, Specialties, Background, EquipmentItem } from "../game/wte";
 
 /** DB-row metadata for a character (the `data` column holds the CharacterSheet JSON). */
 export interface Character {
@@ -22,5 +22,11 @@ export interface CharacterSheet {
   /** Curator-managed rank 0..9. */
   rank?: number;
   background?: Background;
+  /** Size class key, or "auto" (default per species). */
+  sizeId?: string;
+  equipment?: EquipmentItem[];
+  /** Selected genus / cipher ability names (loadout, capped by rank slots). */
+  genusLoadout?: string[];
+  cipherLoadout?: string[];
   notes?: string;
 }

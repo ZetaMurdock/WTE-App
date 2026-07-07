@@ -1,0 +1,749 @@
+{
+  "science": [
+    {
+      "name": "LIGHT WEIGHT",
+      "ss": 35,
+      "tier": "offline"
+    },
+    {
+      "name": "MALLIATION",
+      "ss": 15,
+      "tier": "offline"
+    },
+    {
+      "name": "VISIATION",
+      "ss": 25,
+      "tier": "offline"
+    },
+    {
+      "name": "CHEMICAL ALTER",
+      "ss": 45,
+      "tier": "offline"
+    },
+    {
+      "name": "STABLIZE",
+      "ss": 40,
+      "tier": "offline"
+    },
+    {
+      "name": "SPECTRCO",
+      "ss": 55,
+      "tier": "offline"
+    },
+    {
+      "name": "BF-C",
+      "ss": 65,
+      "tier": "offline"
+    },
+    {
+      "name": "RAHMAN-S",
+      "ss": 68,
+      "tier": "offline"
+    },
+    {
+      "name": "DIMENSIONAL MAPPING",
+      "ss": 75,
+      "tier": "offline"
+    },
+    {
+      "name": "BIPARTION",
+      "ss": 50,
+      "tier": "offline"
+    },
+    {
+      "name": "MASKING",
+      "ss": 25,
+      "tier": "online"
+    },
+    {
+      "name": "SYNTHESIS",
+      "ss": 35,
+      "tier": "online"
+    },
+    {
+      "name": "REFRACTION CASCADE",
+      "ss": 45,
+      "tier": "online"
+    },
+    {
+      "name": "ISOTOPIC ANALYSIS",
+      "ss": 20,
+      "tier": "online"
+    },
+    {
+      "name": "MOLECULAR ASSEMBLY",
+      "ss": 55,
+      "tier": "online"
+    },
+    {
+      "name": "QUANTUM ENTANGLEMENT LINK",
+      "ss": 50,
+      "tier": "online"
+    },
+    {
+      "name": "PHASE SHIFT DETECTOR",
+      "ss": 25,
+      "tier": "online"
+    },
+    {
+      "name": "ATMOSPHERIC CONVERTER",
+      "ss": 60,
+      "tier": "online"
+    },
+    {
+      "name": "CATALYST",
+      "ss": 30,
+      "tier": "online"
+    },
+    {
+      "name": "HISTORICAL DATA EXTRACTION",
+      "ss": 35,
+      "tier": "online"
+    },
+    {
+      "name": "S1 — ABSOLUTE ZERO",
+      "ss": 80,
+      "tier": "special"
+    },
+    {
+      "name": "S2 — GENESIS FORMULA",
+      "ss": 100,
+      "tier": "special"
+    },
+    {
+      "name": "S3 — GRAND UNIFIED THEORY",
+      "ss": 70,
+      "tier": "special"
+    },
+    {
+      "name": "S4 — SYSTEMATIC COLLAPSE",
+      "ss": 90,
+      "tier": "special"
+    },
+    {
+      "name": "S5 — LIVING SCIENCE",
+      "ss": 60,
+      "tier": "special"
+    }
+  ],
+  "simulation": [
+    {
+      "name": "SIMULATED EJECT",
+      "ss": 40,
+      "tier": "offline"
+    },
+    {
+      "name": "INFLICTION",
+      "ss": 35,
+      "tier": "offline"
+    },
+    {
+      "name": "SIMULATED CLEAVER",
+      "ss": 50,
+      "tier": "offline"
+    },
+    {
+      "name": "TRACE",
+      "ss": 34,
+      "tier": "offline"
+    },
+    {
+      "name": "XRYTE",
+      "ss": 35,
+      "tier": "offline"
+    },
+    {
+      "name": "DIGITIZE",
+      "ss": 35,
+      "tier": "offline"
+    },
+    {
+      "name": "DISTIE",
+      "ss": 56,
+      "tier": "offline"
+    },
+    {
+      "name": "MANUSIM",
+      "ss": 35,
+      "tier": "offline"
+    },
+    {
+      "name": "LITTLE HELPER",
+      "ss": 25,
+      "tier": "offline"
+    },
+    {
+      "name": "DISTRUO",
+      "ss": 35,
+      "tier": "offline"
+    },
+    {
+      "name": "SALITE",
+      "ss": 76,
+      "tier": "online"
+    },
+    {
+      "name": "OVERLAY",
+      "ss": 30,
+      "tier": "online"
+    },
+    {
+      "name": "SIMULATED REINFORCEMENT",
+      "ss": 45,
+      "tier": "online"
+    },
+    {
+      "name": "NETWORK SIMULATION",
+      "ss": 55,
+      "tier": "online"
+    },
+    {
+      "name": "BREACH",
+      "ss": 50,
+      "tier": "online"
+    },
+    {
+      "name": "CORRUPTION UPLOAD",
+      "ss": 40,
+      "tier": "online"
+    },
+    {
+      "name": "REALITY ANCHOR",
+      "ss": 65,
+      "tier": "online"
+    },
+    {
+      "name": "MIRROR WORLD",
+      "ss": 70,
+      "tier": "online"
+    },
+    {
+      "name": "SIGNAL INTERCEPT",
+      "ss": 35,
+      "tier": "online"
+    },
+    {
+      "name": "COMPLETE OVERRIDE",
+      "ss": 80,
+      "tier": "online"
+    },
+    {
+      "name": "S1 — PERSISTENT WORLD",
+      "ss": 100,
+      "tier": "special"
+    },
+    {
+      "name": "S2 — PARALLAX COLLAPSE",
+      "ss": 85,
+      "tier": "special"
+    },
+    {
+      "name": "S3 — TRUE SIMULATION",
+      "ss": 90,
+      "tier": "special"
+    },
+    {
+      "name": "S4 — VOID UPLOAD",
+      "ss": 75,
+      "tier": "special"
+    },
+    {
+      "name": "S5 — THE FINAL DRAFT",
+      "ss": 120,
+      "tier": "special"
+    }
+  ],
+  "remnant": [
+    {
+      "name": "MULTITOOL",
+      "ss": 15,
+      "tier": "offline"
+    },
+    {
+      "name": "ANIMATION",
+      "ss": 25,
+      "tier": "offline"
+    },
+    {
+      "name": "DEFLECTION",
+      "ss": 15,
+      "tier": "offline"
+    },
+    {
+      "name": "PASTING VIEW",
+      "ss": 25,
+      "tier": "offline"
+    },
+    {
+      "name": "PHASE",
+      "ss": 40,
+      "tier": "offline"
+    },
+    {
+      "name": "GLIMPSE",
+      "ss": 30,
+      "tier": "offline"
+    },
+    {
+      "name": "TACHYEON",
+      "ss": 57,
+      "tier": "offline"
+    },
+    {
+      "name": "VECRAVEL",
+      "ss": 45,
+      "tier": "offline"
+    },
+    {
+      "name": "TIGHTEN",
+      "ss": 35,
+      "tier": "offline"
+    },
+    {
+      "name": "INCOGNITO",
+      "ss": 35,
+      "tier": "offline"
+    },
+    {
+      "name": "BYGONE",
+      "ss": 65,
+      "tier": "online"
+    },
+    {
+      "name": "ECHO CHAIN",
+      "ss": 40,
+      "tier": "online"
+    },
+    {
+      "name": "MEMORY LOCK",
+      "ss": 25,
+      "tier": "online"
+    },
+    {
+      "name": "TEMPORAL FOLD",
+      "ss": 45,
+      "tier": "online"
+    },
+    {
+      "name": "GHOST PROTOCOL",
+      "ss": 50,
+      "tier": "online"
+    },
+    {
+      "name": "REMNANT RETRIEVAL",
+      "ss": 55,
+      "tier": "online"
+    },
+    {
+      "name": "SPECTRAL LINK",
+      "ss": 40,
+      "tier": "online"
+    },
+    {
+      "name": "PHASE CASCADE",
+      "ss": 60,
+      "tier": "online"
+    },
+    {
+      "name": "ADAPTIVE CAMOUFLAGE",
+      "ss": 35,
+      "tier": "online"
+    },
+    {
+      "name": "PERFECT RECALL",
+      "ss": 30,
+      "tier": "online"
+    },
+    {
+      "name": "S1 — THE REMNANT",
+      "ss": 90,
+      "tier": "special"
+    },
+    {
+      "name": "S2 — CHRONAL ECHO",
+      "ss": 75,
+      "tier": "special"
+    },
+    {
+      "name": "S3 — ABSOLUTE INCOGNITO",
+      "ss": 60,
+      "tier": "special"
+    },
+    {
+      "name": "S5 — THE LAST STAND",
+      "ss": 0,
+      "tier": "special"
+    }
+  ],
+  "cognition": [
+    {
+      "name": "MIND TWEAK",
+      "ss": 25,
+      "tier": "offline"
+    },
+    {
+      "name": "DETECTION",
+      "ss": 15,
+      "tier": "offline"
+    },
+    {
+      "name": "BRAIN WASH",
+      "ss": 40,
+      "tier": "offline"
+    },
+    {
+      "name": "TRANSLATE",
+      "ss": 20,
+      "tier": "offline"
+    },
+    {
+      "name": "FILTER",
+      "ss": 50,
+      "tier": "offline"
+    },
+    {
+      "name": "PERCEPTI",
+      "ss": 54,
+      "tier": "offline"
+    },
+    {
+      "name": "ARTHIMETIC",
+      "ss": 50,
+      "tier": "offline"
+    },
+    {
+      "name": "DIFUSE",
+      "ss": 35,
+      "tier": "offline"
+    },
+    {
+      "name": "ALGORIM",
+      "ss": 65,
+      "tier": "offline"
+    },
+    {
+      "name": "RESONANT FIELD",
+      "ss": 45,
+      "tier": "offline"
+    },
+    {
+      "name": "NEURAL BRIDGE",
+      "ss": 30,
+      "tier": "online"
+    },
+    {
+      "name": "MEMORY WIPE",
+      "ss": 55,
+      "tier": "online"
+    },
+    {
+      "name": "COGNITIVE DOWNLOAD",
+      "ss": 45,
+      "tier": "online"
+    },
+    {
+      "name": "MASS DETECTION",
+      "ss": 35,
+      "tier": "online"
+    },
+    {
+      "name": "PSYCHIC SCREAM",
+      "ss": 50,
+      "tier": "online"
+    },
+    {
+      "name": "DREAM STATE",
+      "ss": 40,
+      "tier": "online"
+    },
+    {
+      "name": "COGNITIVE FORTRESS",
+      "ss": 45,
+      "tier": "online"
+    },
+    {
+      "name": "SYNAPTIC SURGE",
+      "ss": 55,
+      "tier": "online"
+    },
+    {
+      "name": "COLLECTIVE MIND",
+      "ss": 65,
+      "tier": "online"
+    },
+    {
+      "name": "S1 — OMNISCIENT MOMENT",
+      "ss": 70,
+      "tier": "special"
+    },
+    {
+      "name": "S2 — SOUL STITCH",
+      "ss": 60,
+      "tier": "special"
+    },
+    {
+      "name": "S3 — THE EMPTY",
+      "ss": 80,
+      "tier": "special"
+    },
+    {
+      "name": "S4 — COGNITIVE CASCADE",
+      "ss": 90,
+      "tier": "special"
+    },
+    {
+      "name": "S5 — ENLIGHTENMENT",
+      "ss": 100,
+      "tier": "special"
+    }
+  ],
+  "evolution": [
+    {
+      "name": "GENETIC MODEL",
+      "ss": 25,
+      "tier": "offline"
+    },
+    {
+      "name": "GENE EDIT",
+      "ss": 50,
+      "tier": "offline"
+    },
+    {
+      "name": "MODIFY",
+      "ss": 45,
+      "tier": "offline"
+    },
+    {
+      "name": "DEVELOP",
+      "ss": 35,
+      "tier": "offline"
+    },
+    {
+      "name": "INDUCE",
+      "ss": 50,
+      "tier": "offline"
+    },
+    {
+      "name": "SPECIA",
+      "ss": 35,
+      "tier": "offline"
+    },
+    {
+      "name": "INTER-SPECI",
+      "ss": 70,
+      "tier": "offline"
+    },
+    {
+      "name": "TEMP HP",
+      "ss": 35,
+      "tier": "offline"
+    },
+    {
+      "name": "GENETIC HERITAGE",
+      "ss": 50,
+      "tier": "offline"
+    },
+    {
+      "name": "CELLULAR MASTERY",
+      "ss": 55,
+      "tier": "offline"
+    },
+    {
+      "name": "ANCESTRAL AWAKENING",
+      "ss": 70,
+      "tier": "offline"
+    },
+    {
+      "name": "RAPID ADAPTATION",
+      "ss": 40,
+      "tier": "online"
+    },
+    {
+      "name": "EVOLUTIONARY FORK",
+      "ss": 55,
+      "tier": "online"
+    },
+    {
+      "name": "GENETIC LOCK",
+      "ss": 35,
+      "tier": "online"
+    },
+    {
+      "name": "MASS INDUCTION",
+      "ss": 65,
+      "tier": "online"
+    },
+    {
+      "name": "CELLULAR REGENERATION",
+      "ss": 45,
+      "tier": "online"
+    },
+    {
+      "name": "SPECIES MEMORY",
+      "ss": 50,
+      "tier": "online"
+    },
+    {
+      "name": "SYMBIOSIS LINK",
+      "ss": 40,
+      "tier": "online"
+    },
+    {
+      "name": "EVOLUTIONARY PRESSURE",
+      "ss": 60,
+      "tier": "online"
+    },
+    {
+      "name": "GENE VAULT",
+      "ss": 25,
+      "tier": "online"
+    },
+    {
+      "name": "S1 — NEW SPECIES",
+      "ss": 100,
+      "tier": "special"
+    },
+    {
+      "name": "S2 — GENESIS",
+      "ss": 120,
+      "tier": "special"
+    },
+    {
+      "name": "S3 — THE APEX",
+      "ss": 85,
+      "tier": "special"
+    },
+    {
+      "name": "S4 — GENETIC HERITAGE: COMPLETE",
+      "ss": 75,
+      "tier": "special"
+    },
+    {
+      "name": "S5 — LIFE WEAVE",
+      "ss": 110,
+      "tier": "special"
+    }
+  ],
+  "warfare": [
+    {
+      "name": "WEAPONIZE",
+      "ss": 25,
+      "tier": "offline"
+    },
+    {
+      "name": "TRIXT LINK",
+      "ss": 24,
+      "tier": "offline"
+    },
+    {
+      "name": "COMMAND",
+      "ss": 36,
+      "tier": "offline"
+    },
+    {
+      "name": "SEIZE",
+      "ss": 45,
+      "tier": "offline"
+    },
+    {
+      "name": "BULLWARK",
+      "ss": 35,
+      "tier": "offline"
+    },
+    {
+      "name": "AUTHORATATIVE",
+      "ss": 45,
+      "tier": "offline"
+    },
+    {
+      "name": "DECEIST",
+      "ss": 15,
+      "tier": "offline"
+    },
+    {
+      "name": "LAW BIND",
+      "ss": 25,
+      "tier": "offline"
+    },
+    {
+      "name": "HOLLOW SHELL",
+      "ss": 25,
+      "tier": "offline"
+    },
+    {
+      "name": "MARTIAL CODE",
+      "ss": 40,
+      "tier": "offline"
+    },
+    {
+      "name": "ARSENAL",
+      "ss": 55,
+      "tier": "online"
+    },
+    {
+      "name": "TACTICAL GRID",
+      "ss": 45,
+      "tier": "online"
+    },
+    {
+      "name": "CHAIN COMMAND",
+      "ss": 60,
+      "tier": "online"
+    },
+    {
+      "name": "FORTRESS",
+      "ss": 65,
+      "tier": "online"
+    },
+    {
+      "name": "WAR CRY",
+      "ss": 30,
+      "tier": "online"
+    },
+    {
+      "name": "CRUSHING ADVANCE",
+      "ss": 50,
+      "tier": "online"
+    },
+    {
+      "name": "NULL ZONE",
+      "ss": 70,
+      "tier": "online"
+    },
+    {
+      "name": "IRON WILL",
+      "ss": 45,
+      "tier": "online"
+    },
+    {
+      "name": "THE VICTOR'S CLAIM",
+      "ss": 35,
+      "tier": "online"
+    },
+    {
+      "name": "S1 — WAR DECLARATION",
+      "ss": 50,
+      "tier": "special"
+    },
+    {
+      "name": "S2 — ARMY OF ONE",
+      "ss": 150,
+      "tier": "special"
+    },
+    {
+      "name": "S3 — ABSOLUTE AUTHORITY",
+      "ss": 90,
+      "tier": "special"
+    },
+    {
+      "name": "S4 — THE LAST WAR",
+      "ss": 110,
+      "tier": "special"
+    },
+    {
+      "name": "S5 — FIELD MARSHAL",
+      "ss": 80,
+      "tier": "special"
+    }
+  ]
+}

@@ -1077,3 +1077,133 @@ body {
   font-style: italic;
   margin-bottom: 12px;
 }
+
+/* ── Equipment & Size panel ── */
+.bg-select.full {
+  width: 100%;
+}
+.primary-btn.full {
+  width: 100%;
+  padding: 11px 0;
+}
+.aside-title.mt {
+  margin-top: 22px;
+}
+.size-readout {
+  display: flex;
+  gap: 16px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--ink);
+}
+.size-note {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 6px;
+  font-style: italic;
+}
+.load-badge {
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--panel-line);
+  border-radius: 10px;
+  padding: 1px 8px;
+  margin-left: 8px;
+}
+.load-badge.over {
+  color: #d05a44;
+  border-color: #b03020;
+}
+.equip-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 12px 14px;
+}
+.equip-row2 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.equip-eq {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.equip-warn {
+  font-size: 11px;
+  color: #d05a44;
+}
+
+/* ── Abilities panel (Genus & Ciphers) ── */
+.ability-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 10px 12px;
+}
+.ability-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg);
+  border: 1px solid var(--panel-line);
+  color: var(--ink);
+  font-family: Georgia, serif;
+  font-size: 13px;
+  text-align: left;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.ability-row:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.ability-row.selected {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.ability-row:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.ability-check {
+  color: var(--accent);
+  width: 14px;
+  text-align: center;
+}
+.ability-name {
+  flex: 1;
+}
+.ss-badge {
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--panel-line);
+  border-radius: 10px;
+  padding: 1px 7px;
+  white-space: nowrap;
+}
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.load-chip {
+  font-size: 11px;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-radius: 12px;
+  padding: 3px 10px;
+}
+.load-chip.cipher {
+  border-color: var(--accent);
+  color: var(--accent);
+}
