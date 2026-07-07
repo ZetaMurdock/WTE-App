@@ -20,7 +20,7 @@ export async function scanCodex(force = false): Promise<CodexEntry[]> {
   for (const name of names) {
     try {
       const md = await invoke<string>("wte_load_page", { path: name });
-      const entry = parseCodexEntry(md);
+      const entry = parseCodexEntry(md, name);
       if (entry) entries.push(entry);
     } catch {
       /* unreadable page — skip */

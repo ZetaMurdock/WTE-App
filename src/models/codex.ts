@@ -23,17 +23,26 @@ export interface Weapon extends CodexBase {
   type: "weapon";
   category?: string; // Kinetic | Energy | Exotic | Hybrid
   grade?: number; // 1–4
-  damage?: string; // dice + damage type
+  slot?: string; // body slot (R_ARM, L_ARM, …)
+  weight?: string; // Minute | Light | Standard | Heavy | …
+  mods?: string; // raw "STAT ±N" list — parse with game/wte parseEquipMods
+  ncCost?: number; // Neuronal Capacity to use
+  ede?: boolean; // has an Overclock/EDE
+  domain?: string; // required genus domains to use (e.g. "Eldritch + Null")
+  damage?: string; // dice + damage type (from Base Attack Profile)
   range?: string;
-  weight?: string; // Light | Medium | Heavy
+  baseAttack?: string; // raw Base Attack Profile line
   sizeMin?: string; // minimum Size Class
 }
 export interface Equipment extends CodexBase {
   type: "equipment";
-  slot?: string; // Armor | Cybernetic | Utility | Wing | Other
+  slot?: string; // Armor | Cybernetic | Utility | Wing | R_ARM | …
   grade?: number;
   weight?: string;
   mods?: string; // raw "STAT ±N" list — parse with game/wte parseEquipMods
+  ncCost?: number;
+  ede?: boolean;
+  domain?: string;
 }
 export interface Cipher extends CodexBase {
   type: "cipher";
