@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { TopBar, type TabId } from "./components/TopBar";
 import { Dashboard } from "./components/Dashboard";
 import { ToolFrame } from "./components/ToolFrame";
+import { CharactersTab } from "./components/characters/CharactersTab";
+import { countCharacters } from "./lib/characters";
 import {
   getVersion,
   checkUpdate,
@@ -48,6 +50,9 @@ export default function App() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
   const [loading, setLoading] = useState(true);
+  const [charCount, setCharCount] = useState(0);
+  const [charTick, setCharTick] = useState(0);
+  const bumpChars = useCallback(() => setCharTick((t) => t + 1), []);
 
   const reload = useCallback(async () => {
     const list = await listCampaigns();
@@ -76,6 +81,21 @@ export default function App() {
     checkUpdate().then(setUpdate);
     restoreAuth((u) => setAccountLabel(accountLabelFor(u)));
   }, []);
+
+  // keep the Dashboard character count in sync with the active campaign
+  useEffect(() => {
+    let alive = true;
+    if (activeCampaign) {
+      countCharacters(activeCampaign.id).then((n) => {
+        if (alive) setCharCount(n);
+      });
+    } else {
+      setCharCount(0);
+    }
+    return () => {
+      alive = false;
+    };
+  }, [activeCampaign, charTick]);
 
   async function handleInstallUpdate() {
     if (!update) return;
@@ -162,13 +182,20 @@ export default function App() {
               loading={loading}
               campaign={activeCampaign}
               campaigns={campaigns}
+              characterCount={charCount}
               onCreate={handleCreate}
               onRename={handleRename}
               onArchive={handleArchive}
               onSelect={selectCampaign}
               onOpenTool={setActiveTab}
+              onOpenCharacters={() => setActiveTab("characters")}
               onSwitchCampaign={switchCampaign}
             />
+          </div>
+        )}
+        {activeTab === "characters" && (
+          <div className="view-scroll">
+            <CharactersTab campaign={activeCampaign} onCharactersChanged={bumpChars} />
           </div>
         )}
         <ToolFrame src="sheet.html" title="Character Sheet" hidden={activeTab !== "sheet"} />

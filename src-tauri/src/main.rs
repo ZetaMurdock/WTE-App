@@ -427,13 +427,35 @@ CREATE TABLE IF NOT EXISTS rules_meta (
 );
 ";
 
+// Phase 5: roll feed. Appended as a new migration — v1 is already applied on 0.4.20
+// installs and must never be edited.
+const SCHEMA_V2: &str = "
+CREATE TABLE IF NOT EXISTS rolls (
+  id TEXT PRIMARY KEY,
+  campaign_id TEXT,
+  character_id TEXT,
+  formula TEXT NOT NULL,
+  result INTEGER NOT NULL,
+  detail TEXT,
+  at INTEGER NOT NULL
+);
+";
+
 fn main() {
-    let migrations = vec![tauri_plugin_sql::Migration {
-        version: 1,
-        description: "create core campaign-scoped tables",
-        sql: SCHEMA_V1,
-        kind: tauri_plugin_sql::MigrationKind::Up,
-    }];
+    let migrations = vec![
+        tauri_plugin_sql::Migration {
+            version: 1,
+            description: "create core campaign-scoped tables",
+            sql: SCHEMA_V1,
+            kind: tauri_plugin_sql::MigrationKind::Up,
+        },
+        tauri_plugin_sql::Migration {
+            version: 2,
+            description: "add rolls table",
+            sql: SCHEMA_V2,
+            kind: tauri_plugin_sql::MigrationKind::Up,
+        },
+    ];
 
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())

@@ -1,10 +1,11 @@
 import type { WteUpdate } from "../lib/tauri";
 
-export type TabId = "dashboard" | "sheet" | "vtt" | "wiki";
+export type TabId = "dashboard" | "characters" | "sheet" | "vtt" | "wiki";
 
 export const TABS: { id: TabId; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
-  { id: "sheet", label: "Character Sheet" },
+  { id: "characters", label: "Characters" },
+  { id: "sheet", label: "Sheet (Legacy)" },
   { id: "vtt", label: "VTT" },
   { id: "wiki", label: "Codex" },
 ];

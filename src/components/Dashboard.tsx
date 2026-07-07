@@ -6,11 +6,13 @@ interface Props {
   loading: boolean;
   campaign: Campaign | null;
   campaigns: Campaign[];
+  characterCount: number;
   onCreate: (name: string) => void;
   onRename: (id: string, name: string) => void;
   onArchive: (id: string) => void;
   onSelect: (id: string) => void;
   onOpenTool: (tab: TabId) => void;
+  onOpenCharacters: () => void;
   onSwitchCampaign: () => void;
 }
 
@@ -18,11 +20,13 @@ export function Dashboard({
   loading,
   campaign,
   campaigns,
+  characterCount,
   onCreate,
   onRename,
   onArchive,
   onSelect,
   onOpenTool,
+  onOpenCharacters,
   onSwitchCampaign,
 }: Props) {
   if (loading) {
@@ -60,7 +64,14 @@ export function Dashboard({
       </div>
 
       <div className="dash-grid">
-        <Panel title="Characters" empty="No characters yet" />
+        <button className="panel panel-btn" onClick={onOpenCharacters}>
+          <div className="panel-title">Characters</div>
+          <div className={characterCount > 0 ? "panel-count" : "panel-empty"}>
+            {characterCount > 0
+              ? `${characterCount} character${characterCount === 1 ? "" : "s"} — open vault`
+              : "No characters yet — create one"}
+          </div>
+        </button>
         <Panel title="Active scene" empty="No scene set" />
         <Panel title="Recent Codex" empty="No pages opened" />
         <Panel title="Session notes" empty="No notes yet" />
@@ -70,8 +81,11 @@ export function Dashboard({
       <div className="dash-launch">
         <div className="dash-eyebrow">Quick launch</div>
         <div className="launch-row">
+          <button className="launch-btn" onClick={onOpenCharacters}>
+            Characters
+          </button>
           <button className="launch-btn" onClick={() => onOpenTool("sheet")}>
-            Character Sheet
+            Sheet (Legacy)
           </button>
           <button className="launch-btn" onClick={() => onOpenTool("vtt")}>
             VTT
