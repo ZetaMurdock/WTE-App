@@ -47,9 +47,12 @@ export function SpeciesVariantsPanel({ open, onClose, speciesId, selected, curat
                 )
               }
             >
+              {v.note ? <p className="variant-note">{v.note}</p> : null}
               <ul className="variant-abilities">
                 {v.abilities.map((a, i) => (
-                  <li key={i}>{a}</li>
+                  <li key={i}>
+                    <b>{a.name}</b> — {a.effect}
+                  </li>
                 ))}
               </ul>
             </Collapsible>

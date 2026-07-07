@@ -167,7 +167,7 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
                       onClick={() => setVariantName(variantName === v.name ? undefined : v.name)}
                     >
                       <div className="pick-name">{v.name}</div>
-                      <div className="pick-innate">{v.abilities.join(" · ")}</div>
+                      <div className="pick-innate">{v.abilities.map((a) => a.name).join(" · ")}</div>
                     </button>
                   ))}
                 </div>

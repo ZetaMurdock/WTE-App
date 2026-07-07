@@ -5,6 +5,7 @@
 
 import genusData from "./data/genus.json";
 import cipherData from "./data/ciphers.json";
+import variantsData from "./data/variants.json";
 
 export type AttrKey = "phy" | "dex" | "end" | "ap" | "wis" | "cha" | "int";
 export type SpecKey =
@@ -111,10 +112,16 @@ export const ATTR_KEYS: AttrKey[] = ATTRIBUTES.map((a) => a.key);
 export const SPEC_KEYS: SpecKey[] = SPECIALTIES.map((s) => s.key);
 
 export type SpeciesFamily = "Humanity" | "Omenity" | "Asternem";
+export interface SpeciesVariantAbility {
+  name: string;
+  effect: string;
+}
 export interface SpeciesVariant {
   name: string;
-  abilities: string[];
+  note?: string;
+  abilities: SpeciesVariantAbility[];
 }
+const VARIANTS = variantsData as Record<string, SpeciesVariant[]>;
 export interface Species {
   id: string;
   name: string;
@@ -125,82 +132,61 @@ export interface Species {
   /** Named lineage variants that grant extra abilities (from the legacy SPECIES_DATA). */
   variants: SpeciesVariant[];
 }
+// Base species data; `variants` are pulled from the baked Codex data (src/game/data/variants.json).
 export const SPECIES: Species[] = [
   {
     id: "hyomen", name: "Hyomen", family: "Humanity", bonuses: {},
     innate: ["Prodigal Mind", "Indecisive Body", "Indomitable Will", "Peak Evolution"],
     note: "Balanced — specialize by choice.",
-    variants: [
-      { name: "Bio-Engineered Hyomen", abilities: ["Enhanced Strength (+½ Ode Lvl to STR rolls)", "Enhanced Anatomy (Adv. on Adaptation)"] },
-      { name: "Spatians", abilities: ["Space Modulation", "Evolved Body (convert non-crit dmg type)"] },
-      { name: "Neo-Humans", abilities: ["Awakened Visualization (magnetic fields)", "Genetic Control (latent mutations 1hr)"] },
-    ],
+    variants: VARIANTS.hyomen ?? [],
   },
   {
     id: "voaulton", name: "Voaulton", family: "Humanity", bonuses: { phy: 2, end: 2 },
     innate: ["Chemical Mastery", "Robotic Integration", "Adaptive Analysis", "Energetic Synergy"],
     note: "Physical & cybernetic integration.",
-    variants: [
-      { name: "Droid", abilities: ["Modulation (restructure form)", "EMP (40ft pulse, 1 free/enc.)"] },
-      { name: "Cyborg", abilities: ["Hacking (backfire attacker)", "Circuit Transfiguration (Halt/Detonate/Redirect)"] },
-      { name: "N-T1 (Novus-Tauron)", abilities: ["Forced Control (Nerve Grapple / Neural Override)", "Elongation (limbs to 40ft)"] },
-    ],
+    variants: VARIANTS.voaulton ?? [],
   },
   {
     id: "mirga", name: "Mirga", family: "Humanity", bonuses: { int: 2, ap: 2 },
     innate: ["Perfect Mimicry", "Mimetic Adaptation", "Illusory Disguise", "Emotional Mimicry"],
     note: "Psychological mimics.",
-    variants: [
-      { name: "Chimera", abilities: ["Multicellular Sentience (detach segments)", "Modularity (transform segments, 8/hr)"] },
-    ],
+    variants: VARIANTS.mirga ?? [],
   },
   {
     id: "oriyu", name: "Oriyu", family: "Omenity", bonuses: {},
     innate: ["Energy Manipulation", "Energy Absorption", "Energy Projection", "Energy Shielding"],
     note: "Variable by lineage — assign stats manually.",
-    variants: [],
+    variants: VARIANTS.oriyu ?? [],
   },
   {
     id: "insectoid", name: "Insectoid", family: "Omenity", bonuses: { end: 2, cha: 2 },
     innate: ["Regenerative Limbs", "Eyeless (non-visual senses)", "Reflexive Assurance", "Peak Evolution"],
     note: "Carapaced survivors.",
-    variants: [
-      { name: "Archnida", abilities: ["Bursting Fracture", "Unnerving Presence"] },
-      { name: "Cerioisk", abilities: ["Augo Consumption (Cocoon Phase)", "Corruptive Reproduction"] },
-    ],
+    variants: VARIANTS.insectoid ?? [],
   },
   {
     id: "subdermin", name: "SubDermin", family: "Omenity", bonuses: { end: 2, dex: 2 },
     innate: ["Forsaken Touch", "Radioactive Anatomy", "Terrestrial Knowledge", "Living Planet Merge"],
     note: "Crystalline, terrestrial anomalies.",
-    variants: [
-      { name: "Fractine", abilities: ["Diamond Form", "Crystal Manipulation"] },
-      { name: "Construct", abilities: ["Physical Fracture (Anchored on overwhelm)", "Pressuring Advance"] },
-    ],
+    variants: VARIANTS.subdermin ?? [],
   },
   {
     id: "inderi", name: "Inderi", family: "Asternem", bonuses: { wis: 2, int: 2 },
     innate: ["Eldritch Physiology", "Enhanced Regeneration", "Perfect Reflex Calibration", "True Eye of Solitude"],
     note: "Choose 2 of 4 active — the other 2 become locked Inceptions.",
-    variants: [
-      { name: "AI'N", abilities: ["Dilation", "Replication (1:1 replica, 1/2hr)"] },
-    ],
+    variants: VARIANTS.inderi ?? [],
   },
   {
     id: "seraph", name: "Seraph", family: "Asternem", bonuses: { dex: 2, wis: 2 },
     innate: ["Antimatter Wings", "Dance of Displacement", "Spatial Rupture", "Distant Vision"],
     note: "Spatial flyers.",
-    variants: [],
+    variants: VARIANTS.seraph ?? [],
   },
   {
     id: "stygians", name: "Stygians", family: "Asternem", bonuses: { cha: 2, wis: 2 },
-    innate: ["Shadow Meld", "Umbral Step", "Hive Conjugation", "Dimensional Flicker"],
-    note: "Shadow forms.",
-    variants: [
-      { name: "Xeno", abilities: ["Mutagenic Absorption", "Freakish Nature"] },
-      { name: "Greys", abilities: ["Telepathy / Telekinesis", "Psionic Mold"] },
-      { name: "Annunaki", abilities: ["Melam Manifestation", "Ni Conjuration", "+ Head Shape ability (Telepathy / Precognition / Atomic Manip.)"] },
-    ],
+    innate: ["Interstitial Intrusion", "Engraving", "Parasitic Shadow", "Locked in Time"],
+    note: "Shadow/void aberrants — highest Feral Eminence (+20); connected by the Stygian Hive.",
+    variants: VARIANTS.stygians ?? [],
   },
 ];
 
