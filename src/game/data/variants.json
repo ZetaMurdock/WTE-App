@@ -238,11 +238,30 @@
     {
       "name": "Annunaki",
       "note": "Near-mythological species of uncertain lineage who walk between realities; head shape chosen at creation grants one additional ability. Melamic energy is not one of the 5 standard Genera.",
-      "abilities": [
+      "options": [
         {
-          "name": "Head Shape (creation choice)",
-          "effect": "Humanoid → Telepathy (as Greys); Elongated → Precognition (Advantage on AP rolls vs lower Neuronal Capacity Mod); Pointed → Atomic Manipulation (reshape matter by touch, once per hour)."
+          "label": "Humanoid Head",
+          "ability": {
+            "name": "Telepathy",
+            "effect": "Communicate telepathically and telekinetically, identical to the Greys' Telepathy."
+          }
         },
+        {
+          "label": "Elongated Head",
+          "ability": {
+            "name": "Precognition",
+            "effect": "Advantage on all AP rolls made against opponents of lower Neuronal Capacity Modifier."
+          }
+        },
+        {
+          "label": "Pointed Head",
+          "ability": {
+            "name": "Atomic Manipulation",
+            "effect": "Reshape matter by touch; usable once per hour."
+          }
+        }
+      ],
+      "abilities": [
         {
           "name": "Melam Manifestation",
           "effect": "Emit a Melamic Energy Field shield when attacked; if the attacker fails a Control Check vs the Annunaki's DC, the attack warps to a random spot within 10 ft. 1 free use/round, extra uses cost Synaptic Space."

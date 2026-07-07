@@ -2,403 +2,795 @@
   "Kinetic": [
     {
       "name": "Vector Swing",
-      "ss": 1
+      "ss": 1,
+      "activation": "Active (15 sec)",
+      "range": "Self",
+      "target": "Self — applies to next melee strike",
+      "effect": "Applies a brief kinetic enhancement to the next melee swing — concentrating angular momentum at the moment of impact. The next melee attack deals +1 damage die of the weapon's type and ignores 2 points of physical damage reduction. If the attack also triggers a knock-back effect, distance is doubled."
     },
     {
       "name": "Frictionless Advance",
-      "ss": 3
+      "ss": 3,
+      "activation": "Active (25 sec)",
+      "range": "Single Target / 25 ft (self or ally)",
+      "target": "Creature or Object",
+      "effect": "Removes kinetic friction from the target's movement for 2 rounds. Target can move through difficult terrain without penalty; movement speed effectively increases by 10 ft; can slide across surfaces without natural deceleration. Cannot be stopped by half-cover or minor obstacles. Downside: the target also cannot stop as a free action — stopping requires a DC 10 Dexterity check (or they slide 10 ft past their intended stop)."
     },
     {
       "name": "Enhanced Strike",
-      "ss": 1
+      "ss": 1,
+      "activation": "Active (15 sec)",
+      "range": "Self",
+      "target": "Self — applies to next single attack",
+      "effect": "Channels kinetic potential into the next attack — compressed force released at point of impact. Grants +2 to the attack's damage roll. If the attack already has advantage: also add +1d4 force damage. Quick and cheap — the foundational tool for Kinetic combat enhancement."
     },
     {
       "name": "Blitz",
-      "ss": 5
+      "ss": 5,
+      "activation": "Reaction (10 sec)",
+      "range": "Self",
+      "target": "Self",
+      "effect": "When you are targeted by an attack, you may activate this Genus immediately after successfully avoiding the initial threat through reflex or priority superiority. Upon activation, your movement and actions occur in a compressed temporal window: being your movement speed Derived Statistic, making your response appear nearly instantaneous. You forcibly override your body’s natural reaction delay by flooding your nervous system with kinetic acceleration, allowing you to act within the microscopic g"
     },
     {
       "name": "Inverse Dodge",
-      "ss": 4
+      "ss": 4,
+      "activation": "Reaction (Instant)",
+      "range": "Self",
+      "target": "Self — triggers on incoming melee attack",
+      "effect": "Converts incoming attack momentum against the attacker. When struck by a melee attack that is successfully landed: instead of taking the hit normally, the Inquisitor absorbs the kinetic vector and converts it into a shove — the attacker is pushed 10 ft and knocked prone (Strength Save DC 12 to resist the prone condition). The Inquisitor still takes half damage from the original attack."
     },
     {
       "name": "Reverse Reaction",
-      "ss": 4
+      "ss": 4,
+      "activation": "Reaction (Instant)",
+      "range": "Self or single target within 20 ft",
+      "target": "Creature (self or other)",
+      "effect": "Reverses the momentum of the target — a creature moving in one direction is instantly moved at equal speed in the opposite direction. On self: escape a rush/charge situation instantly. On others: contested Strength Save vs Inquisitor DC; failure = forced reversal of current movement direction for that action. Cannot reverse movement already completed — only current momentum during this action."
     },
     {
       "name": "Reverted Advance",
-      "ss": 5
+      "ss": 5,
+      "activation": "Reaction (Instant)",
+      "range": "Self",
+      "target": "Self",
+      "effect": "After taking a Move Action, the Inquisitor may immediately revert to their pre-movement position as if they never moved (kinetic ghost recall). Useful for baiting positions, avoiding triggered effects mid-movement, or retreating after a failed approach. The action used to move is consumed — only the position is reverted. All position-based triggered effects during the move still resolve but the Inquisitor is at original position for their next action."
     },
     {
       "name": "Long Jump",
-      "ss": 3
+      "ss": 3,
+      "activation": "Active (Instant — no run-up required)",
+      "range": "Self",
+      "target": "Self",
+      "effect": "Concentrates kinetic force into the legs and releases at leap initiation — covers up to 60 ft horizontal distance or 30 ft vertical. Ignores difficult terrain during the jump. Landing: no check required for flat surfaces; DC 10 Dexterity check for rough or angled landings. Can be used while carrying up to Heavy load without penalty. While airborne: immune to ground-based effects."
     },
     {
       "name": "Teleport",
-      "ss": 8
+      "ss": 8,
+      "activation": "Active (Instant)",
+      "range": "Self (up to 80 ft)",
+      "target": "Self to a visible point within range",
+      "effect": "Kinetic micro-burst propulsion at velocity so extreme it appears as instantaneous teleportation. The Inquisitor must have line of sight to the destination. The transit takes no time. Cannot teleport into occupied space (requires at least 5 ft clearance). Leaves a brief kinetic distortion at both origin and destination points. Carrying capacity: up to Medium-size equipment; larger objects cannot be transported."
     },
     {
       "name": "Mirage Step",
-      "ss": 4
+      "ss": 4,
+      "activation": "Active (2 min)",
+      "range": "Self (active during movement)",
+      "target": "Self",
+      "effect": "Moving at accelerated kinetic speed creates visible persistent afterimages at key positions. For 2 rounds: when the Inquisitor moves more than 10 ft on their turn, they leave up to 3 Mirage Copies at intermediate points. Each copy is a convincing positional duplicate — attackers targeting the Inquisitor must correctly identify the real one (DC 12 Perception check) or target a mirage. Copies have 0 HP and vanish on any interaction."
     },
     {
       "name": "Mirror Movement",
-      "ss": 5
+      "ss": 5,
+      "activation": "Active (3 min)",
+      "range": "Single Target within 30 ft",
+      "target": "Creature",
+      "effect": "Links the Inquisitor's kinetic field to a target — whenever the target moves, the Inquisitor moves the same direction and distance simultaneously (mirror image motion). Can be applied to enemies (to match their position for flanking) or allies (for coordinated movement without communication). Target makes Wisdom Save (DC 13) to resist if unwilling. Duration: 3 rounds."
     },
     {
       "name": "Vector Swap",
-      "ss": 5
+      "ss": 5,
+      "activation": "Reaction (Instant)",
+      "range": "Two moving objects/creatures within 30 ft",
+      "target": "Two targets with active movement vectors",
+      "effect": "Instantaneously swaps the velocity and direction vectors of two moving objects or creatures. A projectile aimed at you is redirected to hit its own source. Two charging combatants swap positions and momentum. The swapped targets continue moving at original speed in new direction. Size limitation: targets must be within 2 size categories of each other. Both targets make Dexterity Saves (DC 13) if unwilling."
     },
     {
       "name": "Vector Decentralization",
-      "ss": 6
+      "ss": 6,
+      "activation": "Active (2 min)",
+      "range": "15-ft radius centered on target within 40 ft",
+      "target": "Area and all movement vectors within it",
+      "effect": "Scatters and nullifies kinetic momentum in the target area. All movement within the radius is reduced to 5 ft maximum per action (creatures feel as if moving through thick resistance). Projectiles entering the area lose momentum and fall short. Active Kinetic abilities used within the radius have their distance halved. Duration: 2 rounds."
     },
     {
       "name": "Vibrate",
-      "ss": 3
+      "ss": 3,
+      "activation": "Active (2 min)",
+      "range": "Single Target within 15 ft (or self)",
+      "target": "Creature or Object",
+      "effect": "Sets the target vibrating at a high frequency — rapid kinetic oscillation at the molecular level. On objects: generates enough heat from friction to weld, cut, or start fires; can break apart brittle structures. On creatures: disorienting — target has −1 to precision actions for 2 rounds; any creature touching the vibrating target takes 1d4 force damage. On self: gain advantage on Evasiontist checks and the ability to phase through gaps wider than 1 inch."
     },
     {
       "name": "Animate Object",
-      "ss": 4
+      "ss": 4,
+      "activation": "Active (3 min)",
+      "range": "Single inanimate object within 20 ft (up to Large)",
+      "target": "Inanimate object",
+      "effect": "Imparts kinetic autonomy to an object — it moves and acts through kinetic field manipulation, not consciousness. The object can perform one of: attack (1d8 force, uses Inquisitor's CNeuronal Capacity Modifier), defend (grants +2 AC to adjacent ally), move and block (become mobile difficult terrain), or fetch/carry. Unlike Neutral's Animate Animationless, Kinetic animation is purely mechanical — the object does not comprehend but functions as a combat tool. Lasts 3 rounds."
     },
     {
       "name": "Phase",
-      "ss": 7
+      "ss": 7,
+      "activation": "Active (Instant)",
+      "range": "Self",
+      "target": "Self",
+      "effect": "Achieves kinetic vibration so extreme the Inquisitor temporarily phases through solid matter. Can move through walls, floors, and solid objects for 1 round. Cannot stop inside solid matter (must end movement in open space). While phased: cannot be targeted by physical attacks; cannot make physical attacks; can still be affected by energy-type abilities. After phasing ends: 1 round of Exhaustion (cannot use Reactions)."
     },
     {
       "name": "Hover",
-      "ss": null
+      "ss": 2,
+      "activation": "Active (15 sec)",
+      "range": "Self",
+      "target": "Self",
+      "effect": "Establishes upward kinetic pressure beneath the Inquisitor, allowing sustained hovering up to 20 ft above a surface. Movement speed while hovering: same as ground speed. While hovering: immune to ground effects; can traverse liquid surfaces; attacked from below with disadvantage. Carrying load above Heavy capacity breaks the effect. Must be consciously maintained."
     },
     {
       "name": "Atomic Reverberation",
-      "ss": 9
+      "ss": 9,
+      "activation": "Active (4 min)",
+      "range": "Single Target within 20 ft (or touch for maximum effect)",
+      "target": "Creature or Object",
+      "effect": "Vibrates the target at an atomic resonance frequency — the frequency at which the target's own molecular structure amplifies rather than resists the vibration. On objects: structural failure within 2 rounds (progressive cracking visible); destroyed at end of round 2 unless extraordinary material. On creatures: 2d10 force damage each round for 2 rounds; advantage on the second round's damage if the first hit landed. Requires a Precision check (DC 13) to locate the correct resonance frequency."
     },
     {
       "name": "Vibration Link",
-      "ss": 4
+      "ss": 4,
+      "activation": "Active (3 min)",
+      "range": "Two Targets within 30 ft of each other",
+      "target": "Two creatures or objects",
+      "effect": "Synchronizes the vibrational frequency of two targets — they resonate together. What happens to one vibrationally happens to the other: damage from vibration/force effects is shared equally; movement by one drags the other in the same direction proportionally (unless Strength Save DC 12 resisted); sound made by one is heard from both. Duration: 5 rounds."
     },
     {
       "name": "Lock Move",
-      "ss": 5
+      "ss": 5,
+      "activation": "Active (SNR speed — resolves before movement)",
+      "range": "Single Target within 30 ft",
+      "target": "Creature",
+      "effect": "Projects a kinetic anchor that seizes the target's momentum and holds it absolutely still. Target is Restrained — cannot move, be forcibly moved, or use movement-based actions. Not a magical hold — purely kinetic. Strength Save (DC 13 + CNeuronal Capacity Modifier) to break free on the target's turn. While Locked: target has disadvantage on Dexterity Saves. Duration: until target breaks free or user ends effect. User must maintain line of sight."
     }
   ],
   "Eldritch": [
     {
       "name": "Lark",
-      "ss": 5
+      "ss": 5,
+      "activation": "Active (5 min)",
+      "range": "Multi-target / 10-ft rectangle within 30 ft (shapeable)",
+      "target": "Creatures, Objects",
+      "effect": "Fires scattered bursts of entropic energy in erratic patterns — unpredictable like a bird's flight. Each creature in the rectangle makes an Endurance Save or takes 1d8 Eldritch damage. The area is laced with residue: the first ability any creature attempts next round must be re-rolled if it fails. Uncontrolled pattern — the user must succeed a DC 12 Control check or catch an edge of their own effect (1d4 damage, no Save)."
     },
     {
       "name": "Varken",
-      "ss": 4
+      "ss": 4,
+      "activation": "Active (3 min)",
+      "range": "15-ft radius / 30-ft Cylinder (vertical column)",
+      "target": "Creatures, Objects within cylinder",
+      "effect": "Creates a column of concentrated Eldritch pressure that resists action from within. All Strength and Dexterity-based checks inside the cylinder take −2. Objects within weigh 50% more effectively. Any creature attempting to exit the cylinder must succeed a Strength Save (DC 13) or be pulled 5 ft back toward center. Duration: until the start of the user's next turn."
     },
     {
       "name": "Borne",
-      "ss": 7
+      "ss": 7,
+      "activation": "Active (4 min)",
+      "range": "Self",
+      "target": "Self",
+      "effect": "The Inquisitor briefly exists as pure Eldritch construct — body phases between physical and entropic states for 2 rounds. While Borne: immune to physical damage, cannot deal physical damage (Eldritch only), near-transparent to non-Eldritch senses, any creature that makes direct contact takes 1d6 Eldritch damage. When physical form returns: all currently active Eldritch abilities reset their durations."
     },
     {
       "name": "Armor Increase",
-      "ss": 3
+      "ss": 3,
+      "activation": "Active (2 min)",
+      "range": "Self or single ally within 15 ft",
+      "target": "Creature",
+      "effect": "Eldritch energy crystallizes around the target's form as semi-visible entropic plating. Grants +3 DHP for duration. If the DHP bonus is fully depleted, fragments scatter outward — all creatures within 5 ft make a Wisdom Save or suffer −1 to their next attack roll (the entropy clings briefly)."
     },
     {
       "name": "Enlarge",
-      "ss": 6
+      "ss": 6,
+      "activation": "Active (3 min)",
+      "range": "Single Target within 20 ft",
+      "target": "Creature or Object",
+      "effect": "Channels Eldritch energy to force a target's mass to expand by one size category for 3 rounds. Enlarged creature gains +1 damage die tier on melee attacks and advantage on Strength Saves, but loses 5 ft movement and takes −1 to Dexterity checks. Objects become unwieldy. Cannot be used on Colossal targets."
     },
     {
       "name": "Chattering Touch",
-      "ss": 4
+      "ss": 4,
+      "activation": "Active (Instant — touch required)",
+      "range": "Touch",
+      "target": "Creature",
+      "effect": "Delivers a pulse of entropic dissonance through the nervous system. Target makes Wisdom Save or gains the Chattering Condition for 1 round: their next action automatically triggers a secondary involuntary action of the Director's choice (spasm, involuntary vocalization, directional stumble). On Critical Failure: condition lasts 3 rounds and the target cannot maintain any sustained abilities."
     },
     {
       "name": "Passive Death",
-      "ss": null
+      "ss": 8,
+      "activation": "Active (3 min to establish)",
+      "range": "10-ft radius aura (self-centered)",
+      "target": "All creatures in radius except self",
+      "effect": "Sustains an aura of accelerated entropy. Each creature that starts or ends their turn within range makes an Endurance Save or takes 1d6 Eldritch damage. Organic material visibly degrades (wilting flora, tarnishing metals). Cannot be active simultaneously with Bane of Enhancement — the two energies destabilize each other."
     },
     {
       "name": "Fyber Mutation",
-      "ss": 7
+      "ss": 7,
+      "activation": "Active (4 min)",
+      "range": "Self",
+      "target": "Self",
+      "effect": "Temporarily rewires one biological trait using Eldritch energy. At activation, choose one: (a) Darkvision 60 ft; (b) natural attack dealing 1d8 Eldritch damage; (c) breathe in one additional environment type; (d) +10 ft movement. Effect lasts until short rest. Each use: roll d6 — on a 1, the mutation becomes cosmetically permanent as a Wryde manifestation (Director determines form)."
     },
     {
       "name": "Antheosis",
-      "ss": 15
+      "ss": 15,
+      "activation": "Active (5 min)",
+      "range": "Self",
+      "target": "Self",
+      "effect": "Partial Eldritch apotheosis for 1 minute. Gains: immunity to non-supernatural physical damage; −3 to all Eldritch SS costs (minimum 1); all attacks deal additional 1d8 Eldritch damage; terrifying presence (any creature that can see you makes Wisdom Save DC 16 or is Frightened). Aftermath: mandatory Downtime 1d4 rounds; all SS costs doubled for 1 minute following recovery."
     },
     {
       "name": "Harlingsine",
-      "ss": 6
+      "ss": 6,
+      "activation": "Active (2 min)",
+      "range": "30-ft cone",
+      "target": "Creatures and objects in cone",
+      "effect": "Projects a wave of entropic interference that dismantles coherence of matter and energy within the cone. Objects become unreliable (weapons misfire on rolls of 1–2, devices fail one function). Creatures make Wisdom Save or take −1 to all rolls for 2 rounds. Constructs and electronic systems automatically fail one function check. Stacks with active Entropy Fields."
     },
     {
       "name": "Luscinian Embrace",
-      "ss": 5
+      "ss": 5,
+      "activation": "Active (3 min)",
+      "range": "Single Target within 40 ft",
+      "target": "Creature",
+      "effect": "Weaves a resonant entropic frequency attuned to the target's psychological baseline — an irresistible pull like a haunting melody. Target makes Wisdom Save or feels compelled to move toward the user each round (non-violent; they rationalize the compulsion). Re-save each round. While affected, target has disadvantage on attacks against the user. Effect ends immediately on any hostile action by the user toward the target."
     },
     {
       "name": "Inverse Reverse",
-      "ss": 5
+      "ss": 5,
+      "activation": "Reaction (Instant)",
+      "range": "One active effect within 30 ft",
+      "target": "One active Genus or Cipher effect",
+      "effect": "Seizes a currently active ability in range and inverts its direction or beneficiary without cancelling it. A heal becomes harm; a buff becomes debuff; a movement ability reverses direction. Roll d20 + CNeuronal Capacity Modifier vs originating Inquisitor's DC to successfully invert. Duration: one round."
     },
     {
       "name": "Reverse",
-      "ss": 7
+      "ss": 7,
+      "activation": "Reaction (within 1 round of event)",
+      "range": "Self or single event within 30 ft",
+      "target": "One resolved action or physical event",
+      "effect": "Rewinds one discrete event not exceeding one Action or Reaction in scope — damage reversed, position restored, effect cancelled. Does not restore SS spent by others. Director may rule certain events irreversible (death, structural Cipher violations, Incept Stable Active expressions). Cannot rewind Wryde activations."
     },
     {
       "name": "Unfloor",
-      "ss": 4
+      "ss": 4,
+      "activation": "Active (2 min)",
+      "range": "20-ft radius centered on a point within 30 ft",
+      "target": "Ground/floor surface",
+      "effect": "The targeted surface becomes entropic and unstable — visually rippling, behaving as difficult terrain. Creatures moving through make Dexterity Saves or fall prone. Objects placed on the surface slowly sink (Director timing). Persists 3 rounds. The user and up to 2 designated allies are unaffected by the instability."
     },
     {
       "name": "Room Enhancement",
-      "ss": 10
+      "ss": 10,
+      "activation": "Active (5 min)",
+      "range": "One enclosed space up to 50-ft cube",
+      "target": "Area",
+      "effect": "Saturates an enclosed space with Eldritch resonance. All Eldritch SS costs within the space are reduced by 1 (minimum 1). Creatures without Eldritch attunement feel deep unease (−1 to morale-dependent checks; Director discretion). Any Entropy effects created inside last 25% longer. Fades after 10 minutes or when the Inquisitor leaves."
     },
     {
       "name": "Energic Change",
-      "ss": 6
+      "ss": 6,
+      "activation": "Active (3 min)",
+      "range": "Single energy source or active effect within 20 ft",
+      "target": "One energy-based effect, ability, or environmental force",
+      "effect": "Converts one active effect's energy type. Fire becomes Eldritch; Kinetic force becomes Null; etc. The converted effect retains damage value and targeting geometry but gains the properties of its new type. Conversion lasts one round. Cannot convert Null energy (Null resists conversion by definition)."
     },
     {
       "name": "Fabian Laugh",
-      "ss": 3
+      "ss": 3,
+      "activation": "Active (Instant)",
+      "range": "All creatures within 20 ft that can hear",
+      "target": "Creatures",
+      "effect": "A resonant, Eldritch-laced laugh that disrupts cognitive coherence. Each target makes Wisdom Save or is Unsettled for 2 rounds: −1 to all concentration/sustained ability checks; must make DC 12 Wisdom Save to use any Reaction on their next turn. Targets who succeed are immune to Fabian Laugh from this Inquisitor for 24 hours."
     },
     {
       "name": "Seekth",
-      "ss": 4
+      "ss": 4,
+      "activation": "Active (3 min, Prepared)",
+      "range": "120-ft detection radius",
+      "target": "One designated creature or object type",
+      "effect": "Extends Eldritch sensory tendrils — detects presence and direction of the designated target within range, bypassing mundane concealment and most barriers. Against Eldritch-resistant targets: d20 + CNeuronal Capacity Modifier vs resistance DC. While active, the designated target appears as a faint luminous trace overlaid on the Inquisitor's perception. Duration: 10 minutes."
     }
   ],
   "Elemental": [
     {
       "name": "Solidify",
-      "ss": 4
+      "ss": 4,
+      "activation": "Active (2 min)",
+      "range": "Single Target within 25 ft (or area up to 10-ft cube)",
+      "target": "Substance (liquid, gas, semi-solid)",
+      "effect": "Imposes elemental state change on a target substance, forcing it to solid form. Water becomes ice; gas becomes brittle mineral; loose earth becomes compacted stone. The solidification persists for 3 rounds before the substance naturally returns to its original state. Solidified gas creates a temporary barrier. Solidified liquid can trap creatures (Strength Save to resist encasement)."
     },
     {
       "name": "Vorpal",
-      "ss": 10
+      "ss": 10,
+      "activation": "Active (5 min)",
+      "range": "Multi-target / 10-ft radius / 50-ft Trapezoid",
+      "target": "Creatures",
+      "effect": "Concentrates elemental cutting force — the convergence of pressure, temperature differential, and kinetic force — into a razor edge projected across the trapezoid. All creatures in the area make a Dexterity Save or take 3d8 Elemental damage (type matching dominant ambient element). On Critical Failure: one piece of non-magical equipment the target carries is severed or destroyed (Director chooses). Creatures at the narrow end take full damage; those at the wide end take half."
     },
     {
       "name": "Wisperian",
-      "ss": 5
+      "ss": 5,
+      "activation": "Passive (3 min to establish)",
+      "range": "Self (5-ft aura)",
+      "target": "Self",
+      "effect": "Wraps the Inquisitor in a passive elemental aura of their primary elemental affinity. The aura: provides resistance to that element type; causes 1d4 damage of that element type to creatures that touch the user; grants advantage on checks to interact with or control that element in the environment. The Inquisitor's movements leave faint elemental traces. Lasts until dismissed or user is Incapacitated."
     },
     {
       "name": "Chain Reaction",
-      "ss": 6
+      "ss": 6,
+      "activation": "Active (3 min)",
+      "range": "One initial target within 30 ft; chains up to 20 ft per step",
+      "target": "Creatures (chains between up to 4 targets)",
+      "effect": "Releases an elemental effect that arcs between multiple targets in sequence. Each target after the first takes slightly reduced damage (−1 damage die per step). The element changes slightly with each arc — fire becomes superheated plasma, lightning becomes electromagnetic pulse, water becomes pressurized jet. Targets hit must succeed Dexterity Saves or gain a secondary condition appropriate to the element (Burning, Electrified, Soaked, etc.)."
     },
     {
       "name": "Chain Element",
-      "ss": 5
+      "ss": 5,
+      "activation": "Active (2 min)",
+      "range": "One established Elemental effect within 60 ft",
+      "target": "One active Elemental ability or environmental element",
+      "effect": "Seizes an existing active elemental effect (your own or environmental) and links it to a secondary target, extending its reach or duplicating its effect. A fire you created now also burns 30 ft away. A lightning strike arcs again to a new target. Environmental rain becomes targeted downpour. The chained effect is 50% strength of the original. Cannot chain Null or Eldritch effects."
     },
     {
       "name": "Spontaneous Combustion",
-      "ss": 7
+      "ss": 7,
+      "activation": "Active (Instant)",
+      "range": "Single Target within 40 ft",
+      "target": "Creature or flammable object",
+      "effect": "Triggers immediate spontaneous ignition in a target by rapidly exciting its molecules at the atomic level. Target takes 2d6 fire damage immediately, then 1d6 at the start of each of their turns until they spend an Action to extinguish. Creatures or objects with high moisture content are resistant (Endurance Save to negate initial damage). Particularly effective against dry, carbon-based materials — automatic critical damage."
     },
     {
       "name": "Living Element",
-      "ss": 8
+      "ss": 8,
+      "activation": "Active (4 min)",
+      "range": "20 ft from user (elemental spawns here)",
+      "target": "Ambient elemental material (fire source, water, earth, etc.)",
+      "effect": "Draws ambient elemental material and compresses it into a Living Element — a semi-autonomous elemental construct (Small size) that acts on the user's verbal command each round. HP equal to 10 + CNeuronal Capacity Modifier; deals 1d8 elemental damage; moves 30 ft per round; dissolves when reduced to 0 HP or after 5 minutes. The element type matches available ambient material. Maximum one Living Element at a time."
     },
     {
       "name": "Elevated Leap",
-      "ss": 4
+      "ss": 4,
+      "activation": "Reaction (Instant)",
+      "range": "Self",
+      "target": "Self",
+      "effect": "Converts elemental force (compressed air, geothermic pressure, lightning recoil, steam burst) into vertical and horizontal propulsion. Allows an immediate jump of up to 40 ft vertically or 60 ft horizontally, ignoring opportunity attacks during the movement. Landing requires a Dexterity check (DC 10) to avoid prone. Can be used as an escape reaction when targeted by a melee attack (before it resolves)."
     },
     {
       "name": "Charge",
-      "ss": null
+      "ss": 3,
+      "activation": "Active (1 min per charge)",
+      "range": "Self",
+      "target": "Self / next Elemental ability used",
+      "effect": "Stores elemental potential energy in the Inquisitor's body (visible as a faint elemental glow). Each Charge stack adds +1 damage die to the next Elemental ability used and extends that ability's range by 10 ft. Charges dissipate at the end of the encounter if unused. While holding maximum charges (3): visibly dangerous — creatures within 5 ft make a Wisdom Save or have disadvantage on their next attack against you."
     },
     {
       "name": "Dominate Element",
-      "ss": 9
+      "ss": 9,
+      "activation": "Active (4 min)",
+      "range": "One elemental type within 60 ft (all instances)",
+      "target": "One element type (fire, water, earth, lightning, light)",
+      "effect": "Assumes complete elemental authority over one element type within 60 ft for 3 rounds. All instances of that element are subject to the Inquisitor's will — shape, movement, temperature, and behavior. No SS required to manipulate the element while Dominate is active. Enemy elemental abilities of the same type must contest the Inquisitor's CNeuronal Capacity Modifier DC or be redirected. Environmental element obeys freely."
     },
     {
       "name": "Meta Change",
-      "ss": 15
+      "ss": 15,
+      "activation": "Active (3 min)",
+      "range": "One elemental source or active elemental effect within 30 ft Requires Physical Contact",
+      "target": "One element type",
+      "effect": "Transforms one elemental type into another. Fire can become Water, Lightning can become Earth, the converted element retains its original scale, mass, and intensity—a raging wildfire becomes an equally massive flood, while a small spark becomes a small stream. Once transformed, the new element behaves according to its natural properties. This ability cannot convert any element into Null or Eldritch energy. Environmental elements are transformed permanently. Ability-generated elements remain tran"
     },
     {
       "name": "Geothian",
-      "ss": 6
+      "ss": 6,
+      "activation": "Active (3 min)",
+      "range": "30-ft radius centered on a ground point within 40 ft",
+      "target": "Ground terrain",
+      "effect": "Manipulates geothermal and tectonic force in the target area. Choose one expression: (a) Upheaval — ground erupts upward creating difficult terrain and forcing Dexterity Saves for all in area; (b) Sinkhole — ground gives way in 15-ft radius (Strength Save to avoid falling prone into a 10-ft pit); (c) Stone Wall — a wall 10 ft high × 20 ft wide × 2 ft thick rises from the ground. Only works on actual earth/stone — not metal floors or fabricated surfaces."
     },
     {
       "name": "Hail Rain",
-      "ss": 5
+      "ss": 5,
+      "activation": "Active (2 min)",
+      "range": "20-ft radius cylinder, 40 ft tall, within 60 ft",
+      "target": "Creatures and objects within cylinder",
+      "effect": "Generates a localized storm of ice projectiles falling at high velocity. Each creature in the area makes a Dexterity Save or takes 2d6 cold damage and is Slowed (movement halved) for 1 round. The area becomes difficult terrain (ice accumulation) for 2 rounds after. Any creature that starts their turn in the cylinder while Hail Rain is active must Save again. Duration: 2 rounds."
     },
     {
       "name": "Metalargy",
-      "ss": 5
+      "ss": 5,
+      "activation": "Active (3 min)",
+      "range": "Single metal object or surface within 20 ft (up to Large)",
+      "target": "Metal object, structure, or surface",
+      "effect": "Manipulates metallic elemental properties through electromagnetic and thermal control. Choose one: (a) Superheat — metal becomes dangerously hot; creatures touching it take 1d8 fire damage per contact; (b) Magnetize — draws other metal objects toward the target; (c) Reshape — bend and reform metal into a new configuration; (d) Brittle — crystalline structure breaks down; next significant force shatters it. Non-ferrous metals require +2 SS."
     },
     {
       "name": "Purify Water",
-      "ss": 2
+      "ss": 2,
+      "activation": "Active (1 min)",
+      "range": "Water source within 10 ft (up to 100 gallons per use)",
+      "target": "Water or liquid",
+      "effect": "Channels elemental purity through a water source, removing all toxins, pathogens, contaminants, and supernatural effects. The water becomes safe for any species to consume. Can also neutralize alchemical or chemical-based liquids (rendering poison inert, etc.). Extended use (10 min, 10 SS): can purify an entire small water source permanently."
     },
     {
       "name": "Purify Element",
-      "ss": 4
+      "ss": 4,
+      "activation": "Active (2 min)",
+      "range": "20-ft radius",
+      "target": "One element type in area",
+      "effect": "Removes all impurities, contamination, and corrupting effects from one element type within range. Purified element becomes its \"pure\" form — clean fire without toxic smoke; crystalline water without current; still air without particles. Particularly useful for clearing Eldritch or Null corruption from elemental sources. A Purified element cannot be used by corrupted Genus abilities for 1 hour."
     },
     {
       "name": "Photonic Cleave",
-      "ss": 6
+      "ss": 6,
+      "activation": "Active (2 min)",
+      "range": "Line 5 ft wide × 60 ft long",
+      "target": "All creatures and objects in line",
+      "effect": "Compresses visible and ultraviolet light into a cutting edge and releases it as a line of photonic force. Each creature in the line makes Dexterity Save or takes 2d8 radiant damage. On hit: one piece of non-energy-resistant material (armor, shields, barriers) has its DHP protection reduced by 2 until repaired. The line of light persists briefly — creatures entering the line on their turn make the same Save."
     },
     {
       "name": "Tachyeonic",
-      "ss": 8
+      "ss": 8,
+      "activation": "Active (Prepared, 3 min)",
+      "range": "Single Target within 80 ft",
+      "target": "Creature or Object",
+      "effect": "Accelerates particles in the target to relativistic speeds using concentrated elemental energy. Living creatures: temporarily experience time at a different rate — gain an additional Action on their next turn but then are Slowed for 2 rounds as their biology compensates. Objects: become hyper-dense projectiles dealing 3d10 damage to the first solid surface they impact. The brief relativistic state is visually striking — target glows and appears to stutter in motion."
     },
     {
       "name": "Heat",
-      "ss": 2
+      "ss": 2,
+      "activation": "Active (Instant, sustained)",
+      "range": "10-ft radius centered on a target within 20 ft",
+      "target": "Area / Creature / Object",
+      "effect": "Applies directed heat to a target area or object. At low intensity (this SS cost): warms a space (removes cold conditions, dries wet surfaces, speeds natural processes); or deals 1d4 fire damage to a creature per round while maintained. Can be maintained indefinitely at cost of 1 SS per minute beyond the first. At higher SS investment (+3 SS): escalates to intense heat that damages metal, boils liquids, and deals 2d6 fire damage."
     }
   ],
   "Neutral": [
     {
       "name": "Animate Animationless",
-      "ss": 4
+      "ss": 4,
+      "activation": "Active (3 min)",
+      "range": "Single Target within 20 ft",
+      "target": "Inanimate object or non-living matter (up to Large)",
+      "effect": "Infuses an inanimate object with Neutral energy, granting it autonomous directive-following behavior. The animated object can perform one task type at a time (carry, guard, fetch, patrol). It has no combat capability unless it is inherently a weapon. Comprehends simple verbal instructions from the user. Lasts until the user deactivates it or moves beyond 60 ft. If attacked, the object simply stops."
     },
     {
       "name": "Reduce Object",
-      "ss": 2
+      "ss": 2,
+      "activation": "Active (2 min)",
+      "range": "Single Target / 25-ft radius",
+      "target": "Objects (up to Huge size)",
+      "effect": "Induces controlled molecular compression in a target object, shrinking it by one to two size categories (Inquisitor's choice at activation). The object retains all structural integrity and properties at reduced scale. Effect is reversible — the user may restore normal size at any time while within 60 ft. Compressed objects can be stored in equipment slots based on reduced size."
     },
     {
       "name": "Composite Creation",
-      "ss": 5
+      "ss": 5,
+      "activation": "Active (2 min)",
+      "range": "Single Target within 5 ft",
+      "target": "Two or more compatible materials in contact",
+      "effect": "Merges two or more distinct materials into a new composite that inherits properties from both source materials. A blade + heat-resistant material = heat-resistant blade. Wood + glass = translucent but rigid panel. Director determines compatibility and emergent property. The composite is permanent. Cannot merge living organic matter."
     },
     {
       "name": "Hearth",
-      "ss": 10
+      "ss": 10,
+      "activation": "Active (4 min)",
+      "range": "30-ft radius / 80-ft box (user-centered)",
+      "target": "Creatures, Objects, Area",
+      "effect": "Establishes a sustained Neutral sanctuary field. Within range: all falling damage is negated; fragile objects resist breakage from incidental force; creatures regenerate 1 HP at the start of each of their turns; any ability that would move a creature involuntarily is reduced in distance by half. The field is visually calm — objects float slightly, tension dissipates. Duration: 10 minutes. User must remain stationary to maintain it."
     },
     {
       "name": "Deus",
-      "ss": 12
+      "ss": 12,
+      "activation": "Active (5 min)",
+      "range": "15-ft radius centered on user",
+      "target": "Area, Objects, Creatures",
+      "effect": "Channels pure creative Neutral energy to manifest a significant physical structure or object from ambient matter. Can create: a sturdy functional room (20×20×10 ft), a bridge spanning up to 40 ft, a functional vehicle chassis, or similar. Created matter is real and permanent but inert. Director determines material quality and structural limits. Cannot create living matter, functioning electronics, or weapons more advanced than TL 2.0."
     },
     {
       "name": "Sure Fire",
-      "ss": 3
+      "ss": 3,
+      "activation": "Active (Prepared, 1 min setup)",
+      "range": "Self",
+      "target": "Self — applies to next single ranged or precision action",
+      "effect": "Attunes the user's next action with Neutral energy, removing variance from the outcome. The designated next attack or precision skill check automatically succeeds at the baseline level (not a Critical Success — simply cannot fail). Director may override for actions with narrative impossibility. Consumed on next action or at end of encounter."
     },
     {
       "name": "Auto Aim",
-      "ss": 2
+      "ss": 2,
+      "activation": "Passive (15 sec to activate)",
+      "range": "Self (applies to ranged actions up to 60 ft)",
+      "target": "Self",
+      "effect": "Applies passive Neutral targeting assistance. While active, the user's ranged attack rolls ignore cover penalties and environmental interference (wind, smoke, darkness) up to 60 ft. Duration: 3 rounds. Does not stack with Sure Fire."
     },
     {
       "name": "View Organism",
-      "ss": 3
+      "ss": 3,
+      "activation": "Active (2 min)",
+      "range": "Single Target within 10 ft",
+      "target": "Living creature",
+      "effect": "Projects Neutral energy through a creature's biology, reading its structure like a scanner. Reveals: current HP and DHP (approximate ±5%), active conditions and ongoing effects, biological species/variant type, dominant Asymmetry domain (if any). Against unwilling targets: Wisdom Save to resist revelation of specific stats."
     },
     {
       "name": "Corporeal Shift",
-      "ss": 6
+      "ss": 6,
+      "activation": "Active (3 min)",
+      "range": "Single Target within 20 ft or Self",
+      "target": "Creature",
+      "effect": "Temporarily shifts the target's physical state to a condensed Neutral construct — body becomes denser, heavier, but more resistant. The target: gains +2 to Endurance Saves, ignores the first instance of knockback or forced movement per round, and deals +1 physical damage die. However, movement is reduced by 10 ft. Duration: 3 rounds."
     },
     {
       "name": "Manifest Weakness",
-      "ss": 4
+      "ss": 4,
+      "activation": "Active (2 min)",
+      "range": "Single Target within 30 ft",
+      "target": "Creature or Object",
+      "effect": "Reads Neutral energy flow through the target to locate structural and biological weak points. For the next 3 rounds, all attacks against the target from the user ignore DHP (damage goes directly to HP). On objects: identifies exact breaking points, allowing targeted destruction. On complex constructs/machines: reveals the one component whose failure collapses the whole system."
     },
     {
       "name": "True Intentions",
-      "ss": 5
+      "ss": 5,
+      "activation": "Active (Prepared, 2 min)",
+      "range": "Single Target within 30 ft",
+      "target": "Creature",
+      "effect": "Reads Neutral energy resonance around the target — living beings radiate faint physics-adjacent signatures aligned with their current intention. The user gains accurate insight into the target's immediate goal and primary motivation at the moment of reading (not full thought access — just intent vector). Against deceptive targets with mental fortitude: d20 + CNeuronal Capacity Modifier vs target's Wisdom DC."
     },
     {
       "name": "Internal Break",
-      "ss": 5
+      "ss": 5,
+      "activation": "Active (2 min — touch or within 5 ft)",
+      "range": "Touch / 5 ft",
+      "target": "Creature or Object",
+      "effect": "Focuses Neutral energy inward into a target to cause internal structural failure without visible external damage. On creatures: deals 2d6 damage ignoring DHP entirely (internal disruption). On objects: causes internal fracturing — the object appears intact but is structurally compromised; next significant force applied destroys it. Requires either physical contact or a DC 13 Control check if at range."
     },
     {
       "name": "Desentralization",
-      "ss": 4
+      "ss": 4,
+      "activation": "Active (2 min)",
+      "range": "Single Target within 20 ft",
+      "target": "Creature",
+      "effect": "Disrupts the target's center of mass using precision Neutral field manipulation. Target's balance becomes unpredictable: −2 to all Dexterity checks and Saves; any movement above half speed requires a DC 11 Dexterity Save or they stumble 5 ft in a random direction. Duration: 2 rounds. Particularly effective against large creatures — effect duration +1 round per size class above Moderate."
     },
     {
       "name": "Disperss Vibe",
-      "ss": 3
+      "ss": 3,
+      "activation": "Active (Instant)",
+      "range": "20-ft radius centered on the user",
+      "target": "Area, active energy effects",
+      "effect": "Releases a pulse of Neutral dampening energy that disperses vibration, resonance, and active energy signatures within range. Cancels: sonic effects, vibration-based abilities, electromagnetic interference, and any ability with \"vibration\" or \"resonance\" in its descriptor. Does not affect Eldritch, Null, or Kinetic energy directly — only vibrational expressions. Also silences the area of ambient noise for 1 round."
     },
     {
       "name": "Meld Memory",
-      "ss": 6
+      "ss": 6,
+      "activation": "Active (4 min — physical contact required)",
+      "range": "Touch",
+      "target": "Creature (willing or unconscious)",
+      "effect": "Establishes a temporary Neutral bridge between the user's memory and the target's. Can: extract a specific memory from the target (target re-experiences it alongside user); or share a specific memory from the user to the target (they experience it as a vivid flashback). Against unwilling conscious targets: Wisdom Save to resist. Duration: 10 minutes of shared experience."
     },
     {
       "name": "Meld Mind",
-      "ss": 9
+      "ss": 9,
+      "activation": "Active (5 min — physical contact, both stationary)",
+      "range": "Touch",
+      "target": "Creature (willing)",
+      "effect": "Full temporary cognitive union between user and willing target. Both share complete sensory experience, current thoughts, and memories for the duration. Either party can end the link voluntarily. While linked: both gain advantage on coordinated actions; both know what the other knows; emotional states bleed between them. After the link ends: both make Wisdom Saves or retain 1 memory that belonged to the other permanently. Duration: 1 minute."
     },
     {
       "name": "Distant Grasp",
-      "ss": 3
+      "ss": 3,
+      "activation": "Active (15 sec)",
+      "range": "Single Target within 60 ft",
+      "target": "Object (up to Large) or creature (contested)",
+      "effect": "Projects a precision Neutral force extension — effectively telekinetic reach to 60 ft. Can manipulate, move, or hold objects up to Large size. Against creatures: contested Strength Save vs user's CNeuronal Capacity Modifier DC to resist. The grasp can exert force equivalent to the user's Strength score. Can perform fine manipulation (unlock a door, pull a pin, turn a dial) at range with a successful Precision check."
     },
     {
       "name": "Create Glass of Water",
-      "ss": 1
+      "ss": 1,
+      "activation": "Active (Instant)",
+      "range": "Hand",
+      "target": "Self / immediate environment",
+      "effect": "Draws ambient moisture and atomic hydrogen/oxygen from the environment and coalesces it into a drinkable volume of clean water (approximately 250ml). The water is chemically pure. In environments with no ambient moisture (vacuum, extreme desert): SS cost doubles and a Control check (DC 10) is required. Can be used to fill containers, douse small flames, or provide hydration."
     },
     {
       "name": "Material Locate",
-      "ss": 3
+      "ss": 3,
+      "activation": "Active (Prepared, 3 min)",
+      "range": "300-ft radius",
+      "target": "One specific material type designated at activation",
+      "effect": "Reads Neutral energy resonance to locate concentrations of a specific material within range. User senses direction, approximate distance, and relative quantity. Can detect: metals, minerals, specific biological materials, manufactured composites. Cannot identify individual items — only material type and concentration."
     },
     {
       "name": "Link",
-      "ss": 4
+      "ss": 4,
+      "activation": "Active (3 min — must touch both targets)",
+      "range": "Touch (establishes link up to 100-ft range)",
+      "target": "Two objects or two creatures (or one of each)",
+      "effect": "Creates a persistent Neutral tether between two designated targets. Object-Object: forces applied to one are partially transferred to the other (up to 50% force sharing). Creature-Object: the creature always knows the object's location and state. Creature-Creature: both aware of the other's approximate HP and location at all times. Link persists for 24 hours or until both parties are in the same location simultaneously."
     }
   ],
   "Null": [
     {
       "name": "Deconstruct",
-      "ss": 5
+      "ss": 5,
+      "activation": "Active (SNR)",
+      "range": "Single Target within 20 ft",
+      "target": "Creatures, Objects, Area (Small–Large or smaller)",
+      "effect": "Choose a non-living object no larger than yourself within range. By making physical contact and focusing Null energy into its structure, you induce atomic failure across the object. The object either: Breaks apart into perfectly separated components or Is completely reduced into unusable material fragments the exact outcome is determined by Director discretion based on material complexity and condition. Resolution: Endurance Saving Throw (Object Integrity) Effect on Failure: The deconstruction i"
     },
     {
       "name": "Construct",
-      "ss": 1
+      "ss": 1,
+      "activation": "Active (SNR)",
+      "range": "Single Target within 20 ft",
+      "target": "Creatures, Objects, Area",
+      "effect": "The counterpart to Deconstruct — assembles a target object from its component pieces or from raw base matter. Can reconstruct objects that have been Deconstructed (if pieces remain present) or build simple structures from available raw material. Complexity determines scope: simple shapes (walls, containers, tools) at base SS; complex mechanisms require additional SS per component type."
     },
     {
       "name": "Reconstruct",
-      "ss": null
+      "ss": 2,
+      "activation": "Active (SNR)",
+      "range": "Single Target / 25-ft radius",
+      "target": "Creatures, Objects, Area",
+      "effect": "Rebuilds a damaged or deconstructed target. On objects: restores structural integrity regardless of damage type. On creatures: heals HP — 2d8 at SS 5; 4d8 at SS 10; 6d8 at SS 15; full HP + condition removal at SS 25. Cannot Reconstruct targets that have been fully destroyed (reduced to base matter) unless base matter is present."
     },
     {
       "name": "Composite Nullification",
-      "ss": 1
+      "ss": 1,
+      "activation": "Active (Instant — SNR)",
+      "range": "Single Target / 10-ft radius",
+      "target": "Active effects, Creatures, Objects",
+      "effect": "Cancels multiple active effects on a single target simultaneously — removes buffs, debuffs, conditions, and ongoing Genus effects in one nullification pulse. On creatures: removes up to 3 active conditions per use. On objects: cancels all Cipher and Genus modifications currently active on it. Cannot cancel permanent modifications or Incept expressions."
     },
     {
       "name": "Exchange",
-      "ss": null
+      "ss": 1,
+      "activation": "Active (Instant — SNR)",
+      "range": "Two Targets within 25-ft radius",
+      "target": "Two objects, two creatures, or one of each",
+      "effect": "Swaps a designated property or position between two targets via Null transposition. Simple Exchange (SS 1): swap positions of two objects of equal or smaller size. Property Exchange (SS 4): swap one stat or condition between two creatures (e.g., swap HP values, swap a buff). Complex Exchange (SS 8): swap a Genus ability effect between two creatures for 1 round. All exchanges resolve simultaneously through Null mechanics."
     },
     {
       "name": "Volume Increase",
-      "ss": 3
+      "ss": 3,
+      "activation": "Active (SNR)",
+      "range": "Single Target within 20 ft",
+      "target": "Object or material",
+      "effect": "Expands the internal volume of a target without changing its external dimensions or mass — Null space folding. A container holds 10× its apparent capacity. A room appears unchanged but has 10× the interior space. The Null expansion is stable indefinitely but collapses if the object is Deconstructed. Creatures cannot be Volume Increased (biology is incompatible with internal space expansion without severe injury)."
     },
     {
       "name": "Mass Increase",
-      "ss": 4
+      "ss": 4,
+      "activation": "Active (SNR)",
+      "range": "Single Target within 20 ft",
+      "target": "Object or Creature",
+      "effect": "Adds Null-density mass to a target, increasing its effective weight by ×2 to ×5 (Inquisitor's choice). Objects become immovable or nearly so. Creatures: gain +2 Endurance but movement halved; Strength-based throws and knockback have no effect. Duration on creatures: 2 rounds. On objects: permanent until removed via Exchange or Nullification."
     },
     {
       "name": "Abstraction",
-      "ss": 8
+      "ss": 8,
+      "activation": "Active (4 min — SNR)",
+      "range": "Single Target within 30 ft",
+      "target": "Creature or Object",
+      "effect": "Pulls the fundamental \"essence\" of a property out of a target and holds it in suspension. Removes: a weapon's damage property (the blade exists but cuts nothing), a creature's speed (they can move limbs but go nowhere), a creature's voice (silence without stunning). The abstracted property exists as a small glowing Null construct the Inquisitor holds. It can be returned (free action), transferred to another target, or discarded (property lost permanently on discard). Duration held: 1 hour."
     },
     {
       "name": "Virulent Expunge",
-      "ss": 6
+      "ss": 6,
+      "activation": "Active (SNR)",
+      "range": "Single Target within 20 ft or 10-ft radius",
+      "target": "Creature, Object, or contaminated Area",
+      "effect": "Violently purges foreign or corrupting matter/energy from a target. Removes: poison, disease, Eldritch corruption, parasitic entities, magical curses, and alien biological contaminations. The expulsion is visible and forceful — expelled material is vaporized. On cursed items: permanently breaks the curse but may destroy the item. On creatures: they take 1d4 damage from the process but are cleansed of all listed conditions."
     },
     {
       "name": "Silience",
-      "ss": 3
+      "ss": 3,
+      "activation": "Active (SNR)",
+      "range": "Single Target within 25 ft",
+      "target": "Creature, Object, or Area (10-ft radius)",
+      "effect": "Nullifies the capacity for sound production in the target. Creatures become completely silent — cannot vocalize, communicate verbally, or activate any sonic ability. Objects stop producing their characteristic sounds. Area application silences everything within 10 ft. Duration: 3 rounds."
     },
     {
       "name": "Manifold Inversion",
-      "ss": 9
+      "ss": 9,
+      "activation": "Active (SNR)",
+      "range": "20-ft radius centered on target point",
+      "target": "All creatures and active effects in area",
+      "effect": "Simultaneously inverts multiple properties within the radius. All buffs become debuffs; all debuffs become buffs; all ongoing damage effects become healing; all healing effects become damage. The inversion lasts 1 round before properties snap back. Null energy itself is unaffected. Most effective when used against heavily buffed opponents."
     },
     {
       "name": "Reality Break",
-      "ss": 15
+      "ss": 15,
+      "activation": "Active (5 min — SNR)",
+      "range": "15-ft radius centered on target within 40 ft",
+      "target": "Area and everything within it",
+      "effect": "Fractures the Null foundation of physical reality in a small area. Within the break: physics operates inconsistently (Director determines; effects may include: gravity inversion, time stuttering, mass fluctuation, energy reversal). All creatures in the area make Wisdom Save (DC 17) or become Disoriented for 2 rounds. The fracture persists for 2 rounds and leaves a lingering Null scar visible for 24 hours."
     },
     {
       "name": "Bastion Creation",
-      "ss": 8
+      "ss": 8,
+      "activation": "Active (4 min)",
+      "range": "10-ft radius centered on the user",
+      "target": "Area",
+      "effect": "Erects a Null energy barrier — a semi-transparent dome of absolute negation. The Bastion: blocks all incoming Genus and Cipher effects (they are nullified at the barrier); has HP equal to 20 + (5 × Neuronal CapacityLevel); does not impede physical movement through it. Creatures can pass freely; only energy effects are blocked. Duration: 5 rounds or until depleted."
     },
     {
       "name": "Shape Change",
-      "ss": 5
+      "ss": 5,
+      "activation": "Active (SNR)",
+      "range": "Single Object within 20 ft (up to Large)",
+      "target": "Inanimate object",
+      "effect": "Reconfigures the physical form of an object into any other form of equivalent mass and volume. A metal rod becomes a key; a wooden plank becomes a chair; a rope becomes a rigid pole. The material remains the same — only shape changes. Precision shapes (functioning locks, working mechanisms) require a Precision check (DC 12–18 based on complexity). Duration: permanent until changed again."
     },
     {
       "name": "Corrode Material",
-      "ss": 4
+      "ss": 4,
+      "activation": "Active (2 min)",
+      "range": "Single Target within 15 ft (or touch)",
+      "target": "Object or structure",
+      "effect": "Applies accelerated Null degradation to a material — a rapid synthetic decay affecting the object's molecular cohesion. Object loses structural integrity: −3 to its effective durability per round for 3 rounds. At 0 durability: crumbles. Corrode progresses from the point of contact outward. Living organic matter is resistant (Endurance Save to negate). Particularly effective against fabricated materials."
     },
     {
       "name": "Meld Form",
-      "ss": 7
+      "ss": 7,
+      "activation": "Active (4 min — both targets must be in contact)",
+      "range": "Touch",
+      "target": "Two objects or two creatures (both willing in creature case)",
+      "effect": "Null-merges two targets into a temporary composite entity. Objects: fuse into one object with both sets of properties (a blade merged with a shield = a sword with parrying capability). Creatures: can only be performed with willing subjects; the merged entity has the combined HP, one of the movement speeds, and can access abilities from both. Duration (creatures): 1 minute. One object merge per encounter; one creature merge per long rest."
     },
     {
       "name": "Decisive Grasp",
-      "ss": 5
+      "ss": 5,
+      "activation": "Active (SNR)",
+      "range": "Single Target within 30 ft",
+      "target": "Creature or Object",
+      "effect": "Projects a Null force grip that locks the target in absolute physical stasis. The target is completely immobilized — cannot move, be moved, or use movement-dependent abilities. Physical attacks still function but the target has no Dexterity bonus to avoid. Duration: 2 rounds or until the user releases (free action). Strength Save (DC 14 + Neuronal CapacityLevel) to resist. Objects are permanently held until the user releases."
     },
     {
       "name": "Negate",
-      "ss": null
+      "ss": null,
+      "activation": "Reaction (SNR)",
+      "range": "Single ability or effect within 40 ft",
+      "target": "One active Genus or Cipher ability being activated",
+      "effect": "Cancels one ability being activated — before it resolves. SS cost matches the SS cost of the negated ability. If the Inquisitor doesn't have enough SS: ability is not negated, SS spent is wasted. If successful: the ability is completely undone, SS spent by the original user is lost. Cannot negate Incept expressions or Stable Active trait effects."
     },
     {
       "name": "Reflect",
-      "ss": null
+      "ss": 4,
+      "activation": "Reaction (SNR)",
+      "range": "Self (affects ability targeting you)",
+      "target": "One Genus or Cipher ability targeting you",
+      "effect": "Redirects an incoming ability back toward its origin point. The reflected ability targets the original Inquisitor using the same roll/DC. Cost: 4 SS + half the reflected ability's SS (rounded up). If Inquisitor lacks sufficient SS: reflection fails, ability proceeds normally. Cannot reflect area effects — only single-target abilities."
     },
     {
       "name": "Create Being",
-      "ss": 12
+      "ss": 12,
+      "activation": "Active (5 min)",
+      "range": "10 ft from user",
+      "target": "Available base matter (minimum Small amount)",
+      "effect": "Constructs a simple autonomous Null entity from available base matter. The being: has HP equal to 10 + (3 × Neuronal CapacityLevel), deals 1d8 Null damage, follows single-word commands, and has limited independent problem-solving. Exists until reduced to 0 HP or 1 hour elapses. The Created Being has no personality or consciousness — it is a sophisticated construct. One at a time maximum."
     },
     {
       "name": "Inhibit",
-      "ss": 5
+      "ss": 5,
+      "activation": "Active (SNR)",
+      "range": "Single Target within 30 ft",
+      "target": "Creature",
+      "effect": "Places a Null inhibitor on a target's ability to use a specific category of power: Genus abilities, Cipher activations, Incept expressions, or physical attacks. The target must make a Wisdom Save (DC 13 + Neuronal CapacityLevel) or be unable to use the designated category for 2 rounds. On Critical Failure: 3 rounds. Does not prevent passive effects already active — only new activations. One Inhibit active per target at a time."
     }
   ]
 }

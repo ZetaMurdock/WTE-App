@@ -18,6 +18,8 @@ export interface CharacterSheet {
   speciesId?: string;
   /** Chosen species variant (lineage), by its display name — see Species.variants. */
   variantName?: string;
+  /** Chosen variant option label (e.g. Annunaki head shape). */
+  variantOption?: string;
   paradigmId?: string;
   /** Curator-managed rank 0..9. */
   rank?: number;
@@ -28,5 +30,7 @@ export interface CharacterSheet {
   /** Selected genus / cipher ability names (loadout, capped by rank slots). */
   genusLoadout?: string[];
   cipherLoadout?: string[];
+  /** Synaptic Space spent (current SS = derived SS − ssSpent); reset by Rest. */
+  ssSpent?: number;
   notes?: string;
 }

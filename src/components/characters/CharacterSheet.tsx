@@ -11,6 +11,9 @@ import {
   effectiveAttributes,
   effectiveSpecialties,
   aggregateEquip,
+  computeDerived,
+  sizeOf,
+  rollGeneric,
   bgBonuses,
   rollMod,
   specRollMod,
@@ -34,6 +37,7 @@ import { RollFeed, useRollFeed } from "./RollFeed";
 import { SpeciesVariantsPanel } from "./SpeciesVariantsPanel";
 import { EquipmentPanel } from "./EquipmentPanel";
 import { AbilitiesPanel } from "./AbilitiesPanel";
+import { ActionsRail } from "./ActionsRail";
 
 interface Props {
   characterId: string;
@@ -92,6 +96,15 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   const eff = effectiveAttributes(sheet.attributes, sheet.speciesId, bgBonuses(sheet.background), equip.attr);
   const effSpec = effectiveSpecialties(sheet.specialties, equip.spec);
   const remaining = specialtyRemaining(sheet.specialties);
+  const derived = computeDerived(sheet.attributes, sheet.specialties, {
+    speciesId: sheet.speciesId,
+    rank,
+    bgBonuses: bgBonuses(sheet.background),
+    equip,
+    sizeMove: sizeOf(sheet.sizeId, sheet.speciesId).move,
+  });
+  const maxSS = derived.ss;
+  const ssSpent = sheet.ssSpent ?? 0;
   const validation = validateSheet(sheet.attributes, sheet.specialties);
   const species = getSpecies(sheet.speciesId);
   const paradigm = getParadigm(sheet.paradigmId);
@@ -133,6 +146,12 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   }
   function setCiphers(names: string[]) {
     persist({ ...rec!, sheet: { ...sheet, cipherLoadout: names } });
+  }
+  function spendSS(cost: number) {
+    persist({ ...rec!, sheet: { ...sheet, ssSpent: (sheet.ssSpent ?? 0) + cost } });
+  }
+  function restSS() {
+    persist({ ...rec!, sheet: { ...sheet, ssSpent: 0 } });
   }
 
   async function doRoll(roll: RollResult) {
@@ -194,6 +213,19 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
       )}
 
       <div className="sheet-layout">
+        <ActionsRail
+          paradigmId={sheet.paradigmId}
+          speciesId={sheet.speciesId}
+          variantName={sheet.variantName}
+          variantOption={sheet.variantOption}
+          genusLoadout={sheet.genusLoadout ?? []}
+          cipherLoadout={sheet.cipherLoadout ?? []}
+          maxSS={maxSS}
+          ssSpent={ssSpent}
+          onSpend={spendSS}
+          onRest={restSS}
+          onRoll={(label) => doRoll(rollGeneric(label))}
+        />
         <div className="sheet-col">
           <div className="panel-title">Attributes</div>
           <div className="stat-editor">

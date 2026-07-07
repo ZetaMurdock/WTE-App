@@ -1,0 +1,130 @@
+{
+  "hyomen": [
+    {
+      "name": "Prodigal Mind",
+      "effect": "Cognitive adaptability; broad skill application across diverse fields"
+    },
+    {
+      "name": "Indecisive Body",
+      "effect": "Physical versatility; no locked body configuration — adapts to any role"
+    },
+    {
+      "name": "Indomitable Will",
+      "effect": "Mental resilience; resistance to psychic and emotional compulsion"
+    },
+    {
+      "name": "Peak Evolution",
+      "effect": "Access to the widest range of Backgrounds and Asymmetry paths of any species"
+    }
+  ],
+  "voaulton": [
+    {
+      "name": "Chemical Mastery",
+      "effect": "Advanced biochemical manipulation and resistance"
+    },
+    {
+      "name": "Robotic Integration",
+      "effect": "Natural affinity for machine-bonding and technological augmentation"
+    },
+    {
+      "name": "Adaptive Analysis",
+      "effect": "Rapid environmental and tactical threat assessment"
+    },
+    {
+      "name": "Energetic Synergy",
+      "effect": "Synchronize personal energy output with external power systems"
+    }
+  ],
+  "mirga": [
+    {
+      "name": "Perfect Mimicry",
+      "effect": "Flawless replication of observed biological and physical traits"
+    },
+    {
+      "name": "Mimetic Adaptation",
+      "effect": "Automatically adapt mimicked form in response to environmental pressures"
+    },
+    {
+      "name": "Illusory Disguise",
+      "effect": "Project false appearances beyond physical mimicry — includes aura, energy signature, and perceived identity"
+    },
+    {
+      "name": "Emotional Mimicry",
+      "effect": "Mirror and broadcast the emotional states of nearby creatures; can stabilize or destabilize group morale"
+    }
+  ],
+  "oriyu": [],
+  "insectoid": [
+    {
+      "name": "Regenerative Limbs",
+      "effect": "Lost or damaged limbs regrow over time; rate scales with health state"
+    },
+    {
+      "name": "Eyeless",
+      "effect": "Navigate through non-visual sensory systems (vibration, electromagnetic, chemical); immune to vision-based attacks and illusions"
+    },
+    {
+      "name": "Reflexive Assurance",
+      "effect": "Automatic reaction to perceived threats without conscious deliberation"
+    },
+    {
+      "name": "Peak Evolution",
+      "effect": "Access to a broad range of Asymmetry evolution paths"
+    }
+  ],
+  "subdermin": [
+    {
+      "name": "Forsaken Touch",
+      "effect": "Physical contact has a degrading or corrosive effect on matter; precise control requires training"
+    },
+    {
+      "name": "Radioactive Anatomy",
+      "effect": "Internal biology emits low-level radiation; provides passive area deterrence and interacts uniquely with certain energy types"
+    },
+    {
+      "name": "Terrestrial Knowledge",
+      "effect": "Innate deep awareness of geological and subterranean environments; cannot become lost underground"
+    },
+    {
+      "name": "Living Planet Merge",
+      "effect": "Temporary physical integration with planetary matter — merge with stone, earth, or natural underground formations"
+    }
+  ],
+  "inderi": [],
+  "seraph": [
+    {
+      "name": "Antimatter Wings",
+      "effect": "Wings composed of antimatter; provide flight capability with destructive potential on contact"
+    },
+    {
+      "name": "Dance of Displacement",
+      "effect": "Short-range reality displacement; blink between positions with minimal tell"
+    },
+    {
+      "name": "Spatial Rupture",
+      "effect": "Tear the spatial fabric of an area; creates localized instability affecting movement and targeting"
+    },
+    {
+      "name": "Distant Vision",
+      "effect": "Perceive across extraordinary distances without physical relocation; primary intelligence-gathering capability"
+    }
+  ],
+  "stygians": [
+    {
+      "name": "Interstitial Intrusion",
+      "effect": "Passive"
+    },
+    {
+      "name": "Engraving",
+      "effect": "Passive"
+    },
+    {
+      "name": "Parasitic Shadow",
+      "effect": "Active"
+    },
+    {
+      "name": "Locked in time",
+      "effect": "Active"
+    }
+  ]
+}

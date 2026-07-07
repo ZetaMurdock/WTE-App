@@ -6,6 +6,7 @@
 import genusData from "./data/genus.json";
 import cipherData from "./data/ciphers.json";
 import variantsData from "./data/variants.json";
+import speciesInnateData from "./data/speciesInnate.json";
 
 export type AttrKey = "phy" | "dex" | "end" | "ap" | "wis" | "cha" | "int";
 export type SpecKey =
@@ -120,6 +121,8 @@ export interface SpeciesVariant {
   name: string;
   note?: string;
   abilities: SpeciesVariantAbility[];
+  /** A creation-time choice granting one extra ability (e.g. Annunaki head shape). */
+  options?: { label: string; ability: SpeciesVariantAbility }[];
 }
 const VARIANTS = variantsData as Record<string, SpeciesVariant[]>;
 export interface Species {
@@ -335,11 +338,17 @@ export function sizeOf(sizeId: string | undefined, speciesId?: string): SizeClas
 export interface GenusAbility {
   name: string;
   ss: number | null;
+  effect?: string | null;
+  activation?: string | null;
+  range?: string | null;
+  target?: string | null;
 }
 export interface CipherAbility {
   name: string;
   ss: number | null;
   tier: string;
+  type?: string | null;
+  effect?: string | null;
 }
 const GENUS_DATA = genusData as Record<string, GenusAbility[]>;
 const CIPHER_DATA = cipherData as Record<string, CipherAbility[]>;
@@ -357,6 +366,51 @@ export function ciphersForParadigm(paradigmId?: string): CipherAbility[] {
   return CIPHER_DATA[paradigmId || ""] || [];
 }
 export const CIPHER_TIERS = ["offline", "online", "special"] as const;
+
+// ── Racial abilities + unified "usable" ability model (for the Actions rail) ──
+const SPECIES_INNATE = speciesInnateData as Record<string, SpeciesVariantAbility[]>;
+/** A species' innate abilities with effects; falls back to bare names when the wiki page had none. */
+export function speciesInnate(speciesId?: string): SpeciesVariantAbility[] {
+  const wiki = SPECIES_INNATE[speciesId || ""] || [];
+  if (wiki.length) return wiki;
+  return (getSpecies(speciesId)?.innate || []).map((name) => ({ name, effect: "" }));
+}
+
+export type AbilitySource = "genus" | "cipher" | "racial";
+export interface UsableAbility {
+  source: AbilitySource;
+  name: string;
+  ss: number;
+  effect?: string | null;
+  range?: string | null;
+  target?: string | null;
+  activation?: string | null;
+}
+
+export function usableGenus(paradigmId: string | undefined, loadout: string[]): UsableAbility[] {
+  const all = genusForParadigm(paradigmId).flatMap((g) => g.abilities);
+  return loadout.map((name) => {
+    const a = all.find((x) => x.name === name);
+    return { source: "genus" as const, name, ss: a?.ss ?? 0, effect: a?.effect, range: a?.range, target: a?.target, activation: a?.activation };
+  });
+}
+export function usableCiphers(paradigmId: string | undefined, loadout: string[]): UsableAbility[] {
+  const all = ciphersForParadigm(paradigmId);
+  return loadout.map((name) => {
+    const a = all.find((x) => x.name === name);
+    return { source: "cipher" as const, name, ss: a?.ss ?? 0, effect: a?.effect, activation: a?.type };
+  });
+}
+export function usableRacial(speciesId?: string, variantName?: string, variantOption?: string): UsableAbility[] {
+  const out: UsableAbility[] = speciesInnate(speciesId).map((a) => ({ source: "racial" as const, name: a.name, ss: 0, effect: a.effect }));
+  const variant = getSpecies(speciesId)?.variants.find((v) => v.name === variantName);
+  if (variant) {
+    variant.abilities.forEach((a) => out.push({ source: "racial", name: a.name, ss: 0, effect: a.effect }));
+    const opt = variant.options?.find((o) => o.label === variantOption);
+    if (opt) out.push({ source: "racial", name: opt.ability.name, ss: 0, effect: opt.ability.effect });
+  }
+  return out;
+}
 
 /** Specialties with equipment bonuses folded in (used for rolls + mod boxes). */
 export function effectiveSpecialties(base: Specialties, equipSpec?: Partial<Record<SpecKey, number>>): Specialties {
@@ -481,4 +535,9 @@ export function rollSpecialty(label: string, pts: number): RollResult {
   const penalty = pts < SPEC_PENALTY_MIN ? SPEC_PENALTY : 0;
   const formula = penalty ? `1d40 ${fmtMod(mod)} - ${SPEC_PENALTY}` : `1d40 ${fmtMod(mod)}`;
   return { formula, result: roll + mod - penalty, detail: { die: 40, roll, modifier: mod - penalty, label } };
+}
+/** Plain 1d20 assist roll (used when resolving an ability). */
+export function rollGeneric(label: string): RollResult {
+  const roll = rollDie(20);
+  return { formula: "1d20", result: roll, detail: { die: 20, roll, modifier: 0, label } };
 }

@@ -37,6 +37,7 @@ function parseSheet(raw: string | null): CharacterSheet {
       specialties: { ...zeroSpecialties(), ...(p.specialties || {}) },
       speciesId: p.speciesId,
       variantName: p.variantName,
+      variantOption: p.variantOption,
       paradigmId: p.paradigmId,
       rank: typeof p.rank === "number" ? p.rank : 0,
       background: p.background,
@@ -44,6 +45,7 @@ function parseSheet(raw: string | null): CharacterSheet {
       equipment: Array.isArray(p.equipment) ? p.equipment : [],
       genusLoadout: Array.isArray(p.genusLoadout) ? p.genusLoadout : [],
       cipherLoadout: Array.isArray(p.cipherLoadout) ? p.cipherLoadout : [],
+      ssSpent: typeof p.ssSpent === "number" ? p.ssSpent : 0,
       notes: p.notes || "",
     };
   } catch {

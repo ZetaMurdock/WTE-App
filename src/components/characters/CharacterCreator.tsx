@@ -49,6 +49,7 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
   const [name, setName] = useState("");
   const [speciesId, setSpeciesId] = useState<string | undefined>();
   const [variantName, setVariantName] = useState<string | undefined>();
+  const [variantOption, setVariantOption] = useState<string | undefined>();
   const [paradigmId, setParadigmId] = useState<string | undefined>();
   const [attributes, setAttributes] = useState<Attributes>(zeroAttributes());
   const [specialties, setSpecialties] = useState<Specialties>(zeroSpecialties());
@@ -61,6 +62,7 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
   const remaining = specialtyRemaining(specialties);
   const validation = validateSheet(attributes, specialties);
   const species = getSpecies(speciesId);
+  const selectedVariant = species?.variants.find((v) => v.name === variantName);
   const paradigm = getParadigm(paradigmId);
   const eff = effectiveAttributes(attributes, speciesId, bgBonuses(background));
 
@@ -84,7 +86,7 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
 
   async function finish() {
     setSaving(true);
-    const sheet: CharacterSheet = { attributes, specialties, speciesId, variantName, paradigmId, rank: 0, background, notes: "" };
+    const sheet: CharacterSheet = { attributes, specialties, speciesId, variantName, variantOption, paradigmId, rank: 0, background, notes: "" };
     try {
       const rec = await createCharacter(campaignId, name, sheet);
       onDone(rec.id);
@@ -142,6 +144,7 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
                   onClick={() => {
                     setSpeciesId(sp.id);
                     setVariantName(undefined);
+                    setVariantOption(undefined);
                   }}
                 >
                   <div className="pick-fam">{sp.family}</div>
@@ -164,13 +167,33 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
                     <button
                       key={v.name}
                       className={"pick-card" + (variantName === v.name ? " selected" : "")}
-                      onClick={() => setVariantName(variantName === v.name ? undefined : v.name)}
+                      onClick={() => {
+                        setVariantName(variantName === v.name ? undefined : v.name);
+                        setVariantOption(undefined);
+                      }}
                     >
                       <div className="pick-name">{v.name}</div>
                       <div className="pick-innate">{v.abilities.map((a) => a.name).join(" · ")}</div>
                     </button>
                   ))}
                 </div>
+
+                {selectedVariant?.options && (
+                  <div className="variant-options">
+                    <div className="aside-title">{selectedVariant.name} — choose one</div>
+                    <div className="chip-row">
+                      {selectedVariant.options.map((o) => (
+                        <button
+                          key={o.label}
+                          className={"chip" + (variantOption === o.label ? " active" : "")}
+                          onClick={() => setVariantOption(o.label)}
+                        >
+                          {o.label} → {o.ability.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

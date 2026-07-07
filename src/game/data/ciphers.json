@@ -3,747 +3,1041 @@
     {
       "name": "LIGHT WEIGHT",
       "ss": 35,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Science Cipher",
+      "effect": "The object becomes significantly lighter — but only for the user who activated it. Upon picking up or holding the object, the Inquisitor gains limited control over its dimensional properties. As a bonus action, the user can enlarge or shrink the object by up to two size categories in either direction. If an object is reduced beyond its minimum stable size, it defaults to its smallest possible safe configuration."
     },
     {
       "name": "MALLIATION",
       "ss": 15,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Bonus Action",
+      "effect": "The bonded object can be hardened or softened with exceptional precision, ranging from the density of cushioned fabric to the structural integrity of refined diamond. Switching between states requires one Reaction or Bonus Action. Hard State: resists cutting, crushing, or piercing damage up to Tier-3 materials; may be used offensively. Soft State: reduces mass and rigidity, absorbs kinetic energy, enables stealth compression. Each full material shift consumes a minor Cipher charge, replenishable"
     },
     {
       "name": "VISIATION",
       "ss": 25,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Bonus Action",
+      "effect": "For a limited duration, the Inquisitor can perceive the base chemical composition of any object, organism, or substance within their authority level or lower (1 min per charge, standard line of sight). Classified structures above the user's clearance appear redacted. Beyond analytical use, enhances reading comprehension and data absorption. Passive: grants +2 to Perception and Intelligence-related checks reliant on visual or chemical analysis."
     },
     {
       "name": "CHEMICAL ALTER",
       "ss": 45,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Standard Action",
+      "effect": "A destabilized object can be deconstructed into its fundamental physical aspects, extracted as tangible particle blocks held in the Inquisitor's hand. Extracted aspects include: Weight, Size, Mass, Density, Viscosity, Friction, Force. Each block is a condensed representation of a single property. Two or more blocks can be combined to form composite materials, or applied to existing objects to alter their characteristics. Modified material requires stabilization to prevent further disintegration."
     },
     {
       "name": "STABLIZE",
       "ss": 40,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Standard Action",
+      "effect": "Stabilizes the target object, halting all destabilization effects and reassembling fragmented materials into a composite whole. Any object previously affected by destabilization becomes perfectly bonded. For damaged or broken items, rebinds all fragments together. Functionality remains limited unless all original components are present — the Cipher preserves form but not missing material."
     },
     {
       "name": "SPECTRCO",
       "ss": 55,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Standard Action",
+      "effect": "Upon activation, triggers a light inversion field around anything in direct contact with the host object. Within this field, all surrounding illumination and reflections become inverted — brightness becomes shadow, shadow becomes radiant contrast. The object absorbs this inverted light, converting it into a reservoir of condensed electromagnetic energy. Once threshold capacity is reached, the Cipher releases the stored energy as a high-intensity beam of focused electromagnetic waves, functioning"
     },
     {
       "name": "BF-C",
       "ss": 65,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Prepared Action",
+      "effect": "Upon activation, forces the destabilized object to vanish instantaneously, generating a catastrophic butterfly effect that ripple-collapses toward a random point within 1,000 feet of the Inquisitor's location. As the event resolves, the object re-manifests abruptly — typically appearing in the possession or proximity of a random individual within the affected radius, accompanied by a minor energy surge or localized distortion field."
     },
     {
       "name": "RAHMAN-S",
       "ss": 68,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Standard Action",
+      "effect": "Manipulates the flow of light through the transparent object, visualizing sound and kinetic vibrations as luminous distortions. Any entity or surface that interacts physically with these vibrations resonates at the same frequency, causing extreme disorientation, vertigo, and sensory instability without inflicting lethal harm. Affected subjects must succeed on: Wisdom Saving Throw (mental stability), Perception Skill Check (visual feedback), Control Skill Check (physical balance). On failure, the"
     },
     {
       "name": "DIMENSIONAL MAPPING",
       "ss": 75,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Prepared Action",
+      "effect": "When activated, integrates with the Inquisitor's cognition to project navigational insight toward a previously observed location. The Lattice outlines: most efficient logistical routes to the destination, all notable environmental obstacles and visible dangers, and optimal travel vectors based on terrain, timing, and energy expenditure. Data is displayed through luminous pathways or mental overlays."
     },
     {
       "name": "BIPARTION",
       "ss": 50,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Bonus Action",
+      "effect": "When activated on any linked object, searches for and connects to other objects bearing this same Cipher. A visible line or arc of energy forms between any two linked objects. The Cipher displays the relationship type through line color or pattern (hostile, allied, neutral, resource-linked) and intensity or thickness (stronger or weaker association). As more Ciphered objects exist on the field, the visualization scales — each object becomes a node, each measured relationship an edge, revealing c"
     },
     {
       "name": "MASKING",
       "ss": 25,
-      "tier": "online"
+      "tier": "online",
+      "type": "Prepared Action",
+      "effect": "When activated while worn, allows the user to comprehend and imitate the thinking patterns and outward behavior of another species they are observing or directly interacting with. This includes intuitively understanding how that species tends to react, move, and communicate. Over time in the same encounter the mask enables the user to mirror their actions or language, reproducing basic speech patterns, tone, and simple phrases closely enough to be treated as a familiar presence rather than an ou"
     },
     {
       "name": "SYNTHESIS",
       "ss": 35,
-      "tier": "online"
+      "tier": "online",
+      "type": "Standard Action",
+      "effect": "Combines two or more Chemical Alter particle blocks into a new composite material with emergent properties drawn from all source components. Because Online, synthesis data is shared with the Paradigm network — other Science Inquisitors can replicate the composite on future missions. The Paradigm retains the formula on record."
     },
     {
       "name": "REFRACTION CASCADE",
       "ss": 45,
-      "tier": "online"
+      "tier": "online",
+      "type": "Standard Action",
+      "effect": "Extends Spectrco's electromagnetic beam by splitting it through the object's internal refraction matrix — fires up to 3 beams simultaneously, each directed at different targets within 60°. Each beam carries reduced power. Beams can be recombined onto a single target for full power. Online upgrade enables directional adjustment mid-activation."
     },
     {
       "name": "ISOTOPIC ANALYSIS",
       "ss": 20,
-      "tier": "online"
+      "tier": "online",
+      "type": "Prepared Action",
+      "effect": "Reveals the complete material history of a bonded object or substance: chemical composition, isotopic dating (approximate age), origin environment, previous modifications, and last 3 recorded interactions. Data is transmitted to the Paradigm network and archived. Classified materials display redacted fields."
     },
     {
       "name": "MOLECULAR ASSEMBLY",
       "ss": 55,
-      "tier": "online"
+      "tier": "online",
+      "type": "Prepared Action",
+      "effect": "Constructs a functioning object at nanoscale by arranging individual molecules according to a programmed schema. Can create any non-electronic object up to Medium size. Complexity: simple shapes (10 min); functional tools (1 hour); precision instruments (4 hours). Online enables access to Paradigm database assembly schemas for instant pre-approved design fabrication."
     },
     {
       "name": "QUANTUM ENTANGLEMENT LINK",
       "ss": 50,
-      "tier": "online"
+      "tier": "online",
+      "type": "Prepared Action",
+      "effect": "Establishes quantum entanglement between two bonded objects separated at any distance. Changes made to one object's physical state are reflected in the other regardless of range. Objects must be entangled while adjacent; can then be separated without limit. The link is unbreakable except by Null Deconstruct or Paradigm authority. Online logging records both objects' states in real time."
     },
     {
       "name": "PHASE SHIFT DETECTOR",
       "ss": 25,
-      "tier": "online"
+      "tier": "online",
+      "type": "Bonus Action",
+      "effect": "Reveals all Phased, metaphysical, simulated, or otherwise non-standard-physical entities within 60 ft — including Remnant Bygone-state subjects, Simulation Parallax entities, Evolution bio-constructs, and Null-abstracted properties. Detected entities appear as a faint overlay within the Inquisitor's vision."
     },
     {
       "name": "ATMOSPHERIC CONVERTER",
       "ss": 60,
-      "tier": "online"
+      "tier": "online",
+      "type": "Standard Action",
+      "effect": "Alters the chemical composition of air within a 40-ft radius: removes specific gases (toxins, smoke, Eldritch particulates), introduces new gases (sedatives, stimulants, oxygen enrichment), or shifts atmospheric density. Creatures in the area make Endurance Saves against gas-based effects. Requires 1 round to reach full effect. Certain gas types require Paradigm authorization."
     },
     {
       "name": "CATALYST",
       "ss": 30,
-      "tier": "online"
+      "tier": "online",
+      "type": "Bonus Action",
+      "effect": "Applied to any ongoing chemical or biological process: Accelerate (healing completes in half time; combustion burns at 3× intensity; corrosion that would take hours takes rounds) or Decelerate (stop bleeding; slow poison progression; reduce fire intensity by half). On Genus abilities: extends a sustained effect duration by 50%, or halves a remaining enemy duration."
     },
     {
       "name": "HISTORICAL DATA EXTRACTION",
       "ss": 35,
-      "tier": "online"
+      "tier": "online",
+      "type": "Prepared Action",
+      "effect": "Retrieves a complete chronological record of significant events an object has been part of: every hand that has held it (biological residue), every environment it passed through (particulate deposits), significant forces applied (stress fractures), and approximate timeline. Results are presented as sequential \"impressions\" — accurate molecular-evidence reconstructions. Classified intel recovered is automatically flagged to the Paradigm."
     },
     {
       "name": "S1 — ABSOLUTE ZERO",
       "ss": 80,
-      "tier": "special"
+      "tier": "special",
+      "type": "Standard Action",
+      "effect": "Drops temperature within a 30-ft radius to absolute zero over 2 rounds. All molecular motion ceases — objects become structurally perfect but completely brittle; living creatures make Endurance Saves (DC 18) each round or take 3d10 cold damage and lose 1 Action. Sustained up to 3 rounds. Releasing stored thermal energy detonates it — 5d10 fire damage in the same radius. Special Ciphers are never Online-logged."
     },
     {
       "name": "S2 — GENESIS FORMULA",
       "ss": 100,
-      "tier": "special"
+      "tier": "special",
+      "type": "Prepared Action (10 min)",
+      "effect": "Creates real matter from pure energy — up to 50 kg of any non-living material the Inquisitor has previously analyzed via Visiation or Isotopic Analysis. The created matter is indistinguishable from natural material. Cannot create functioning electronics, living organisms, or materials above TL 3.0 in complexity. Created matter is permanent."
     },
     {
       "name": "S3 — GRAND UNIFIED THEORY",
       "ss": 70,
-      "tier": "special"
+      "tier": "special",
+      "type": "Bonus Action",
+      "effect": "For 3 rounds, the Inquisitor understands the complete operational logic of any single system they analyze — mechanical, biological, social, or strategic. For combat: gains perfect foreknowledge of the most likely next action of one designated target (pure kinematic prediction, not prophecy). For objects: instantly understands how to use, disable, or replicate any device."
     },
     {
       "name": "S4 — SYSTEMATIC COLLAPSE",
       "ss": 90,
-      "tier": "special"
+      "tier": "special",
+      "type": "Standard Action",
+      "effect": "Triggers a chain reaction of structural failures through any interconnected system the Cipher is bonded to — mechanical systems, facility power grids, biological systems, or material structures. Collapse propagates at 30 ft per round. Creatures within the collapse radius make Endurance Saves (DC 16 + Code Level) each round or take 2d10 damage and have one active ability shut down. Cannot be stopped once initiated except by Null or Paradigm-level authority."
     },
     {
       "name": "S5 — LIVING SCIENCE",
       "ss": 60,
-      "tier": "special"
+      "tier": "special",
+      "type": "Prepared Action (1 hour)",
+      "effect": "Permanently embeds a scientific Cipher principle into living biology, creating a biological analog of a technology. The effect is slower and imprecise compared to the Cipher but requires no SS (draws from biology instead). Example: Biological Visiation — subject can see chemical compositions naturally. Irreversible without Null ability or major medical intervention."
     }
   ],
   "simulation": [
     {
       "name": "SIMULATED EJECT",
       "ss": 40,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Bonus Action",
+      "effect": "Ejected abilities apply their effects and deal direct damage consistent with the natural behavior of their associated Genus. Once the simulation concludes, all simulated effects immediately cease. Parallax: When Parallaxed, the simulated effect remains active beyond the simulation's end, persisting according to Synaptic Space capacity. For every ten minutes the effect remains active, 10 units of Synaptic Space are consumed. Psychological strain and residual cognitive damage inflicted during this"
     },
     {
       "name": "INFLICTION",
       "ss": 35,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Bonus Action",
+      "effect": "Failure on either check triggers the Anchored Condition, effectively binding the target's mind to the simulation's emotional construct. This state induces intense emotional backlash — overwhelming the subject with artificially amplified feelings such as fear, grief, or despair. The resulting mental overload causes temporary incapacitation, leaving the target unable to act or process external stimuli until the effect subsides or the simulation resets."
     },
     {
       "name": "SIMULATED CLEAVER",
       "ss": 50,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Standard Action",
+      "effect": "The modified object can be thrown or projected, and upon impact triggers a Parallax Reaction — either enhancing any active simulation in the surrounding area or forcibly subjecting the struck individual to a localized simulation field. Within this induced state, the target unconsciously confronts a manifestation of their deepest fears. Target must succeed on a Wisdom Saving Throw or be pulled into the generated simulation. Upon escaping, a secondary Wisdom Saving Throw must be made to resist mem"
     },
     {
       "name": "TRACE",
       "ss": 34,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Standard Action",
+      "effect": "The simulated lattice functions as a digital framework of the object, existing simultaneously within tangible and simulated states. This holographic construct can be modified, enhanced, or redefined through accompanying Ciphers, allowing Inquisitors to alter material structure, density ratios, or even conceptual design without directly modifying the original object. Because the lattice is a simulation overlay, it serves as a non-destructive experimental field."
     },
     {
       "name": "XRYTE",
       "ss": 35,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Bonus Action",
+      "effect": "When applied within a Parallaxed Simulation, enables the creation of a simulated physical duplicate of an animate subject — modeled after either the Inquisitor or any individual previously imprinted within a Simulated Lattice. The resulting copy possesses the full appearance, reflexes, and material presence of the subject, though its consciousness remains a patterned echo completely obedient to the creating Inquisitor. These duplicates fade upon simulation termination or when Parallax stability "
     },
     {
       "name": "DIGITIZE",
       "ss": 35,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Bonus Action",
+      "effect": "When activated, the Cipher advances or reverses the temporal progression of the simulated object through every stage of its production and existence (as determined by Curator Decreation). This allows the Inquisitor to witness and manipulate the object's entire lifecycle in simulation — growth, decay, refinement, or restoration at will. A simulated apple could be observed ripening, rotting, or reverting to an unformed seed."
     },
     {
       "name": "DISTIE",
       "ss": 56,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Bonus Action",
+      "effect": "Upon activation, releases a surge of unstable simulation energy that forces any active or nearby simulation to violently collapse in on itself. This rapid self-destruction manifests as a shattering implosion of light and energy, wiping out simulated constructs within its range. Physical objects or living entities caught within the destructive radius must succeed on an Endurance Saving Throw — failure results in partial simulation assimilation, where a portion of the target's body becomes tempora"
     },
     {
       "name": "MANUSIM",
       "ss": 35,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Prepared Action",
+      "effect": "Allows the cube to reshape itself into complex simulation-based tools or constructs. Possible configurations include: Projection Tools (cranes, arms, assembly instruments for manipulating large simulated objects), Architectural Constructs (geometric frameworks forming temporary structures or barriers within a running simulation), and Weapon Simulations (bladed, ranged, or field-compressed weapon forms usable in simulated combat). Each transformation consumes simulation energy proportional to its"
     },
     {
       "name": "LITTLE HELPER",
       "ss": 25,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Bonus Action",
+      "effect": "Once activated, the AI Construct functions as a personal simulation assistant capable of: identifying materials or components necessary for ongoing projects; guiding the Inquisitor through assembly or repair processes in step-by-step detail; answering inquiries within its programmed knowledge capacity (limited to Paradigm simulations, sciences, and field operations); and providing contextual advisement, highlighting inefficiencies within running simulated sequences. The construct does not posses"
     },
     {
       "name": "DISTRUO",
       "ss": 35,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Prepared Action",
+      "effect": "When activated, transmits data from one object into another through the Node link. An Intake Node forms near the source object, taking the visual shape of a simulated bowl — any physical object placed into this bowl will be converted into data, stored and sent through the Node chain, and reconstructed inside the direct target object. This transfer can continue from object to object along the chain of linked Ciphers, with no effective distance limit so long as each participating Cipher remains ac"
     },
     {
       "name": "SALITE",
       "ss": 76,
-      "tier": "online"
+      "tier": "online",
+      "type": "Prepared Action",
+      "effect": "When activated, the satellite connection allows the user to project targeted waves down onto the battlefield, damaging animate subjects within 100 feet by focusing the pulse through their position as a ground anchor (Standard Action per use). Through the same link, the user can also transmit their voice across great distances or broadcast it widely. When projecting their presence with intent, those noticeably weaker than the user may feel a pressure like increased gravity pushing them toward the"
     },
     {
       "name": "OVERLAY",
       "ss": 30,
-      "tier": "online"
+      "tier": "online",
+      "type": "Bonus Action",
+      "effect": "Creates a persistent holographic simulation overlay on a real-world space (up to 30×30 ft). Designated individuals see the overlay; others see normal reality. Can add, remove, or alter visual elements in the covered space. Online: the overlay can receive live updates from Paradigm central simulation servers, enabling real-time intelligence displays or coordinated deception operations."
     },
     {
       "name": "SIMULATED REINFORCEMENT",
       "ss": 45,
-      "tier": "online"
+      "tier": "online",
+      "type": "Standard Action",
+      "effect": "Pulls a simulated entity into a parallel-existence state — it occupies both simulated and real space simultaneously. The entity can interact with real-world objects as if physical, but is immune to non-Parallax damage. Duration: 3 rounds or until the simulation ends. Online enables this to persist past simulation end (Parallax extension), lasting an additional 2 rounds."
     },
     {
       "name": "NETWORK SIMULATION",
       "ss": 55,
-      "tier": "online"
+      "tier": "online",
+      "type": "Prepared Action",
+      "effect": "Establishes a multi-user simulation space (up to 6 Inquisitors). All participants experience the same simulation and can interact with shared elements. Objects created by any participant are visible and usable by all. Online: participants can be at different physical locations within Paradigm network range, allowing remote collaborative operation."
     },
     {
       "name": "BREACH",
       "ss": 50,
-      "tier": "online"
+      "tier": "online",
+      "type": "Standard Action",
+      "effect": "Forces a simulated entity to manifest physically through a Breach point for 1 round. While breached: the entity is fully physical, can deal real damage, and can be physically damaged. After 1 round, it snaps back to the simulation layer. Online: Breach duration can be extended by 1 round per 10 additional SS spent, up to 4 rounds maximum."
     },
     {
       "name": "CORRUPTION UPLOAD",
       "ss": 40,
-      "tier": "online"
+      "tier": "online",
+      "type": "Prepared Action",
+      "effect": "Injects simulated malware into any networked device or digital system. The corruption: disables one chosen function per round; spreads through connected systems at 1 additional system per 2 rounds; causes false sensor data to be generated. Because Online, the corruption signature is traceable — unauthorized use is a logged violation with automatic mission review."
     },
     {
       "name": "REALITY ANCHOR",
       "ss": 65,
-      "tier": "online"
+      "tier": "online",
+      "type": "Standard Action",
+      "effect": "Permanently sustains one designated Parallax effect without requiring continued SS investment. The anchored effect is stable until physically disrupted or the Inquisitor deactivates it. Because Online: the Paradigm can remotely deactivate Anchored effects. One Anchor can be maintained per Cipher use."
     },
     {
       "name": "MIRROR WORLD",
       "ss": 70,
-      "tier": "online"
+      "tier": "online",
+      "type": "Prepared Action",
+      "effect": "Creates a simulation that is a perfect real-time copy of the current physical environment. Changes in the real environment are reflected in the simulation and vice versa. Inquisitors can step into and out of the simulation as a free action. Combat in the Mirror World deals real damage (via Parallax). Mirror World persists for 5 minutes."
     },
     {
       "name": "SIGNAL INTERCEPT",
       "ss": 35,
-      "tier": "online"
+      "tier": "online",
+      "type": "Bonus Action",
+      "effect": "Taps into any active Parallax or Simulation Cipher in range (60 ft). Can observe the simulation's contents from outside, inject a single simulated element into the hijacked simulation, or redirect Parallax effects to a new target. Contest: d20 + Code Level vs the originating Inquisitor's DC. On failure: originating Inquisitor is alerted to the intercept attempt."
     },
     {
       "name": "COMPLETE OVERRIDE",
       "ss": 80,
-      "tier": "online"
+      "tier": "online",
+      "type": "Standard Action",
+      "effect": "Replaces all of a target's sensory input with a complete fabricated simulation environment (Wisdom Save DC 16). The target experiences a fully immersive simulation replacing all their senses — they cannot perceive the real world. Duration: until target succeeds a Wisdom Save (retries each round at +1 cumulative bonus), until the Inquisitor is incapacitated, or until physically shaken out of it (Standard Action by adjacent ally)."
     },
     {
       "name": "S1 — PERSISTENT WORLD",
       "ss": 100,
-      "tier": "special"
+      "tier": "special",
+      "type": "Prepared Action (1 hour)",
+      "effect": "Creates a simulation that exists and evolves independently — accessible at any time by authorized users. The Persistent World retains all elements created within it across sessions. It has a continuous Parallax status. The Inquisitor is the World's administrator but cannot control its evolution after creation. Excommunication results in immediate World deletion."
     },
     {
       "name": "S2 — PARALLAX COLLAPSE",
       "ss": 85,
-      "tier": "special"
+      "tier": "special",
+      "type": "Standard Action",
+      "effect": "Broadcasts a catastrophic destabilization signal causing ALL active simulations and Parallax effects within 1 mile to collapse simultaneously and violently. Creatures within Parallaxed simulations when they collapse take 3d10 force damage (no Save). All Simulation Ciphers in range are forced offline for 1d4 rounds. Indiscriminate — affects allied and enemy simulations equally. Requires Paradigm mission authorization."
     },
     {
       "name": "S3 — TRUE SIMULATION",
       "ss": 90,
-      "tier": "special"
+      "tier": "special",
+      "type": "Prepared Action (30 min)",
+      "effect": "Creates a simulation so complete in physical, chemical, and biological fidelity that it is indistinguishable from reality by any measurable standard — including supernatural analysis. Everything within obeys physics perfectly. Null Deconstruct cannot distinguish its matter from real matter. Duration: 1 hour per Code Level. Entities created within it believe themselves real. The Inquisitor and up to 5 designated individuals know the distinction."
     },
     {
       "name": "S4 — VOID UPLOAD",
       "ss": 75,
-      "tier": "special"
+      "tier": "special",
+      "type": "Prepared Action (20 min, willing subject)",
+      "effect": "Transfers a living consciousness into a pure simulation state — the body becomes a blank biological shell and the mind enters the Paradigm simulation network as a digital entity. While uploaded: immune to physical harm but can be affected by Cipher-level simulation attacks. Return requires re-download (15 min). Incomplete download procedures are a known risk."
     },
     {
       "name": "S5 — THE FINAL DRAFT",
       "ss": 120,
-      "tier": "special"
+      "tier": "special",
+      "type": "Prepared Action (1 hour)",
+      "effect": "Retroactively designates one completed event (within the last 24 hours, not exceeding a single encounter in scope) as simulated — it didn't happen. Evidence is adjusted, memories of non-resistant witnesses are overwritten (Wisdom Save DC 19 to retain true memory), and physical consequences are reversed. Cannot undo death. Cannot undo Director-designated permanent narrative events. The most tightly regulated Cipher in the Simulation suite."
     }
   ],
   "remnant": [
     {
       "name": "MULTITOOL",
       "ss": 15,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Bonus / Prepared Action",
+      "effect": "Upon activation, the Cipher permanently links to the object it modifies, altering its internal structure to accommodate modular transformation. Each form functions autonomously, drawing on the user's energy or environmental reserves as needed. The Remnant Paradigm often equips field operatives with this modification due to its tactical flexibility."
     },
     {
       "name": "ANIMATION",
       "ss": 25,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Prepared Action",
+      "effect": "The animated object actively assists its wielder, performing supportive or defensive tasks depending on its form and function — self-operating gloves, levitating weapons, responsive armor components, each acting as an extension of the Inquisitor's will. Though the object possesses no true sentience, its behavior exhibits a faint echo of personality derived from the Inquisitor's own emotional signature. Coordination improves with familiarity, forming an almost telepathic synchronization over time"
     },
     {
       "name": "DEFLECTION",
       "ss": 15,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Bonus Action",
+      "effect": "While active, the shield enhances defensive capabilities, offering advantage on Action Priority and Endurance Saving Throws and Checks when blocking or mitigating incoming attacks. On a Critical Success, the shield reflects half of the penetrating damage back toward the attacker, visually dispersing the energy as refracted light or kinetic resonance. The energy shield adapts dynamically, strengthening in response to pressure and recalibrating its pattern against repeated strikes."
     },
     {
       "name": "PASTING VIEW",
       "ss": 25,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Bonus Action",
+      "effect": "While integrated, grants the Inquisitor the ability to visually reconstruct past events within a target area. By focusing their vision on a location, the user can perceive what transpired there within the previous hour. This reconstruction manifests as ghostlike, translucent echoes of action — motion and behavior rendered clearly, though individual faces, identifiers, and fine details remain indistinct."
     },
     {
       "name": "PHASE",
       "ss": 40,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Bonus Action",
+      "effect": "While active, grants the subject the ability to exude concentrated energy that manifests visually as afterimages shaped in the Inquisitor's own likeness. These energy projections mimic the user's movements with slight delay or echo, producing ghost-like trails that remain briefly visible before fading. The intensity, color, and clarity of these afterimages correspond directly to the user's energy output and emotional state — allowing for strategic visual manipulation, obscuring movement, disorie"
     },
     {
       "name": "GLIMPSE",
       "ss": 30,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Bonus Action",
+      "effect": "Upon activation, the Cipher extends its influence to the Inquisitor. While active: the Inquisitor gains advantage on all Perception Skill Checks and Dexterity Saving Throws. When about to be observed by an animate subject, the Inquisitor may roll a d20 + Ode Level, contested against the target's Perception Skill Check (modified by a secondary factor at Curator Discretion). On success, the Inquisitor avoids detection entirely — their movement and signature rendered imperceptible by both sight and"
     },
     {
       "name": "TACHYEON",
       "ss": 57,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Prepared Action",
+      "effect": "Heightens neuromuscular reaction time. When the Inquisitor would gain advantage on a Dexterity-based roll following Action Priority resolution, they may trigger the Cipher's effect to attempt a three-part precision challenge — the opponent must contest: Perception Check, Precision Skill Check, and Inspiration Skill Check against the user's DCs. If the Inquisitor wins two out of three checks, they momentarily displace their position, warping behind the target (not teleportation, but a simulated t"
     },
     {
       "name": "VECRAVEL",
       "ss": 45,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Bonus Action",
+      "effect": "Upon activation, the object fully phases beneath the ground and reemerges within 30 feet of the Inquisitor's position, bursting upward from the surface in a controlled, localized displacement. The transition obeys spatial geometry but ignores line of sight, allowing the object to travel through solid terrain, material obstacles, or environmental interference without resistance. The object's reappearance is accompanied by a subtle gravitational ripple and displacement shockwave — enough to distur"
     },
     {
       "name": "TIGHTEN",
       "ss": 35,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Standard Action",
+      "effect": "The object's frame contracts violently and folds inward, twisting until it crushes its own mass into an unusable fragment. Any external material attached to or dependent on the object is also pulled inward, rendering the target nonfunctional and irrecoverable without advanced restorative procedures. The process causes no explosive release or shrapnel — only a controlled collapse, as though the object implodes into itself and ceases to exist in its usable form."
     },
     {
       "name": "INCOGNITO",
       "ss": 35,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Bonus Action",
+      "effect": "When activated, the object will seemingly meld with the environment, becoming difficult to distinguish from the terrain or structures it is adjacent to. Anything that is directly touching the object will inherit those same visual properties, effectively being pulled into the camouflage field. If a creature attempts to detect or see through this concealment, they must succeed on either an Inspiration or Perception Skill Check (Curator's choice) against the set DC."
     },
     {
       "name": "BYGONE",
       "ss": 65,
-      "tier": "online"
+      "tier": "online",
+      "type": "Prepared Action",
+      "effect": "When Activated, anything directly touching the object at that moment will become temporarily influenced by its properties, causing the creature or item to shift into a similar metaphysical state — only able to be seen, affected, and interacted with by metaphysical constructs or compatible technologies. While in this state, an animate subject gains advantage on all Perception, Control, and Dexterity checks, and their movement speed is effectively doubled (moving as if gliding yet still subject to"
     },
     {
       "name": "ECHO CHAIN",
       "ss": 40,
-      "tier": "online"
+      "tier": "online",
+      "type": "Bonus Action",
+      "effect": "Projects up to 4 independent Phase echoes at separate locations within 30 ft — each a convincing duplicate of the Inquisitor. Echoes persist for 2 rounds. Attackers must succeed a Perception check (DC 13) to identify the real Inquisitor. Online: echoes receive live data from Paradigm positioning satellites, allowing them to mimic predictive behavior rather than simply standing idle."
     },
     {
       "name": "MEMORY LOCK",
       "ss": 25,
-      "tier": "online"
+      "tier": "online",
+      "type": "Bonus Action",
+      "effect": "Crystallizes one observed past event (from a Pasting View activation) as a perfectly accurate permanent memory — accessible at any time with full sensory detail. Without Memory Lock, Pasting View impressions fade within hours. Online: memory can be uploaded to Paradigm archives and shared with authorized Inquisitors as an official evidence record."
     },
     {
       "name": "TEMPORAL FOLD",
       "ss": 45,
-      "tier": "online"
+      "tier": "online",
+      "type": "Prepared Action",
+      "effect": "The Inquisitor briefly perceives and can interact with the physical state of the current location 10 seconds ago — objects that were moved are visible in previous positions; creatures who have since left are visible as ghosts. Limited physical interaction is possible. Duration: 1 round of access. Online: extendable to 3 rounds with Paradigm temporal support."
     },
     {
       "name": "GHOST PROTOCOL",
       "ss": 50,
-      "tier": "online"
+      "tier": "online",
+      "type": "Standard Action",
+      "effect": "The Inquisitor and up to 3 allies within 10 ft simultaneously meld with the current environment. All affected individuals become visually indistinguishable from the surroundings and inherit Incognito's detection requirements. Moving at more than half speed breaks individual concealment."
     },
     {
       "name": "REMNANT RETRIEVAL",
       "ss": 55,
-      "tier": "online"
+      "tier": "online",
+      "type": "Prepared Action",
+      "effect": "If an object has been destroyed within the last 1 hour, its Remnant echo persists in the location of its destruction. This Cipher pulls the echo back into physical reality — the object is reconstructed to its pre-destruction state. Material integrity: 50% structural integrity unless a Precision check (DC 15) is made for full restoration. Cannot retrieve living beings."
     },
     {
       "name": "SPECTRAL LINK",
       "ss": 40,
-      "tier": "online"
+      "tier": "online",
+      "type": "Prepared Action",
+      "effect": "If an Inquisitor has fallen (0 HP) within the last 3 rounds and within 60 ft, reads the last ability the fallen Inquisitor had active and recreates it once at half SS cost, using the living Inquisitor as the origin point. The recreated ability uses the fallen Inquisitor's stats for effect calculations."
     },
     {
       "name": "PHASE CASCADE",
       "ss": 60,
-      "tier": "online"
+      "tier": "online",
+      "type": "Standard Action",
+      "effect": "Phases up to 5 bonded objects beneath ground simultaneously. All 5 can emerge at different points within the Inquisitor's movement range this turn (up to 30 ft each from burial point). Each object emerges at a designated point — enabling coordinated deployments: simultaneous barrier placement, multi-point ambush setup, or distributed equipment drop."
     },
     {
       "name": "ADAPTIVE CAMOUFLAGE",
       "ss": 35,
-      "tier": "online"
+      "tier": "online",
+      "type": "Bonus Action (sustained)",
+      "effect": "Unlike standard Incognito (static environment meld), Adaptive Camouflage updates in real time — the Inquisitor's concealment adjusts as they move through different environments. Transition between environments does not break concealment. Moving at full speed is allowed without breaking effect. Costs 2 SS per minute maintained."
     },
     {
       "name": "PERFECT RECALL",
       "ss": 30,
-      "tier": "online"
+      "tier": "online",
+      "type": "Bonus Action",
+      "effect": "Access any past event the Inquisitor was personally present for with complete and accurate sensory fidelity — sight, sound, smell, temperature, and proprioception. Unlike ordinary memory (which is reconstructive and imperfect), Perfect Recall is a Remnant-echo playback — literally accessing the echo of the past self's experience. Can be viewed while still acting normally."
     },
     {
       "name": "S1 — THE REMNANT",
       "ss": 90,
-      "tier": "special"
+      "tier": "special",
+      "type": "Prepared Action (3 min)",
+      "effect": "The Inquisitor fully converts to an energy echo of themselves — a Remnant state — for up to 1 hour. Fully immune to physical damage; can pass through solid matter; can interact with objects in Phase or Bygone states. Retains full cognitive function and can use all Remnant Ciphers. Cannot deal physical damage — can only affect Phased or Remnant-state targets. Returning to physical form requires 1 full round."
     },
     {
       "name": "S2 — CHRONAL ECHO",
       "ss": 75,
-      "tier": "special"
+      "tier": "special",
+      "type": "Prepared Action",
+      "effect": "Accesses and partially interacts with the complete Remnant history of one location — every significant event that occurred there leaves an echo. The Inquisitor perceives all echoes simultaneously, layered. Can selectively focus on specific time periods. Physical interaction with historical echoes is possible — extracting information or retrieving objects that \"existed\" in the location at a past point. Duration: 10 minutes."
     },
     {
       "name": "S3 — ABSOLUTE INCOGNITO",
       "ss": 60,
-      "tier": "special"
+      "tier": "special",
+      "type": "Standard Action",
+      "effect": "The Inquisitor becomes completely undetectable by any means — physical, supernatural, technological, and perceptual — for 10 minutes. Cannot be revealed by Divination, detected by Ciphers, tracked by Paradigm network, or perceived by any Genus ability. Even their Paradigm cannot know their location while active. Ends instantly on any hostile action or ability activation."
     },
     {
       "name": "S5 — THE LAST STAND",
       "ss": 0,
-      "tier": "special"
+      "tier": "special",
+      "type": "Reaction (automatic)",
+      "effect": "Passive Cipher that activates automatically when the Inquisitor is reduced to exactly 0 HP. For 1 additional round, the Inquisitor continues acting as a full Remnant echo — they can take a complete turn (all Actions and Reactions) as if at full capacity. At the end of this echo round, they fall normally. This Cipher cannot be deactivated, traded, or modified — once bonded, it is permanent."
     }
   ],
   "cognition": [
     {
       "name": "MIND TWEAK",
       "ss": 25,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Standard Action",
+      "effect": "The Inquisitor gains the ability to subtly influence the target's thinking process — amplifying doubt, suppressing aggression, or nudging a decision toward a preferred outcome. These alterations are small and non-invasive, undetectable by normal means. Larger modifications require an opposed Wisdom Saving Throw. On failure, the target complies with one minor suggestion before recovering. On Critical Success against their will, the target believes the influenced thought originated from themselves"
     },
     {
       "name": "DETECTION",
       "ss": 15,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Bonus Action",
+      "effect": "The Inquisitor becomes aware of any cognition-based Cipher or mental ability being used within the object's detection radius. Upon detection, the Inquisitor can identify the ability type, the approximate origin point, and whether the emitter is aware of being detected. They may then attempt to trace the cognitive link back to its source."
     },
     {
       "name": "BRAIN WASH",
       "ss": 40,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Prepared Action",
+      "effect": "The Inquisitor can selectively erase, overwrite, or implant specific memories within the target's conscious recall. Implanted memories feel authentic. Erased memories leave no awareness of absence. Target must succeed on a contested Wisdom Saving Throw; additional Insight Checks from outside parties may identify inconsistencies. On Critical Failure, the target's entire recent memory block is compromised, leaving the subject temporarily amnesiac and highly suggestible."
     },
     {
       "name": "TRANSLATE",
       "ss": 20,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Bonus Action",
+      "effect": "Allows the Inquisitor to understand and speak any language encountered, including constructed, encoded, or non-verbal communication systems. Extends to gestural languages, tonally-dependent dialects, and symbolic script systems the Inquisitor observes. Duration scales with Ode Level. Languages encountered during active use are catalogued and accessible in future sessions at reduced Synaptic Space cost."
     },
     {
       "name": "FILTER",
       "ss": 50,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Prepared Action",
+      "effect": "Provides immunity to emotional manipulation, psychic intrusion, and cognitive assault for the duration. Hostile cognition-based Ciphers targeting the protected subject automatically fail unless the attacker's roll exceeds the Filter's established threshold by 10 or more. Also grants resistance against Fear, Charm, and Confusion conditions. Can be applied to other targets, not solely the Inquisitor themselves."
     },
     {
       "name": "PERCEPTI",
       "ss": 54,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Standard Action",
+      "effect": "The Inquisitor perceives the environment through an overlaid cognition grid — a data-dense projection layered over standard sight that highlights: cognitive signatures of nearby animate beings (intent, emotional state, projected movement), structural weak points or invisible features in the environment, and inconsistencies in simulated or altered spaces. Passive: grants +3 to all Perception-based checks while active."
     },
     {
       "name": "ARTHIMETIC",
       "ss": 50,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Bonus Action",
+      "effect": "The Inquisitor can inject logical constructs — inescapable paradoxes, self-contradicting belief sequences, or mathematical impossibilities — directly into the target's decision-making process. This causes the target to become locked in involuntary analytical loops, unable to act until their cognition resolves the injected construct (Curator determines resolution time). Particularly complex injections can permanently alter the target's priority hierarchy, subtle enough to go unnoticed until a cri"
     },
     {
       "name": "DIFUSE",
       "ss": 35,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Standard Action",
+      "effect": "All animate subjects within the interference radius (excluding the Inquisitor and chosen allies) suffer disadvantage on Intelligence, Wisdom, and Perception-based checks while inside the field. Complex decision-making slows. Cognitive Ciphers used by affected subjects have their effectiveness reduced. The field is invisible and non-threatening in appearance — targets may not immediately identify the source of their deteriorating cognition."
     },
     {
       "name": "ALGORIM",
       "ss": 65,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Prepared Action",
+      "effect": "The Inquisitor can access this behavioral model to anticipate the target's next action. Once per encounter, the Inquisitor may declare a Predicted Action before the target takes their turn. If the declaration is correct, the Inquisitor may immediately respond as if they had already prepared that countermeasure — gaining automatic advantage on all checks against that action. The algorithm grows more accurate with extended exposure, improving from 50% match probability at first use to near-certain"
     },
     {
       "name": "RESONANT FIELD",
       "ss": 45,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Bonus Action",
+      "effect": "Within a 20-ft radius, all currently active mental states (focus, aggression, calm, fear) are amplified to their maximum intensity. Focused creatures gain advantage on their next INT-based action; aggressive creatures gain +2 damage but −1 to defensive checks; frightened creatures' Fear condition escalates. Duration: 2 rounds."
     },
     {
       "name": "NEURAL BRIDGE",
       "ss": 30,
-      "tier": "online"
+      "tier": "online",
+      "type": "Bonus Action",
+      "effect": "Both Inquisitors share a real-time tactical mental feed — each knows the other's current Perception data, HP approximation, active conditions, and immediate intentions. Shared SS pools: Inquisitors can loan SS to each other through the Bridge (up to 10 SS per round transfer). Duration: entire encounter or until one party breaks the link."
     },
     {
       "name": "MEMORY WIPE",
       "ss": 55,
-      "tier": "online"
+      "tier": "online",
+      "type": "Standard Action",
+      "effect": "Following a successful Brain Wash (or standalone against unconscious targets), selectively erases specific memories from the target's accessible memory. The erasure is accurate — no false memories replace the gaps, just absence. Online: Paradigm archives a record of all wiped content for accountability."
     },
     {
       "name": "COGNITIVE DOWNLOAD",
       "ss": 45,
-      "tier": "online"
+      "tier": "online",
+      "type": "Prepared Action",
+      "effect": "Copies a specific area of expertise or information set from the target directly into the user's accessible memory — languages, technical knowledge, tactical information, codes, maps. The download is instantaneous — the Inquisitor gains the target's level of expertise in the designated domain for 24 hours. Target retains their knowledge — it is copied, not removed."
     },
     {
       "name": "MASS DETECTION",
       "ss": 35,
-      "tier": "online"
+      "tier": "online",
+      "type": "Bonus Action",
+      "effect": "Extends Detection to a 30-ft radius affecting all creatures simultaneously. The Inquisitor receives continuous social/moral guidance cues for every creature in range. Advantage on all social skill checks and group management decisions. At rank Auditor and above: can selectively isolate and intensify the signal on one target."
     },
     {
       "name": "PSYCHIC SCREAM",
       "ss": 50,
-      "tier": "online"
+      "tier": "online",
+      "type": "Standard Action",
+      "effect": "All creatures in a 25-ft radius make Wisdom Saves (DC 14 + Code Level) or take 2d8 psychic damage and are Stunned for 1 round. On success: half damage, not Stunned. The Inquisitor takes 1d4 psychic backlash damage regardless. Allied Cognition Inquisitors can be designated immune with a Bonus Action setup."
     },
     {
       "name": "DREAM STATE",
       "ss": 40,
-      "tier": "online"
+      "tier": "online",
+      "type": "Standard Action",
+      "effect": "Target (Wisdom Save DC 13) enters a semi-aware state: they believe they are experiencing a vivid dream. They continue basic functions but cannot make complex decisions, cannot use abilities requiring Intent, and perceive their surroundings with surreal distortion. Duration: until the target takes damage or succeeds a re-Save (retry each round at +1 cumulative bonus)."
     },
     {
       "name": "COGNITIVE FORTRESS",
       "ss": 45,
-      "tier": "online"
+      "tier": "online",
+      "type": "Bonus Action",
+      "effect": "For 2 rounds, the Inquisitor and all allies within 15 ft gain immunity to all mind-affecting abilities, fear effects, Brain Wash variants, Algorim, and related effects. Existing mental conditions are suppressed (not removed) for the duration. Online: Paradigm can remotely reinforce Cognitive Fortresses for Inquisitors on critical missions (extends duration to 4 rounds)."
     },
     {
       "name": "SYNAPTIC SURGE",
       "ss": 55,
-      "tier": "online"
+      "tier": "online",
+      "type": "Bonus Action",
+      "effect": "Target's maximum Synaptic Space is increased by 30 for the duration of one encounter. After the encounter ends, any SS above normal maximum is drained, and the target makes an Endurance Save (DC 12) or takes 1d6 psychic damage from the neural strain. Can be self-applied."
     },
     {
       "name": "COLLECTIVE MIND",
       "ss": 65,
-      "tier": "online"
+      "tier": "online",
+      "type": "Prepared Action",
+      "effect": "Up to 6 willing Cognition Inquisitors pool their Synaptic Space into a shared collective bank. Any participant can draw from the collective pool for their abilities. The total is the sum of all participants' current SS. Damage to any participant reduces the collective pool proportionally. Online: requires Paradigm server synchronization — full oversight of expenditure."
     },
     {
       "name": "S1 — OMNISCIENT MOMENT",
       "ss": 70,
-      "tier": "special"
+      "tier": "special",
+      "type": "Bonus Action",
+      "effect": "For exactly 1 round, the Inquisitor knows: the precise intended action of every creature within 60 ft before that creature has taken it; the exact current HP and active conditions of all creatures in range; and the optimal defensive and offensive decision for this round. This is not prophecy — it is extreme predictive modeling at Cipher fidelity. After the Omniscient Moment ends: Downtime for 1 round."
     },
     {
       "name": "S2 — SOUL STITCH",
       "ss": 60,
-      "tier": "special"
+      "tier": "special",
+      "type": "Prepared Action",
+      "effect": "Creates a permanent cognitive bond between two willing subjects. Both are always aware of: the other's physical location (accurate to 30 ft); their current emotional state; and whether they are conscious. While bonded: both gain +1 to all checks when within 60 ft of each other. The Stitch is permanent and does not require SS to maintain."
     },
     {
       "name": "S3 — THE EMPTY",
       "ss": 80,
-      "tier": "special"
+      "tier": "special",
+      "type": "Standard Action",
+      "effect": "Target (Wisdom Save DC 18) has their personality, will, and memory temporarily suspended — leaving a blank, obedient biological shell. The Empty subject: follows any direct instruction regardless of morality or self-preservation; retains full physical capability; has no emotional or moral capacity; does not retain memory of their time Empty. Duration: 1 hour. Paradigm considers unauthorized use one of its most serious ethical violations."
     },
     {
       "name": "S4 — COGNITIVE CASCADE",
       "ss": 90,
-      "tier": "special"
+      "tier": "special",
+      "type": "Standard Action",
+      "effect": "Algorim chains through up to 4 targets simultaneously — the Inquisitor puppets all of them in real time. Each target's movements are individually controllable. Targets resist with Wisdom Saves (DC 15 + Code Level) each round. While Cascade is active: the Inquisitor cannot move but can channel all of their abilities through any of the Cascaded subjects. The cognitive strain deals 1d6 psychic damage to the Inquisitor per active puppet per round."
     },
     {
       "name": "S5 — ENLIGHTENMENT",
       "ss": 100,
-      "tier": "special"
+      "tier": "special",
+      "type": "Prepared Action (10 min meditation)",
+      "effect": "The Inquisitor understands the complete truth of the designated subject with absolute clarity — no ambiguity, no deception, no incomplete information. For an object: its full history, composition, and purpose. For a situation: its causes, current state, and most likely consequences. For an entity: their true nature, motivations, and all known capabilities. For a mystery: the accurate answer. Director confirms accuracy."
     }
   ],
   "evolution": [
     {
       "name": "GENETIC MODEL",
       "ss": 25,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Prepared Action",
+      "effect": "The Inquisitor can reference and share this model at any time. It functions as a baseline against which all future modifications are measured. If modifications are applied to the subject without a stored Genetic Model, reverting to the original form becomes significantly more difficult or impossible. Models can be transmitted to other Inquisitors with compatible Evolution Ciphers, enabling coordinated biological operations."
     },
     {
       "name": "GENE EDIT",
       "ss": 50,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Prepared Action",
+      "effect": "Allows precise permanent or temporary modifications to a subject's biology: enhancing strength, speed, or endurance; suppressing or activating dormant traits; removing inherited conditions; or introducing synthetic sequences. Modifications without a Genetic Model risk unpredictable cascades — the Curator rolls secretly to determine whether side effects emerge. With a stored Model, precision is guaranteed within the bounds of the Cipher's scope."
     },
     {
       "name": "MODIFY",
       "ss": 45,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Standard Action",
+      "effect": "The subject undergoes a temporary change to their physical form: shifting size, altering skin density, extending limb proportions, modifying surface texture, or adjusting metabolic rate. Duration is based on Ode Level. On expiration, the subject returns to their baseline unless a Gene Edit was applied to lock the modification in place. Repeated use on the same subject without rest can cause trait fatigue — diminishing returns on modification potency."
     },
     {
       "name": "DEVELOP",
       "ss": 35,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Bonus Action",
+      "effect": "The targeted area heals, regenerates, or grows at accelerated rate. Wounds close over one to three rounds depending on severity. Damaged organs recover partial or full function. Atrophied systems regain strength. Can also be used to mature developing or immature tissue — enabling rapid physical growth in a controlled region. Excessive use without recovery time risks overgrowth or cellular instability in the affected area."
     },
     {
       "name": "INDUCE",
       "ss": 50,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Standard Action",
+      "effect": "The Inquisitor selects one of three induction types: Stimulant (heightens physical performance, grants temporary bonus to Strength, Speed, and Endurance-based checks), Suppressant (dampens metabolic activity, reducing the subject's ability output and initiative), or Adaptive (primes the subject's biology for a specific modification, reducing the SS cost of the next Evolution Cipher applied to them by half). Duration varies by compound type and subject's constitution."
     },
     {
       "name": "SPECIA",
       "ss": 35,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Bonus Action",
+      "effect": "The activated Specialty Trait becomes fully functional for the duration. Examples include: heightened sensory acuity, latent venom production, limited regenerative tissue, bioluminescent communication, or pressure-resistant physiology. If the subject has no dormant traits in accessible range, the Cipher may instead enhance one already-active trait to perform at peak expression. The Curator determines available Specialty Traits based on the subject's species background."
     },
     {
       "name": "INTER-SPECI",
       "ss": 70,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Prepared Action",
+      "effect": "Transfers one selected Specialty Trait or modified attribute from one subject to the other for the duration — or permanently, if a Gene Edit is applied to anchor it. The receiving subject temporarily experiences physiological stress as their biology adapts (Endurance Saving Throw required; failure indicates temporary incapacitation during integration). Incompatible species may experience cascading rejection responses if the Curator determines biological conflict. Reserved exclusively for Xenobio"
     },
     {
       "name": "TEMP HP",
       "ss": 35,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Bonus Action",
+      "effect": "Grants the subject temporary Hit Points equal to 2d8 + the Inquisitor's Ode Level, lasting until expended or until the scene ends. Temporary HP absorbs incoming damage before the subject's actual HP is reduced. If unused, the tissue reabsorbs harmlessly within the hour. Can be stacked with other recovery effects but cannot exceed the subject's maximum HP when combined."
     },
     {
       "name": "GENETIC HERITAGE",
       "ss": 50,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Standard Action",
+      "effect": "Selectively reactivates one ancestral trait from the subject's genetic heritage for the duration. The available traits are determined by the Curator based on the subject's species lore. Examples include prehistoric endurance, environmental resistance, heightened predatory instincts, or primordial regenerative capacity. The awakened trait operates at the peak of its ancestral expression — often exceeding the power of the modern equivalent. Ancestral traits cannot be made permanent without extreme"
     },
     {
       "name": "CELLULAR MASTERY",
       "ss": 55,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Standard Action",
+      "effect": "Full manual control of biological cellular processes in the host body for 3 rounds. Can: stop bleeding (heal 1d8 HP as free action); close wounds at accelerated rate; suppress pain (negate Wounded conditions); temporarily shut down non-essential biological processes. Extended control requires 3 SS/round and increasingly risks cellular fatigue."
     },
     {
       "name": "ANCESTRAL AWAKENING",
       "ss": 70,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Standard Action",
+      "effect": "For 5 minutes, the Inquisitor temporarily expresses an entire lineage's accumulated biological adaptations — gaining a compilation of traits from ancestors across multiple generations. May include: extinct species traits; extreme environmental adaptations; physical capabilities that were lost over generations. Each use permanently unlocks one small genetic expression as a cosmetic Wryde change."
     },
     {
       "name": "RAPID ADAPTATION",
       "ss": 40,
-      "tier": "online"
+      "tier": "online",
+      "type": "Standard Action",
+      "effect": "The target's biology rapidly adapts to current environmental conditions: in extreme cold, develops thermal insulation; in low-oxygen environments, increases blood oxygen efficiency; in high-radiation zones, cellular repair mechanisms activate. The adaptation is temporary (lasts 1 hour) but provides resistance to environmental damage. Cannot adapt to supernatural or Null-based threats."
     },
     {
       "name": "EVOLUTIONARY FORK",
       "ss": 55,
-      "tier": "online"
+      "tier": "online",
+      "type": "Standard Action",
+      "effect": "Target expresses two distinct evolutionary adaptations at once for 2 rounds — gaining benefits from both at 60% efficacy of each. After 2 rounds, the body collapses back to its dominant path, and the target makes an Endurance Save (DC 13) or takes 1d8 damage from the cellular strain."
     },
     {
       "name": "GENETIC LOCK",
       "ss": 35,
-      "tier": "online"
+      "tier": "online",
+      "type": "Bonus Action",
+      "effect": "Prevents a target's genetics from being modified for 1 hour. Blocks: Gene Edit, Modify, Induce, and all similar genetic-manipulation Ciphers and abilities. Also blocks Incept expression drift — the target's Expression States are frozen for the duration (DDC accumulation pauses)."
     },
     {
       "name": "MASS INDUCTION",
       "ss": 65,
-      "tier": "online"
+      "tier": "online",
+      "type": "Standard Action",
+      "effect": "Applies the same targeted genetic mutation to up to 4 subjects at once. Each subject receives the same mutation type. Individual variation in reception: each subject rolls Endurance — high rollers express more cleanly, low rollers may have minor complications. Paradigm monitors Mass Induction use closely."
     },
     {
       "name": "CELLULAR REGENERATION",
       "ss": 45,
-      "tier": "online"
+      "tier": "online",
+      "type": "Standard Action",
+      "effect": "Target recovers 3d8 HP immediately. Additionally, any one listed condition is resolved by biological recovery: Poisoned (toxin metabolized), Bleeding (clotted), Broken bone (reknit), or Burned surface tissue (resurfaced). Cannot regenerate lost limbs."
     },
     {
       "name": "SPECIES MEMORY",
       "ss": 50,
-      "tier": "online"
+      "tier": "online",
+      "type": "Prepared Action",
+      "effect": "Accesses the genetic memory archive of a target species — instinctual behaviors, environmental histories, threat responses, and evolutionary experiences encoded across generations. Information arrives as strong intuitions and emotional memories rather than clear images. Duration: 10 minutes. Online: extracted species memory is archived to Paradigm's biological database."
     },
     {
       "name": "SYMBIOSIS LINK",
       "ss": 40,
-      "tier": "online"
+      "tier": "online",
+      "type": "Prepared Action",
+      "effect": "The two subjects enter a symbiotic relationship. When adjacent: both gain +1 to all physical stats. Damage taken by one is shared 30/70 with the other (30% to the other, 70% to original). Each subject instinctively knows the other's current physical state. The symbiosis lasts 24 hours."
     },
     {
       "name": "EVOLUTIONARY PRESSURE",
       "ss": 60,
-      "tier": "online"
+      "tier": "online",
+      "type": "Standard Action",
+      "effect": "Applied to a target currently under extreme stress: triggers emergency evolutionary expression appropriate to the stress type. A target drowning may express gill-adjacent respiration; a target burning may express heat resistance; a target being crushed may express structural density. The adaptation is significant enough to survive the triggering condition for 3 rounds. Repeated use within 24 hours requires higher Endurance Saves."
     },
     {
       "name": "GENE VAULT",
       "ss": 25,
-      "tier": "online"
+      "tier": "online",
+      "type": "Prepared Action",
+      "effect": "Records and stores the complete genetic profile of any creature the Inquisitor has modified or analyzed. The Vault can hold up to 20 profiles. Stored profiles allow: easier future Ciphers on the same subject (−5 SS cost), recreation of prior modifications, and cross-referencing for genetic compatibility analysis."
     },
     {
       "name": "S1 — NEW SPECIES",
       "ss": 100,
-      "tier": "special"
+      "tier": "special",
+      "type": "Prepared Action (24 hours)",
+      "effect": "Guides the complete evolutionary transformation of a willing subject into a new species variant — a genuine biological new form. The new form is determined collaboratively by Inquisitor and Director. The subject becomes a new entry in WTE's species catalogue — with their own Dom/Rec values, Eminence Nature defaults, and innate abilities. Irreversible without counterpart Null procedure."
     },
     {
       "name": "S2 — GENESIS",
       "ss": 120,
-      "tier": "special"
+      "tier": "special",
+      "type": "Prepared Action (72 hours)",
+      "effect": "Creates a completely new living organism from collected and synthesized genetic material. The new life form has: a basic genome designed by the Inquisitor; a species designation; and initial behavioral programming (not full consciousness). Shawchun Corporation authorization required. The most significant creation capability in WTE."
     },
     {
       "name": "S3 — THE APEX",
       "ss": 85,
-      "tier": "special"
+      "tier": "special",
+      "type": "Standard Action",
+      "effect": "Triggers the Inquisitor's own evolution to a temporary Apex form for 5 minutes. In Apex form: one size category larger; all physical stats +3; natural attack deals 2d10 + Strength; resistance to all non-Null damage; one unique ability from their deepest lineage (Director determines). After Apex ends: mandatory 1 full rest. Each use permanently expresses one Wryde mutation. Maximum 3 uses before the biological cost becomes life-threatening."
     },
     {
       "name": "S4 — GENETIC HERITAGE: COMPLETE",
       "ss": 75,
-      "tier": "special"
+      "tier": "special",
+      "type": "Standard Action",
+      "effect": "Simultaneously expresses all variant and sub-species traits available in the Inquisitor's lineage for 3 rounds. For each round: gain the benefits of up to 3 different Variant trait sets simultaneously. After 3 rounds: Endurance Save (DC 16) or unable to fully revert to base form for 24 hours (stuck between expressions)."
     },
     {
       "name": "S5 — LIFE WEAVE",
       "ss": 110,
-      "tier": "special"
+      "tier": "special",
+      "type": "Prepared Action (48 hours)",
+      "effect": "Permanently merges the biological traits of two or more organisms into each of the participants — all gain access to the other's most significant biological capabilities. Each participant gains: one innate ability from each other participant; shared resistance to conditions the others are naturally resistant to; and a combined Wryde expression. All participants must be willing. The bond cannot be reversed."
     }
   ],
   "warfare": [
     {
       "name": "WEAPONIZE",
       "ss": 25,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Bonus Action",
+      "effect": "The weaponized object deals damage as a Tier-appropriate weapon. The Inquisitor may choose one of three damage types upon activation: Blunt (wide impact, knockback), Piercing (focused, armor-penetrating), or Slashing (broad edge, bleeding potential). Additionally, the object gains a passive effect tied to the Inquisitor's active Genus Domain — for example, a weaponized chair from a Fire Domain Inquisitor may deal heat-based secondary damage. The modification persists until the object is destroye"
     },
     {
       "name": "TRIXT LINK",
       "ss": 24,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Bonus Action",
+      "effect": "When activated, the Inquisitor can trigger all linked objects simultaneously or in programmed sequence. Each object executes a predetermined action — deployment, launch, activation, or detonation — in the order the Inquisitor dictates. This enables coordinated multi-point strikes, simultaneous utility deployment, and layered field traps. The link operates without signal latency and cannot be intercepted by standard electronic countermeasures."
     },
     {
       "name": "COMMAND",
       "ss": 36,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Standard Action",
+      "effect": "The Inquisitor may issue a single direct command per activation (move, stop, stand down, protect, etc.). The target must succeed on a Wisdom Saving Throw to resist. On failure, they execute the command. On success, they are still mildly affected — hesitating for one beat or experiencing a pull toward compliance that they push through. Commands cannot be suicidal or demand the target harm themselves. Allies with pre-established trust may receive commands as free actions without a saving throw."
     },
     {
       "name": "SEIZE",
       "ss": 45,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Standard Action",
+      "effect": "Upon activation, the Inquisitor asserts dominance over the object, claiming it as their own. Any defensive Cipher on the object must be contested. The original owner, if still linked, must succeed on a Control Saving Throw or lose their command privileges. On failure, the Inquisitor gains full operational control. Objects with no defensive link simply comply. Seized objects obey the Inquisitor as if originally bonded to them."
     },
     {
       "name": "BULLWARK",
       "ss": 35,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Bonus Action",
+      "effect": "The modified object functions as a deployable bulwark — capable of absorbing direct damage from all Tier-3 and below sources without structural compromise. When an entity takes cover behind the bulwark, they gain full cover against all ranged attacks from the bulwark's facing direction. The bulwark can be repositioned once per round as a Free Action if the Inquisitor is within 10 feet. Against Tier-4+ attacks, the Curator determines resistance based on hit magnitude."
     },
     {
       "name": "AUTHORATATIVE",
       "ss": 45,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Standard Action",
+      "effect": "While active, the Inquisitor gains advantage on Persuasion, Intimidation, and Inspiration-based Skill Checks. Enemies within 30 feet must succeed on a Wisdom Saving Throw at the start of their turn or have their hostile intent temporarily suppressed — they may still act, but cannot target the Inquisitor with direct attacks for that round. Allies who receive direct orders from the Inquisitor while Authoratative is active may re-roll one failed check per order."
     },
     {
       "name": "DECEIST",
       "ss": 15,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Bonus Action",
+      "effect": "The object appears to be whatever the Inquisitor designates — a different item, a benign tool, a cleared clearance token, or simply a registered civilian object. All passive identification systems will return the false reading. Active scans by Tier-3+ detection systems require the Inquisitor to succeed on a contested Cipher check. If the deception is discovered, the object immediately reverts to its true signature and cannot be masked again by this Cipher for 24 hours."
     },
     {
       "name": "LAW BIND",
       "ss": 25,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Prepared Action",
+      "effect": "The bound subject cannot take a specified category of action (attack, retreat, speak, use Cipher, etc.) while the Law Bind is active. Attempting to violate the bind triggers an automatic Wisdom Saving Throw — failure results in the action being suppressed, and the subject is momentarily stunned as the bind reasserts. Success means the action proceeds, but the subject takes psychic damage from the rupture. The bind lasts until dismissed, until the Inquisitor is incapacitated, or until the subject"
     },
     {
       "name": "HOLLOW SHELL",
       "ss": 25,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Prepared Action",
+      "effect": "An object becomes completely hollow — its structural frame intact but its internal mechanisms, components, or material contents removed. It can still be wielded or carried but has no functional output. If applied to an animate subject, the subject remains physically present — standing, breathing — but all will, personality, and cognitive autonomy are suppressed. The subject follows only the most direct and explicit commands. They cannot resist, initiate action, or express preference. They retain"
     },
     {
       "name": "MARTIAL CODE",
       "ss": 40,
-      "tier": "offline"
+      "tier": "offline",
+      "type": "Bonus Action",
+      "effect": "The bonded weapon or armor operates at peak theoretical efficiency for 3 rounds. Weapon: all attacks auto-succeed the attack roll portion (damage still rolled); deals maximum damage on the first hit of each round. Armor: provides +3 DHP for the duration. After 3 rounds: object temporarily inert for 1 round as the code resolves."
     },
     {
       "name": "ARSENAL",
       "ss": 55,
-      "tier": "online"
+      "tier": "online",
+      "type": "Standard Action",
+      "effect": "Transforms up to 3 objects into functional weapons simultaneously, each configured as a different archetype. All three can be wielded, thrown, or distributed to allies. Paradigm network optimizes weapon-form selection based on tactical data from mission intelligence."
     },
     {
       "name": "TACTICAL GRID",
       "ss": 45,
-      "tier": "online"
+      "tier": "online",
+      "type": "Prepared Action",
+      "effect": "All allies (up to 8) within 60 ft share a real-time tactical display: each ally's position, HP approximation, active conditions, and current facing are visible to all. Allied coordination removes surprise — no allied unit can be flanked while the Grid is active. The Inquisitor can mark up to 3 targets per round as Priority — all allies gain +1 to attack rolls against marked targets. Duration: entire encounter."
     },
     {
       "name": "CHAIN COMMAND",
       "ss": 60,
-      "tier": "online"
+      "tier": "online",
+      "type": "Standard Action",
+      "effect": "All targets in range (up to 4) must contest a single Command check. Each who fails fixates on the Cipher object per standard Command rules. Saves are made individually but rolled simultaneously. Online: logged use triggers automatic mission review."
     },
     {
       "name": "FORTRESS",
       "ss": 65,
-      "tier": "online"
+      "tier": "online",
+      "type": "Standard Action",
+      "effect": "Converts available material within 20 ft into a defensible fortified position. All allies within the Fortress position gain +2 to defensive rolls and advantage on Endurance Saves from area effects. The Fortress has structural HP of 30. Constructs in 2 rounds. Online: Paradigm can push fortification schematics based on terrain data."
     },
     {
       "name": "WAR CRY",
       "ss": 30,
-      "tier": "online"
+      "tier": "online",
+      "type": "Bonus Action",
+      "effect": "All allied combatants within 40 ft who can hear gain +1 to Action Priority for 1 round. Each ally may immediately re-roll one failed attack roll this round. Enemies within range make Wisdom Saves (DC 12) or suffer −1 to their next roll. Can be used once per round without a Bonus Action if the Inquisitor has already struck an enemy in melee this round."
     },
     {
       "name": "CRUSHING ADVANCE",
       "ss": 50,
-      "tier": "online"
+      "tier": "online",
+      "type": "Standard Action",
+      "effect": "The containment mass propels forward in a 30-ft line, 10 ft wide. Each creature in the line must succeed a Strength Save (DC 14) or is encased and carried along to the line's end. The advance can push through light cover. After the advance: all encased targets are at a designated location within the line."
     },
     {
       "name": "NULL ZONE",
       "ss": 70,
-      "tier": "online"
+      "tier": "online",
+      "type": "Standard Action",
+      "effect": "Projects a 60-ft radius Null Zone from the Cipher node. Within the Zone: all active effects, ongoing abilities, and environmental conditions are paused. No new abilities can be activated within the Zone. Duration: 2 rounds. After the Zone collapses: all suspended effects resume simultaneously. Online: Paradigm can activate Zone remotely for 1 additional round per authorization signal."
     },
     {
       "name": "IRON WILL",
       "ss": 45,
-      "tier": "online"
+      "tier": "online",
+      "type": "Bonus Action",
+      "effect": "For 2 rounds, designated allies are immune to: Command, Fear conditions, mental effects (Brain Wash, Algorim, Dream State), and morale-based penalties. Allies also gain +1 to Endurance Saves. Online: conditioning can be extended 1 round per Paradigm signal boost."
     },
     {
       "name": "THE VICTOR'S CLAIM",
       "ss": 35,
-      "tier": "online"
+      "tier": "online",
+      "type": "Bonus Action (after combat victory)",
+      "effect": "After a combat encounter ends in clear victory, projects an official Warfare Paradigm authority marker on claimed territory or objects. The Claim: a recognizable authority marker; a functional deterrent (unauthorized interaction triggers a logged alert to Paradigm); a legal establishment of Warfare Paradigm jurisdiction over the asset."
     },
     {
       "name": "S1 — WAR DECLARATION",
       "ss": 50,
-      "tier": "special"
+      "tier": "special",
+      "type": "Prepared Action (1 min ritual)",
+      "effect": "Formally invokes Warfare Paradigm combat authority in a designated zone (up to 500 ft radius). Within the zone: all combat rules are absolute; Inquisitors are granted full lethal mandate; retreat is officially recorded. All participants within the zone gain +1 to all combat rolls for the first 2 rounds. The Declaration is a permanent Paradigm record."
     },
     {
       "name": "S2 — ARMY OF ONE",
       "ss": 150,
-      "tier": "special"
+      "tier": "special",
+      "type": "Standard Action",
+      "effect": "For 5 rounds, all of the Inquisitor's Cipher slots activate simultaneously. Every Cipher's modification effect applies to the same object. All Cipher active effects are available without additional SS cost. After Army of One ends: all Ciphers enter mandatory cool-down for 1 encounter. Leaves the Inquisitor at 1 HP from the strain."
     },
     {
       "name": "S3 — ABSOLUTE AUTHORITY",
       "ss": 90,
-      "tier": "special"
+      "tier": "special",
+      "type": "Standard Action",
+      "effect": "All animate targets within 100 ft must contest Charisma Save + Control + Mental Fortitude against the Inquisitor's DC. Failures fixate on the designated object per Command rules. The Inquisitor chooses the fixation directive individually for each failed target (pursue, protect, destroy, retreat) — simultaneous multi-target Command with differentiated directives."
     },
     {
       "name": "S4 — THE LAST WAR",
       "ss": 110,
-      "tier": "special"
+      "tier": "special",
+      "type": "Standard Action",
+      "effect": "Maximum Warfare expression for 3 rounds. All environmental objects within 60 ft are simultaneously Weaponized. Maximum Hollow Shell reanimations (10 fallen units) activate immediately. Trixt Link extends to 500 ft. All allied Inquisitors within range gain +2 to Action Priority. The battlefield's terrain, lighting, air pressure, and spatial relationships all optimize for maximum Warfare advantage."
     },
     {
       "name": "S5 — FIELD MARSHAL",
       "ss": 80,
-      "tier": "special"
+      "tier": "special",
+      "type": "Prepared Action",
+      "effect": "The Inquisitor assumes complete tactical command of all allied Warfare Inquisitors within 200 ft. Each allied Warfare Inquisitor can receive one directive per round from the Field Marshal as a free action. The Field Marshal sees a real-time Tactical Grid of the entire 200-ft radius. The Field Marshal can redirect any allied Warfare Inquisitor's Cipher activation to a new target as a Reaction (once per round)."
     }
   ]
 }
