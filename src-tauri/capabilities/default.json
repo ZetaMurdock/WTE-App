@@ -15,6 +15,7 @@
     "fs:allow-read-dir",
     "fs:allow-watch",
     "fs:allow-unwatch",
-    "sql:default"
+    "sql:default",
+    "sql:allow-execute"
   ]
 }

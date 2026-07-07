@@ -97,21 +97,37 @@ export default function App() {
     }
   }
 
+  function reportError(action: string, e: unknown) {
+    alert(`Could not ${action}: ` + (e instanceof Error ? e.message : String(e)));
+  }
+
   async function handleCreate(name: string) {
-    const c = await createCampaign(name);
-    setActiveCampaignId(c.id);
-    setActiveTab("dashboard");
-    await reload();
+    try {
+      const c = await createCampaign(name);
+      setActiveCampaignId(c.id);
+      setActiveTab("dashboard");
+      await reload();
+    } catch (e) {
+      reportError("create campaign", e);
+    }
   }
 
   async function handleRename(id: string, name: string) {
-    await renameCampaign(id, name);
-    await reload();
+    try {
+      await renameCampaign(id, name);
+      await reload();
+    } catch (e) {
+      reportError("rename campaign", e);
+    }
   }
 
   async function handleArchive(id: string) {
-    await archiveCampaign(id);
-    await reload();
+    try {
+      await archiveCampaign(id);
+      await reload();
+    } catch (e) {
+      reportError("archive campaign", e);
+    }
   }
 
   async function selectCampaign(id: string) {
