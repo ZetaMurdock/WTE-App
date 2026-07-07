@@ -1,6 +1,9 @@
 # dependencies
 node_modules/
 
+# vite build output (frontendDist)
+dist/
+
 # rust / tauri build output
 src-tauri/target/
 src-tauri/gen/

@@ -1,0 +1,67 @@
+import type { WteUpdate } from "../lib/tauri";
+
+export type TabId = "dashboard" | "sheet" | "vtt" | "wiki";
+
+export const TABS: { id: TabId; label: string }[] = [
+  { id: "dashboard", label: "Dashboard" },
+  { id: "sheet", label: "Character Sheet" },
+  { id: "vtt", label: "VTT" },
+  { id: "wiki", label: "Codex" },
+];
+
+interface TopBarProps {
+  activeTab: TabId;
+  onTab: (id: TabId) => void;
+  theme: "dark" | "light";
+  onToggleTheme: () => void;
+  version: string | null;
+  update: WteUpdate | null;
+  installing: boolean;
+  onInstallUpdate: () => void;
+  accountLabel: string;
+  onAccount: () => void;
+}
+
+export function TopBar({
+  activeTab,
+  onTab,
+  theme,
+  onToggleTheme,
+  version,
+  update,
+  installing,
+  onInstallUpdate,
+  accountLabel,
+  onAccount,
+}: TopBarProps) {
+  return (
+    <div className="tabbar">
+      <span className="brand">W.T.E</span>
+      {TABS.map((t) => (
+        <button
+          key={t.id}
+          className={"tab" + (activeTab === t.id ? " active" : "")}
+          onClick={() => onTab(t.id)}
+        >
+          {t.label}
+        </button>
+      ))}
+      <span className="spacer" />
+      {update && (
+        <span className="upd">
+          <span>Update {update.version || ""} available</span>
+          <button onClick={onInstallUpdate} disabled={installing}>
+            {installing ? "Downloading…" : "Restart & update"}
+          </button>
+        </span>
+      )}
+      <button className="tab" onClick={onAccount} title="Google account">
+        {accountLabel}
+      </button>
+      <button className="tab" onClick={onToggleTheme} title="Switch Light / Dark theme">
+        {theme === "light" ? "Dark" : "Light"}
+      </button>
+      <span className="ver">{version ? "v" + version : ""}</span>
+    </div>
+  );
+}

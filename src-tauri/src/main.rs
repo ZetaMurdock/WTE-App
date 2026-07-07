@@ -365,13 +365,87 @@ async fn wte_import_zip(app: tauri::AppHandle, zip_path: String) -> Result<Strin
     Ok(format!("Successfully imported {} rule files.", count))
 }
 
+// Phase 4 schema. Campaign-scoped tables; entity fields not yet fully modelled ride in
+// a JSON `data` column (a bridge for the Phase 5/6 rebuilds). All IF NOT EXISTS so the
+// migration is safe to re-run.
+const SCHEMA_V1: &str = "
+CREATE TABLE IF NOT EXISTS campaigns (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  system TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  archived INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS characters (
+  id TEXT PRIMARY KEY,
+  campaign_id TEXT,
+  name TEXT NOT NULL,
+  data TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS scenes (
+  id TEXT PRIMARY KEY,
+  campaign_id TEXT,
+  name TEXT NOT NULL,
+  active INTEGER NOT NULL DEFAULT 0,
+  data TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS encounters (
+  id TEXT PRIMARY KEY,
+  campaign_id TEXT,
+  name TEXT NOT NULL,
+  scene_id TEXT,
+  data TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS assets (
+  id TEXT PRIMARY KEY,
+  campaign_id TEXT,
+  kind TEXT NOT NULL,
+  name TEXT NOT NULL,
+  uri TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS notes (
+  id TEXT PRIMARY KEY,
+  campaign_id TEXT,
+  title TEXT,
+  body TEXT,
+  updated_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS rules_meta (
+  stem TEXT PRIMARY KEY,
+  title TEXT,
+  source TEXT,
+  campaign_id TEXT,
+  updated_at INTEGER NOT NULL
+);
+";
+
 fn main() {
+    let migrations = vec![tauri_plugin_sql::Migration {
+        version: 1,
+        description: "create core campaign-scoped tables",
+        sql: SCHEMA_V1,
+        kind: tauri_plugin_sql::MigrationKind::Up,
+    }];
+
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_persisted_scope::init())
+        .plugin(
+            tauri_plugin_sql::Builder::default()
+                .add_migrations("sqlite:wte.db", migrations)
+                .build(),
+        )
         .invoke_handler(tauri::generate_handler![
             google_signin,
             wte_search,
