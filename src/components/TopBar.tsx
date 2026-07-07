@@ -21,6 +21,8 @@ interface TopBarProps {
   onInstallUpdate: () => void;
   accountLabel: string;
   onAccount: () => void;
+  curator: boolean;
+  onToggleCurator: () => void;
 }
 
 export function TopBar({
@@ -34,6 +36,8 @@ export function TopBar({
   onInstallUpdate,
   accountLabel,
   onAccount,
+  curator,
+  onToggleCurator,
 }: TopBarProps) {
   return (
     <div className="tabbar">
@@ -56,6 +60,13 @@ export function TopBar({
           </button>
         </span>
       )}
+      <button
+        className={"tab" + (curator ? " active" : "")}
+        onClick={onToggleCurator}
+        title="Curator (GM) mode — unlock stat & rank editing"
+      >
+        {curator ? "Curator ✓" : "Curator"}
+      </button>
       <button className="tab" onClick={onAccount} title="Google account">
         {accountLabel}
       </button>

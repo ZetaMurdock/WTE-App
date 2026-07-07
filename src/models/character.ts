@@ -1,4 +1,4 @@
-import type { Attributes, Specialties } from "../game/wte";
+import type { Attributes, Specialties, Background } from "../game/wte";
 
 /** DB-row metadata for a character (the `data` column holds the CharacterSheet JSON). */
 export interface Character {
@@ -16,6 +16,11 @@ export interface CharacterSheet {
   attributes: Attributes;
   specialties: Specialties;
   speciesId?: string;
+  /** Chosen species variant (lineage), by its display name — see Species.variants. */
+  variantName?: string;
   paradigmId?: string;
+  /** Curator-managed rank 0..9. */
+  rank?: number;
+  background?: Background;
   notes?: string;
 }

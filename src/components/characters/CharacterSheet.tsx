@@ -1,13 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getCharacter, updateCharacter, type CharacterRecord } from "../../lib/characters";
-import { logRoll, recentRolls, type RollEntry } from "../../lib/rolls";
+import { logRoll } from "../../lib/rolls";
 import {
   ATTRIBUTES,
   SPECIALTIES,
   SPEC_MAX,
   ATTR_MIN,
   ATTR_MAX,
+  RANK_MAX,
   effectiveAttributes,
+  bgBonuses,
+  rollMod,
+  specRollMod,
+  signedMod,
+  rankMult,
+  genusSlots,
+  cipherSlots,
   specialtyRemaining,
   validateSheet,
   getSpecies,
@@ -19,10 +27,13 @@ import {
   type RollResult,
 } from "../../game/wte";
 import { DerivedPreview } from "./DerivedPreview";
+import { RollFeed, useRollFeed } from "./RollFeed";
+import { SpeciesVariantsPanel } from "./SpeciesVariantsPanel";
 
 interface Props {
   characterId: string;
   campaignId: string;
+  curator: boolean;
   onBack: () => void;
   onChanged: () => void;
 }
@@ -32,17 +43,13 @@ function intOf(v: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-export function CharacterSheet({ characterId, campaignId, onBack, onChanged }: Props) {
+export function CharacterSheet({ characterId, campaignId, curator, onBack, onChanged }: Props) {
   const [rec, setRec] = useState<CharacterRecord | null>(null);
-  const [rolls, setRolls] = useState<RollEntry[]>([]);
+  const [variantsOpen, setVariantsOpen] = useState(false);
+  const { items: feedItems, push: pushFeed } = useRollFeed();
   const saveTimer = useRef<number | undefined>(undefined);
   const pending = useRef<CharacterRecord | null>(null);
 
-  const loadRolls = useCallback(async () => {
-    setRolls(await recentRolls(campaignId, 12));
-  }, [campaignId]);
-
-  // write the latest unsaved edit through, cancelling any queued debounce
   const flush = useCallback(() => {
     window.clearTimeout(saveTimer.current);
     const p = pending.current;
@@ -57,13 +64,11 @@ export function CharacterSheet({ characterId, campaignId, onBack, onChanged }: P
     getCharacter(characterId).then((r) => {
       if (alive) setRec(r ?? null);
     });
-    void loadRolls();
     return () => {
       alive = false;
     };
-  }, [characterId, loadRolls]);
+  }, [characterId]);
 
-  // flush any pending debounced save when leaving the sheet, so a quick "← Vault" never drops an edit
   useEffect(() => flush, [flush]);
 
   if (!rec) {
@@ -75,7 +80,8 @@ export function CharacterSheet({ characterId, campaignId, onBack, onChanged }: P
   }
 
   const sheet = rec.sheet;
-  const eff = effectiveAttributes(sheet.attributes, sheet.speciesId);
+  const rank = sheet.rank ?? 0;
+  const eff = effectiveAttributes(sheet.attributes, sheet.speciesId, bgBonuses(sheet.background));
   const remaining = specialtyRemaining(sheet.specialties);
   const validation = validateSheet(sheet.attributes, sheet.specialties);
   const species = getSpecies(sheet.speciesId);
@@ -93,24 +99,24 @@ export function CharacterSheet({ characterId, campaignId, onBack, onChanged }: P
     }, 400);
   }
   function setAttr(k: AttrKey, v: number) {
-    persist({
-      ...rec!,
-      sheet: { ...sheet, attributes: { ...sheet.attributes, [k]: Math.max(ATTR_MIN, Math.min(ATTR_MAX, v)) } },
-    });
+    persist({ ...rec!, sheet: { ...sheet, attributes: { ...sheet.attributes, [k]: Math.max(ATTR_MIN, Math.min(ATTR_MAX, v)) } } });
   }
   function setSpec(k: SpecKey, v: number) {
-    persist({
-      ...rec!,
-      sheet: { ...sheet, specialties: { ...sheet.specialties, [k]: Math.max(0, Math.min(SPEC_MAX, v)) } },
-    });
+    persist({ ...rec!, sheet: { ...sheet, specialties: { ...sheet.specialties, [k]: Math.max(0, Math.min(SPEC_MAX, v)) } } });
+  }
+  function setRank(v: number) {
+    persist({ ...rec!, sheet: { ...sheet, rank: Math.max(0, Math.min(RANK_MAX, v)) } });
   }
   function setNotes(v: string) {
     persist({ ...rec!, sheet: { ...sheet, notes: v } });
   }
+  function setVariant(name: string | undefined) {
+    persist({ ...rec!, sheet: { ...sheet, variantName: name } });
+  }
 
   async function doRoll(roll: RollResult) {
+    pushFeed(roll);
     await logRoll(campaignId, rec!.id, roll);
-    await loadRolls();
   }
 
   return (
@@ -118,13 +124,38 @@ export function CharacterSheet({ characterId, campaignId, onBack, onChanged }: P
       <div className="dash-header">
         <div>
           <div className="dash-eyebrow">
-            {[species?.name, paradigm?.name].filter(Boolean).join(" · ") || "Inquisitor"}
+            {[species?.name, sheet.variantName, paradigm?.name].filter(Boolean).join(" · ") || "Inquisitor"}
           </div>
           <h1 className="dash-title">{rec.name}</h1>
         </div>
-        <button className="ghost-btn" onClick={onBack}>
-          ← Vault
-        </button>
+        <div className="sheet-head-actions">
+          <button className="ghost-btn" onClick={() => setVariantsOpen(true)}>
+            Species Variants
+          </button>
+          <button className="ghost-btn" onClick={onBack}>
+            ← Vault
+          </button>
+        </div>
+      </div>
+
+      <div className="rank-bar">
+        <div className="rank-item">
+          <span className="rank-lbl">Rank</span>
+          <input
+            className="rank-input"
+            type="number"
+            min={0}
+            max={RANK_MAX}
+            value={rank}
+            disabled={!curator}
+            onChange={(e) => setRank(intOf(e.target.value))}
+          />
+        </div>
+        <div className="rank-item"><span className="rank-lbl">HP mult</span><span className="rank-val">×{rankMult(rank).toFixed(2)}</span></div>
+        <div className="rank-item"><span className="rank-lbl">Genus slots</span><span className="rank-val">{genusSlots(rank)}</span></div>
+        <div className="rank-item"><span className="rank-lbl">Cipher slots</span><span className="rank-val">{cipherSlots(rank)}</span></div>
+        <span className="rank-spacer" />
+        <span className={"curator-flag" + (curator ? " on" : "")}>{curator ? "Curator Mode" : "Player view · stats locked"}</span>
       </div>
 
       {!validation.ok && (
@@ -143,19 +174,22 @@ export function CharacterSheet({ characterId, campaignId, onBack, onChanged }: P
               <div className="stat-row" key={a.key}>
                 <div className="stat-info">
                   <span className="stat-short">{a.short}</span>
-                  <span className="stat-eff">= {eff[a.key]}</span>
                 </div>
+                <span className="mod-box" title="Roll modifier">
+                  {signedMod(rollMod(eff[a.key]))}
+                </span>
                 <input
                   className="stat-input"
                   type="number"
                   min={ATTR_MIN}
                   max={ATTR_MAX}
                   value={sheet.attributes[a.key]}
+                  disabled={!curator}
                   onChange={(e) => setAttr(a.key, intOf(e.target.value))}
                 />
                 <button
                   className="roll-btn"
-                  title={`Roll ${a.short} (1d20 + ${eff[a.key]})`}
+                  title={`Roll ${a.short}`}
                   onClick={() => doRoll(rollAttribute(`${a.short} Check`, eff[a.key]))}
                 >
                   d20
@@ -169,49 +203,46 @@ export function CharacterSheet({ characterId, campaignId, onBack, onChanged }: P
             {remaining >= 0 ? `${remaining} points remaining` : `Over budget by ${-remaining}`}
           </div>
           <div className="stat-editor">
-            {SPECIALTIES.map((s) => (
-              <div className="stat-row" key={s.key}>
-                <div className="stat-info">
-                  <span className="stat-short">{s.label}</span>
+            {SPECIALTIES.map((s) => {
+              const pts = Math.min(SPEC_MAX, sheet.specialties[s.key]);
+              return (
+                <div className="stat-row" key={s.key}>
+                  <div className="stat-info">
+                    <span className="stat-short">{s.label}</span>
+                  </div>
+                  <span className="mod-box" title="Roll modifier (incl. under-25 penalty)">
+                    {signedMod(specRollMod(pts))}
+                  </span>
+                  <input
+                    className={"stat-input" + (sheet.specialties[s.key] > SPEC_MAX ? " bad" : "")}
+                    type="number"
+                    min={0}
+                    max={SPEC_MAX}
+                    value={sheet.specialties[s.key]}
+                    disabled={!curator}
+                    onChange={(e) => setSpec(s.key, intOf(e.target.value))}
+                  />
+                  <button className="roll-btn" title={`Roll ${s.label}`} onClick={() => doRoll(rollSpecialty(`${s.label} Check`, pts))}>
+                    d40
+                  </button>
                 </div>
-                <input
-                  className={"stat-input" + (sheet.specialties[s.key] > SPEC_MAX ? " bad" : "")}
-                  type="number"
-                  min={0}
-                  max={SPEC_MAX}
-                  value={sheet.specialties[s.key]}
-                  onChange={(e) => setSpec(s.key, intOf(e.target.value))}
-                />
-                <button
-                  className="roll-btn"
-                  title={`Roll ${s.label} (1d40 + ${Math.min(SPEC_MAX, sheet.specialties[s.key])})`}
-                  onClick={() => doRoll(rollSpecialty(`${s.label} Check`, Math.min(SPEC_MAX, sheet.specialties[s.key])))}
-                >
-                  d40
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
         <div className="sheet-col">
           <div className="panel-title">Derived stats</div>
-          <DerivedPreview attributes={sheet.attributes} specialties={sheet.specialties} speciesId={sheet.speciesId} />
+          <DerivedPreview
+            attributes={sheet.attributes}
+            specialties={sheet.specialties}
+            speciesId={sheet.speciesId}
+            rank={rank}
+            background={sheet.background}
+          />
 
           <div className="panel-title mt">Roll feed</div>
-          {rolls.length === 0 ? (
-            <p className="list-empty">No rolls yet — hit a d20 or d40 button.</p>
-          ) : (
-            <ul className="roll-feed">
-              {rolls.map((r) => (
-                <li className="roll-item" key={r.id}>
-                  <span className="roll-label">{r.label}</span>
-                  <span className="roll-formula">{r.formula}</span>
-                  <span className="roll-result">{r.result}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <RollFeed items={feedItems} />
 
           <div className="panel-title mt">Notes</div>
           <textarea
@@ -222,6 +253,15 @@ export function CharacterSheet({ characterId, campaignId, onBack, onChanged }: P
           />
         </div>
       </div>
+
+      <SpeciesVariantsPanel
+        open={variantsOpen}
+        onClose={() => setVariantsOpen(false)}
+        speciesId={sheet.speciesId}
+        selected={sheet.variantName}
+        curator={curator}
+        onSelect={setVariant}
+      />
     </div>
   );
 }

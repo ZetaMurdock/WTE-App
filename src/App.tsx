@@ -46,6 +46,25 @@ export default function App() {
   const [update, setUpdate] = useState<WteUpdate | null>(null);
   const [installing, setInstalling] = useState(false);
   const [accountLabel, setAccountLabel] = useState("Sign in");
+  const [curator, setCurator] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("wte-curator") === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  function toggleCurator() {
+    setCurator((c) => {
+      const next = !c;
+      try {
+        localStorage.setItem("wte-curator", next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
 
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
@@ -174,6 +193,8 @@ export default function App() {
         onInstallUpdate={handleInstallUpdate}
         accountLabel={accountLabel}
         onAccount={handleAccount}
+        curator={curator}
+        onToggleCurator={toggleCurator}
       />
       <div className="views">
         {activeTab === "dashboard" && (
@@ -195,7 +216,7 @@ export default function App() {
         )}
         {activeTab === "characters" && (
           <div className="view-scroll">
-            <CharactersTab campaign={activeCampaign} onCharactersChanged={bumpChars} />
+            <CharactersTab campaign={activeCampaign} curator={curator} onCharactersChanged={bumpChars} />
           </div>
         )}
         <ToolFrame src="sheet.html" title="Character Sheet" hidden={activeTab !== "sheet"} />

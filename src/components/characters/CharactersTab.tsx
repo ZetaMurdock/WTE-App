@@ -10,11 +10,12 @@ type View = { mode: "vault" } | { mode: "creator" } | { mode: "sheet"; id: strin
 
 interface Props {
   campaign: Campaign | null;
+  curator: boolean;
   /** Stable callback so the Dashboard character count refreshes after mutations. */
   onCharactersChanged: () => void;
 }
 
-export function CharactersTab({ campaign, onCharactersChanged }: Props) {
+export function CharactersTab({ campaign, curator, onCharactersChanged }: Props) {
   const [view, setView] = useState<View>({ mode: "vault" });
   const [characters, setCharacters] = useState<CharacterRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,6 +72,7 @@ export function CharactersTab({ campaign, onCharactersChanged }: Props) {
       <CharacterSheet
         characterId={view.id}
         campaignId={campaign.id}
+        curator={curator}
         onChanged={reload}
         onBack={async () => {
           await reload();

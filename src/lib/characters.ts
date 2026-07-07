@@ -25,7 +25,7 @@ function newId(): string {
 }
 
 export function emptySheet(): CharacterSheet {
-  return { attributes: zeroAttributes(), specialties: zeroSpecialties(), notes: "" };
+  return { attributes: zeroAttributes(), specialties: zeroSpecialties(), rank: 0, notes: "" };
 }
 
 function parseSheet(raw: string | null): CharacterSheet {
@@ -36,7 +36,10 @@ function parseSheet(raw: string | null): CharacterSheet {
       attributes: { ...zeroAttributes(), ...(p.attributes || {}) },
       specialties: { ...zeroSpecialties(), ...(p.specialties || {}) },
       speciesId: p.speciesId,
+      variantName: p.variantName,
       paradigmId: p.paradigmId,
+      rank: typeof p.rank === "number" ? p.rank : 0,
+      background: p.background,
       notes: p.notes || "",
     };
   } catch {

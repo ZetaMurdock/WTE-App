@@ -12,18 +12,26 @@ import {
   zeroSpecialties,
   specialtyRemaining,
   validateSheet,
+  effectiveAttributes,
+  bgBonuses,
+  bgAmounts,
+  rollMod,
+  specRollMod,
+  signedMod,
   getSpecies,
   getParadigm,
   type AttrKey,
   type SpecKey,
   type Attributes,
   type Specialties,
+  type BgMode,
+  type Background,
 } from "../../game/wte";
 import type { CharacterSheet } from "../../models/character";
 import { createCharacter } from "../../lib/characters";
 import { DerivedPreview } from "./DerivedPreview";
 
-const STEPS = ["Identity", "Species", "Paradigm", "Attributes", "Specialties", "Review"];
+const STEPS = ["Identity", "Species", "Background", "Paradigm", "Attributes", "Specialties", "Review"];
 
 interface Props {
   campaignId: string;
@@ -40,15 +48,21 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [speciesId, setSpeciesId] = useState<string | undefined>();
+  const [variantName, setVariantName] = useState<string | undefined>();
   const [paradigmId, setParadigmId] = useState<string | undefined>();
   const [attributes, setAttributes] = useState<Attributes>(zeroAttributes());
   const [specialties, setSpecialties] = useState<Specialties>(zeroSpecialties());
+  const [bgName, setBgName] = useState("");
+  const [bgMode, setBgMode] = useState<BgMode>("standard");
+  const [bgAssign, setBgAssign] = useState<(AttrKey | null)[]>([null, null, null, null]);
   const [saving, setSaving] = useState(false);
 
+  const background: Background = { name: bgName.trim() || undefined, mode: bgMode, assign: bgAssign };
   const remaining = specialtyRemaining(specialties);
   const validation = validateSheet(attributes, specialties);
   const species = getSpecies(speciesId);
   const paradigm = getParadigm(paradigmId);
+  const eff = effectiveAttributes(attributes, speciesId, bgBonuses(background));
 
   function setAttr(k: AttrKey, v: number) {
     setAttributes((a) => ({ ...a, [k]: Math.max(ATTR_MIN, Math.min(ATTR_MAX, v)) }));
@@ -56,10 +70,21 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
   function setSpec(k: SpecKey, v: number) {
     setSpecialties((s) => ({ ...s, [k]: Math.max(0, Math.min(SPEC_MAX, v)) }));
   }
+  function setMode(mode: BgMode) {
+    setBgMode(mode);
+    setBgAssign(bgAmounts(mode).map(() => null));
+  }
+  function setAssign(i: number, k: AttrKey | null) {
+    setBgAssign((a) => {
+      const n = [...a];
+      n[i] = k;
+      return n;
+    });
+  }
 
   async function finish() {
     setSaving(true);
-    const sheet: CharacterSheet = { attributes, specialties, speciesId, paradigmId, notes: "" };
+    const sheet: CharacterSheet = { attributes, specialties, speciesId, variantName, paradigmId, rank: 0, background, notes: "" };
     try {
       const rec = await createCharacter(campaignId, name, sheet);
       onDone(rec.id);
@@ -108,27 +133,95 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
         )}
 
         {step === 1 && (
-          <div className="pick-grid">
-            {SPECIES.map((sp) => (
-              <button
-                key={sp.id}
-                className={"pick-card" + (speciesId === sp.id ? " selected" : "")}
-                onClick={() => setSpeciesId(sp.id)}
-              >
-                <div className="pick-fam">{sp.family}</div>
-                <div className="pick-name">{sp.name}</div>
-                <div className="pick-bonus">
-                  {Object.keys(sp.bonuses).length
-                    ? Object.entries(sp.bonuses).map(([k, v]) => `+${v} ${k.toUpperCase()}`).join(", ")
-                    : "No fixed bonus"}
+          <div>
+            <div className="pick-grid">
+              {SPECIES.map((sp) => (
+                <button
+                  key={sp.id}
+                  className={"pick-card" + (speciesId === sp.id ? " selected" : "")}
+                  onClick={() => {
+                    setSpeciesId(sp.id);
+                    setVariantName(undefined);
+                  }}
+                >
+                  <div className="pick-fam">{sp.family}</div>
+                  <div className="pick-name">{sp.name}</div>
+                  <div className="pick-bonus">
+                    {Object.keys(sp.bonuses).length
+                      ? Object.entries(sp.bonuses).map(([k, v]) => `+${v} ${k.toUpperCase()}`).join(", ")
+                      : "No fixed bonus"}
+                  </div>
+                  <div className="pick-innate">{sp.innate.join(" · ")}</div>
+                </button>
+              ))}
+            </div>
+
+            {species && species.variants.length > 0 && (
+              <div className="variant-choose">
+                <div className="aside-title">Choose a {species.name} variant — permanent once created</div>
+                <div className="pick-grid">
+                  {species.variants.map((v) => (
+                    <button
+                      key={v.name}
+                      className={"pick-card" + (variantName === v.name ? " selected" : "")}
+                      onClick={() => setVariantName(variantName === v.name ? undefined : v.name)}
+                    >
+                      <div className="pick-name">{v.name}</div>
+                      <div className="pick-innate">{v.abilities.join(" · ")}</div>
+                    </button>
+                  ))}
                 </div>
-                <div className="pick-innate">{sp.innate.join(" · ")}</div>
-              </button>
-            ))}
+              </div>
+            )}
           </div>
         )}
 
         {step === 2 && (
+          <div className="wizard-split">
+            <div className="stat-editor">
+              <input
+                className="picker-input"
+                type="text"
+                placeholder="Background name (optional)…"
+                value={bgName}
+                onChange={(e) => setBgName(e.target.value)}
+              />
+              <div className="chip-row">
+                <button className={"chip" + (bgMode === "standard" ? " active" : "")} onClick={() => setMode("standard")}>
+                  Standard · +2 +2 +1 +1
+                </button>
+                <button className={"chip" + (bgMode === "focused" ? " active" : "")} onClick={() => setMode("focused")}>
+                  Focused · +4 +2
+                </button>
+              </div>
+              {bgAmounts(bgMode).map((amt, i) => (
+                <div className="stat-row" key={i}>
+                  <div className="stat-info">
+                    <span className="stat-short">+{amt} to</span>
+                  </div>
+                  <select
+                    className="bg-select"
+                    value={bgAssign[i] ?? ""}
+                    onChange={(e) => setAssign(i, (e.target.value || null) as AttrKey | null)}
+                  >
+                    <option value="">—</option>
+                    {ATTRIBUTES.map((a) => (
+                      <option key={a.key} value={a.key}>
+                        {a.short}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+            <div className="wizard-aside">
+              <div className="aside-title">Derived preview</div>
+              <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} background={background} />
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
           <div className="pick-grid">
             {PARADIGMS.map((p) => (
               <button
@@ -145,7 +238,7 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
           </div>
         )}
 
-        {step === 3 && (
+        {step === 4 && (
           <div className="wizard-split">
             <div className="stat-editor">
               {ATTRIBUTES.map((a) => (
@@ -153,10 +246,10 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
                   <div className="stat-info">
                     <span className="stat-short">{a.short}</span>
                     <span className="stat-desc">{a.desc}</span>
-                    {species && species.bonuses[a.key] ? (
-                      <span className="stat-bonus">+{species.bonuses[a.key]} species</span>
-                    ) : null}
                   </div>
+                  <span className="mod-box" title="Roll modifier">
+                    {signedMod(rollMod(eff[a.key]))}
+                  </span>
                   <input
                     className="stat-input"
                     type="number"
@@ -170,25 +263,25 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
             </div>
             <div className="wizard-aside">
               <div className="aside-title">Derived preview</div>
-              <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} />
+              <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} background={background} />
             </div>
           </div>
         )}
 
-        {step === 4 && (
+        {step === 5 && (
           <div className="wizard-split">
             <div className="stat-editor">
               <div className={"points-banner" + (remaining < 0 ? " over" : "")}>
-                {remaining >= 0
-                  ? `${remaining} / ${SPEC_TOTAL} points remaining`
-                  : `Over budget by ${-remaining} points`}
+                {remaining >= 0 ? `${remaining} / ${SPEC_TOTAL} points remaining` : `Over budget by ${-remaining} points`}
               </div>
               {SPECIALTIES.map((s) => (
                 <div className="stat-row" key={s.key}>
                   <div className="stat-info">
                     <span className="stat-short">{s.label}</span>
-                    <span className="stat-desc">{s.desc}</span>
                   </div>
+                  <span className="mod-box" title="Roll modifier">
+                    {signedMod(specRollMod(specialties[s.key]))}
+                  </span>
                   <input
                     className={"stat-input" + (specialties[s.key] > SPEC_MAX ? " bad" : "")}
                     type="number"
@@ -202,15 +295,16 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
             </div>
             <div className="wizard-aside">
               <div className="aside-title">Derived preview</div>
-              <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} />
+              <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} background={background} />
             </div>
           </div>
         )}
 
-        {step === 5 && (
+        {step === 6 && (
           <div className="wizard-pane review">
             <div className="review-row"><span>Name</span><b>{name || "Unnamed Inquisitor"}</b></div>
-            <div className="review-row"><span>Species</span><b>{species?.name || "—"}</b></div>
+            <div className="review-row"><span>Species</span><b>{species?.name || "—"}{variantName ? ` · ${variantName}` : ""}</b></div>
+            <div className="review-row"><span>Background</span><b>{bgName.trim() || "—"} ({bgMode})</b></div>
             <div className="review-row"><span>Paradigm</span><b>{paradigm?.name || "—"}</b></div>
             <div className="review-row"><span>Specialty points</span><b>{SPEC_TOTAL - remaining} / {SPEC_TOTAL}</b></div>
             {!validation.ok && (
@@ -220,7 +314,7 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
                 ))}
               </ul>
             )}
-            <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} />
+            <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} background={background} />
           </div>
         )}
       </div>
