@@ -36,7 +36,8 @@ export interface Weapon extends CodexBase {
 }
 export interface Equipment extends CodexBase {
   type: "equipment";
-  slot?: string; // Armor | Cybernetic | Utility | Wing | R_ARM | …
+  category?: string; // Utility | Module | Cybernetic | Consumable | Armor | …
+  slot?: string; // UTILITY | MODULE | HEAD | CHEST | LEGS | R_ARM | …
   grade?: number;
   weight?: string;
   mods?: string; // raw "STAT ±N" list — parse with game/wte parseEquipMods

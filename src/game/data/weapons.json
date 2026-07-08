@@ -1,0 +1,593 @@
+[
+ {
+  "type": "weapon",
+  "name": "Mantis Blades",
+  "effect": "Perfect for the **Ghost archetype**. Forearm blades which pop out to attack. It utilizes high Dexterity to fuel melee strikes while inside an opponent's **Zone of Influence (ZoI)**. Because Evasion is boosted, the operator can safely navigate restricted melee combat.",
+  "slot": "BOTH_ARMS",
+  "weight": "Light",
+  "mods": "Dexterity +2, Cunning +2",
+  "ncCost": 1,
+  "ede": false,
+  "damage": "1d8 Slashing",
+  "range": "Melee (5 ft range)",
+  "baseAttack": "Melee (5 ft range). Deals Slashing 1d8 + Strength Modifier physical damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Projectile Launch System (Implant)",
+  "effect": "Arm implant and arm fortifier which pulls the hand downward to reveal an arm cannon to attack at short to moderate ranges. Uses ammunition to attack further as well.",
+  "slot": "R_ARM or L_ARM",
+  "weight": "Standard",
+  "mods": "Precision +2, Control +2",
+  "ncCost": 1,
+  "ede": false,
+  "damage": "2d6 Explosive",
+  "range": "45 ft",
+  "baseAttack": "Short to moderate range (up to 45 ft). High-explosive micro-ordnance deals Explosive 2d6 in a 10 ft radius, or precision Piercing 1d6 at longer ranges."
+ },
+ {
+  "type": "weapon",
+  "name": "Hyperblade",
+  "effect": "A katana which can swap between forms and energy types. Can be shifted to deal Slashing 1d8, Fire 1d10, Cold 1d8, or Lightning 1d8 damage based on tactical necessity.",
+  "slot": "R_ARM (or L_ARM)",
+  "weight": "Standard",
+  "mods": "Weapon Mastery +3, Versatility +2",
+  "ncCost": 0,
+  "ede": false,
+  "damage": "1d8 Slashing",
+  "range": "Melee (5 ft range)",
+  "baseAttack": "Melee (5 ft range). Deals Slashing 1d8 + Strength Modifier physical damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Asteroid Laser",
+  "effect": "A laser which pierces through asteroids causing an explosion, can be used on people for the same effect. Perfect for high-intensity situations where collateral area-of-effect damage is required to clear groups.",
+  "slot": "R_ARM (or L_ARM)",
+  "weight": "Standard",
+  "mods": "Precision +3, Control +2",
+  "ncCost": 1,
+  "ede": false,
+  "damage": "1d10 Force",
+  "range": "Ranged (60 ft line)",
+  "baseAttack": "Ranged (60 ft line). Deals Force 1d10 + Explosive 2d6 damage in a 10 ft radius."
+ },
+ {
+  "type": "weapon",
+  "name": "Hypercharge Genus-Modified Railgun",
+  "effect": "Imbue with your genus energy type to match its properties; charges up and disperses energy/damage proportional to the amount and time invested per attack. Spend up to 3 turns charging to scale damage by +1d6 per turn.",
+  "slot": "BOTH_ARMS",
+  "weight": "Heavy",
+  "mods": "Weapon Mastery +3, Control +3",
+  "ncCost": 2,
+  "ede": false,
+  "damage": "1d6 Piercing",
+  "range": "Ranged (80 ft line)",
+  "baseAttack": "Ranged (80 ft line). Deals Piercing 1d6 damage or elemental/energy damage matching the user's Genus."
+ },
+ {
+  "type": "weapon",
+  "name": "High Frequency Blade",
+  "effect": "Oscillation of the static within the blade causes molecular bonds to be disrupted when coming into contact with objects, ignoring standard kinetic defenses.",
+  "slot": "R_ARM",
+  "weight": "Standard",
+  "mods": "Weapon Mastery +3, Dexterity +2",
+  "ncCost": 0,
+  "ede": false,
+  "damage": "1d8 Slashing",
+  "range": "Melee (5 ft range)",
+  "baseAttack": "Melee (5 ft range). Deals Slashing 1d8 + Lightning 1d8 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Spatial Disruption Dagger (S.D.D.)",
+  "effect": "Dagger which has the ability to disrupt the space between two targets cutting the gap between them to move the user forward or the target closer. Spend a bonus action to instantly teleport to an open space adjacent to a target within 30 ft, or pull them closer.",
+  "slot": "R_ARM",
+  "weight": "Light",
+  "mods": "Dexterity +3, Cunning +2",
+  "ncCost": 1,
+  "ede": false,
+  "damage": "1d6 Piercing",
+  "range": "Melee (5 ft range)",
+  "baseAttack": "Melee (5 ft range). Deals Piercing 1d6 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Focussed Death Ray",
+  "effect": "An irresistible beam of blinding white light which has the potency to destroy massive cities and potentially planets. Severe tactical restrictions apply due to extreme weight and recoil.",
+  "slot": "BOTH_ARMS",
+  "weight": "Heavy",
+  "mods": "Control +5, Precision +3",
+  "ncCost": 3,
+  "ede": false,
+  "damage": "1d10 Radiant",
+  "range": "Ranged (unlimited line)",
+  "baseAttack": "Ranged (unlimited line). Deals Radiant 1d10 or True 1d12 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Harp of Dissonance",
+  "effect": "If you hear the melody the harp plays, targets suffer severe disorientation. Bypasses standard kinetic armor completely, targeting cognitive and sensory nerves.",
+  "slot": "BOTH_ARMS",
+  "weight": "Standard",
+  "mods": "Charisma +3, Inspiration +3",
+  "ncCost": 1,
+  "ede": false,
+  "damage": "1d8 Sonic",
+  "range": "Ranged (30 ft aura)",
+  "baseAttack": "Ranged (30 ft aura). Deals Sonic 1d8 or Sound 1d8 damage to all targets within hearing range."
+ },
+ {
+  "type": "weapon",
+  "name": "Automatic Air Shotgun",
+  "effect": "Anyone hit by the projectiles will be brought into the sky in which they will take increased damage scaling with airtime. Airborne targets enter the Aerial Combat State (+1 Action Priority, -1 Balance, risk of crashing if struck).",
+  "slot": "BOTH_ARMS",
+  "weight": "Standard",
+  "mods": "Weapon Mastery +2, Precision +2",
+  "ncCost": 1,
+  "ede": false,
+  "damage": "1d6 Bludgeoning",
+  "range": "Ranged (30 ft cone)",
+  "baseAttack": "Ranged (30 ft cone). 5 normal bullets. Deals Bludgeoning 1d6 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Fire Grenade Launcher",
+  "effect": "Immolation rounds which cause burn DOT upon explosion. Reapply Fire damage of 1d10 per turn to all targets in the blast radius.",
+  "slot": "BOTH_ARMS",
+  "weight": "Standard",
+  "mods": "Precision +2, Control +2",
+  "ncCost": 1,
+  "ede": false,
+  "damage": "2d6 Explosive",
+  "range": "Ranged (45 ft)",
+  "baseAttack": "Ranged (45 ft). 4 bullets. Deals Explosive 2d6 damage in a 10 ft radius."
+ },
+ {
+  "type": "weapon",
+  "name": "Deadlock Targeter",
+  "effect": "Special to where your bullets will always make contact with the target you’re aiming at. Bypasses target's Evasion checks and any cover bonuses.",
+  "slot": "R_ARM or L_ARM",
+  "weight": "Light",
+  "mods": "Precision +4, Perception +2",
+  "ncCost": 1,
+  "ede": false,
+  "damage": "1d6 Piercing",
+  "range": "Ranged (100 ft)",
+  "baseAttack": "Ranged (100 ft). 1 bullet. Deals Piercing 1d6 or True 1d12 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Ricoshet Assault Rifle",
+  "effect": "Damage hit on the target will apply to creatures near it, falling off of 0.5 per feet gone. Perfect for clearing tightly packed formations.",
+  "overclock": {
+   "text": "- **Phase I — Extender Phase**: Bullet ionization feedback loop is established. The Overclock heals the user directly by the total damage done.\n- **Phase II — Dextender Phase (Backlash)**: Synaptic Space cost doubles, and combatants override your Action Priority during the window.\n- **Phase III — Equalizer Phase**: Requires spending a Prepared Action during combat or completing a Recovery Phase."
+  },
+  "slot": "BOTH_ARMS",
+  "weight": "Standard",
+  "mods": "Precision +3, Weapon Mastery +2",
+  "ncCost": 1,
+  "ede": true,
+  "damage": "1d6 Piercing",
+  "range": "Ranged (50 ft)",
+  "baseAttack": "Ranged (50 ft). Deals Piercing 1d6 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Redirector Assault Rifle",
+  "effect": "Most recent target hit will take a portion of the damage that the wielder takes in the next turn. Allows front-line combatants to share their incoming damage load with enemies.",
+  "slot": "BOTH_ARMS",
+  "weight": "Standard",
+  "mods": "Control +2, Weapon Mastery +2",
+  "ncCost": 1,
+  "ede": false,
+  "damage": "1d6 Piercing",
+  "range": "Ranged (50 ft)",
+  "baseAttack": "Ranged (50 ft). Deals Piercing 1d6 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Accelerant Duelers",
+  "effect": "Fast-firing twin pistols. Each critical hit gives guaranteed action priority for the next action.",
+  "overclock": {
+   "text": "- **Phase I — Extender Phase**: Whenever you deal 15 or more damage, you gain a +5 damage roll modifier to your next base weapon attack roll.\n- **Phase II — Dextender Phase (Backlash)**: Synaptic Space cost doubles, and combatants override your Action Priority during the window.\n- **Phase III — Equalizer Phase**: Requires spending a Prepared Action during combat or completing a Recovery Phase."
+  },
+  "slot": "BOTH_ARMS",
+  "weight": "Light",
+  "mods": "Dexterity +2, Priority +3",
+  "ncCost": 1,
+  "ede": true,
+  "damage": "1d6 Piercing",
+  "range": "Ranged (30 ft)",
+  "baseAttack": "Ranged (30 ft). Deals Piercing 1d6 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Gatling Decimator",
+  "effect": "Heavy suppression firearm. Each creature that takes more than 15 damage (d50) in a turn from the weapon will be Soft Anchored for that turn.",
+  "overclock": {
+   "text": "- **Phase I — Extender Phase**: All downed creatures will take their maximum HP divided by two as direct damage to heal other selected creatures.\n- **Phase II — Dextender Phase (Backlash)**: Synaptic Space cost doubles, and combatants override your Action Priority during the window.\n- **Phase III — Equalizer Phase**: Requires spending a Prepared Action during combat or completing a Recovery Phase."
+  },
+  "slot": "BOTH_ARMS",
+  "weight": "Heavy",
+  "mods": "Weapon Mastery +3, Weight +3",
+  "ncCost": 2,
+  "ede": true,
+  "damage": "1d6 Bludgeoning",
+  "range": "Ranged (40 ft)",
+  "baseAttack": "Ranged (40 ft). Deals Bludgeoning 1d6 or Piercing 1d6 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Rocket Launcher Speedshootfasterthingy",
+  "effect": "If two or more creatures are hit by a rocket, you will gain immediate action priority as well as an action. Has a 2-turn cooldown. No overclocks.",
+  "slot": "BOTH_ARMS",
+  "weight": "Heavy",
+  "mods": "Weapon Mastery +2, Precision +2",
+  "ncCost": 1,
+  "ede": false,
+  "damage": "2d6 Explosive",
+  "range": "Ranged (60 ft)",
+  "baseAttack": "Ranged (60 ft). Deals Explosive 2d6 damage in a 10 ft radius."
+ },
+ {
+  "type": "weapon",
+  "name": "Light refracting burst smg",
+  "effect": "Refractive barrel sends ricocheting bullets within 25 feet. Great for bypassing tight corners or cover.",
+  "overclock": {
+   "text": "- **Phase I — Extender Phase**: If a ricochet hits any creature, the projectile turns into an active being that travels in the current direction, dealing Vertice damage.\n- **Phase II — Dextender Phase (Backlash)**: Synaptic Space cost doubles, and combatants override your Action Priority during the window.\n- **Phase III — Equalizer Phase**: Requires spending a Prepared Action during combat or completing a Recovery Phase."
+  },
+  "slot": "R_ARM",
+  "weight": "Light",
+  "mods": "Precision +2, Dexterity +2",
+  "ncCost": 1,
+  "ede": true,
+  "damage": "1d6 Piercing",
+  "range": "Ranged (30 ft)",
+  "baseAttack": "Ranged (30 ft). 9 bullets. Deals Piercing 1d6 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Nunchakus Flamer",
+  "effect": "Each 20 damage you deal, the creature will be knocked back by d20 distance and will leave a fire trail behind dealing fire damage.",
+  "overclock": {
+   "text": "- **Phase I — Extender Phase (Req Elemental Genus)**: Forces fire trails to spread out to all creatures within a 15 feet vicinity of the original fire trail.\n- **Phase II — Dextender Phase (Backlash)**: Synaptic Space cost doubles, and combatants override your Action Priority during the window.\n- **Phase III — Equalizer Phase**: Requires spending a Prepared Action during combat or completing a Recovery Phase.",
+   "requires": "Elemental"
+  },
+  "slot": "BOTH_ARMS",
+  "weight": "Standard",
+  "mods": "Weapon Mastery +2, Dexterity +2",
+  "ncCost": 1,
+  "ede": true,
+  "domain": "Elemental",
+  "damage": "1d6 Bludgeoning",
+  "range": "Melee (5 ft range)",
+  "baseAttack": "Melee (5 ft range). Deals Bludgeoning 1d6 + Fire 1d10 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Spray n’ Prayers",
+  "effect": "Unique weapon. Whenever you shoot, you send out a spore cloud, dealing AOE damage in a 20 feet cone.",
+  "overclock": {
+   "text": "- **Phase I — Extender Phase (Req Null Genus)**: Forces the viral cloud to spread out to all creatures within a 15 feet vicinity of the viral cloud.\n- **Phase II — Dextender Phase (Backlash)**: Synaptic Space cost doubles, and combatants override your Action Priority during the window.\n- **Phase III — Equalizer Phase**: Requires spending a Prepared Action during combat or completing a Recovery Phase.",
+   "requires": "Null"
+  },
+  "slot": "BOTH_ARMS",
+  "weight": "Standard",
+  "mods": "Control +2, Weapon Mastery +2",
+  "ncCost": 1,
+  "ede": true,
+  "domain": "Null",
+  "damage": "1d6 Poison",
+  "range": "Ranged (20 ft cone)",
+  "baseAttack": "Ranged (20 ft cone). Deals Poison 1d6 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Temporal Relapsers",
+  "effect": "Whenever you shoot for a basic attack, if you roll action priority under their attack, you will swap places with the bullets and reroll AP while adding your AP modifier + Priority specialty to the roll. No overclock.",
+  "slot": "BOTH_ARMS",
+  "weight": "Standard",
+  "mods": "Action Priority +3, Priority +2",
+  "ncCost": 1,
+  "ede": false,
+  "damage": "1d6 Piercing",
+  "range": "Ranged (40 ft)",
+  "baseAttack": "Ranged (40 ft). Deals Piercing 1d6 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Cross-Pull",
+  "effect": "Every second arrow which misses will reconverge and spin in a 10 foot radius. The next arrow shot will bring the two converged arrows to the third arrow's location, dealing 1d20 damage.",
+  "overclock": {
+   "text": "- **Phase I — Extender Phase**: The magnetic convergence pulls with crushing force, dealing Double Damage.\n- **Phase II — Dextender Phase (Backlash)**: Synaptic Space cost doubles, and combatants override your Action Priority during the window.\n- **Phase III — Equalizer Phase**: Requires spending a Prepared Action during combat or completing a Recovery Phase."
+  },
+  "slot": "BOTH_ARMS",
+  "weight": "Standard",
+  "mods": "Precision +3, Weapon Mastery +2",
+  "ncCost": 1,
+  "ede": true,
+  "damage": "1d6 Piercing",
+  "range": "Ranged (60 ft)",
+  "baseAttack": "Ranged (60 ft). Deals Piercing 1d6 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Kinpact Resolvers",
+  "effect": "Heavy boxing gloves. Each punch landed with the gloves active will grant a +2 Dex (along with Control and Perception specialties of +5) per successful hit and grant a +5 to the next AP roll which stacks. Lasts until the end of combat.",
+  "overclock": {
+   "text": "- **Phase I — Extender Phase (Req Kinetic Genus)**: At 40 total Dexterity, unleash a massive kinetic wave which blasts away anyone struck, dealing 2d10 force damage and dealing Crushing damage if they collide with a wall.\n- **Phase II — Dextender Phase (Backlash)**: Synaptic Space cost doubles, and combatants override your Action Priority during the window.\n- **Phase III — Equalizer Phase**: Requires spending a Prepared Action during combat or completing a Recovery Phase.",
+   "requires": "Kinetic"
+  },
+  "slot": "BOTH_ARMS",
+  "weight": "Light",
+  "mods": "Weapon Mastery +2, Dexterity +2",
+  "ncCost": 1,
+  "ede": true,
+  "domain": "Kinetic",
+  "damage": "1d6 Bludgeoning",
+  "range": "Melee (5 ft range)",
+  "baseAttack": "Melee (5 ft range). Deals Bludgeoning 1d6 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Spiralance",
+  "effect": "When hit directly by the spear, the target must roll a Mental Fortitude check; upon failing, they will double all current negative status effects active on them.",
+  "overclock": {
+   "text": "- **Phase I — Extender Phase**: Forces a neural hijack on whoever is harpooned, allowing the user to force an action of the harpooned target.\n- **Phase II — Dextender Phase (Backlash)**: Synaptic Space cost doubles, and combatants override your Action Priority during the window.\n- **Phase III — Equalizer Phase**: Requires spending a Prepared Action during combat or completing a Recovery Phase."
+  },
+  "slot": "BOTH_ARMS",
+  "weight": "Standard",
+  "mods": "Weapon Mastery +3, Precision +2",
+  "ncCost": 1,
+  "ede": true,
+  "damage": "1d6 Piercing",
+  "range": "Melee",
+  "baseAttack": "Melee or Ranged (15 ft range). Deals Piercing 1d6 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Sangun",
+  "effect": "Shotgun system. Each pellet which lands will increase the wielder's DHP by 10 for the remainder of the fight.",
+  "overclock": {
+   "text": "- **Phase I — Extender Phase**: Converts all accumulated combat-gained DHP into a massive physical slug, multiplying attack damage by 1.5x of the DHP invested.\n- **Phase II — Dextender Phase (Backlash)**: Synaptic Space cost doubles, and combatants override your Action Priority during the window.\n- **Phase III — Equalizer Phase**: Requires spending a Prepared Action during combat or completing a Recovery Phase."
+  },
+  "slot": "BOTH_ARMS",
+  "weight": "Heavy",
+  "mods": "Weapon Mastery +2, Weight +2",
+  "ncCost": 1,
+  "ede": true,
+  "damage": "1d6 Bludgeoning",
+  "range": "Ranged (20 ft)",
+  "baseAttack": "Ranged (20 ft). Fires 5 pellets per round. Deals Bludgeoning 1d6 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Scyrus",
+  "effect": "An elegant shadow-blade. Any attack can be feinted to ignore an AP check to do a shadow mimic of the original intended attack.",
+  "overclock": {
+   "text": "- **Phase I — Extender Phase (Req Null Genus)**: Anyone struck by a shadow hit will be marked, engulfing their body before granting the user a true opportunity attack.\n- **Phase II — Dextender Phase (Backlash)**: Synaptic Space cost doubles, and combatants override your Action Priority during the window.\n- **Phase III — Equalizer Phase**: Requires spending a Prepared Action during combat or completing a Recovery Phase.",
+   "requires": "Null"
+  },
+  "slot": "R_ARM",
+  "weight": "Light",
+  "mods": "Cunning +3, Dexterity +2",
+  "ncCost": 1,
+  "ede": true,
+  "domain": "Null",
+  "damage": "1d8 Slashing",
+  "range": "Melee (5 ft range)",
+  "baseAttack": "Melee (5 ft range). Deals Slashing 1d8 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Nontiku",
+  "effect": "Hitting someone will cause the dagger to begin to form crystalline shards on their body. Any action they take while crystalline shards are in place will damage them for 1d20 damage.",
+  "overclock": {
+   "text": "- **Phase I — Extender Phase**: All crystalline structures connect with each other and across other people, locking them firmly in place (Hard Anchored).\n- **Phase II — Dextender Phase (Backlash)**: Synaptic Space cost doubles, and combatants override your Action Priority during the window.\n- **Phase III — Equalizer Phase**: Requires spending a Prepared Action during combat or completing a Recovery Phase."
+  },
+  "slot": "R_ARM",
+  "weight": "Light",
+  "mods": "Dexterity +2, Precision +2",
+  "ncCost": 1,
+  "ede": true,
+  "damage": "1d6 Piercing",
+  "range": "Melee (5 ft range)",
+  "baseAttack": "Melee (5 ft range). Deals Piercing 1d6 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Re-Valance",
+  "effect": "Sacrificial dagger. Cut yourself to take 1d10 damage, amplifying ALL primary statistics by the damage taken for two turns.",
+  "overclock": {
+   "text": "- **Phase I — Extender Phase**: Trade all statistics gained via the self-harm buff to immediately gain one AP advantage turn per statistic traded.\n- **Phase II — Dextender Phase (Backlash)**: Synaptic Space cost doubles, and combatants override your Action Priority during the window.\n- **Phase III — Equalizer Phase**: Requires spending a Prepared Action during combat or completing a Recovery Phase."
+  },
+  "slot": "R_ARM",
+  "weight": "Light",
+  "mods": "Control +2, Versatility +2",
+  "ncCost": 1,
+  "ede": true,
+  "damage": "1d6 Piercing",
+  "range": "Melee (5 ft range)",
+  "baseAttack": "Melee (5 ft range). Deals Piercing 1d6 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Sinpirus",
+  "effect": "Any damage dealt with the sniper will convert into hovering orbital orbs (1 orb per 10 damage dealt) around whomever was struck, applying an elemental status effect.",
+  "overclock": {
+   "text": "- **Phase I — Extender Phase (Req Elemental Genus)**: Each orb is directed back towards the original person struck, applying an additional elemental status effect per orb returned.\n- **Phase II — Dextender Phase (Backlash)**: Synaptic Space cost doubles, and combatants override your Action Priority during the window.\n- **Phase III — Equalizer Phase**: Requires spending a Prepared Action during combat or completing a Recovery Phase.",
+   "requires": "Elemental"
+  },
+  "slot": "BOTH_ARMS",
+  "weight": "Heavy",
+  "mods": "Precision +4, Perception +2",
+  "ncCost": 2,
+  "ede": true,
+  "domain": "Elemental",
+  "damage": "1d10 Force",
+  "range": "Ranged (120 ft)",
+  "baseAttack": "Ranged (120 ft). Deals Force 1d10 or Piercing 1d6 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Terratruth",
+  "effect": "Massive gravity club. Any creature that takes damage will be sent back 1d40 (rounded nearest 5) feet. For each 5 feet sent back, they suffer an equivalent penalty on their next AP roll. No overclock.",
+  "slot": "BOTH_ARMS",
+  "weight": "Heavy",
+  "mods": "Weight +3, Weapon Mastery +2",
+  "ncCost": 1,
+  "ede": false,
+  "damage": "1d6 Bludgeoning",
+  "range": "Melee (10 ft)",
+  "baseAttack": "Melee (10 ft). Deals Bludgeoning 1d6 or Crushing 1d40 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Ironfall",
+  "effect": "Unique size-shifting hammer. Once per every other creature's turn, you can resize from tiny to colossal. If damage is dealt while size is moderate or lower, the hammer disappears and forces an AP roll from the target; if they fail against your DC, you teleport to the hammer and gain advantage on your next AP attack. If size is moderate to colossal, the creature is Hard Anchored for 2 turns.",
+  "overclock": {
+   "text": "- **Phase I — Extender Phase (Req Neutral Genus)**: Causes the next landed attack that deals damage to knock the creature back into a secondary kinetic hammer, anchoring them for 2 turns.\n- **Phase II — Dextender Phase (Backlash)**: Synaptic Space cost doubles, and combatants override your Action Priority during the window.\n- **Phase III — Equalizer Phase**: Requires spending a Prepared Action during combat or completing a Recovery Phase.",
+   "requires": "Neutral"
+  },
+  "slot": "BOTH_ARMS",
+  "weight": "Heavy",
+  "mods": "Weight +4, Weapon Mastery +3",
+  "ncCost": 2,
+  "ede": true,
+  "domain": "Neutral",
+  "damage": "1d40 Crushing",
+  "range": "Melee (5–15 ft range)",
+  "baseAttack": "Melee (5–15 ft range). Deals Crushing 1d40 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Sanctioned Blade",
+  "effect": "Each attack heals the target attacked by the user's total Influence/Cunning modifier. If healed by >35% of their total health, target's rolls against the user are reduced by (Influence Mod * Cunning Mod / Target Rank). If they fail 2+ AP or Charisma rolls against the user, their next Genus used will be redirected back onto them at 1.x damage.",
+  "overclock": {
+   "text": "- **Phase I — Extender Phase (Req Eldritch + Null Genus)**: Any creature who has failed a roll against the user or been healed by them becomes incapacitated for 3 turns, and you gain access to their memories during that time.\n- **Phase II — Dextender Phase (Backlash)**: Synaptic Space cost doubles, and combatants override your Action Priority during the window.\n- **Phase III — Equalizer Phase**: Requires spending a Prepared Action during combat or completing a Recovery Phase.",
+   "requires": "Eldritch + Null"
+  },
+  "slot": "R_ARM",
+  "weight": "Standard",
+  "mods": "Influence +3, Cunning +2",
+  "ncCost": 2,
+  "ede": true,
+  "domain": "Eldritch + Null",
+  "damage": "1d8 Slashing",
+  "range": "Melee (5 ft range)",
+  "baseAttack": "Melee (5 ft range). Deals Slashing 1d8 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Wrenched",
+  "effect": "Temporally offset club. All damage you do will become displaced, happening the turn afterwards. If the target takes more than 30 damage before the damage resolves, gain advantage on AP rolls against them.",
+  "slot": "R_ARM",
+  "weight": "Standard",
+  "mods": "Weapon Mastery +2, Priority +2",
+  "ncCost": 1,
+  "ede": false,
+  "damage": "1d6 Bludgeoning",
+  "range": "Melee (5 ft range)",
+  "baseAttack": "Melee (5 ft range). Deals Bludgeoning 1d6 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Staff of Transfers",
+  "effect": "Unique staff. Each attack the user does, if the target is within 10 feet of the user and there is another enemy within 10 feet of them, and 20 feet of that one, 30 feet, etc., the initial attack damage is applied and then transferred to the next target, doubling each time.",
+  "slot": "BOTH_ARMS",
+  "weight": "Standard",
+  "mods": "Control +3, Versatility +2",
+  "ncCost": 1,
+  "ede": false,
+  "damage": "1d10 Force",
+  "range": "Melee (10 ft)",
+  "baseAttack": "Melee (10 ft). Deals Force 1d10 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Flail",
+  "effect": "Unique variable weapon. Right before you attack, roll a d20 to determine how many feet the flail is flung back. Target a creature within that rolled range; if >30 damage is dealt, the target is pulled to the user and suffers a disadvantage equal to your Action Density modifier on their first action.",
+  "slot": "BOTH_ARMS",
+  "weight": "Heavy",
+  "mods": "Weight +3, Weapon Mastery +2",
+  "ncCost": 1,
+  "ede": false,
+  "damage": "1d6 Bludgeoning",
+  "range": "Melee (variable range)",
+  "baseAttack": "Melee (variable range). Deals Bludgeoning 1d6 or Crushing 1d40 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Katanahfn",
+  "effect": "A temporal-shifting katana. Every critical attack you land, roll a d20: if under 10, the initial attack is applied twice, and you choose when it is applied within 3 turns. If over 10, target a nearby creature to grant them bonus AP equal to your AP modifier.",
+  "slot": "R_ARM",
+  "weight": "Light",
+  "mods": "Weapon Mastery +3, Dexterity +2",
+  "ncCost": 0,
+  "ede": false,
+  "damage": "1d8 Slashing",
+  "range": "Melee (5 ft range)",
+  "baseAttack": "Melee (5 ft range). Deals Slashing 1d8 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Zapper of Doom and Despair",
+  "effect": "If per round each bullet shot will be targeted towards whomever per shot, split between however many creatures desired. Phasing bullets bypass cover and force prioritized AP rolls.",
+  "overclock": {
+   "text": "- **Phase I — Extender Phase**: Each creature hit by a bullet is Soft Anchored; if they belong to the Simulation Paradigm, they are digitized/incapacitated for 2 rounds.\n- **Phase II — Dextender Phase (Backlash)**: Synaptic Space cost doubles, and combatants override your Action Priority during the window.\n- **Phase III — Equalizer Phase**: Requires spending a Prepared Action during combat or completing a Recovery Phase."
+  },
+  "slot": "BOTH_ARMS",
+  "weight": "Standard",
+  "mods": "Precision +3, Control +2",
+  "ncCost": 1,
+  "ede": true,
+  "damage": "1d8 Lightning",
+  "range": "Ranged (45 ft)",
+  "baseAttack": "Ranged (45 ft). 20 bullets per round. Deals Lightning 1d8 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Ice bow jabber",
+  "effect": "Each arrow deals frozen damage; for each point of damage taken, the target gains a corresponding negative modifier on their next roll.",
+  "overclock": {
+   "text": "- **Phase I — Extender Phase**: Double-draw strings engage, allowing the user to shoot three arrows at a time with a single attack action.\n- **Phase II — Dextender Phase (Backlash)**: Synaptic Space cost doubles, and combatants override your Action Priority during the window.\n- **Phase III — Equalizer Phase**: Requires spending a Prepared Action during combat or completing a Recovery Phase."
+  },
+  "slot": "BOTH_ARMS",
+  "weight": "Standard",
+  "mods": "Precision +3, Weapon Mastery +2",
+  "ncCost": 1,
+  "ede": true,
+  "damage": "1d8 Cold",
+  "range": "Ranged (60 ft)",
+  "baseAttack": "Ranged (60 ft). Deals Cold 1d8 damage (concept: 2d7 frozen)."
+ },
+ {
+  "type": "weapon",
+  "name": "Dreadlox",
+  "effect": "Unique multi-target rifle. Target two creatures during your turn for one attack. If both take a total damage of 30 or greater, they must pass a Wisdom DC or become Hard Anchored. When they fail, all creatures within a 15 ft radius must also make a Wisdom check against you. Each anchored creature increases your next attack's damage by +0.5.",
+  "slot": "BOTH_ARMS",
+  "weight": "Standard",
+  "mods": "Precision +2, Control +2",
+  "ncCost": 1,
+  "ede": false,
+  "damage": "1d6 Piercing",
+  "range": "Ranged (50 ft)",
+  "baseAttack": "Ranged (50 ft). 44 bullets. Deals Piercing 1d6 damage."
+ },
+ {
+  "type": "weapon",
+  "name": "Grindsaw Skewer",
+  "effect": "Each attack applies a secondary saw attack which will inflict 1d4 bleed, 1d10 true damage, and cuts movement by 50%.",
+  "overclock": {
+   "text": "- **Phase I — Extender Phase**: If an attack makes a target fall below a kill threshold of 2.5x the original attack's damage, they are skewered by a harpoon. The user can pull back the chain to grind them to pieces for one full round, killing them and forcing everyone within 25 ft to pass a Mental Fortitude check (DC 20) or be Stunned for one turn.\n- **Phase II — Dextender Phase (Backlash)**: Synaptic Space cost doubles, and combatants override your Action Priority during the window.\n- **Phase III — Equalizer Phase**: Requires spending a Prepared Action during combat or completing a Recovery Phase."
+  },
+  "slot": "BOTH_ARMS",
+  "weight": "Heavy",
+  "mods": "Weight +3, Weapon Mastery +3",
+  "ncCost": 2,
+  "ede": true,
+  "damage": "1d8 Slashing",
+  "range": "Melee (10 ft)",
+  "baseAttack": "Melee (10 ft). Deals Slashing 1d8 + Bleed 1d4 damage."
+ }
+]

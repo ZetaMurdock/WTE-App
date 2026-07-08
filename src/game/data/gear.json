@@ -1,0 +1,808 @@
+[
+ {
+  "type": "equipment",
+  "name": "EMP Field",
+  "effect": "A compact emitter that generates a focused burst of electromagnetic energy. When activated as an action, all technology, ciphers, and electrical systems within a 20-foot radius are immediately Soft Anchored and disabled for 1 round.",
+  "overclock": {
+   "text": "*   **Phase I (Extender Phase):** The field overloads, triggering **Synaptic Freeze** on up to *Perception Modifier + Neuronal Capacity Modifier* targets, freezing their Synaptic Space and shutting down all tech for 2 rounds.\n*   **Phase II (Backlash Phase):** High-frequency feedback causes **Cipher Backlash**: the wielder's SS costs are increased to 1.8x, and all opponents gain Action Priority.\n*   **Phase III (Equalizer Phase):** Requires spending a Prepared Action in combat or completing a Recovery Phase.",
+   "requires": "Neutral"
+  },
+  "category": "Utility",
+  "slot": "UTILITY",
+  "weight": "Standard",
+  "mods": "Control +4, Precision -2",
+  "ncCost": 1,
+  "ede": true,
+  "domain": "Neutral"
+ },
+ {
+  "type": "equipment",
+  "name": "Bio-Monitor",
+  "effect": "*Balanced to prevent metagame exploits.* Provides real-time tactical readouts of vital signs, pathogen levels, and active status conditions of any target within a 30-foot Zone of Influence (ZoI). This grants a flat **+5 bonus on all medical triage rolls** made with a Field Trauma Kit.",
+  "category": "Utility",
+  "slot": "UTILITY",
+  "weight": "Minute",
+  "mods": "Perception +3, Wisdom +1",
+  "ncCost": 0,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Accelerant Drug (Consumable)",
+  "effect": "An adrenaline-derived injector that temporarily accelerates synapses. Consuming this as a bonus action grants the user **+1 Action Density** and **+2 Synaptic Space** for 2 rounds.",
+  "category": "Consumable",
+  "slot": "UTILITY",
+  "weight": "Minute",
+  "mods": "Dexterity +1, Action Priority +1",
+  "ncCost": 0,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Hyper Accelerant Drug",
+  "effect": "*Reworked to balance physical scaling.* A high-potency, neuro-chemical booster. When consumed as a bonus action, it grants **+2 Action Density**, **+4 Dexterity**, and **+3 Neuronal Capacity** for 2 rounds.",
+  "category": "Consumable",
+  "slot": "UTILITY",
+  "weight": "Minute",
+  "mods": "Dexterity +3, Action Priority +3",
+  "ncCost": 0,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Holographic Projector",
+  "effect": "Allows the user to project 3D tactical wireframe maps or communications models in real-time. Grants a +5 bonus to tactical planning checks during Calm situation states.",
+  "category": "Utility",
+  "slot": "UTILITY",
+  "weight": "Standard",
+  "mods": "Cunning +3, Inspiration +2",
+  "ncCost": 1,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Drone Of Compassion (D.O.C.)",
+  "effect": "A compact hovering drone that tracks allied life-signs. It can passively stabilize adjacent dying allies or administer a single use of a Field Trauma Kit as an off-turn bonus action.",
+  "category": "Utility",
+  "slot": "UTILITY",
+  "weight": "Light",
+  "mods": "Recovery Rate +4",
+  "ncCost": 1,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Cryo-Sleep Pod",
+  "effect": "*Reworked to prevent escape exploits.* A portable, folding cryogenic chamber. If an ally is dying or critically poisoned, placing them in the pod suspends all bleed and toxin timers indefinitely. While stored, the target is **Hard Anchored** and completely immune to external status effects, but cannot act.",
+  "category": "Utility",
+  "slot": "UTILITY",
+  "weight": "Heavy",
+  "mods": "Endurance +2",
+  "ncCost": 2,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Extractor",
+  "effect": "*Balanced for material acquisition.* Automatically mines nearby elemental nodes or scrap piles during In-game Time Tracking (ITT). Increases raw resource yields by exactly **+50%** and reduces harvesting time by half.",
+  "category": "Utility",
+  "slot": "UTILITY",
+  "weight": "Standard",
+  "mods": "Precision +2",
+  "ncCost": 1,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Replicator",
+  "effect": "*Balanced to prevent infinite economy loops.* Can scan and store the blueprints of standard consumables (e.g., Trauma Kits, Drugs). By spending scrap or raw materials equal to the item's grade value during a Recovery Phase, the Replicator generates one identical copy of the consumable. Cannot copy weapons, modules, or cybernetics.",
+  "category": "Utility",
+  "slot": "UTILITY",
+  "weight": "Standard",
+  "mods": "Versatility +3",
+  "ncCost": 2,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Null-Woven Piercers",
+  "effect": "Specialized micro-actuators fitted to standard weapon barrels. Allows exactly **25% of all physical damage** dealt by the equipped weapon to bypass the target's Defensive Hit Points (DHP) and resistances to strike HP directly.",
+  "category": "Utility",
+  "slot": "UTILITY",
+  "weight": "Minute",
+  "mods": "Precision +3, Control +1",
+  "ncCost": 1,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Zero-Cycle Encapsulator",
+  "effect": "Projects a chronological stasis shield around the wielder, blocking exterior environmental hazards.",
+  "overclock": {
+   "text": "*   **Phase I (Extender Phase):** Initiates **Spatial Propagation**. For 1 round, the wielder is immune to all negative status effects and conditions. Any condition applied to them is transferred to another target within 35 feet.\n*   **Phase II (Backlash Phase):** Severe neural drainage causes **Genus Backlash**: SS costs double, and all combatants override the user's Action Priority during their next action.\n*   **Phase III (Equalizer Phase):** Requires a Prepared Action to re-stabilize the temporal generator.",
+   "requires": "Null"
+  },
+  "category": "Utility",
+  "slot": "UTILITY",
+  "weight": "Heavy",
+  "mods": "Mental Fortitude +4, DHP +2",
+  "ncCost": 2,
+  "ede": true,
+  "domain": "Null"
+ },
+ {
+  "type": "equipment",
+  "name": "H.Z. Compact Zone Absorber",
+  "effect": "A deployable, see-through protective barrier that blocks incoming projectiles. The barrier has **20 DHP** and deactivates once depleted.",
+  "overclock": {
+   "text": "*   **Phase I (Extender Phase):** Triggers **Vector Echo**. The shield expands, and any kinetic projectile striking it is reflected back at the attacker (dealing 1.5x reduced damage).\n*   **Phase II (Backlash Phase):** The electric surge triggers **Genus Backlash**, leaving the wielder's Action Priority at the lowest position.\n*   **Phase III (Equalizer Phase):** Requires a Prepared Action to reboot the shielding matrix.",
+   "requires": "Kinetic"
+  },
+  "category": "Utility",
+  "slot": "UTILITY",
+  "weight": "Standard",
+  "mods": "Balance +3, DHP +4",
+  "ncCost": 1,
+  "ede": true,
+  "domain": "Kinetic"
+ },
+ {
+  "type": "equipment",
+  "name": "G.M. Bouncers",
+  "effect": "Gravity-manipulating boot thrusters. Allows the user to perform a mid-air double jump, or ignore movement penalties while operating in Space Combat environments.",
+  "category": "Utility",
+  "slot": "LEGS",
+  "weight": "Standard",
+  "mods": "Control +5, Evasion +2",
+  "ncCost": 1,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Truthseeker’s Vision",
+  "effect": "A sensor visor that parses biometric markers. Once per scene, active it to bypass a social Cunning/Perception check; you automatically detect if a target within 10 feet is lying.",
+  "category": "Utility",
+  "slot": "UTILITY",
+  "weight": "Minute",
+  "mods": "Perception +6, Wisdom +2",
+  "ncCost": 1,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Oriyu Core",
+  "effect": "A core derived from the Oriyu species. When the wielder is hit by an energy or Genus-based attack, they reduce all subsequent damage of that specific energy type by exactly **10%** (stacks up to three times per encounter).",
+  "category": "Utility",
+  "slot": "UTILITY",
+  "weight": "Standard",
+  "mods": "Adaption +5, DHP +2",
+  "ncCost": 2,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Liars Voice-Box",
+  "effect": "A vocal modulator that twists spoken audio waves to project false intent.",
+  "overclock": {
+   "text": "*   **Phase I (Extender Phase):** Resolves **Requirement Inversion**. The wielder rewrites a previously spoken sentence, forcing any listener to reroll their Insight or Perception checks against a contested *Action Priority + Intelligence* roll.\n*   **Phase II (Backlash Phase):** Neural feedback triggers **Cipher Backlash**, inflating the user's Synaptic Space costs by 1.8x.\n*   **Phase III (Equalizer Phase):** Requires a Prepared Action to reset the vocal filter.",
+   "requires": "Eldritch"
+  },
+  "category": "Utility",
+  "slot": "UTILITY",
+  "weight": "Light",
+  "mods": "Cunning +6, Influence +2",
+  "ncCost": 1,
+  "ede": true,
+  "domain": "Eldritch"
+ },
+ {
+  "type": "equipment",
+  "name": "Spatial Locking Pole",
+  "effect": "A collapsible pole that can anchor itself in mid-air or onto any surface, creating an instant structural platform. Supports up to 500 lbs and prevents falling when held.",
+  "category": "Utility",
+  "slot": "UTILITY",
+  "weight": "Standard",
+  "mods": "Versatility +4, Balance +2",
+  "ncCost": 1,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Prosopocoilus F.B.",
+  "effect": "A stabilizer harness that locks the joints under impact. The user is immune to the first instance of being knocked prone, tripped, or forced into a Soft Anchor state per encounter.",
+  "category": "Utility",
+  "slot": "UTILITY",
+  "weight": "Standard",
+  "mods": "Balance +6",
+  "ncCost": 1,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "6L3PH4N7",
+  "effect": "*Balanced to fit combat action density.* A deployable heavy call-box that summons a massive, metal-plated automated elephant construct to drop onto a target area within 30 feet. \n- **Summon Effect:** The construct crushes down, dealing **1d40 Crushing damage** to all targets in a 10-foot radius and knocking them prone. It remains on the field for 3 turns, acting as a massive hard-anchor obstacle that blocks sight and provides full cover.",
+  "overclock": {
+   "text": "- **Phase I (Extender Phase):** Under the Kinetic Domain, the impact triggers **Vector Echo**: the impact deals a second wave of 1d40 Crushing damage (reduced by 1.5x) and extends the construct's operational lifespan to 5 turns.\n- **Phase II (Backlash Phase):** Neural load triggers **Genus Backlash**, doubling the wielder's SS costs for 1 round.\n- **Phase III (Equalizer Phase):** Requires a Prepared Action in combat to clear the remote signal link.",
+   "requires": "Kinetic"
+  },
+  "category": "Utility",
+  "slot": "UTILITY",
+  "weight": "Heavy",
+  "mods": "Weight +4, Cunning -2",
+  "ncCost": 2,
+  "ede": true,
+  "domain": "Kinetic"
+ },
+ {
+  "type": "equipment",
+  "name": "Cyber-Optical Vibrant Camo",
+  "effect": "Bending light to conceal the operator. Grants a +10 bonus to Stealth checks. The camo drops immediately upon attacking, casting a Cipher, or entering a hostile creature's 30-foot Zone of Influence (ZoI).",
+  "category": "Utility",
+  "slot": "UTILITY",
+  "weight": "Light",
+  "mods": "Cunning +5, Evasion +2",
+  "ncCost": 1,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Genus Impacter",
+  "effect": "A specialized grenade containing concentrated Genus energy (can be Null, Eldritch, Neutral, Elemental, or Kinetic). When thrown up to 30 feet, it deals **2d6 Explosive damage** of the chosen Genus energy type in a 10-foot blast radius.",
+  "category": "Consumable (Grenade)",
+  "slot": "UTILITY",
+  "weight": "Light",
+  "mods": "Precision +2",
+  "ncCost": 0,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Energy Absorbing Rebounder",
+  "effect": "A spherical device that absorbs ambient kinetic and energy attacks, converting them into charge. If the wielder takes energy damage, the sphere gains 1 charge (max 5). As an action, the sphere can be thrown to release a shockwave dealing **1d8 Force damage per charge** in a 15-foot radius.",
+  "overclock": {
+   "text": "*   **Phase I (Extender Phase):** Overdrives the containment core, triggering **Environmental Overdrive**. This doubles the blast radius (30 feet), the damage dice size (1d10 per charge), and inflicts an ongoing elemental status burn on all targets.\n*   **Phase II (Backlash Phase):** Overheating triggers **Genus Backlash**, temporarily overriding the user's Action Priority during the combat window.\n*   **Phase III (Equalizer Phase):** Requires completing a Recovery Phase or spending a Prepared Action to vent the thermal cell.",
+   "requires": "Elemental"
+  },
+  "category": "Utility",
+  "slot": "UTILITY",
+  "weight": "Light",
+  "mods": "Control +4",
+  "ncCost": 1,
+  "ede": true,
+  "domain": "Elemental"
+ },
+ {
+  "type": "equipment",
+  "name": "Audio-Sound Blastcore",
+  "effect": "A deployable sound box that blasts localized, high-decibel acoustic interference. Once activated, all creatures within 15 feet take **1d8 Sonic damage** per turn and are deafened (cannot receive remote communications, and their Perception Range is reduced to zero).",
+  "category": "Utility",
+  "slot": "UTILITY",
+  "weight": "Standard",
+  "mods": "Precision +2, Cunning +2",
+  "ncCost": 1,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "A.F. Teleportation Device",
+  "effect": "*Balanced with strict spatial limits.* A pair of quantum-linked spatial disks. Placing one disk as an action allows the user to teleport any Medium or smaller object or willing creature between the two disks as a Prepared Action. Range is capped at exactly **60 feet**.",
+  "overclock": {
+   "text": "*   **Phase I (Extender Phase):** Triggers **Spatial Propagation**. The wielder can instantly swap positions with a hostile creature within 60 feet. Resolving this requires succeeding on a contested *Action Priority + Intelligence check*.\n*   **Phase II (Backlash Phase):** Neural dislocation causes **Cipher Backlash**: Synaptic Space costs are increased to 1.8x, and all opponents act first.\n*   **Phase III (Equalizer Phase):** Requires completing a Recovery Phase to reset the quantum entanglement.",
+   "requires": "Null"
+  },
+  "category": "Utility",
+  "slot": "UTILITY",
+  "weight": "Standard",
+  "mods": "Versatility +4",
+  "ncCost": 2,
+  "ede": true,
+  "domain": "Null"
+ },
+ {
+  "type": "equipment",
+  "name": "BIOS Marker",
+  "effect": "A scanning pulse emitter. When thrown up to 30 feet, it marks all biological targets within a 15-foot radius. Marked targets remain visible through solid walls and cover to all allies for 3 rounds.",
+  "category": "Utility",
+  "slot": "UTILITY",
+  "weight": "Light",
+  "mods": "Perception +4, Perception Range +2",
+  "ncCost": 1,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Boots of Flapping",
+  "effect": "*Preserved joke item with funny niche benefit.* Features small synthetic wings that flap noisily whenever the Inquisitor jumps. Grants **+1 Evasion** specifically and only while airborne (Aerial state). Under normal circumstances, \"provides no realistic bonuses while flapping\".",
+  "category": "Utility",
+  "slot": "LEGS",
+  "weight": "Light",
+  "mods": "Balance +2, Evasion +1",
+  "ncCost": 0,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Invisibility Cloak",
+  "effect": "*Balanced to limit infinite defense.* A cloak that renders all equipped items, armor, and clothing completely invisible, leaving the user's body slightly transparent. This grants a flat **+10 bonus to Stealth checks**, but imposes **-1 Evasion** because the user cannot easily visually track their own armor boundaries in a melee fight.",
+  "category": "Utility",
+  "slot": "UTILITY",
+  "weight": "Light",
+  "mods": "Cunning +4, Evasion -1",
+  "ncCost": 1,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Vial of Oxygen (Consumable)",
+  "effect": "A highly pressurized oxygen canister. Grants the user exactly **12 rounds of continuous breathing** while submerged, exposed to void space, or choked by pathogens.",
+  "category": "Consumable",
+  "slot": "UTILITY",
+  "weight": "Minute",
+  "mods": "None",
+  "ncCost": 0,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Second Wind",
+  "effect": "An automated subcutaneous defibrillator. If the user is knocked unconscious, the device discharges an electrical pulse, instantly reviving them with **1 HP**. This charge is spent and can only be restored during a Recovery Phase.",
+  "category": "Utility",
+  "slot": "UTILITY",
+  "weight": "Minute",
+  "mods": "Recovery Rate +2",
+  "ncCost": 1,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Domain Marker",
+  "effect": "A proximity-based sensor post. When placed, if any entity enters a 20-foot radius around the marker, it triggers a silent signal to the user's HUD.",
+  "category": "Utility",
+  "slot": "UTILITY",
+  "weight": "Minute",
+  "mods": "Perception +2",
+  "ncCost": 1,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Power Drainer",
+  "effect": "A contact-based siphoning device. When held against any piece of active tech or cybernetic hardware, it drains its battery, disabling it for 1 round or reducing its NC cost by half.",
+  "category": "Utility",
+  "slot": "UTILITY",
+  "weight": "Light",
+  "mods": "Control +3",
+  "ncCost": 1,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Gravity Lifter",
+  "effect": "A deployable launching pad. Any creature stepping onto it is launched **10 meters** vertically into the air. For the next round, their gravity is halved, granting them the **Aerial Combat State** (+1 Action Priority, -1 Balance).",
+  "category": "Utility",
+  "slot": "UTILITY",
+  "weight": "Standard",
+  "mods": "Balance +3, Movement -1",
+  "ncCost": 1,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "T1-AUT0 Turret",
+  "effect": "A deployable automated combat turret. Once placed as an action, it automatically targets non-allied creatures within 30 feet, dealing **1d8 Bludgeoning damage** per turn on its own Action Priority window.\nThese high-grade logic gates occupy the **MODULE** slots of an Inquisitor's terminal, modifying character variables.",
+  "category": "Utility",
+  "slot": "UTILITY",
+  "weight": "Heavy",
+  "mods": "Control +2",
+  "ncCost": 2,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Malfunctioning Module",
+  "effect": "*Balanced for risky play.* A faulty chip featuring a deck of unpredictable possibilities. Once per encounter, as a free action, roll a d6:",
+  "category": "Module",
+  "slot": "MODULE",
+  "weight": "Minute",
+  "mods": "Wild-Card Variable",
+  "ncCost": 0,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Module: Crown of the JOAT",
+  "effect": "*Balanced generalist node.* The Jack-of-all-Trades module. It provides a flat **+1 modifier to all 12 specialties**. Excellent for generalist builds but highly taxing on your available Neural Capacity.",
+  "category": "Module",
+  "slot": "MODULE",
+  "weight": "Light",
+  "mods": "All Specialties +1",
+  "ncCost": 3,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Module: Tesseract",
+  "effect": "*   *Original Concept:* Passively increases all base stats by grade value. (Broken: Bypasses 20 stat cap, completely breaking derived statistics scaling math).\n*   *Balanced Rework:* The Tesseract is re-engineered as a **pocket-dimension storage module**. It bends spatial gravity, reducing your total equipment Weight by -5. It allows storing up to 10 standard items in a pocket dimension, which do not contribute to your load limits or Movement/Evasion penalties.",
+  "category": "Module",
+  "slot": "MODULE",
+  "weight": "Minute",
+  "mods": "Weight -5",
+  "ncCost": 1,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Module: Insight Overlay",
+  "category": "Module",
+  "slot": "MODULE",
+  "weight": "Light",
+  "mods": "Inspiration +6",
+  "ncCost": 1,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Sandevistan Neural Link",
+  "effect": "*   *Original Concept:* Ability to increase perception of time and increase the speed of body. (Broken: Under-defined, easily leads to infinite combat actions).\n*   *Balanced Rework:* A cranial co-processor that hyper-accelerates neural pathways.",
+  "overclock": {
+   "text": "*   **Phase I (Extender Phase):** The wielder enters a state of localized temporal acceleration for 1 round. They gain **+2 Action Density** and their Movement is doubled.\n*   **Phase II (Backlash Phase):** Synaptic exhaustion causes **Genus Backlash**: SS costs double, and the user is instantly **Winded** (Evasion is halved, and they take 1d8 Winded damage).\n*   **Phase III (Equalizer Phase):** Requires spending a Prepared Action in combat or completing a Recovery Phase.",
+   "requires": "Neutral"
+  },
+  "category": "Cybernetic",
+  "slot": "HEAD",
+  "weight": "Light",
+  "mods": "Action Priority +4, Dexterity +2",
+  "ncCost": 2,
+  "ede": true,
+  "domain": "Neutral"
+ },
+ {
+  "type": "equipment",
+  "name": "Nano-machine",
+  "effect": "Subcutaneous implants that harden in response to physical trauma.",
+  "overclock": {
+   "text": "*   **Phase I (Extender Phase):** Triggers **Vector Echo**. The nano-machines align to absorb kinetic impact. For 1 round, any Bludgeoning, Slashing, or Piercing attack dealt to the user has its damage reduced by 50%, and the impact resolves as a shockwave that deals Bludgeoning damage to enemies in contact.\n*   **Phase II (Backlash Phase):** Hardening creates systemic stiffness, triggering **Genus Backlash**: Evasion and Action Priority are severely overridden by all active combatants.\n*   **Phase III (Equalizer Phase):** Requires a Prepared Action to vent the neural stiffness.",
+   "requires": "Kinetic"
+  },
+  "category": "Cybernetic",
+  "slot": "CHEST",
+  "weight": "Light",
+  "mods": "Weight +4, DHP +2",
+  "ncCost": 2,
+  "ede": true,
+  "domain": "Kinetic"
+ },
+ {
+  "type": "equipment",
+  "name": "Nano-mites",
+  "effect": "*   *Original Concept:* Repairs anything done to destabilize/destroy body back to peak condition. (Broken: Infinite passive healing completely bypasses combat stakes).\n*   *Balanced Rework:* Active micro-colonies that purge foreign toxins and repair cells.",
+  "overclock": {
+   "text": "*   **Phase I (Extender Phase):** Triggers **Environmental Overdrive**. Instantly purges all active pathogens, poisons, or bleeding status conditions, and restores exactly **10 HP** per round for 2 rounds.\n*   **Phase II (Backlash Phase):** Cellular exhaustion triggers **Genus Backlash**: SS costs double, and Action Priority is overridden.\n*   **Phase III (Equalizer Phase):** Requires a full Recovery Phase outside of combat to re-harvest cellular colonies.",
+   "requires": "Elemental"
+  },
+  "category": "Cybernetic",
+  "slot": "CHEST",
+  "weight": "Light",
+  "mods": "Endurance +2",
+  "ncCost": 2,
+  "ede": true,
+  "domain": "Elemental"
+ },
+ {
+  "type": "equipment",
+  "name": "Kiroshi Optics",
+  "effect": "Ocular implants that overlay biometric data, heat signatures, and zooming vectors.",
+  "overclock": {
+   "text": "*   **Phase I (Extender Phase):** Resolves **Requirement Inversion**. The optics calculate precise blind-spots. The user ignores enemy cover bonuses and physical obstructions, granting a +5 bonus to their next attack roll.\n*   **Phase II (Backlash Phase):** Neural saturation causes **Cipher Backlash**, inflating SS costs to 1.8x.\n*   **Phase III (Equalizer Phase):** Requires a Prepared Action to recalibrate visual matrices.",
+   "requires": "Eldritch"
+  },
+  "category": "Cybernetic",
+  "slot": "HEAD",
+  "weight": "Minute",
+  "mods": "Perception +6, Perception Range +2",
+  "ncCost": 1,
+  "ede": true,
+  "domain": "Eldritch"
+ },
+ {
+  "type": "equipment",
+  "name": "Epimorphic Skeleton",
+  "effect": "bioplastic bone reinforcement. Grants flat **-2 damage reduction** against all physical Blunt attacks.",
+  "category": "Cybernetic",
+  "slot": "CHEST",
+  "weight": "Heavy",
+  "mods": "Weight +8, DHP +4, Dexterity -1",
+  "ncCost": 1,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Titanium Bones/Plating",
+  "effect": "Metallic reinforcement of bone matrices. The user ignores weapon recoil penalties and gains advantage on Strength checks to lift or carry.",
+  "category": "Cybernetic",
+  "slot": "CHEST",
+  "weight": "Heavy",
+  "mods": "Weight +10, Strength +2",
+  "ncCost": 1,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Subdermal Plating",
+  "effect": "Sub-epidermal armor mesh. Grants a permanent **-2 damage reduction** against Slashing and Piercing damage.",
+  "category": "Cybernetic",
+  "slot": "CHEST",
+  "weight": "Heavy",
+  "mods": "Weight +6, DHP +3",
+  "ncCost": 1,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Energy Subdermal Plating",
+  "effect": "*   *Original Concept:* Plating integrated inside the skin. Energized to absorb energy attacks and reduce damage or charge batteries. (Broken: Infinite scaling resource absorb).\n*   *Balanced Rework:* Synthetic skin overlay engineered with conductive gel matrices. Grants permanent **-2 damage reduction** against physical Blunt, Slashing, and Piercing damage. Additionally, when struck by a Fire, Cold, or Lightning attack, the wielder absorbs the thermal energy to instantly **restore 1 spent Neural Capacity** (max once per round).",
+  "category": "Cybernetic",
+  "slot": "CHEST",
+  "weight": "Heavy",
+  "mods": "Weight +8, DHP +3",
+  "ncCost": 2,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Bionic Limbs",
+  "effect": "Biomechanical replacement limb. Melee strikes using the bionic limb deal standard Bludgeoning 1d6 damage, and the limb cannot be fractured or severed.",
+  "category": "Cybernetic",
+  "slot": "R_ARM or L_ARM",
+  "weight": "Standard",
+  "mods": "Strength +2, Weapon Mastery +2",
+  "ncCost": 1,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Lynx Paws",
+  "effect": "Acoustic dampening pads installed in the feet. Grants a flat **+8 bonus on all Stealth checks** and renders the user's footsteps completely silent.",
+  "category": "Cybernetic",
+  "slot": "LEGS",
+  "weight": "Light",
+  "mods": "Dexterity +1, Evasion +2",
+  "ncCost": 1,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Advanced Respiratory Filter",
+  "effect": "An intranasal filter mesh. The user is completely immune to airborne pathogens, venom/poison gases, or inhalation-based sedatives.",
+  "category": "Cybernetic",
+  "slot": "HEAD",
+  "weight": "Light",
+  "mods": "Endurance +2",
+  "ncCost": 1,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Fortified Legs",
+  "effect": "Pneumatic leg actuators. The user's jump height is doubled, and they ignore the first **10 meters** of any fall damage.",
+  "category": "Cybernetic",
+  "slot": "LEGS",
+  "weight": "Standard",
+  "mods": "Dexterity +2, Movement +4",
+  "ncCost": 1,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Brain Implant: Enhanced Capabilities",
+  "effect": "*   *Original Concept:* Half of your brain is converted to machine to boost all cognitive skills. (Broken: Bypasses specialty and Attribute caps).\n*   *Balanced Rework:* Co-processors grafted into the cerebral cortex. It boosts baseline cognitive attributes (**+2 Intelligence, +2 Wisdom**), but the loss of emotional nuance reduces social capability (**-2 Charisma**).",
+  "category": "Cybernetic",
+  "slot": "HEAD",
+  "weight": "Minute",
+  "mods": "Intelligence +2, Wisdom +2, Charisma -2",
+  "ncCost": 2,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Brain Implant: Converse",
+  "effect": "A sub-dermal radio receiver that allows secure telepathic communication with any selected target within 60 feet.",
+  "category": "Cybernetic",
+  "slot": "HEAD",
+  "weight": "Minute",
+  "mods": "Charisma +1",
+  "ncCost": 1,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Brain Implant: Vitals",
+  "effect": "An internal diagnostic HUD. Allows the operator to view their exact HP, DHP, active pathogens, and poison thresholds in real-time.",
+  "category": "Cybernetic",
+  "slot": "HEAD",
+  "weight": "Minute",
+  "mods": "Perception +2",
+  "ncCost": 1,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Brain Implant: Integrated Database",
+  "effect": "Grafts a localized copy of the Inquisitor Vault database onto the memory sectors. Allows the user to instantly identify biological species, corporate ranks, or physical traits of targets within 30 feet.",
+  "category": "Cybernetic",
+  "slot": "HEAD",
+  "weight": "Minute",
+  "mods": "Intelligence +2",
+  "ncCost": 1,
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Neural-Link Override",
+  "effect": "*   *Original Concept:* Manually override the cooldown of a genus or cipher to force another use. (Broken: Bypasses combat balance, causes infinite casts).\n*   *Balanced Rework:* A highly dangerous shunt that forcibly drains physical HP to override neural limits.",
+  "overclock": {
+   "text": "*   **Phase I (Extender Phase):** Resolves **Requirement Inversion**. As a free action, you manually bypass an active Genus or Cipher cooldown to cast it again. Doing so immediately inflicts **1d10 True Damage** to your HP (bypassing DHP) and triggers **Cipher Backlash**, raising future SS costs to 1.8x.\n*   **Phase II (Backlash Phase):** Neural saturation triggers **Genus Backlash**, doubling the wielder's SS costs, and all active combatants override their Action Priority for 1 round.\n*   **Phase III (Equalizer Phase):** Requires a full Recovery Phase outside of combat to re-attune the burned synaptic shunts.",
+   "requires": "Eldritch"
+  },
+  "category": "Cybernetic",
+  "slot": "HEAD",
+  "weight": "Minute",
+  "mods": "Mental Fortitude +2",
+  "ncCost": 2,
+  "ede": true,
+  "domain": "Eldritch"
+ },
+ {
+  "type": "equipment",
+  "name": "Module: Augmented Insight",
+  "category": "Module",
+  "slot": "MODULE",
+  "weight": "Minute",
+  "mods": "Versatility +6",
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Module: R:Stabilizers V.2",
+  "category": "Module",
+  "slot": "MODULE",
+  "weight": "Light",
+  "mods": "Balance +6",
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Module: Compact Amplifier",
+  "category": "Module",
+  "slot": "MODULE",
+  "weight": "Standard",
+  "mods": "Weight +6",
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Module: A.I. Locator Assist",
+  "category": "Module",
+  "slot": "MODULE",
+  "weight": "Light",
+  "mods": "Precision +6",
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Module: High-Speed Initiative",
+  "category": "Module",
+  "slot": "MODULE",
+  "weight": "Light",
+  "mods": "Priority +6",
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Module: Enhanced Slot Control",
+  "category": "Module",
+  "slot": "MODULE",
+  "weight": "Light",
+  "mods": "Weapon Mastery +6",
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Module: Vanguards Resolve",
+  "category": "Module",
+  "slot": "MODULE",
+  "weight": "Light",
+  "mods": "Mental Fortitude +6",
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Module: Immuno-Receptor",
+  "category": "Module",
+  "slot": "MODULE",
+  "weight": "Light",
+  "mods": "Perception +6",
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Module: Multi-Purpose Adaptor",
+  "category": "Module",
+  "slot": "MODULE",
+  "weight": "Light",
+  "mods": "Adaption +6",
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Module: Truthteller",
+  "category": "Module",
+  "slot": "MODULE",
+  "weight": "Light",
+  "mods": "Cunning +6",
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Module: R632F",
+  "category": "Module",
+  "slot": "MODULE",
+  "weight": "Minute",
+  "mods": "Strength +2",
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Module: S3N1K",
+  "category": "Module",
+  "slot": "MODULE",
+  "weight": "Minute",
+  "mods": "Dexterity +2",
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Module: 74N5",
+  "category": "Module",
+  "slot": "MODULE",
+  "weight": "Minute",
+  "mods": "Endurance +2",
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Module: 534C7",
+  "category": "Module",
+  "slot": "MODULE",
+  "weight": "Minute",
+  "mods": "Action Priority +2",
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Module: T40UGH7",
+  "category": "Module",
+  "slot": "MODULE",
+  "weight": "Minute",
+  "mods": "Wisdom +2",
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Module: C9C6 CH415",
+  "category": "Module",
+  "slot": "MODULE",
+  "weight": "Minute",
+  "mods": "Charisma +2",
+  "ede": false
+ },
+ {
+  "type": "equipment",
+  "name": "Module: 3M4R7",
+  "category": "Module",
+  "slot": "MODULE",
+  "weight": "Minute",
+  "mods": "Intelligence +2",
+  "ede": false
+ }
+]
