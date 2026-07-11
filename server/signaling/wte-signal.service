@@ -1,0 +1,16 @@
+[Unit]
+Description=W.T.E netplay signaling server
+After=network.target
+
+[Service]
+Type=simple
+# Adjust User and WorkingDirectory to where you cloned server/signaling.
+User=wte
+WorkingDirectory=/opt/wte/signaling
+Environment=PORT=8787
+ExecStart=/usr/bin/node index.js
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

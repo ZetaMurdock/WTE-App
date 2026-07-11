@@ -1,0 +1,15 @@
+{
+  "name": "wte-signaling",
+  "version": "1.0.0",
+  "private": true,
+  "description": "W.T.E netplay signaling server (room-code WebRTC rendezvous)",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
