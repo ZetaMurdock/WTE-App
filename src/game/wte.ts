@@ -551,3 +551,8 @@ export function rollGeneric(label: string): RollResult {
   const roll = rollDie(20);
   return { formula: "1d20", result: roll, detail: { die: 20, roll, modifier: 0, label } };
 }
+// A d20 attack roll with an explicit to-hit modifier (weapon HIT = ATK + PHY/DEX mod).
+export function rollToHit(label: string, mod: number): RollResult {
+  const roll = rollDie(20);
+  return { formula: `1d20 ${fmtMod(mod)}`, result: roll + mod, detail: { die: 20, roll, modifier: mod, label } };
+}

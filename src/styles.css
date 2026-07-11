@@ -1223,15 +1223,197 @@ body {
   max-width: 1500px;
 }
 .char-sheet .sheet-layout {
-  grid-template-columns: 300px minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: 300px minmax(0, 1fr);
 }
-@media (max-width: 1200px) {
+@media (max-width: 1000px) {
   .char-sheet .sheet-layout {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
   }
-  .actions-rail {
-    grid-column: 1 / -1;
+}
+
+/* ── Compact tabbed sheet (Phase 7) ── */
+.sheet-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.sheet-tabbox {
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-radius: 10px;
+  min-width: 0;
+  overflow: hidden;
+  align-self: start;
+}
+.sheet-tabstrip {
+  display: flex;
+  gap: 2px;
+  padding: 6px 6px 0;
+  border-bottom: 1px solid var(--panel-line);
+  flex-wrap: wrap;
+}
+.sheet-tab {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.4px;
+  padding: 7px 14px;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+}
+.sheet-tab:hover {
+  color: var(--ink);
+}
+.sheet-tab.active {
+  background: var(--bg);
+  color: var(--ink);
+  font-weight: 600;
+}
+.sheet-tabpanel {
+  padding: 14px 16px;
+}
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 22px;
+}
+.stats-derived {
+  grid-column: 1 / -1;
+}
+.bio-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+}
+.points-inline {
+  font-size: 10px;
+  color: var(--muted);
+  margin-left: 8px;
+  letter-spacing: 0.5px;
+}
+.points-inline.over {
+  color: #d05a44;
+}
+.nc-budget.alt {
+  margin-top: -6px;
+}
+.loadout-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+}
+.bio-grid.mt {
+  margin-top: 14px;
+}
+@media (max-width: 720px) {
+  .stats-grid,
+  .bio-grid,
+  .loadout-grid {
+    grid-template-columns: 1fr;
   }
+}
+
+/* ── Actions table (Phase 7, D&D Beyond-style) ── */
+.act-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+}
+.link-btn:hover {
+  text-decoration: underline;
+}
+.act-head,
+.act-row {
+  display: grid;
+  grid-template-columns: 1.7fr 0.7fr 0.5fr 0.9fr 1.3fr;
+  gap: 0 10px;
+  align-items: center;
+}
+.act-head {
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  text-transform: uppercase;
+  padding: 0 6px 6px;
+  border-bottom: 1px solid var(--panel-line);
+}
+.act-row-wrap {
+  border-bottom: 1px solid var(--panel-line);
+}
+.act-row {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 9px 6px;
+  color: var(--ink);
+  font-size: 12px;
+}
+.act-row:hover {
+  background: var(--bg);
+}
+.act-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.act-sub {
+  font-size: 10px;
+  color: var(--muted);
+}
+.act-range,
+.act-dmg {
+  color: var(--bone);
+}
+.act-hit {
+  color: var(--accent);
+  font-weight: 600;
+}
+.act-notes {
+  font-size: 11px;
+  color: var(--muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.act-detail {
+  padding: 2px 10px 12px;
+}
+.act-effect {
+  font-size: 12px;
+  color: var(--bone);
+  margin: 4px 0;
+}
+.act-effect.oc {
+  color: var(--ink);
+}
+.act-meta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 10px;
+  color: var(--muted);
+  margin: 4px 0;
+}
+.act-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
 }
 .actions-rail {
   display: flex;

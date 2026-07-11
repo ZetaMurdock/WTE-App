@@ -1,4 +1,3 @@
-import { SidePanel } from "../ui/SidePanel";
 import { Collapsible } from "../ui/Collapsible";
 import {
   genusForParadigm,
@@ -10,8 +9,6 @@ import {
 } from "../../game/wte";
 
 interface Props {
-  open: boolean;
-  onClose: () => void;
   paradigmId?: string;
   rank: number;
   genusLoadout: string[];
@@ -20,7 +17,8 @@ interface Props {
   onCiphers: (names: string[]) => void;
 }
 
-export function AbilitiesPanel({ open, onClose, paradigmId, rank, genusLoadout, cipherLoadout, onGenus, onCiphers }: Props) {
+// Genus + Cipher selection. Rendered inline as the sheet's "Abilities" tab.
+export function AbilitiesBody({ paradigmId, rank, genusLoadout, cipherLoadout, onGenus, onCiphers }: Props) {
   const paradigm = getParadigm(paradigmId);
   const genusGroups = genusForParadigm(paradigmId);
   const ciphers = ciphersForParadigm(paradigmId);
@@ -52,11 +50,7 @@ export function AbilitiesPanel({ open, onClose, paradigmId, rank, genusLoadout, 
   }
 
   if (!paradigm) {
-    return (
-      <SidePanel open={open} title="Abilities" onClose={onClose}>
-        <p className="list-empty">Choose a paradigm first to access Genus & Ciphers.</p>
-      </SidePanel>
-    );
+    return <p className="list-empty">Choose a paradigm first to access Genus & Ciphers.</p>;
   }
 
   const byTier = CIPHER_TIERS.map((t) => ({ tier: t as string, list: ciphers.filter((c) => c.tier === t) })).filter(
@@ -64,7 +58,7 @@ export function AbilitiesPanel({ open, onClose, paradigmId, rank, genusLoadout, 
   );
 
   return (
-    <SidePanel open={open} title="Abilities" onClose={onClose}>
+    <>
       <div className="aside-title">
         Genus <span className={"load-badge" + (genusLoadout.length > gCap ? " over" : "")}>{genusLoadout.length} / {gCap}</span>
       </div>
@@ -98,6 +92,6 @@ export function AbilitiesPanel({ open, onClose, paradigmId, rank, genusLoadout, 
           </Collapsible>
         ))
       )}
-    </SidePanel>
+    </>
   );
 }

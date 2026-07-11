@@ -14,7 +14,6 @@ import {
   mergeMods,
   computeDerived,
   sizeOf,
-  rollGeneric,
   bgBonuses,
   rollMod,
   specRollMod,
@@ -26,6 +25,9 @@ import {
   validateSheet,
   getSpecies,
   getParadigm,
+  usableGenus,
+  usableCiphers,
+  usableRacial,
   rollAttribute,
   rollSpecialty,
   type AttrKey,
@@ -35,11 +37,12 @@ import {
 } from "../../game/wte";
 import { DerivedPreview } from "./DerivedPreview";
 import { RollFeed, useRollFeed } from "./RollFeed";
-import { SpeciesVariantsPanel } from "./SpeciesVariantsPanel";
-import { EquipmentPanel } from "./EquipmentPanel";
-import { AbilitiesPanel } from "./AbilitiesPanel";
-import { ActionsRail } from "./ActionsRail";
-import { loadoutMods, loadoutNC, weaponSlotsUsed, WEAPON_SLOTS } from "../../lib/codex";
+import { SpeciesVariantsBody } from "./SpeciesVariantsPanel";
+import { WeaponsBody, InventoryBody } from "./EquipmentPanel";
+import { AbilitiesBody } from "./AbilitiesPanel";
+import { ActionsTable } from "./ActionsTable";
+import { getWeapon, loadoutMods, loadoutNC, weaponSlotsUsed, WEAPON_SLOTS } from "../../lib/codex";
+import type { Weapon } from "../../models/codex";
 
 interface Props {
   characterId: string;
@@ -49,6 +52,15 @@ interface Props {
   onChanged: () => void;
 }
 
+type SheetTab = "stats" | "actions" | "inventory" | "loadout" | "bio";
+const SHEET_TABS: { id: SheetTab; label: string }[] = [
+  { id: "stats", label: "Stats" },
+  { id: "actions", label: "Actions" },
+  { id: "inventory", label: "Inventory" },
+  { id: "loadout", label: "Loadout" },
+  { id: "bio", label: "Bio" },
+];
+
 function intOf(v: string): number {
   const n = parseInt(v, 10);
   return Number.isFinite(n) ? n : 0;
@@ -56,9 +68,7 @@ function intOf(v: string): number {
 
 export function CharacterSheet({ characterId, campaignId, curator, onBack, onChanged }: Props) {
   const [rec, setRec] = useState<CharacterRecord | null>(null);
-  const [variantsOpen, setVariantsOpen] = useState(false);
-  const [equipmentOpen, setEquipmentOpen] = useState(false);
-  const [abilitiesOpen, setAbilitiesOpen] = useState(false);
+  const [tab, setTab] = useState<SheetTab>("stats");
   const { items: feedItems, push: pushFeed } = useRollFeed();
   const saveTimer = useRef<number | undefined>(undefined);
   const pending = useRef<CharacterRecord | null>(null);
@@ -96,6 +106,8 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   const rank = sheet.rank ?? 0;
   const weaponLoadout = sheet.weaponLoadout ?? [];
   const gearLoadout = sheet.gearLoadout ?? [];
+  const genusLoadout = sheet.genusLoadout ?? [];
+  const cipherLoadout = sheet.cipherLoadout ?? [];
   const equip = mergeMods(aggregateEquip(sheet.equipment), loadoutMods(weaponLoadout, gearLoadout));
   const eff = effectiveAttributes(sheet.attributes, sheet.speciesId, bgBonuses(sheet.background), equip.attr);
   const effSpec = effectiveSpecialties(sheet.specialties, equip.spec);
@@ -109,12 +121,16 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   });
   const maxSS = derived.ss;
   const ssSpent = sheet.ssSpent ?? 0;
+  const currentSS = maxSS - ssSpent;
+  const ssPct = maxSS > 0 ? Math.max(0, Math.min(100, (currentSS / maxSS) * 100)) : 0;
   const maxNC = derived.nc;
   const ncUsed = loadoutNC(weaponLoadout, gearLoadout);
   const slotsUsed = weaponSlotsUsed(weaponLoadout);
   const validation = validateSheet(sheet.attributes, sheet.specialties);
   const species = getSpecies(sheet.speciesId);
   const paradigm = getParadigm(sheet.paradigmId);
+  const equippedWeapons = weaponLoadout.map((n) => getWeapon(n)).filter((w): w is Weapon => !!w);
+  const racial = usableRacial(sheet.speciesId, sheet.variantName, sheet.variantOption);
 
   function persist(next: CharacterRecord) {
     setRec(next);
@@ -182,15 +198,6 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
           <h1 className="dash-title">{rec.name}</h1>
         </div>
         <div className="sheet-head-actions">
-          <button className="ghost-btn" onClick={() => setAbilitiesOpen(true)}>
-            Abilities
-          </button>
-          <button className="ghost-btn" onClick={() => setEquipmentOpen(true)}>
-            Loadout & Size
-          </button>
-          <button className="ghost-btn" onClick={() => setVariantsOpen(true)}>
-            Species Variants
-          </button>
           <button className="ghost-btn" onClick={onBack}>
             ← Vault
           </button>
@@ -226,164 +233,220 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
       )}
 
       <div className="sheet-layout">
-        <ActionsRail
-          paradigmId={sheet.paradigmId}
-          speciesId={sheet.speciesId}
-          variantName={sheet.variantName}
-          variantOption={sheet.variantOption}
-          genusLoadout={sheet.genusLoadout ?? []}
-          cipherLoadout={sheet.cipherLoadout ?? []}
-          weaponLoadout={weaponLoadout}
-          maxSS={maxSS}
-          ssSpent={ssSpent}
-          onSpend={spendSS}
-          onRest={restSS}
-          onRoll={(label) => doRoll(rollGeneric(label))}
-        />
-        <div className="sheet-col">
-          <div className="panel-title">Attributes</div>
-          <div className="stat-editor">
-            {ATTRIBUTES.map((a) => (
-              <div className="stat-row" key={a.key}>
-                <div className="stat-info">
-                  <span className="stat-short">{a.short}</span>
-                </div>
-                <span className="mod-box" title="Roll modifier">
-                  {signedMod(rollMod(eff[a.key]))}
-                </span>
-                <input
-                  className="stat-input"
-                  type="number"
-                  min={ATTR_MIN}
-                  max={ATTR_MAX}
-                  value={sheet.attributes[a.key]}
-                  disabled={!curator}
-                  onChange={(e) => setAttr(a.key, intOf(e.target.value))}
-                />
-                <button
-                  className="roll-btn"
-                  title={`Roll ${a.short}`}
-                  onClick={() => doRoll(rollAttribute(`${a.short} Check`, eff[a.key]))}
-                >
-                  d20
-                </button>
-              </div>
+        <div className="sheet-rail">
+          <div className="ss-bar">
+            <div className="ss-line">
+              <span className="ss-lbl">Synaptic Space</span>
+              <span className={"ss-val" + (currentSS < 0 ? " neg" : "")}>{currentSS} / {maxSS}</span>
+            </div>
+            <div className="ss-track">
+              <div className={"ss-fill" + (currentSS < 0 ? " neg" : "")} style={{ width: `${ssPct}%` }} />
+            </div>
+            <button className="ghost-btn ss-rest" onClick={restSS}>Rest</button>
+          </div>
+          <div className="panel-title">Roll feed</div>
+          <RollFeed items={feedItems} />
+        </div>
+
+        <div className="sheet-tabbox">
+          <div className="sheet-tabstrip" role="tablist">
+            {SHEET_TABS.map((t) => (
+              <button
+                key={t.id}
+                role="tab"
+                aria-selected={tab === t.id}
+                className={"sheet-tab" + (tab === t.id ? " active" : "")}
+                onClick={() => setTab(t.id)}
+              >
+                {t.label}
+              </button>
             ))}
           </div>
 
-          <div className="panel-title mt">Specialties</div>
-          <div className={"points-banner small" + (remaining < 0 ? " over" : "")}>
-            {remaining >= 0 ? `${remaining} points remaining` : `Over budget by ${-remaining}`}
-          </div>
-          <div className="stat-editor">
-            {SPECIALTIES.map((s) => {
-              const pts = Math.min(SPEC_MAX, effSpec[s.key]);
-              return (
-                <div className="stat-row" key={s.key}>
-                  <div className="stat-info">
-                    <span className="stat-short">{s.label}</span>
+          <div className="sheet-tabpanel">
+            {tab === "stats" && (
+              <div className="stats-grid">
+                <div className="stats-col">
+                  <div className="panel-title">Attributes</div>
+                  <div className="stat-editor">
+                    {ATTRIBUTES.map((a) => (
+                      <div className="stat-row" key={a.key}>
+                        <div className="stat-info">
+                          <span className="stat-short">{a.short}</span>
+                        </div>
+                        <span className="mod-box" title="Roll modifier">
+                          {signedMod(rollMod(eff[a.key]))}
+                        </span>
+                        <input
+                          className="stat-input"
+                          type="number"
+                          min={ATTR_MIN}
+                          max={ATTR_MAX}
+                          value={sheet.attributes[a.key]}
+                          disabled={!curator}
+                          onChange={(e) => setAttr(a.key, intOf(e.target.value))}
+                        />
+                        <button
+                          className="roll-btn"
+                          title={`Roll ${a.short}`}
+                          onClick={() => doRoll(rollAttribute(`${a.short} Check`, eff[a.key]))}
+                        >
+                          d20
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                  <span className="mod-box" title="Roll modifier (incl. under-25 penalty)">
-                    {signedMod(specRollMod(pts))}
-                  </span>
-                  <input
-                    className={"stat-input" + (sheet.specialties[s.key] > SPEC_MAX ? " bad" : "")}
-                    type="number"
-                    min={0}
-                    max={SPEC_MAX}
-                    value={sheet.specialties[s.key]}
-                    disabled={!curator}
-                    onChange={(e) => setSpec(s.key, intOf(e.target.value))}
-                  />
-                  <button className="roll-btn" title={`Roll ${s.label}`} onClick={() => doRoll(rollSpecialty(`${s.label} Check`, pts))}>
-                    d40
-                  </button>
                 </div>
-              );
-            })}
-          </div>
-        </div>
 
-        <div className="sheet-col">
-          <div className="panel-title">Derived stats</div>
-          <DerivedPreview
-            attributes={sheet.attributes}
-            specialties={sheet.specialties}
-            speciesId={sheet.speciesId}
-            rank={rank}
-            background={sheet.background}
-            equipment={sheet.equipment}
-            sizeId={sheet.sizeId}
-          />
+                <div className="stats-col">
+                  <div className="panel-title">
+                    Specialties
+                    <span className={"points-inline" + (remaining < 0 ? " over" : "")}>
+                      {remaining >= 0 ? `${remaining} left` : `−${-remaining}`}
+                    </span>
+                  </div>
+                  <div className="stat-editor">
+                    {SPECIALTIES.map((s) => {
+                      const pts = Math.min(SPEC_MAX, effSpec[s.key]);
+                      return (
+                        <div className="stat-row" key={s.key}>
+                          <div className="stat-info">
+                            <span className="stat-short">{s.label}</span>
+                          </div>
+                          <span className="mod-box" title="Roll modifier (incl. under-25 penalty)">
+                            {signedMod(specRollMod(pts))}
+                          </span>
+                          <input
+                            className={"stat-input" + (sheet.specialties[s.key] > SPEC_MAX ? " bad" : "")}
+                            type="number"
+                            min={0}
+                            max={SPEC_MAX}
+                            value={sheet.specialties[s.key]}
+                            disabled={!curator}
+                            onChange={(e) => setSpec(s.key, intOf(e.target.value))}
+                          />
+                          <button className="roll-btn" title={`Roll ${s.label}`} onClick={() => doRoll(rollSpecialty(`${s.label} Check`, pts))}>
+                            d40
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
 
-          {(sheet.genusLoadout?.length ?? 0) + (sheet.cipherLoadout?.length ?? 0) > 0 && (
-            <>
-              <div className="panel-title mt">Loadout</div>
-              <div className="chip-list">
-                {(sheet.genusLoadout ?? []).map((n) => (
-                  <span key={"g" + n} className="load-chip">
-                    {n}
-                  </span>
-                ))}
-                {(sheet.cipherLoadout ?? []).map((n) => (
-                  <span key={"c" + n} className="load-chip cipher">
-                    {n}
-                  </span>
-                ))}
+                <div className="stats-derived">
+                  <div className="panel-title">Derived stats</div>
+                  <DerivedPreview
+                    attributes={sheet.attributes}
+                    specialties={sheet.specialties}
+                    speciesId={sheet.speciesId}
+                    rank={rank}
+                    background={sheet.background}
+                    equipment={sheet.equipment}
+                    sizeId={sheet.sizeId}
+                  />
+                </div>
               </div>
-            </>
-          )}
+            )}
 
-          <div className="panel-title mt">Roll feed</div>
-          <RollFeed items={feedItems} />
+            {tab === "actions" && (
+              <ActionsTable
+                weapons={equippedWeapons}
+                genus={usableGenus(sheet.paradigmId, genusLoadout)}
+                ciphers={usableCiphers(sheet.paradigmId, cipherLoadout)}
+                atk={derived.atk}
+                phyMod={rollMod(eff.phy)}
+                dexMod={rollMod(eff.dex)}
+                paradigmId={sheet.paradigmId}
+                onRoll={doRoll}
+                onSpend={spendSS}
+                onManage={() => setTab("loadout")}
+              />
+            )}
 
-          <div className="panel-title mt">Notes</div>
-          <textarea
-            className="sheet-notes"
-            placeholder="Background, gear notes, hooks…"
-            value={sheet.notes || ""}
-            onChange={(e) => setNotes(e.target.value)}
-          />
+            {tab === "inventory" && (
+              <InventoryBody
+                speciesId={sheet.speciesId}
+                sizeId={sheet.sizeId}
+                equipment={sheet.equipment}
+                gearLoadout={gearLoadout}
+                maxNC={maxNC}
+                ncUsed={ncUsed}
+                curator={curator}
+                onSize={setSize}
+                onEquipment={setEquipment}
+                onGear={setGear}
+              />
+            )}
+
+            {tab === "loadout" && (
+              <div className="loadout-grid">
+                <div>
+                  <div className="panel-title">Weapons</div>
+                  <WeaponsBody
+                    weaponLoadout={weaponLoadout}
+                    maxNC={maxNC}
+                    ncUsed={ncUsed}
+                    slotsUsed={slotsUsed}
+                    slotsMax={WEAPON_SLOTS}
+                    curator={curator}
+                    onWeapons={setWeapons}
+                  />
+                </div>
+                <div>
+                  <div className="panel-title">Genus &amp; Ciphers</div>
+                  <AbilitiesBody
+                    paradigmId={sheet.paradigmId}
+                    rank={rank}
+                    genusLoadout={genusLoadout}
+                    cipherLoadout={cipherLoadout}
+                    onGenus={setGenus}
+                    onCiphers={setCiphers}
+                  />
+                </div>
+              </div>
+            )}
+
+            {tab === "bio" && (
+              <>
+                <div className="panel-title">Features &amp; Traits</div>
+                {racial.length ? (
+                  <ul className="variant-abilities">
+                    {racial.map((a, i) => (
+                      <li key={i}>
+                        <b>{a.name}</b>
+                        {a.effect ? ` — ${a.effect}` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="list-empty">No innate features.</p>
+                )}
+                <div className="bio-grid mt">
+                  <div>
+                    <div className="panel-title">Species Variants</div>
+                    <SpeciesVariantsBody
+                      speciesId={sheet.speciesId}
+                      selected={sheet.variantName}
+                      curator={curator}
+                      onSelect={setVariant}
+                    />
+                  </div>
+                  <div>
+                    <div className="panel-title">Notes</div>
+                    <textarea
+                      className="sheet-notes"
+                      placeholder="Background, gear notes, hooks…"
+                      value={sheet.notes || ""}
+                      onChange={(e) => setNotes(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
-
-      <AbilitiesPanel
-        open={abilitiesOpen}
-        onClose={() => setAbilitiesOpen(false)}
-        paradigmId={sheet.paradigmId}
-        rank={rank}
-        genusLoadout={sheet.genusLoadout ?? []}
-        cipherLoadout={sheet.cipherLoadout ?? []}
-        onGenus={setGenus}
-        onCiphers={setCiphers}
-      />
-      <EquipmentPanel
-        open={equipmentOpen}
-        onClose={() => setEquipmentOpen(false)}
-        speciesId={sheet.speciesId}
-        paradigmId={sheet.paradigmId}
-        sizeId={sheet.sizeId}
-        equipment={sheet.equipment}
-        weaponLoadout={weaponLoadout}
-        gearLoadout={gearLoadout}
-        maxNC={maxNC}
-        ncUsed={ncUsed}
-        slotsUsed={slotsUsed}
-        slotsMax={WEAPON_SLOTS}
-        curator={curator}
-        onSize={setSize}
-        onEquipment={setEquipment}
-        onWeapons={setWeapons}
-        onGear={setGear}
-      />
-      <SpeciesVariantsPanel
-        open={variantsOpen}
-        onClose={() => setVariantsOpen(false)}
-        speciesId={sheet.speciesId}
-        selected={sheet.variantName}
-        curator={curator}
-        onSelect={setVariant}
-      />
     </div>
   );
 }

@@ -26,6 +26,16 @@ export function getEquipment(name: string): Equipment | undefined {
   return GEAR.find((g) => g.name.toLowerCase() === n);
 }
 
+// A weapon is ranged if its range/profile names "ranged" or a distance over 5 ft (melee otherwise).
+// Drives the to-hit stat: ranged uses DEX, melee uses PHY.
+export function isRangedWeapon(w: { range?: string; baseAttack?: string }): boolean {
+  const r = `${w.range || ""} ${w.baseAttack || ""}`;
+  if (/\bmelee\b/i.test(r)) return false;
+  if (/\branged\b/i.test(r)) return true;
+  const m = r.match(/(\d+)\s*ft/i);
+  return m ? parseInt(m[1], 10) > 5 : false;
+}
+
 // ── Loadout math (weapon slots, NC equip budget, mod aggregation, domain gate) ──
 export const WEAPON_SLOTS = 4;
 export function weaponSlotCost(weight?: string): number {

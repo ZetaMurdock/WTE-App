@@ -1,74 +1,45 @@
 import { useState } from "react";
-import { SidePanel } from "../ui/SidePanel";
 import { Collapsible } from "../ui/Collapsible";
 import { SIZE_CLASSES, WEIGHT_CATS, sizeOf, sizeIndexOf, type EquipmentItem, type WeightKey } from "../../game/wte";
 import { listWeapons, listEquipment, getWeapon, weaponSlotCost } from "../../lib/codex";
 import type { Weapon, Equipment } from "../../models/codex";
-
-interface Props {
-  open: boolean;
-  onClose: () => void;
-  speciesId?: string;
-  paradigmId?: string;
-  sizeId?: string;
-  equipment?: EquipmentItem[];
-  weaponLoadout: string[];
-  gearLoadout: string[];
-  maxNC: number;
-  ncUsed: number;
-  slotsUsed: number;
-  slotsMax: number;
-  curator: boolean;
-  onSize: (sizeId: string) => void;
-  onEquipment: (items: EquipmentItem[]) => void;
-  onWeapons: (names: string[]) => void;
-  onGear: (names: string[]) => void;
-}
 
 function newItemId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
   return "eq-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
 }
 
-export function EquipmentPanel(props: Props) {
-  const { open, onClose, speciesId, sizeId, equipment, weaponLoadout, gearLoadout, maxNC, ncUsed, slotsUsed, slotsMax, curator, onSize, onEquipment, onWeapons, onGear } = props;
-  const [wSearch, setWSearch] = useState("");
-  const [gSearch, setGSearch] = useState("");
-  const [gCat, setGCat] = useState("All");
-
-  const items = equipment ?? [];
-  const size = sizeOf(sizeId, speciesId);
-  const sizeIdx = sizeIndexOf(sizeId, speciesId);
-  const manualUsed = items.reduce((s, it) => s + (it.equipped ? WEIGHT_CATS.find((w) => w.key === it.weight)?.cost ?? 0 : 0), 0);
-  const ncOver = ncUsed > maxNC;
-  const slotsOver = slotsUsed > slotsMax;
-
-  const weapons = listWeapons().filter((w) => w.name.toLowerCase().includes(wSearch.toLowerCase()));
-  const gearCats = ["All", ...Array.from(new Set(listEquipment().map((g) => g.category || "Other")))];
-  const gear = listEquipment().filter(
-    (g) => (gCat === "All" || (g.category || "Other") === gCat) && g.name.toLowerCase().includes(gSearch.toLowerCase())
+// Shared Neuronal Capacity readout — the equip budget spans weapons + gear, so both tabs show it.
+function NcBudget({ ncUsed, maxNC }: { ncUsed: number; maxNC: number }) {
+  const over = ncUsed > maxNC;
+  return (
+    <div className={"nc-budget" + (over ? " over" : "")}>
+      Neuronal Capacity · {ncUsed} / {maxNC}
+      {over ? " · overloaded" : ""}
+    </div>
   );
+}
+
+interface WeaponsProps {
+  weaponLoadout: string[];
+  maxNC: number;
+  ncUsed: number;
+  slotsUsed: number;
+  slotsMax: number;
+  curator: boolean;
+  onWeapons: (names: string[]) => void;
+}
+
+// The "Weapons" tab — equip weapons against the 4 slots (weight cost) + NC budget.
+export function WeaponsBody({ weaponLoadout, maxNC, ncUsed, slotsUsed, slotsMax, curator, onWeapons }: WeaponsProps) {
+  const [wSearch, setWSearch] = useState("");
+  const slotsOver = slotsUsed > slotsMax;
+  const weapons = listWeapons().filter((w) => w.name.toLowerCase().includes(wSearch.toLowerCase()));
 
   function toggleWeapon(name: string) {
     if (weaponLoadout.includes(name)) onWeapons(weaponLoadout.filter((n) => n !== name));
     else if (slotsUsed + weaponSlotCost(getWeapon(name)?.weight) <= slotsMax) onWeapons([...weaponLoadout, name]);
   }
-  function toggleGear(name: string) {
-    if (gearLoadout.includes(name)) onGear(gearLoadout.filter((n) => n !== name));
-    else onGear([...gearLoadout, name]);
-  }
-
-  // manual custom items
-  function update(id: string, patch: Partial<EquipmentItem>) {
-    onEquipment(items.map((it) => (it.id === id ? { ...it, ...patch } : it)));
-  }
-  function addItem() {
-    onEquipment([...items, { id: newItemId(), name: "", weight: "standard", equipped: true, mods: "", notes: "" }]);
-  }
-  function removeItem(id: string) {
-    onEquipment(items.filter((it) => it.id !== id));
-  }
-
   function weaponRow(w: Weapon) {
     const equipped = weaponLoadout.includes(w.name);
     const cost = weaponSlotCost(w.weight);
@@ -83,6 +54,62 @@ export function EquipmentPanel(props: Props) {
       </button>
     );
   }
+
+  return (
+    <>
+      {!curator && <p className="lock-note">Loadout is Curator-controlled — view only.</p>}
+      <NcBudget ncUsed={ncUsed} maxNC={maxNC} />
+      <div className={"nc-budget alt" + (slotsOver ? " over" : "")}>Weapon slots · {slotsUsed} / {slotsMax}</div>
+      <div className="browse">
+        <input className="bg-select full" placeholder="Search weapons…" value={wSearch} onChange={(e) => setWSearch(e.target.value)} />
+        {slotsOver ? <div className="equip-warn">Over weapon-slot limit.</div> : null}
+        <div className="use-list">{weapons.map(weaponRow)}</div>
+      </div>
+    </>
+  );
+}
+
+interface InventoryProps {
+  speciesId?: string;
+  sizeId?: string;
+  equipment?: EquipmentItem[];
+  gearLoadout: string[];
+  maxNC: number;
+  ncUsed: number;
+  curator: boolean;
+  onSize: (sizeId: string) => void;
+  onEquipment: (items: EquipmentItem[]) => void;
+  onGear: (names: string[]) => void;
+}
+
+// The "Inventory" tab — gear, size class, and custom items.
+export function InventoryBody({ speciesId, sizeId, equipment, gearLoadout, maxNC, ncUsed, curator, onSize, onEquipment, onGear }: InventoryProps) {
+  const [gSearch, setGSearch] = useState("");
+  const [gCat, setGCat] = useState("All");
+
+  const items = equipment ?? [];
+  const size = sizeOf(sizeId, speciesId);
+  const sizeIdx = sizeIndexOf(sizeId, speciesId);
+  const manualUsed = items.reduce((s, it) => s + (it.equipped ? WEIGHT_CATS.find((w) => w.key === it.weight)?.cost ?? 0 : 0), 0);
+
+  const gearCats = ["All", ...Array.from(new Set(listEquipment().map((g) => g.category || "Other")))];
+  const gear = listEquipment().filter(
+    (g) => (gCat === "All" || (g.category || "Other") === gCat) && g.name.toLowerCase().includes(gSearch.toLowerCase())
+  );
+
+  function toggleGear(name: string) {
+    if (gearLoadout.includes(name)) onGear(gearLoadout.filter((n) => n !== name));
+    else onGear([...gearLoadout, name]);
+  }
+  function update(id: string, patch: Partial<EquipmentItem>) {
+    onEquipment(items.map((it) => (it.id === id ? { ...it, ...patch } : it)));
+  }
+  function addItem() {
+    onEquipment([...items, { id: newItemId(), name: "", weight: "standard", equipped: true, mods: "", notes: "" }]);
+  }
+  function removeItem(id: string) {
+    onEquipment(items.filter((it) => it.id !== id));
+  }
   function gearRow(g: Equipment) {
     const equipped = gearLoadout.includes(g.name);
     return (
@@ -96,23 +123,11 @@ export function EquipmentPanel(props: Props) {
   }
 
   return (
-    <SidePanel open={open} title="Loadout & Size" onClose={onClose}>
+    <>
       {!curator && <p className="lock-note">Loadout is Curator-controlled — view only.</p>}
+      <NcBudget ncUsed={ncUsed} maxNC={maxNC} />
 
-      <div className={"nc-budget" + (ncOver ? " over" : "")}>
-        Neuronal Capacity · {ncUsed} / {maxNC}
-        {ncOver ? " · overloaded" : ""}
-      </div>
-
-      <Collapsible defaultOpen title={`Weapons · ${slotsUsed} / ${slotsMax} slots`}>
-        <div className="browse">
-          <input className="bg-select full" placeholder="Search weapons…" value={wSearch} onChange={(e) => setWSearch(e.target.value)} />
-          {slotsOver ? <div className="equip-warn">Over weapon-slot limit.</div> : null}
-          <div className="use-list">{weapons.map(weaponRow)}</div>
-        </div>
-      </Collapsible>
-
-      <Collapsible title="Gear">
+      <Collapsible defaultOpen title="Gear">
         <div className="browse">
           <div className="chip-row">
             {gearCats.map((c) => (
@@ -178,6 +193,6 @@ export function EquipmentPanel(props: Props) {
           {curator ? <button className="primary-btn full mt" onClick={addItem}>Add custom item</button> : null}
         </div>
       </Collapsible>
-    </SidePanel>
+    </>
   );
 }
