@@ -1470,6 +1470,25 @@ body {
   padding-bottom: 5px;
   border-bottom: 1px solid var(--panel-line);
 }
+.party-list {
+  display: flex;
+  flex-direction: column;
+}
+.party-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--panel-line);
+}
+.party-name {
+  font-size: 13px;
+  color: var(--ink);
+}
+.party-meta {
+  font-size: 11px;
+  color: var(--muted);
+}
 @media (max-width: 720px) {
   .lobby-grid {
     grid-template-columns: 1fr;

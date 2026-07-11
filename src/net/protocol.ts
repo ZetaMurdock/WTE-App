@@ -22,6 +22,7 @@ export type NetMessage =
   | { t: "presence"; status: string }
   | { t: "roll"; label: string; formula: string; result: number; detail?: unknown }
   | { t: "chat"; text: string }
+  | { t: "party"; charId: string; name: string; summary: Record<string, unknown> }
   | { t: "sheet-patch"; charId: string; patch: unknown; rev: number } // reserved: sheet sync
   | { t: "vtt-patch"; scope: string; patch: unknown; rev: number } // reserved: VTT sync
   | { t: "snapshot"; state: unknown; rev: number } // reserved: late-joiner catch-up
@@ -44,6 +45,7 @@ export const RELAYED: ReadonlySet<NetMessageType> = new Set<NetMessageType>([
   "presence",
   "roll",
   "chat",
+  "party",
   "sheet-patch",
   "vtt-patch",
 ]);

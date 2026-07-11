@@ -43,6 +43,7 @@ import { AbilitiesBody } from "./AbilitiesPanel";
 import { ActionsTable } from "./ActionsTable";
 import { getWeapon, loadoutMods, loadoutNC, weaponSlotsUsed, WEAPON_SLOTS } from "../../lib/codex";
 import type { Weapon } from "../../models/codex";
+import { useNet } from "../../net/NetContext";
 
 interface Props {
   characterId: string;
@@ -70,6 +71,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   const [rec, setRec] = useState<CharacterRecord | null>(null);
   const [tab, setTab] = useState<SheetTab>("stats");
   const { items: feedItems, push: pushFeed } = useRollFeed();
+  const net = useNet();
   const saveTimer = useRef<number | undefined>(undefined);
   const pending = useRef<CharacterRecord | null>(null);
 
@@ -185,7 +187,16 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
 
   async function doRoll(roll: RollResult) {
     pushFeed(roll);
+    if (net.status === "connected") net.publish({ t: "roll", label: roll.detail.label, formula: roll.formula, result: roll.result });
     await logRoll(campaignId, rec!.id, roll);
+  }
+  function shareToParty() {
+    net.publish({
+      t: "party",
+      charId: rec!.id,
+      name: rec!.name,
+      summary: { species: species?.name, paradigm: paradigm?.name, rank, hp: derived.hpMax, ss: maxSS, nc: maxNC },
+    });
   }
 
   return (
@@ -198,6 +209,11 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
           <h1 className="dash-title">{rec.name}</h1>
         </div>
         <div className="sheet-head-actions">
+          {net.status === "connected" && (
+            <button className="ghost-btn" onClick={shareToParty} title="Broadcast this character's summary to the room">
+              Share to party
+            </button>
+          )}
           <button className="ghost-btn" onClick={onBack}>
             ← Vault
           </button>

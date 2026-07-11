@@ -1,37 +1,47 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { isTauri } from "../lib/tauri";
-import {
-  advertise,
-  unadvertise,
-  discovered,
-  myPeerId,
-  myPeerName,
-  setPeerName,
-  type DiscoveredHost,
-} from "../net/discovery";
-import { getNetConfig, setNetConfig, buildIceServers, type NetConfig } from "../net/netconfig";
-import { WebRtcTransport } from "../net/webrtc";
-import { NetSession } from "../net/session";
-import type { Peer } from "../net/protocol";
+import { discovered, myPeerName, setPeerName, type DiscoveredHost } from "../net/discovery";
+import { getNetConfig, setNetConfig, type NetConfig } from "../net/netconfig";
+import { useNet } from "../net/NetContext";
+import type { NetMessage } from "../net/protocol";
 
-type Mode = "idle" | "connecting" | "connected";
+type RollMsg = Extract<NetMessage, { t: "roll" }>;
+type ChatMsg = Extract<NetMessage, { t: "chat" }>;
+type PartyMsg = Extract<NetMessage, { t: "party" }>;
 
-// Phase 7b slice 2b: connect a room over WebRTC (LAN or internet) via the room-code
-// signaling server, with a live roster + a test roll to prove the data channel.
+// Phase 7b slice 4: the lobby drives the app-level session and shows live room state —
+// roster, a shared roll/chat feed, and the party's shared character summaries.
 export function LobbyView() {
-  const peerId = myPeerId();
+  const net = useNet();
   const [name, setName] = useState(myPeerName());
   const [cfg, setCfg] = useState<NetConfig>(getNetConfig());
   const [room, setRoom] = useState("");
-  const [mode, setMode] = useState<Mode>("idle");
-  const [role, setRole] = useState<"host" | "player">("host");
-  const [error, setError] = useState("");
-  const [peers, setPeers] = useState<Peer[]>([]);
-  const [feed, setFeed] = useState<string[]>([]);
+  const [feed, setFeed] = useState<{ from: string; body: string }[]>([]);
+  const [party, setParty] = useState<Record<string, { name: string; summary: Record<string, unknown> }>>({});
   const [scanning, setScanning] = useState(false);
   const [hosts, setHosts] = useState<DiscoveredHost[]>([]);
-  const sessionRef = useRef<NetSession | null>(null);
   const scanTimer = useRef<number | undefined>(undefined);
+
+  const peersRef = useRef(net.peers);
+  peersRef.current = net.peers;
+  const nameOf = useCallback((id: string) => peersRef.current.find((p) => p.id === id)?.name || id.slice(0, 6), []);
+
+  useEffect(() => {
+    const offRoll = net.subscribe("roll", (m, from) => {
+      const r = m as RollMsg;
+      setFeed((f) => [{ from, body: `rolled ${r.label} = ${r.result}` }, ...f].slice(0, 40));
+    });
+    const offChat = net.subscribe("chat", (m, from) => setFeed((f) => [{ from, body: `— ${(m as ChatMsg).text}` }, ...f].slice(0, 40)));
+    const offParty = net.subscribe("party", (m, from) => {
+      const p = m as PartyMsg;
+      setParty((cur) => ({ ...cur, [from]: { name: p.name, summary: p.summary } }));
+    });
+    return () => {
+      offRoll();
+      offChat();
+      offParty();
+    };
+  }, [net.subscribe, nameOf]);
 
   useEffect(() => {
     if (!scanning) return;
@@ -47,8 +57,6 @@ export function LobbyView() {
       window.clearInterval(scanTimer.current);
     };
   }, [scanning]);
-
-  useEffect(() => () => sessionRef.current?.close(), []);
 
   if (!isTauri()) {
     return (
@@ -67,70 +75,30 @@ export function LobbyView() {
     setName(v);
     setPeerName(v);
   }
-  const nameOf = (id: string) => peers.find((p) => p.id === id)?.name || id.slice(0, 6);
-  const pushFeed = (line: string) => setFeed((f) => [line, ...f].slice(0, 40));
-
-  async function connect(asRole: "host" | "player", roomCode: string) {
-    const code = roomCode.trim();
-    if (!code) return;
-    if (!cfg.signalUrl.trim()) {
-      setError("Set a signaling server URL first (Netplay settings).");
-      return;
-    }
-    setError("");
-    setRole(asRole);
-    setMode("connecting");
-    try {
-      const iceServers = await buildIceServers(cfg);
-      const transport = new WebRtcTransport({ signalUrl: cfg.signalUrl.trim(), room: code, peerId, role: asRole, name, iceServers });
-      const session = new NetSession(transport, { name, role: asRole });
-      session.onPeers(setPeers);
-      session.on("roll", (m, from) => pushFeed(`${nameOf(from)} rolled ${m.label} = ${m.result}`));
-      session.on("chat", (m, from) => pushFeed(`${nameOf(from)}: ${m.text}`));
-      await session.start();
-      sessionRef.current = session;
-      setRoom(code);
-      setMode("connected");
-      if (asRole === "host") await advertise(code).catch(() => {});
-    } catch (e) {
-      setMode("idle");
-      setError(e instanceof Error ? e.message : "Connection failed.");
-    }
-  }
-
-  async function leave() {
-    sessionRef.current?.close();
-    sessionRef.current = null;
-    if (role === "host") await unadvertise().catch(() => {});
-    setMode("idle");
-    setPeers([]);
-    setFeed([]);
-  }
-
   function sendTestRoll() {
     const result = 1 + Math.floor(Math.random() * 20);
-    sessionRef.current?.publish({ t: "roll", label: "test d20", formula: "1d20", result });
-    pushFeed(`You rolled test d20 = ${result}`);
+    net.publish({ t: "roll", label: "test d20", formula: "1d20", result });
+    setFeed((f) => [{ from: net.selfId, body: `rolled test d20 = ${result}` }, ...f].slice(0, 40));
   }
 
-  if (mode === "connected") {
+  if (net.status === "connected") {
     return (
       <div className="dashboard">
         <div className="dash-header">
           <div>
-            <div className="dash-eyebrow">Netplay · {role === "host" ? "hosting" : "joined"}</div>
-            <h1 className="dash-title">Room · {room}</h1>
+            <div className="dash-eyebrow">Netplay · {net.role === "host" ? "hosting" : "joined"}</div>
+            <h1 className="dash-title">Room · {net.room}</h1>
           </div>
-          <button className="ghost-btn" onClick={leave}>Leave</button>
+          <button className="ghost-btn" onClick={net.leave}>Leave</button>
         </div>
         <div className="lobby-grid">
           <div className="lobby-card">
-            <div className="panel-title">Players ({peers.length})</div>
+            <div className="panel-title">Players ({net.peers.length})</div>
             <div className="chip-list">
-              {peers.map((p) => (
+              {net.peers.map((p) => (
                 <span key={p.id} className={"load-chip" + (p.role === "host" ? " cipher" : "")}>
                   {p.name}
-                  {p.id === peerId ? " (you)" : ""}
+                  {p.id === net.selfId ? " (you)" : ""}
                   {p.role === "host" ? " · host" : ""}
                 </span>
               ))}
@@ -138,23 +106,44 @@ export function LobbyView() {
             <button className="primary-btn full mt" onClick={sendTestRoll}>Send test roll</button>
           </div>
           <div className="lobby-card">
-            <div className="panel-title">Live feed</div>
-            {feed.length === 0 ? (
-              <p className="list-empty">Rolls and messages from the room appear here.</p>
+            <div className="panel-title">Party sheets</div>
+            {Object.keys(party).length === 0 ? (
+              <p className="list-empty">Open a character and press “Share to party”.</p>
             ) : (
-              <ul className="lobby-feed">
-                {feed.map((line, i) => (
-                  <li key={i}>{line}</li>
+              <div className="party-list">
+                {Object.entries(party).map(([from, c]) => (
+                  <div className="party-row" key={from}>
+                    <span className="party-name">{c.name}</span>
+                    <span className="party-meta">
+                      {[c.summary.species, c.summary.paradigm].filter(Boolean).join(" · ")}
+                      {c.summary.hp != null ? ` · HP ${String(c.summary.hp)}` : ""}
+                      {c.summary.ss != null ? ` · SS ${String(c.summary.ss)}` : ""}
+                    </span>
+                  </div>
                 ))}
-              </ul>
+              </div>
             )}
           </div>
+        </div>
+        <div className="lobby-scan">
+          <div className="panel-title">Live feed</div>
+          {feed.length === 0 ? (
+            <p className="list-empty">Rolls from the whole room show up here.</p>
+          ) : (
+            <ul className="lobby-feed">
+              {feed.map((line, i) => (
+                <li key={i}>
+                  <b>{nameOf(line.from)}</b> {line.body}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
     );
   }
 
-  const others = hosts.filter((h) => h.peer !== peerId);
+  const others = hosts.filter((h) => h.peer !== net.selfId);
 
   return (
     <div className="dashboard">
@@ -165,7 +154,7 @@ export function LobbyView() {
         </div>
       </div>
 
-      {error && <div className="validation-list" style={{ marginBottom: 16 }}>{error}</div>}
+      {net.error && <div className="validation-list" style={{ marginBottom: 16 }}>{net.error}</div>}
 
       <div className="lobby-grid">
         <div className="lobby-card">
@@ -174,7 +163,7 @@ export function LobbyView() {
             <span>Display name</span>
             <input className="bg-select full" value={name} onChange={(e) => saveName(e.target.value)} placeholder="Player" />
           </label>
-          <div className="lobby-id">Peer id · {peerId.slice(0, 8)}</div>
+          <div className="lobby-id">Peer id · {net.selfId.slice(0, 8)}</div>
         </div>
 
         <div className="lobby-card">
@@ -197,16 +186,16 @@ export function LobbyView() {
       <div className="lobby-grid">
         <div className="lobby-card">
           <div className="panel-title">Host a room</div>
-          <input className="bg-select full" value={role === "host" ? room : ""} onChange={(e) => setRoom(e.target.value)} placeholder="Room code (share this)" />
-          <button className="primary-btn full mt" onClick={() => connect("host", room)} disabled={mode === "connecting"}>
-            {mode === "connecting" && role === "host" ? "Connecting…" : "Host room"}
+          <input className="bg-select full" value={room} onChange={(e) => setRoom(e.target.value)} placeholder="Room code (share this)" />
+          <button className="primary-btn full mt" onClick={() => net.host(room)} disabled={net.status === "connecting"}>
+            {net.status === "connecting" ? "Connecting…" : "Host room"}
           </button>
         </div>
         <div className="lobby-card">
           <div className="panel-title">Join a room</div>
-          <input className="bg-select full" value={role === "player" ? room : ""} onChange={(e) => setRoom(e.target.value)} placeholder="Room code" />
-          <button className="primary-btn full mt" onClick={() => connect("player", room)} disabled={mode === "connecting"}>
-            {mode === "connecting" && role === "player" ? "Connecting…" : "Join room"}
+          <input className="bg-select full" value={room} onChange={(e) => setRoom(e.target.value)} placeholder="Room code" />
+          <button className="primary-btn full mt" onClick={() => net.join(room)} disabled={net.status === "connecting"}>
+            {net.status === "connecting" ? "Connecting…" : "Join room"}
           </button>
         </div>
       </div>
@@ -226,12 +215,12 @@ export function LobbyView() {
           <div className="char-grid">
             {others.map((h) => (
               <div className="char-card" key={h.fullname}>
-                <button className="char-open" onClick={() => connect("player", h.room)}>
+                <button className="char-open" onClick={() => net.join(h.room)}>
                   <div className="char-name">{h.room || "Room"}</div>
                   <div className="char-meta">{(h.peer || "peer").slice(0, 8)}{h.addrs[0] ? " · " + h.addrs[0] : ""}</div>
                 </button>
                 <div className="char-actions">
-                  <button className="icon-btn accent" onClick={() => connect("player", h.room)}>Join</button>
+                  <button className="icon-btn accent" onClick={() => net.join(h.room)}>Join</button>
                 </div>
               </div>
             ))}

@@ -1,7 +1,7 @@
 {
   "name": "wte-app",
   "private": true,
-  "version": "0.4.30",
+  "version": "0.4.31",
   "type": "module",
   "description": "W.T.E — unified Character Sheet + VTT desktop app",
   "scripts": {

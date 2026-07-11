@@ -4,6 +4,7 @@ import { Dashboard } from "./components/Dashboard";
 import { ToolFrame } from "./components/ToolFrame";
 import { CharactersTab } from "./components/characters/CharactersTab";
 import { LobbyView } from "./components/LobbyView";
+import { NetProvider } from "./net/NetContext";
 import { countCharacters } from "./lib/characters";
 import {
   getVersion,
@@ -182,6 +183,7 @@ export default function App() {
   }
 
   return (
+    <NetProvider>
     <div className="app">
       <TopBar
         activeTab={activeTab}
@@ -230,5 +232,6 @@ export default function App() {
         <ToolFrame src="wiki.html" title="Codex" hidden={activeTab !== "wiki"} />
       </div>
     </div>
+    </NetProvider>
   );
 }
