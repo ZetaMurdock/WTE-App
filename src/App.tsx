@@ -3,6 +3,7 @@ import { TopBar, type TabId } from "./components/TopBar";
 import { Dashboard } from "./components/Dashboard";
 import { ToolFrame } from "./components/ToolFrame";
 import { CharactersTab } from "./components/characters/CharactersTab";
+import { LobbyView } from "./components/LobbyView";
 import { countCharacters } from "./lib/characters";
 import {
   getVersion,
@@ -217,6 +218,11 @@ export default function App() {
         {activeTab === "characters" && (
           <div className="view-scroll">
             <CharactersTab campaign={activeCampaign} curator={curator} onCharactersChanged={bumpChars} />
+          </div>
+        )}
+        {activeTab === "lobby" && (
+          <div className="view-scroll">
+            <LobbyView />
           </div>
         )}
         <ToolFrame src="sheet.html" title="Character Sheet" hidden={activeTab !== "sheet"} />

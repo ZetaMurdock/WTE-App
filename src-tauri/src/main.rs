@@ -7,6 +7,8 @@ use std::path::PathBuf;
 use serde::Serialize;
 use tauri::Manager;
 
+mod net;
+
 // Desktop Google sign-in (loopback flow): open the system browser to Google's
 // consent screen, capture the redirect on 127.0.0.1, exchange the code (PKCE)
 // for an OpenID id_token, and hand it back to the webview for Firebase
@@ -458,6 +460,7 @@ fn main() {
     ];
 
     tauri::Builder::default()
+        .manage(net::NetState::default())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
@@ -476,7 +479,10 @@ fn main() {
             wte_list_pages,
             wte_save_page,
             wte_delete_page,
-            open_external
+            open_external,
+            net::net_advertise,
+            net::net_unadvertise,
+            net::net_discovered
         ])
         .run(tauri::generate_context!())
         .expect("error while running W.T.E application");
