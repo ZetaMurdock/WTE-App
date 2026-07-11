@@ -2,6 +2,7 @@ import { useState } from "react";
 import { rollToHit, rollGeneric, signedMod, type UsableAbility, type RollResult } from "../../game/wte";
 import { isRangedWeapon, weaponDomainsMet } from "../../lib/codex";
 import type { Weapon } from "../../models/codex";
+import { RollButton } from "./RollButton";
 
 type Cat = "attack" | "genus" | "cipher";
 type Row =
@@ -79,7 +80,9 @@ export function ActionsTable({ weapons, genus, ciphers, atk, phyMod, dexMod, par
               )
             ) : null}
             <div className="act-actions">
-              <button className="roll-btn" onClick={() => onRoll(rollToHit(`${w.name} attack`, hit))}>Roll d20 {signedMod(hit)}</button>
+              <RollButton className="roll-btn" make={() => rollToHit(`${w.name} attack`, hit)} onLocal={onRoll}>
+                Roll d20 {signedMod(hit)}
+              </RollButton>
             </div>
           </div>
         )}
@@ -110,7 +113,7 @@ export function ActionsTable({ weapons, genus, ciphers, atk, phyMod, dexMod, par
             </div>
             <div className="act-actions">
               {a.ss > 0 ? <button className="ghost-btn" onClick={() => onSpend(a.ss)}>Use −{a.ss} SS</button> : null}
-              <button className="roll-btn" onClick={() => onRoll(rollGeneric(a.name))}>Roll d20</button>
+              <RollButton className="roll-btn" make={() => rollGeneric(a.name)} onLocal={onRoll}>Roll d20</RollButton>
             </div>
           </div>
         )}

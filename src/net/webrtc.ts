@@ -161,8 +161,12 @@ export class WebRtcTransport implements Transport {
     const payload = JSON.stringify(env);
     if (env.to) {
       const e = this.peers.get(env.to);
-      if (e?.ch?.readyState === "open") e.ch.send(payload);
-      return;
+      if (e?.ch?.readyState === "open") {
+        e.ch.send(payload);
+        return;
+      }
+      // Target not directly connected (e.g. a player whispering to another player) →
+      // fall through to every channel; in the star that reaches the host, which forwards.
     }
     for (const e of this.peers.values()) if (e.ch?.readyState === "open") e.ch.send(payload);
   }

@@ -1489,6 +1489,42 @@ body {
   font-size: 11px;
   color: var(--muted);
 }
+
+/* ── Roll destination menu (right-click a roll) ── */
+.rollmenu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+}
+.rollmenu {
+  position: fixed;
+  min-width: 190px;
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+.rollmenu-item {
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--ink);
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.rollmenu-item:hover {
+  background: var(--bg);
+}
+.rollmenu-sep {
+  height: 1px;
+  background: var(--panel-line);
+  margin: 4px 6px;
+}
 @media (max-width: 720px) {
   .lobby-grid {
     grid-template-columns: 1fr;

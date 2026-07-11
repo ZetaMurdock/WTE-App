@@ -19,7 +19,6 @@ export class NetSession {
   readonly self: string;
   readonly role: Role;
   private name: string;
-  private hostId = "";
   private ready = false;
   private peers = new Map<string, Peer>();
   private handlers = new Map<NetMessageType, Set<(msg: NetMessage, from: string) => void>>();
@@ -38,7 +37,6 @@ export class NetSession {
     this.transport.onPeerDown((id) => this.onPeerDown(id));
     await this.transport.start();
     if (this.role === "host") {
-      this.hostId = this.self;
       this.peers.set(this.self, { id: this.self, name: this.name, role: "host" });
       this.ready = true;
       this.emitReady();
@@ -66,10 +64,10 @@ export class NetSession {
     set.add(cb as (msg: NetMessage, from: string) => void);
   }
 
-  /** Publish a shared message. Players send to the host; the host broadcasts. */
+  /** Publish a shared message. `to` = a peer id to whisper to, or undefined to broadcast.
+   *  In the star a player's transport sends over its single (host) channel; the host routes. */
   publish(msg: NetMessage, to?: string): void {
-    const target = to ?? (this.role === "player" ? this.hostId : undefined);
-    this.send(target, msg);
+    this.send(to, msg);
   }
   close(): void {
     this.transport.close();
@@ -118,7 +116,6 @@ export class NetSession {
         return;
       }
       case "welcome": {
-        this.hostId = msg.host;
         this.peers = new Map(msg.peers.map((p) => [p.id, p]));
         this.peers.set(this.self, { id: this.self, name: this.name, role: "player" });
         this.ready = true;
@@ -138,9 +135,15 @@ export class NetSession {
         return;
       }
       default: {
-        this.fire(msg.t, msg, from);
-        // Host relays a player's shared message to the rest of the room (star topology).
-        if (this.role === "host" && RELAYED.has(msg.t) && from !== this.self) {
+        // A whisper addressed to someone else, passing through the host → forward it only.
+        if (this.role === "host" && env.to && env.to !== this.self) {
+          this.transport.send({ ...env, to: env.to });
+          return;
+        }
+        // Deliver to the app if it's a broadcast or addressed to me.
+        if (!env.to || env.to === this.self) this.fire(msg.t, msg, from);
+        // Host rebroadcasts a player's non-targeted shared message to the rest of the room.
+        if (this.role === "host" && !env.to && RELAYED.has(msg.t) && from !== this.self) {
           for (const p of this.peers.values())
             if (p.id !== from && p.id !== this.self) this.transport.send({ ...env, to: p.id });
         }

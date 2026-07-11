@@ -44,6 +44,7 @@ import { ActionsTable } from "./ActionsTable";
 import { getWeapon, loadoutMods, loadoutNC, weaponSlotsUsed, WEAPON_SLOTS } from "../../lib/codex";
 import type { Weapon } from "../../models/codex";
 import { useNet } from "../../net/NetContext";
+import { RollButton } from "./RollButton";
 
 interface Props {
   characterId: string;
@@ -187,7 +188,6 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
 
   async function doRoll(roll: RollResult) {
     pushFeed(roll);
-    if (net.status === "connected") net.publish({ t: "roll", label: roll.detail.label, formula: roll.formula, result: roll.result });
     await logRoll(campaignId, rec!.id, roll);
   }
   function shareToParty() {
@@ -302,13 +302,14 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                           disabled={!curator}
                           onChange={(e) => setAttr(a.key, intOf(e.target.value))}
                         />
-                        <button
+                        <RollButton
                           className="roll-btn"
                           title={`Roll ${a.short}`}
-                          onClick={() => doRoll(rollAttribute(`${a.short} Check`, eff[a.key]))}
+                          make={() => rollAttribute(`${a.short} Check`, eff[a.key])}
+                          onLocal={doRoll}
                         >
                           d20
-                        </button>
+                        </RollButton>
                       </div>
                     ))}
                   </div>
@@ -341,9 +342,9 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                             disabled={!curator}
                             onChange={(e) => setSpec(s.key, intOf(e.target.value))}
                           />
-                          <button className="roll-btn" title={`Roll ${s.label}`} onClick={() => doRoll(rollSpecialty(`${s.label} Check`, pts))}>
+                          <RollButton className="roll-btn" title={`Roll ${s.label}`} make={() => rollSpecialty(`${s.label} Check`, pts)} onLocal={doRoll}>
                             d40
-                          </button>
+                          </RollButton>
                         </div>
                       );
                     })}
