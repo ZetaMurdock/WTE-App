@@ -3,30 +3,30 @@
 :root {
   --bg: #070b14;
   --bar: #04070d;
-  --bone: #aeb6c6;
-  --accent: #7ecfca;
-  --ink: #dde3ee;
+  --bone: #a7aebd;
+  --accent: #689a96;
+  --ink: #d5dbe6;
   --panel: #0c1220;
-  --panel-line: #1c2539;
-  --muted: #6b7488;
-  --violet: #a08fe8;
-  --glow-w: rgba(215, 226, 255, 0.10);
-  --glow-t: rgba(126, 207, 202, 0.16);
-  --glow-v: rgba(160, 143, 232, 0.14);
+  --panel-line: #1a2233;
+  --muted: #646c7e;
+  --violet: #837aae;
+  --glow-w: rgba(210, 220, 245, 0.04);
+  --glow-t: rgba(104, 154, 150, 0.06);
+  --glow-v: rgba(131, 122, 174, 0.05);
 }
 body.wte-light {
   --bg: #d9dce4;
   --bar: #e2e4eb;
   --bone: #4b5468;
-  --accent: #237c77;
+  --accent: #2e6f6b;
   --ink: #191e2b;
   --panel: #eaecf2;
   --panel-line: #c2c8d6;
   --muted: #667088;
-  --violet: #6153b8;
-  --glow-w: rgba(20, 30, 60, 0.06);
-  --glow-t: rgba(35, 124, 119, 0.14);
-  --glow-v: rgba(97, 83, 184, 0.12);
+  --violet: #5b519e;
+  --glow-w: rgba(20, 30, 60, 0.03);
+  --glow-t: rgba(46, 111, 107, 0.06);
+  --glow-v: rgba(91, 81, 158, 0.05);
 }
 
 * {
@@ -1726,29 +1726,10 @@ body {
   align-self: flex-start;
 }
 
-/* ── Universal glow pass — dim, defined highlights (white/teal/violet) ── */
+/* ── Universal highlight pass — muted; definition comes from borders, not glow ── */
 .tab.active,
 .sheet-tab.active {
-  box-shadow: 0 0 12px var(--glow-t), inset 0 0 6px var(--glow-w);
-}
-.primary-btn {
-  box-shadow: 0 0 10px var(--glow-t);
-}
-.primary-btn:hover {
-  box-shadow: 0 0 16px var(--glow-t), 0 0 4px var(--glow-w);
-}
-.roll-btn:hover,
-.chip.active {
-  box-shadow: 0 0 9px var(--glow-v);
-}
-.dash-title {
-  text-shadow: 0 0 18px var(--glow-w);
-}
-.ss-fill {
-  box-shadow: 0 0 8px var(--glow-t);
-}
-.load-chip.cipher {
-  box-shadow: 0 0 7px var(--glow-v);
+  box-shadow: inset 0 0 5px var(--glow-w);
 }
 .panel-title {
   letter-spacing: 1.5px;
@@ -2074,4 +2055,76 @@ body {
   .cdx-home-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ── Codex typed record card (Remaster slice 2) ── */
+.cdx-card {
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 22px;
+}
+.cdx-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.cdx-type-chip {
+  font-family: Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  padding: 2px 8px;
+}
+.cdx-type-chip.t-creature {
+  color: var(--violet);
+  border-color: var(--violet);
+}
+.cdx-card-name {
+  flex: 1;
+  font-size: 15px;
+  color: var(--ink);
+  letter-spacing: 0.5px;
+}
+.cdx-card-act {
+  padding: 6px 14px;
+  font-size: 11px;
+}
+.cdx-spec-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 6px 18px;
+}
+.cdx-spec {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 12px;
+  border-bottom: 1px dotted var(--panel-line);
+  padding: 3px 0;
+}
+.cdx-spec-k {
+  font-family: Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+  min-width: 62px;
+}
+.cdx-spec-v {
+  color: var(--bone);
+}
+.cdx-spawn-note {
+  font-size: 12px;
+  color: var(--accent);
+  border: 1px solid var(--panel-line);
+  border-left: 2px solid var(--accent);
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin-bottom: 14px;
 }

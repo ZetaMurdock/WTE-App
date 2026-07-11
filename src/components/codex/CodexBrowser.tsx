@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isTauri } from "../../lib/tauri";
 import { renderCodexHtml, pageTitle } from "../../lib/md";
+import { parseCodexEntry } from "../../lib/codexParse";
+import { computeCreature } from "../../lib/codex";
+import type { CodexEntry, Creature } from "../../models/codex";
 
 // The new Codex: a browser built solely for W.T.E (Remaster slice 1 — the usable
 // shell: tabs, wte:// address bar, history, search, bookmarks, recents, reader).
@@ -25,9 +28,15 @@ interface SearchHit {
 }
 type View =
   | { kind: "home" }
-  | { kind: "page"; stem: string; title: string; html: string }
+  | { kind: "page"; stem: string; title: string; html: string; entry: CodexEntry | null }
   | { kind: "search"; q: string; hits: SearchHit[] }
   | { kind: "error"; message: string };
+
+// Token colors per creature Class — must match the legacy VTT's SUMMON_COLORS.
+const VTT_CLASS_COLORS: Record<number, string> = {
+  1: "#6b6f7a", 2: "#c9a227", 3: "#7a4b9a", 4: "#8a3a2a", 5: "#c33fbf", 6: "#20202c",
+};
+const TYPE_CHIPS = ["All", "Creature", "Weapon", "Equipment", "Cipher", "Genus"];
 
 function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   return (window as unknown as { __TAURI__: { core: { invoke: (c: string, a?: Record<string, unknown>) => Promise<T> } } })
@@ -68,6 +77,10 @@ export function CodexBrowser() {
   const [recents, setRecents] = useState<Mark[]>(() => load<Mark[]>("wte-cdx-recents", []));
   const [pages, setPages] = useState<string[]>([]);
   const [homeFilter, setHomeFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("All");
+  const [scanState, setScanState] = useState<"idle" | "scanning" | "done">("idle");
+  const [spawnNote, setSpawnNote] = useState("");
+  const typeMap = useRef<Map<string, string> | null>(null);
   const readerRef = useRef<HTMLDivElement>(null);
 
   const tab = tabs.find((t) => t.id === activeId) ?? tabs[0];
@@ -104,7 +117,7 @@ export function CodexBrowser() {
         .then((md) => {
           if (!alive) return;
           const title = pageTitle(md, stem);
-          setView({ kind: "page", stem, title, html: renderCodexHtml(md) });
+          setView({ kind: "page", stem, title, html: renderCodexHtml(md), entry: parseCodexEntry(md, stem) });
           retitle(tab.id, title);
           setRecents((r) => {
             const next = [{ url, title }, ...r.filter((x) => x.url !== url)].slice(0, 24);
@@ -172,6 +185,44 @@ export function CodexBrowser() {
     });
   }
 
+  // Scan every record's TYPE once (lazily, on first type-chip use) for home filtering.
+  async function ensureTypeScan() {
+    if (typeMap.current || scanState === "scanning") return;
+    setScanState("scanning");
+    const map = new Map<string, string>();
+    for (const p of pages) {
+      try {
+        const md = await invoke<string>("wte_load_page", { path: p });
+        const e = parseCodexEntry(md, p);
+        if (e) map.set(p, e.type);
+      } catch {
+        /* unreadable page */
+      }
+    }
+    typeMap.current = map;
+    setScanState("done");
+  }
+
+  // Type-specific action: send a Creature record to the legacy VTT's spawn listener
+  // (localStorage 'wte-spawn-creature' — the VTT iframe's GM side picks it up).
+  function spawnInVtt(c: Creature) {
+    const d = computeCreature(c);
+    const abil = (c.abilities || []).map((a) => `${a.name} — ${a.effect}`).join(". ");
+    const desc = (abil + (c.lore ? (abil ? ". " : "") + c.lore : "")).slice(0, 1400);
+    const payload = {
+      name: c.name, cls: c.cls, hp: d.hp, dr: d.dr, size: d.size,
+      color: VTT_CLASS_COLORS[c.cls] || "#6b6f7a", flags: d.flags,
+      stats: c.stats, traits: c.traits || "", desc, ts: Date.now(),
+    };
+    try {
+      localStorage.setItem("wte-spawn-creature", JSON.stringify(payload));
+      setSpawnNote(`${c.name} sent to the VTT — it spawns on the GM's table.`);
+      window.setTimeout(() => setSpawnNote(""), 5000);
+    } catch {
+      /* ignore */
+    }
+  }
+
   // Reader link interception: wte:// + mirrored data-wte-link anchors navigate
   // in-Codex; external http(s) opens in the system browser.
   function onReaderClick(e: React.MouseEvent) {
@@ -190,9 +241,14 @@ export function CodexBrowser() {
 
   const filteredPages = useMemo(() => {
     const f = homeFilter.trim().toLowerCase();
-    const list = f ? pages.filter((p) => p.toLowerCase().includes(f)) : pages;
+    let list = f ? pages.filter((p) => p.toLowerCase().includes(f)) : pages;
+    if (typeFilter !== "All" && typeMap.current) {
+      const want = typeFilter.toLowerCase();
+      list = list.filter((p) => typeMap.current!.get(p) === want);
+    }
     return list.slice(0, 60);
-  }, [pages, homeFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pages, homeFilter, typeFilter, scanState]);
 
   if (!isTauri()) {
     return (
@@ -274,6 +330,23 @@ export function CodexBrowser() {
             <div className="cdx-home-grid">
               <div className="cdx-home-col">
                 <div className="panel-title">{homeFilter ? "Matching records" : "Records"}</div>
+                <div className="chip-row" style={{ marginBottom: 8 }}>
+                  {TYPE_CHIPS.map((t) => (
+                    <button
+                      key={t}
+                      className={"chip" + (typeFilter === t ? " active" : "")}
+                      onClick={() => {
+                        setTypeFilter(t);
+                        if (t !== "All") void ensureTypeScan();
+                      }}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+                {typeFilter !== "All" && scanState === "scanning" && (
+                  <p className="list-empty">Calibrating the archive index…</p>
+                )}
                 <div className="cdx-list">
                   {filteredPages.map((p) => (
                     <button key={p} className="cdx-item" onClick={() => navigate(`wte://page/${encodeURIComponent(p)}`)}>
@@ -331,6 +404,8 @@ export function CodexBrowser() {
         {view.kind === "page" && (
           <div className="cdx-reader" ref={readerRef} onClick={onReaderClick}>
             <div className="cdx-page-meta">wte://page/{view.stem}</div>
+            {spawnNote && <div className="cdx-spawn-note">{spawnNote}</div>}
+            {view.entry && <TypedCard entry={view.entry} onSpawn={spawnInVtt} />}
             <div className="cdx-content" dangerouslySetInnerHTML={{ __html: view.html }} />
           </div>
         )}
@@ -340,6 +415,89 @@ export function CodexBrowser() {
             <p className="list-empty">{view.message}</p>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── Typed record card — the structured header the data hub reads from a page ──
+function Spec({ label, value }: { label: string; value?: string | number | null }) {
+  if (value == null || value === "") return null;
+  return (
+    <div className="cdx-spec">
+      <span className="cdx-spec-k">{label}</span>
+      <span className="cdx-spec-v">{String(value)}</span>
+    </div>
+  );
+}
+
+function TypedCard({ entry, onSpawn }: { entry: CodexEntry; onSpawn: (c: Creature) => void }) {
+  return (
+    <div className="cdx-card">
+      <div className="cdx-card-head">
+        <span className={"cdx-type-chip t-" + entry.type}>{entry.type}</span>
+        <span className="cdx-card-name">{entry.name}</span>
+        {entry.type === "creature" && (
+          <button className="primary-btn cdx-card-act" onClick={() => onSpawn(entry)}>
+            Spawn in VTT
+          </button>
+        )}
+      </div>
+      <div className="cdx-spec-grid">
+        {entry.type === "weapon" && (
+          <>
+            <Spec label="Damage" value={entry.damage} />
+            <Spec label="Range" value={entry.range} />
+            <Spec label="Slot" value={entry.slot} />
+            <Spec label="Weight" value={entry.weight} />
+            <Spec label="NC" value={entry.ncCost} />
+            <Spec label="Domain" value={entry.domain} />
+            <Spec label="Mods" value={entry.mods} />
+            <Spec label="Overclock" value={entry.ede ? "Yes" : undefined} />
+          </>
+        )}
+        {entry.type === "equipment" && (
+          <>
+            <Spec label="Category" value={entry.category} />
+            <Spec label="Slot" value={entry.slot} />
+            <Spec label="Grade" value={entry.grade} />
+            <Spec label="NC" value={entry.ncCost} />
+            <Spec label="Mods" value={entry.mods} />
+          </>
+        )}
+        {entry.type === "cipher" && (
+          <>
+            <Spec label="Paradigm" value={entry.paradigm} />
+            <Spec label="Tier" value={entry.tier} />
+            <Spec label="SS" value={entry.ss} />
+            <Spec label="Activation" value={entry.activation} />
+            <Spec label="Range" value={entry.range} />
+            <Spec label="Target" value={entry.target} />
+          </>
+        )}
+        {entry.type === "genus" && (
+          <>
+            <Spec label="Domain" value={entry.domain} />
+            <Spec label="SS" value={entry.ss} />
+            <Spec label="Activation" value={entry.activation} />
+            <Spec label="Range" value={entry.range} />
+            <Spec label="Limit" value={entry.limit} />
+          </>
+        )}
+        {entry.type === "creature" &&
+          (() => {
+            const d = computeCreature(entry);
+            return (
+              <>
+                <Spec label="Class" value={`${entry.cls} · ${entry.archive || ""}`} />
+                <Spec label="HP" value={d.hp} />
+                <Spec label="DR" value={d.dr || undefined} />
+                <Spec label="Size" value={d.size} />
+                <Spec label="Note" value={d.note || undefined} />
+                <Spec label="Rank/Tier" value={entry.rank || entry.tier || undefined} />
+              </>
+            );
+          })()}
       </div>
     </div>
   );
