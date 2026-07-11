@@ -154,27 +154,96 @@ physical damage reduction; if it triggers knock-back, distance is doubled.
 
 ## Creature (bestiary — VTT)
 
+Creatures span **6 Classes**, each with its own stat block and HP/DR math. You author the **raw stats**
+and the app derives HP, DR, special flags, and token size. These pages feed the VTT **Summon · Bestiary**
+sidebar (offline — read straight from the Codex, no wiki) where the GM drags a creature onto the map.
+
+**Every creature page needs:** `TYPE: Creature` and either **CLASS** (1–6) or **ARCHIVE** (the class name —
+CLASS is inferred from it). Optional everywhere: **KEYWORDS** (comma list) and **TRAITS** (a one-line
+summary). Add **## Abilities** (`- **Name** — effect` bullets) and **## Lore**. Any numeric stat you
+list becomes a **check button** on the token; stat words ("WIL check") and dice ("2d8") inside Traits/
+Abilities/Lore also become roll buttons. The class-specific stats below are what drive **HP/DR**:
+
+| Class | Archive | Stats that drive HP | HP formula | DR |
+|---|---|---|---|---|
+| 1 | Standard | OFF DEF SPD WIL + **RANK** | ⌊(OFF+DEF+SPD+WIL)/4⌋ × rank — Grunt 5 · Operative 10 · Elite 15 · Boss 25 | — |
+| 2 | Anima | DEF + **TIER** (+ANCHOR) | DEF × (Nascent 5 · Manifested 10 · Apex 20) | Apex ⌊DEF/4⌋+2 · Manifested ⌊DEF/4⌋ · else 0 |
+| 3 | Alter Anima | CON DEF + **CL** | ⌊CON/4⌋×10 + DEF×5 | — |
+| 4 | Fractures | PHY END | PHY×5 + ⌊END/4⌋×15 | — (size 2) |
+| 5 | Doxa | WIL INT + **HP** (facade) | HP if set, else collapse = WIL×8 + ⌊INT/4⌋×12 | — |
+| 6 | Nyvilum | **CHP** | CHP (colossal pool) | — (size 6) |
+
+Modifier = ⌊stat ÷ 4⌋. Override the default token size any time with a `SIZE` field (in grid cells).
+
+### Class 1 — Standard  (full example)
+
 ```
-# Fracture Hound
-| Specification | Value |
+# Sable Enforcer
+| Field | Value |
 |---|---|
 | TYPE | Creature |
+| CLASS | 1 |
 | ARCHIVE | Standard |
-| SIZE | Large |
-| RANK | 3 |
-| HP | 45 |
-| ATTACK | 12 |
-| EVASION | 8 |
-| MOVEMENT | 35 ft |
-| KEYWORDS | Beast, Aberration |
+| RANK | Elite |
+| OFF | 14 |
+| DEF | 12 |
+| SPD | 10 |
+| WIL | 8 |
+| KEYWORDS | Syndicate, Human |
+| TRAITS | Trained marksman; flanks in pairs |
 
 ## Abilities
-- **Rift Lunge** — Teleport up to 20 ft and make a melee attack with advantage.
-- **Splinter Howl** — 15-ft cone; targets make a WIS check or take −2 to their next roll.
+- **Suppressing Fire** — 30 ft line; targets make a SPD check or lose their reaction.
+- **Execute** — Melee; deal 2d8 to a target below half HP.
 
 ## Lore
-Pack hunters that phase through the seams of collapsed CAS zones.
+Corporate security cleaners who work the CAS underlevels.
 ```
+→ HP ⌊(14+12+10+8)/4⌋ × 15 = **165**, DR 0, size 1.
 
-**Fields:** ARCHIVE · SIZE · RANK · HP · ATTACK · EVASION · MOVEMENT · KEYWORDS.
-**Abilities:** one `- **Name** — effect` bullet each.
+### Class 2 — Anima  (TIER + ANCHOR)
+
+```
+# Envy, Manifested
+| Field | Value |
+|---|---|
+| TYPE | Creature |
+| ARCHIVE | Anima |
+| TIER | Apex |
+| ANCHOR | A stolen crown |
+| DEF | 16 |
+| WIL | 20 |
+
+## Abilities
+- **Covet** — WIL save or the target's highest stat is mirrored onto Envy for 3 turns.
+```
+→ Apex: HP 16 × 20 = **320**, DR ⌊16/4⌋+2 = **6**. Always flagged *immune to psychic/emotional manipulation*.
+
+### Class 3 — Alter Anima  (CL = corruption level)
+
+```
+# Hollow Envoy
+| Field | Value |
+|---|---|
+| TYPE | Creature |
+| ARCHIVE | Alter Anima |
+| CL | 3 |
+| CON | 12 |
+| DEF | 9 |
+```
+→ HP ⌊12/4⌋×10 + 9×5 = **75**. At **CL 3+** it's flagged *human modifiers degraded*.
+
+### Class 4 — Fractures  ·  Class 5 — Doxa (facade→collapse)  ·  Class 6 — Nyvilum (CHP)
+
+```
+# The Smiling Neighbor          # Sky-Devourer
+| Field | Value |               | Field | Value |
+|---|---|                       |---|---|
+| TYPE | Creature |             | TYPE | Creature |
+| ARCHIVE | Doxa |              | ARCHIVE | Nyvilum |
+| HP | 40 |    (facade)         | CHP | 900 |
+| WIL | 14 |
+| INT | 12 |
+```
+Doxa → facade **40**, collapse WIL×8 + ⌊INT/4⌋×12 = **148** (flagged *facade collapses on crit / shock / Null*).
+Nyvilum → **900** CHP, size 6, flagged *colossal* + *regional Tech Level −2.0*. Fractures just need PHY + END.

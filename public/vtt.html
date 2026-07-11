@@ -246,7 +246,7 @@ body.wte-light #statusTip{background:rgba(236,234,229,.97);}
       <div class="row"><input type="text" id="summon-search" placeholder="search bestiary…" oninput="renderSummon()" style="flex:1;"></div>
       <div class="row"><select id="summon-class" onchange="renderSummon()" style="flex:1;">
         <option value="">All classes</option><option value="1">1 · Standard</option><option value="2">2 · Anima</option><option value="3">3 · Alter Anima</option><option value="4">4 · Fracture</option><option value="5">5 · Doxa</option><option value="6">6 · Nyvilum</option>
-      </select><button class="tbtn" onclick="summonFetch(true)" title="Refresh the bestiary from the wiki">&#8635;</button></div>
+      </select><button class="tbtn" onclick="summonFetch(true)" title="Rescan the Codex bestiary">&#8635;</button></div>
       <div id="summon-list" class="summon-list"><div class="empty">Loading bestiary…</div></div>
       <div class="empty" style="font-size:9px;">Drag a creature onto the map to place it, or click to drop at center.</div>
     </div></div>
@@ -857,19 +857,36 @@ function esc(s){return (s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
 // ════════════════════════════════════════════════ QUICK-SUMMON (bestiary in the VTT sidebar)
 // Mirrors the character sheet's Creature Archive so the GM can summon without leaving the VTT.
 // The rules/parsing below are ported from sheet.html — keep the two copies in sync when editing.
-const SUMMON_WIKI='https://wonderland-of-the-enigma.fandom.com';
-const SUMMON_PAGES=[{page:'Creature_Archive_Standard',cls:1},{page:'Creature_Archive_Anima',cls:2},{page:'Creature_Archive_Alter_Anima',cls:3},{page:'Creature_Archive_Fractures',cls:4},{page:'Creature_Archive_Doxa',cls:5},{page:'Creature_Archive_Nyvilum',cls:6}];
+// Phase 6 — the bestiary reads locally-authored Codex creature pages (offline); no external wiki.
+// vtParseCreaturePage MUST stay in sync with parseCodexEntry (creature branch) in src/lib/codexParse.ts.
+const CREATURE_CLASS_ARCHIVE={1:'Standard',2:'Anima',3:'Alter Anima',4:'Fractures',5:'Doxa',6:'Nyvilum'};
+function archiveToClass(a){ a=(a||'').toLowerCase(); if(a.indexOf('alter')>=0)return 3; if(a.indexOf('nyvilum')>=0)return 6; if(a.indexOf('doxa')>=0)return 5; if(a.indexOf('fracture')>=0)return 4; if(a.indexOf('anima')>=0)return 2; return 1; }
 const SUMMON_COLORS={1:'#6b6f7a',2:'#c9a227',3:'#7a4b9a',4:'#8a3a2a',5:'#c33fbf',6:'#20202c'};
 let summonCache=null, _summonLoading=false, _summonDragIdx=null;
-function summonCleanWiki(s){ return (s||'').replace(/<br\s*\/?>/gi,' ').replace(/'''?/g,'').replace(/\[\[[^\]|]*\|([^\]]*)\]\]/g,'$1').replace(/\[\[([^\]]*)\]\]/g,'$1').replace(/<[^>]+>/g,'').replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&mdash;/gi,'—').replace(/&minus;/gi,'−').replace(/\s+/g,' ').trim(); }
-function summonParsePage(wt,cls){ const out=[];
-  String(wt).split(/class="wte-creature"/).slice(1).forEach(chunk=>{
-    const nm=chunk.match(/class="wte-creature-name"[^>]*>([^<]+)</); if(!nm)return;
-    const meta={}; let m; const re=/([A-Z][A-Z_ ]{1,14}):\s*<span[^>]*>([^<]*)<\/span>/g;
-    while((m=re.exec(chunk)))meta[m[1].trim()]=summonCleanWiki(m[2]).trim();
-    const dm=chunk.match(/class="wte-creature-desc"[^>]*>([\s\S]*?)<\/div>/);
-    out.push({name:summonCleanWiki(nm[1]).trim(),cls:parseInt(meta.CLASS)||cls,meta,desc:dm?summonCleanWiki(dm[1]).trim():''});
-  }); return out; }
+function summonCleanWiki(s){ return (s||'').replace(/<br\s*\/?>/gi,' ').replace(/'''?/g,'').replace(/\[\[[^\]|]*\|([^\]]*)\]\]/g,'$1').replace(/\[\[([^\]]*)\]\]/g,'$1').replace(/\*\*/g,'').replace(/<[^>]+>/g,'').replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&mdash;/gi,'—').replace(/&minus;/gi,'−').replace(/\s+/g,' ').trim(); }
+// Read one KEY/VALUE spec line: markdown table | K | V |, **K:** V, or K: value.
+function vtCreatureField(line){
+  let m=line.match(/^\s*\|([^|]+)\|([^|]+)\|\s*$/); if(m){ const k=m[1].trim(); if(/^:?-+:?$/.test(k))return null; return [k,m[2].trim()]; }
+  m=line.match(/^\s*(?:[-*]\s*)?\*\*([^*]+)\*\*:?\s*(.*)$/); if(m)return [m[1].replace(/:\s*$/,'').trim(),m[2].trim()];
+  m=line.match(/^\s*([A-Za-z][A-Za-z _]{1,14}?):[ \t]+(.+)$/); if(m)return [m[1].trim(),m[2].trim()];
+  return null;
+}
+// Parse a Codex .md page into a bestiary entry {name,cls,meta,desc} — or null if it isn't a Creature.
+function vtParseCreaturePage(md,page){
+  const meta={}, abils=[]; let name='', lore='', cur='';
+  String(md||'').replace(/\r\n/g,'\n').replace(/\s*\[\s*\d+(?:\s*,\s*\d+)*\s*\]/g,'').split('\n').forEach(line=>{
+    if(!name){ const h=line.match(/^#{1,4}\s+(.+)$/); if(h){ name=summonCleanWiki(h[1].replace(/^\d+\.\s*/,'')); return; } }
+    const hd=line.match(/^#{2,4}\s+(.+)$/); if(hd){ const l=hd[1].toLowerCase(); cur=l.indexOf('abilit')>=0?'abil':(l.indexOf('lore')>=0||l.indexOf('synopsis')>=0?'lore':''); return; }
+    const ab=line.match(/^\s*[-*]\s*\*\*([^*]+)\*\*\s*[—–:-]\s+(.+)$/); if(ab){ abils.push({name:ab[1].trim(),effect:summonCleanWiki(ab[2])}); return; }
+    if(cur==='lore'){ if(line.trim())lore+=(lore?' ':'')+summonCleanWiki(line); return; }
+    const kv=vtCreatureField(line); if(kv)meta[kv[0].toUpperCase().replace(/\s+/g,' ').trim()]=kv[1];
+  });
+  if((meta.TYPE||'').toLowerCase()!=='creature')return null;
+  const cls=parseInt(meta.CLASS)||archiveToClass(meta.ARCHIVE)||1;
+  if(!meta.ARCHIVE)meta.ARCHIVE=CREATURE_CLASS_ARCHIVE[cls];
+  const desc=(abils.map(a=>a.name+' — '+a.effect).join('. ')+(lore?((abils.length?'. ':'')+lore):'')).trim();
+  return {name:name||page||'Creature',cls,meta,desc};
+}
 function summonComputeCreature(c){ const M=c.meta||{}, num=v=>parseInt(v)||0, mod=v=>Math.floor(num(v)/4); let hp=0,dr=0,flags=[],note='';
   if(c.cls===1){ const mult={GRUNT:5,OPERATIVE:10,ELITE:15,BOSS:25}[(M.RANK||'').toUpperCase()]||5; hp=Math.floor((num(M.OFF)+num(M.DEF)+num(M.SPD)+num(M.WIL))/4)*mult; note=(M.RANK||'Grunt')+' ×'+mult; }
   else if(c.cls===2){ const t=(M.TIER||'Nascent').toUpperCase(); if(t==='APEX'){hp=num(M.DEF)*20;dr=mod(M.DEF)+2;} else if(t==='MANIFESTED'){hp=num(M.DEF)*10;dr=mod(M.DEF);} else {hp=num(M.DEF)*5;dr=0;} flags.push('Immune to psychic/emotional manipulation'); note=(M.TIER||'Nascent')+(M.ANCHOR?(' · '+M.ANCHOR):''); }
@@ -882,14 +899,22 @@ function summonMyCreatures(){ try{return JSON.parse(localStorage.getItem('wte-my
 function summonMerge(wiki){ const locals=summonMyCreatures().map(c=>Object.assign({},c,{local:true})); return locals.concat(wiki||[]); }
 async function summonFetch(force){
   let cached=null; try{ cached=JSON.parse(localStorage.getItem('wte-bestiary-cache')); }catch(e){}
-  summonCache=summonMerge((cached&&cached.wiki)||[]); renderSummon();                    // instant paint from cache
-  const fresh = cached && (Date.now()-(cached.ts||0) < 6*3600*1000) && (cached.wiki||[]).length;
-  if((!force && fresh) || _summonLoading) return;                                         // cache still good → skip network
+  summonCache=summonMerge((cached&&cached.local)||[]); renderSummon();                   // instant paint from cache (also merges customs)
+  const fresh = cached && Array.isArray(cached.local) && (Date.now()-(cached.ts||0) < 5*60*1000);
+  if((!force && fresh) || _summonLoading) return;                                        // recent scan → reuse it
+  if(!window.__TAURI__){ return; }                                                       // bestiary needs the desktop Codex
   _summonLoading=true;
   const all=[];
-  for(const p of SUMMON_PAGES){ try{ const r=await fetch(SUMMON_WIKI+'/api.php?action=parse&prop=wikitext&format=json&origin=*&page='+encodeURIComponent(p.page)); if(!r.ok)continue; const j=await r.json(); if(j.error)continue; all.push(...summonParsePage(j.parse.wikitext['*'],p.cls)); }catch(e){} }
+  try{
+    const pages=await window.__TAURI__.core.invoke('wte_list_pages');
+    for(const p of (pages||[])){
+      try{ const md=await window.__TAURI__.core.invoke('wte_load_page',{path:p}); const c=vtParseCreaturePage(md,p); if(c)all.push(c); }catch(e){}
+    }
+  }catch(e){}
   _summonLoading=false;
-  if(all.length){ try{ localStorage.setItem('wte-bestiary-cache',JSON.stringify({wiki:all,ts:Date.now()})); }catch(e){} summonCache=summonMerge(all); }
+  all.sort((a,b)=>(a.cls-b.cls)||String(a.name).localeCompare(b.name));
+  try{ localStorage.setItem('wte-bestiary-cache',JSON.stringify({local:all,ts:Date.now()})); }catch(e){}
+  summonCache=summonMerge(all);
   renderSummon();
 }
 function renderSummon(){
@@ -898,7 +923,7 @@ function renderSummon(){
   const q=(document.getElementById('summon-search').value||'').toLowerCase();
   const cf=document.getElementById('summon-class').value;
   const list=summonCache.filter(c=>(!cf||String(c.cls)===cf)&&(!q||(c.name||'').toLowerCase().includes(q)||(c.desc||'').toLowerCase().includes(q)));
-  if(!list.length){ box.innerHTML='<div class="empty">'+(summonCache.length?'No creatures match.':'No creatures yet — open the Sheet’s Creature Archive once, or add custom ones.')+'</div>'; return; }
+  if(!list.length){ box.innerHTML='<div class="empty">'+(summonCache.length?'No creatures match.':'No creatures yet — author Creature pages in the Codex, or add custom ones.')+'</div>'; return; }
   box.innerHTML=list.slice(0,150).map(c=>{ const i=summonCache.indexOf(c), k=summonComputeCreature(c);
     return `<div class="summon-item" draggable="true" ondragstart="summonDragStart(event,${i})" onclick="summonSpawnIdx(${i})" title="Drag onto the map, or click to drop at center">
       <span class="snm">${esc(c.name||'Creature')}${c.local?' ✎':''}</span>
@@ -2326,7 +2351,7 @@ if(!(VT&&VT.connected&&role==='player'))setTimeout(openHub,150);   // land on th
 // bring up Firebase + auth so the VTT auto-rejoins your last room once signed in
 if(fbConfig()){ vtEnsureDb().catch(()=>{}); }
 if(window.__TAURI__){ if(assetFolders.length)assetScan(); } else { const ab=document.getElementById('assets-btn'); if(ab)ab.style.display='none'; }
-summonFetch();   // load the bestiary into the Summon sidebar (instant from cache, refreshes from wiki)
+summonFetch();   // load the bestiary into the Summon sidebar (instant from cache, rescans the local Codex)
 
 draw();
 </script>

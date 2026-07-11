@@ -64,16 +64,22 @@ export interface Genus extends CodexBase {
   target?: string;
   limit?: string;
 }
+// WTE creatures span 6 Classes, each with its own stat block + HP/DR math (see
+// docs/CODEX-FORMAT.md and computeCreature in lib/codex). The author writes raw stats;
+// the app derives HP/DR/flags/size. The VTT bestiary reads these same pages offline.
+export type CreatureClass = 1 | 2 | 3 | 4 | 5 | 6;
 export interface Creature {
   type: "creature";
   name: string;
-  archive?: string;
-  size?: string;
-  rank?: number;
-  hp?: number;
-  attack?: number;
-  evasion?: number;
-  movement?: string;
+  cls: CreatureClass; // 1 Standard · 2 Anima · 3 Alter Anima · 4 Fractures · 5 Doxa · 6 Nyvilum
+  archive?: string; // the Class's archive name (Standard/Anima/…)
+  stats: Record<string, number>; // raw combat stats, uppercase keys (OFF/DEF/SPD/WIL/CON/PHY/END/INT/HP/CHP/…)
+  rank?: string; // Class 1: Grunt | Operative | Elite | Boss
+  tier?: string; // Class 2: Nascent | Manifested | Apex
+  anchor?: string; // Class 2 anchor descriptor
+  cl?: number; // Class 3 corruption level
+  size?: number; // grid size in cells (defaults per class: Fractures 2, Nyvilum 6, else 1)
+  traits?: string; // one-line trait summary (feeds the VTT ability roll parser)
   keywords?: string[];
   abilities?: CodexAbility[];
   lore?: string;

@@ -90,3 +90,68 @@ export function clearCodexCache(): void {
 export async function listCreatures(): Promise<Creature[]> {
   return (await scanCodex()).filter((e): e is Creature => e.type === "creature");
 }
+
+// ── Creature derivation (HP/DR/flags/size per Class) ──
+// Faithful port of the VTT's summonComputeCreature (public/vtt.html) — KEEP IN SYNC.
+export interface CreatureDerived {
+  hp: number;
+  dr: number;
+  size: number;
+  note: string;
+  flags: string[];
+  collapsedHP?: number; // Class 5 (Doxa) post-collapse pool
+}
+export function computeCreature(c: Creature): CreatureDerived {
+  const S = c.stats || {};
+  const num = (k: string) => S[k] || 0;
+  const mod = (k: string) => Math.floor(num(k) / 4); // creature stat → modifier (÷4)
+  let hp = 0, dr = 0, note = "";
+  const flags: string[] = [];
+  let collapsedHP: number | undefined;
+  switch (c.cls) {
+    case 1: {
+      const mult = ({ GRUNT: 5, OPERATIVE: 10, ELITE: 15, BOSS: 25 } as Record<string, number>)[(c.rank || "").toUpperCase()] || 5;
+      hp = Math.floor((num("OFF") + num("DEF") + num("SPD") + num("WIL")) / 4) * mult;
+      note = (c.rank || "Grunt") + " ×" + mult;
+      break;
+    }
+    case 2: {
+      const t = (c.tier || "Nascent").toUpperCase();
+      if (t === "APEX") { hp = num("DEF") * 20; dr = mod("DEF") + 2; }
+      else if (t === "MANIFESTED") { hp = num("DEF") * 10; dr = mod("DEF"); }
+      else { hp = num("DEF") * 5; dr = 0; }
+      flags.push("Immune to psychic/emotional manipulation");
+      note = (c.tier || "Nascent") + (c.anchor ? " · " + c.anchor : "");
+      break;
+    }
+    case 3:
+      hp = mod("CON") * 10 + num("DEF") * 5;
+      note = "CL " + (c.cl ?? 1);
+      if ((c.cl || 0) >= 3) flags.push("Human modifiers degraded (CL " + c.cl + ")");
+      break;
+    case 4:
+      hp = num("PHY") * 5 + mod("END") * 15;
+      flags.push(
+        "Primal Instinct: immune to mental deception/hacking; lure with physical distractions/pheromones",
+        "Writhing Biomass: advantage on physical adaptation & natural attacks",
+      );
+      break;
+    case 5: {
+      const fa = num("HP"), col = num("WIL") * 8 + mod("INT") * 12;
+      hp = fa || col; collapsedHP = col;
+      note = "Facade " + (fa || "?") + " → Collapsed " + col;
+      flags.push("Facade collapses on critical damage / emotional shock / Null exposure");
+      break;
+    }
+    case 6:
+      hp = num("CHP");
+      note = "CHP pool · regional TL −2.0";
+      flags.push(
+        "Colossal: conventional combat impossible — deplete CHP via Null-negation barriers / extraction arrays / orbital batteries",
+        "Awakening: regional Tech Level −2.0 — Online ciphers forced offline",
+      );
+      break;
+  }
+  const size = c.size ?? (c.cls === 4 ? 2 : c.cls === 6 ? 6 : 1);
+  return { hp, dr, size, note, flags, collapsedHP };
+}

@@ -6000,7 +6000,7 @@ dependencies = [
 
 [[package]]
 name = "wte-app"
-version = "0.4.26"
+version = "0.4.27"
 dependencies = [
  "open",
  "serde",

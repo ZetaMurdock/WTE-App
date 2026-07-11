@@ -4,7 +4,7 @@
 //    a key/value spec block (markdown table `| K | V |`, HTML table, tab, or `**Field:**`),
 //    then labeled prose sections. `[130]` / `[97, 130]` citation markers are stripped.
 // Pages without a recognized **Type** field return null (kept as pure lore).
-import type { CodexEntry, CodexType, Overclock, CodexAbility } from "../models/codex";
+import type { CodexEntry, CodexType, CreatureClass, Overclock, CodexAbility } from "../models/codex";
 
 const strip = (s: string) => (s || "").replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim();
 const stripCitations = (s: string) => s.replace(/\s*\[\s*\d+(?:\s*,\s*\d+)*\s*\]/g, "");
@@ -17,6 +17,14 @@ const KNOWN_KEYS = new Set([
   "damage", "range", "size min", "ss", "ss cost", "activation", "target", "component",
   "paradigm", "tier", "archive", "size", "rank", "hp", "attack", "evasion", "movement",
   "keywords", "limit",
+  // creature (6-class) fields + stat vocabulary
+  "class", "anchor", "cl", "traits", "chp",
+  "off", "def", "spd", "wil", "con", "phy", "end", "int", "ap", "cha",
+]);
+// Creature stat keys are any numeric spec field that isn't one of these structural fields.
+const CREATURE_NON_STATS = new Set([
+  "type", "name", "class", "archive", "rank", "tier", "anchor", "cl",
+  "traits", "keywords", "size", "grade", "movement", "domain", "category",
 ]);
 const normKey = (k: string) => strip(k).replace(/\*\*/g, "").replace(/:\s*$/, "").replace(/\s+/g, " ").trim().toLowerCase();
 
@@ -71,7 +79,11 @@ function preParse(md: string, name?: string): PreParsed {
     const kv = fieldFromLine(line);
     if (kv && canonSection(kv[0])) { prose.push(line); continue; } // section label — keep for the splitter
     if (isPhaseLine(line)) { prose.push(line); continue; } // overclock phase (often a bulleted **Phase …**)
+    if (/^\s*[-*]\s*\*\*[^*]+\*\*\s*[—–:-]\s+.+$/.test(line)) { prose.push(line); continue; } // ability/list bullet — keep for the Abilities section
     if (kv && KNOWN_KEYS.has(normKey(kv[0]))) { fields[normKey(kv[0])] = strip(kv[1]); continue; }
+    // Retain unknown *markdown-table* rows as fields (e.g. arbitrary creature stats like `| AP | 5 |`).
+    // Table rows are unambiguous structure, so this never swallows prose; bold/tab unknowns stay dropped.
+    if (kv && /^\s*\|/.test(line) && /^[a-z][a-z_ ]{0,14}$/.test(normKey(kv[0]))) { fields[normKey(kv[0])] = strip(kv[1]); continue; }
     if (/^\s*\|/.test(line) || /<\/?t[dr]/i.test(line)) continue; // table structure
     if (kv && (/\t/.test(line) || /^\s*(?:[-*]\s*)?\*\*[^*]+\*\*/.test(line))) continue; // unknown spec row
     prose.push(line);
@@ -132,6 +144,23 @@ function fromBaseAttack(base?: string): { range?: string; damage?: string } {
   return { range: rangeM ? rangeM[0].trim() : undefined, damage };
 }
 
+// Canonical Class ↔ Archive names for the 6-class creature model.
+const CREATURE_ARCHIVES: Record<number, string> = {
+  1: "Standard", 2: "Anima", 3: "Alter Anima", 4: "Fractures", 5: "Doxa", 6: "Nyvilum",
+};
+function creatureClass(clsRaw?: string, archive?: string): CreatureClass {
+  const n = num(clsRaw);
+  if (n && n >= 1 && n <= 6) return n as CreatureClass;
+  const a = (archive || "").toLowerCase();
+  if (a.includes("alter")) return 3; // "Alter Anima" also contains "anima" — check first
+  if (a.includes("nyvilum")) return 6;
+  if (a.includes("doxa")) return 5;
+  if (a.includes("fracture")) return 4;
+  if (a.includes("anima")) return 2;
+  return 1; // Standard (default)
+}
+const creatureSize = (cls: CreatureClass): number => (cls === 4 ? 2 : cls === 6 ? 6 : 1);
+
 // Map a raw TYPE value to a CodexType (+ remember the original as the equipment category).
 function mapType(raw: string): { type: CodexType | null; category?: string } {
   const first = raw.toLowerCase().replace(/[^a-z].*$/, "");
@@ -183,12 +212,22 @@ export function parseCodexEntry(md: string, name?: string): CodexEntry | null {
         type: "genus", name: nm, keywords, effect, domain: fields["domain"], ss: num(fields["ss"] ?? fields["ss cost"]),
         activation: fields["activation"], range: fields["range"], target: fields["target"], limit: fields["limit"],
       };
-    case "creature":
+    case "creature": {
+      const cls = creatureClass(fields["class"], fields["archive"]);
+      const stats: Record<string, number> = {};
+      for (const k in fields) {
+        if (CREATURE_NON_STATS.has(k)) continue;
+        const raw = fields[k].trim();
+        if (/^-?\d+$/.test(raw)) stats[k.toUpperCase()] = parseInt(raw, 10); // pure-numeric spec fields are stats
+      }
       return {
-        type: "creature", name: nm, keywords, archive: fields["archive"], size: fields["size"], rank: num(fields["rank"]),
-        hp: num(fields["hp"]), attack: num(fields["attack"]), evasion: num(fields["evasion"]), movement: fields["movement"],
+        type: "creature", name: nm, keywords, cls,
+        archive: fields["archive"] || CREATURE_ARCHIVES[cls], stats,
+        rank: fields["rank"], tier: fields["tier"], anchor: fields["anchor"], cl: num(fields["cl"]),
+        size: num(fields["size"]) ?? creatureSize(cls), traits: fields["traits"],
         abilities: abilities(sections["abilities"]), lore: sections["lore"] || undefined,
       };
+    }
   }
   return null;
 }
