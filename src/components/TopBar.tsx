@@ -1,16 +1,17 @@
 import type { WteUpdate } from "../lib/tauri";
 
-export type TabId = "dashboard" | "characters" | "sheet" | "vtt" | "wiki" | "lobby";
+export type TabId = "dashboard" | "characters" | "sheet" | "vtt" | "wiki" | "lobby" | "codex";
 
-// The React "Sheet" is now the primary character experience; the legacy sheet.html
-// iframe is demoted to the end as a fallback while the migration finishes.
+// The React "Sheet" and "Codex" are the primary experiences; the legacy iframes
+// are demoted to the end as fallbacks while the migration finishes.
 export const TABS: { id: TabId; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
   { id: "characters", label: "Sheet" },
   { id: "vtt", label: "VTT" },
   { id: "lobby", label: "Lobby" },
-  { id: "wiki", label: "Codex" },
+  { id: "codex", label: "Codex" },
   { id: "sheet", label: "Legacy Sheet" },
+  { id: "wiki", label: "Legacy Codex" },
 ];
 
 interface TopBarProps {

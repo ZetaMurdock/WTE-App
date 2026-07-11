@@ -5,6 +5,7 @@ import { ToolFrame } from "./components/ToolFrame";
 import { CharactersTab } from "./components/characters/CharactersTab";
 import { LobbyView } from "./components/LobbyView";
 import { NetProvider } from "./net/NetContext";
+import { CodexBrowser } from "./components/codex/CodexBrowser";
 import { countCharacters } from "./lib/characters";
 import {
   getVersion,
@@ -227,6 +228,10 @@ export default function App() {
             <LobbyView />
           </div>
         )}
+        {/* Codex stays mounted so its tabs/history survive switching away */}
+        <div className={"view-scroll" + (activeTab !== "codex" ? " hidden" : "")}>
+          <CodexBrowser />
+        </div>
         <ToolFrame src="sheet.html" title="Character Sheet" hidden={activeTab !== "sheet"} />
         <ToolFrame src="vtt.html" title="VTT" hidden={activeTab !== "vtt"} />
         <ToolFrame src="wiki.html" title="Codex" hidden={activeTab !== "wiki"} />
