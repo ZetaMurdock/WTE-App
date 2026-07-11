@@ -4,6 +4,7 @@ import { renderCodexHtml, pageTitle } from "../../lib/md";
 import { parseCodexEntry } from "../../lib/codexParse";
 import { computeCreature } from "../../lib/codex";
 import type { CodexEntry, Creature } from "../../models/codex";
+import { AxisWheel } from "./AxisWheel";
 
 // The new Codex: a browser built solely for W.T.E (Remaster slice 1 — the usable
 // shell: tabs, wte:// address bar, history, search, bookmarks, recents, reader).
@@ -39,8 +40,9 @@ const VTT_CLASS_COLORS: Record<number, string> = {
 const TYPE_CHIPS = ["All", "Creature", "Weapon", "Equipment", "Cipher", "Genus"];
 
 function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  return (window as unknown as { __TAURI__: { core: { invoke: (c: string, a?: Record<string, unknown>) => Promise<T> } } })
-    .__TAURI__.core.invoke(cmd, args);
+  const w = window as unknown as { __TAURI__?: { core: { invoke: (c: string, a?: Record<string, unknown>) => Promise<T> } } };
+  if (!w.__TAURI__) return Promise.reject(new Error("The archive needs the desktop app."));
+  return w.__TAURI__.core.invoke(cmd, args);
 }
 const uid = () => "t" + Math.random().toString(36).slice(2, 9);
 const load = <T,>(key: string, fallback: T): T => {
@@ -78,6 +80,13 @@ export function CodexBrowser() {
   const [pages, setPages] = useState<string[]>([]);
   const [homeFilter, setHomeFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
+  const [homeMode, setHomeMode] = useState<"wheel" | "index">(() => {
+    try {
+      return localStorage.getItem("wte-cdx-homemode") === "index" ? "index" : "wheel";
+    } catch {
+      return "wheel";
+    }
+  });
   const [scanState, setScanState] = useState<"idle" | "scanning" | "done">("idle");
   const [spawnNote, setSpawnNote] = useState("");
   const typeMap = useRef<Map<string, string> | null>(null);
@@ -89,6 +98,21 @@ export function CodexBrowser() {
   useEffect(() => {
     if (isTauri()) invoke<string[]>("wte_list_pages").then(setPages).catch(() => setPages([]));
   }, []);
+
+  // Calibrate the wheel's constellation counts in the background once records list.
+  useEffect(() => {
+    if (pages.length && isTauri()) void ensureTypeScan();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pages]);
+
+  function setMode(m: "wheel" | "index") {
+    setHomeMode(m);
+    try {
+      localStorage.setItem("wte-cdx-homemode", m);
+    } catch {
+      /* ignore */
+    }
+  }
 
   const retitle = useCallback((tabId: string, title: string) => {
     setTabs((ts) => ts.map((t) => (t.id === tabId ? { ...t, title } : t)));
@@ -250,14 +274,6 @@ export function CodexBrowser() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pages, homeFilter, typeFilter, scanState]);
 
-  if (!isTauri()) {
-    return (
-      <div className="dashboard">
-        <p className="list-empty">The Codex needs the desktop app (local archive).</p>
-      </div>
-    );
-  }
-
   return (
     <div className="cdx">
       <div className="cdx-tabstrip">
@@ -312,8 +328,39 @@ export function CodexBrowser() {
       </div>
 
       <div className="cdx-body">
-        {view.kind === "home" && (
+        {view.kind === "home" && homeMode === "wheel" && (
+          <div className="axis-home">
+            <AxisWheel
+              pageCount={pages.length}
+              typeMap={typeMap.current}
+              scanning={scanState === "scanning"}
+              marks={marks}
+              recents={recents}
+              onOpenType={(chip) => {
+                setTypeFilter(chip);
+                setMode("index");
+                if (chip !== "All") void ensureTypeScan();
+              }}
+              onOpenIndex={() => setMode("index")}
+              onOpen={(u) => navigate(u)}
+            />
+            <div className="cdx-mode">
+              <button className="chip active">Archive</button>
+              <button className="chip" onClick={() => setMode("index")}>
+                Index
+              </button>
+            </div>
+          </div>
+        )}
+
+        {view.kind === "home" && homeMode === "index" && (
           <div className="cdx-home">
+            <div className="cdx-mode inline">
+              <button className="chip" onClick={() => setMode("wheel")}>
+                Archive
+              </button>
+              <button className="chip active">Index</button>
+            </div>
             <div className="cdx-home-head">
               <div className="cdx-home-brand">W.T.E CODEX</div>
               <div className="cdx-home-sub">archive of the Wonderland — {pages.length} records sealed</div>

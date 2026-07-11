@@ -2128,3 +2128,233 @@ body {
   padding: 8px 12px;
   margin-bottom: 14px;
 }
+
+/* ── Axis Wheel — the Codex Archive View (Remaster slice 3) ── */
+.axis-home {
+  position: relative;
+  height: 100%;
+  min-height: 540px;
+  overflow: hidden;
+}
+.cdx-mode {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  z-index: 5;
+}
+.cdx-mode.inline {
+  position: static;
+  transform: none;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+.axis-wrap {
+  position: relative;
+  height: 100%;
+}
+.axis-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.axis-stars circle {
+  fill: #cdd6ea;
+}
+.axis-line {
+  fill: none;
+  stroke: var(--panel-line);
+  stroke-width: 1;
+}
+.axis-line.dash {
+  stroke-dasharray: 3 8;
+}
+.axis-line.faint {
+  opacity: 0.55;
+}
+.axis-tick {
+  stroke: var(--muted);
+  stroke-width: 1;
+  opacity: 0.45;
+}
+.axis-ring {
+  transform-origin: 0 0;
+}
+.axis-ring.rot-a {
+  animation: axis-rot 180s linear infinite;
+}
+.axis-ring.rot-b {
+  animation: axis-rot-rev 120s linear infinite;
+}
+@keyframes axis-rot {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes axis-rot-rev {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+.axis-core {
+  cursor: pointer;
+  animation: axis-cal 1.5s ease-out;
+  transform-origin: 0 0;
+}
+@keyframes axis-cal {
+  from {
+    opacity: 0;
+    transform: scale(0.94) rotate(-6deg);
+  }
+}
+.axis-core-disc {
+  fill: rgba(10, 15, 28, 0.88);
+  stroke: var(--panel-line);
+}
+.axis-core:hover .axis-core-disc {
+  stroke: var(--accent);
+}
+.axis-core-title {
+  fill: var(--ink);
+  font-family: Georgia, serif;
+  font-size: 21px;
+  letter-spacing: 9px;
+  text-anchor: middle;
+}
+.axis-core-sub {
+  fill: var(--muted);
+  font-family: Consolas, monospace;
+  font-size: 8.5px;
+  letter-spacing: 2px;
+  text-anchor: middle;
+}
+.axis-node {
+  cursor: pointer;
+  animation: axis-fade 1.4s ease-out;
+}
+@keyframes axis-fade {
+  from {
+    opacity: 0;
+  }
+}
+.axis-spoke {
+  stroke: var(--panel-line);
+  stroke-width: 1;
+  opacity: 0.65;
+}
+.axis-node-disc {
+  fill: rgba(10, 15, 28, 0.92);
+  stroke: var(--accent);
+  stroke-width: 1;
+  transition: stroke-width 0.3s;
+}
+.axis-node-halo {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1;
+  opacity: 0;
+  transition: opacity 0.35s;
+}
+.axis-node.on .axis-node-halo {
+  opacity: 0.4;
+}
+.axis-node.on .axis-node-disc {
+  stroke-width: 1.6;
+}
+.axis-node-count {
+  fill: var(--ink);
+  font-family: Georgia, serif;
+  font-size: 13px;
+  text-anchor: middle;
+}
+.axis-node-label {
+  fill: var(--bone);
+  font-family: Georgia, serif;
+  font-size: 9.5px;
+  letter-spacing: 2.5px;
+  text-anchor: middle;
+}
+.axis-node.on .axis-node-label {
+  fill: var(--ink);
+}
+.axis-star {
+  cursor: pointer;
+}
+.axis-star-dot {
+  fill: var(--accent);
+}
+.axis-star-halo {
+  fill: none;
+  stroke: var(--accent);
+  opacity: 0.22;
+}
+.axis-star.mark .axis-star-dot,
+.axis-star.mark .axis-star-halo {
+  fill: var(--violet);
+  stroke: var(--violet);
+}
+.axis-star.mark .axis-star-halo {
+  fill: none;
+}
+.axis-star-label {
+  fill: var(--muted);
+  font-family: Georgia, serif;
+  font-size: 10px;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.axis-star:hover .axis-star-label {
+  opacity: 1;
+  fill: var(--bone);
+}
+.axis-preview {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  width: 250px;
+  background: rgba(10, 15, 28, 0.92);
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  padding: 13px 15px;
+  pointer-events: none;
+}
+.axis-preview-head {
+  font-size: 11px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+.axis-preview ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.axis-preview li {
+  font-size: 12px;
+  color: var(--bone);
+  padding: 3px 0;
+  border-bottom: 1px dotted var(--panel-line);
+}
+.axis-preview-note {
+  font-size: 12px;
+  color: var(--muted);
+  font-style: italic;
+  margin: 0;
+}
+.axis-preview-foot {
+  font-family: Consolas, monospace;
+  font-size: 8.5px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 10px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .axis-ring.rot-a,
+  .axis-ring.rot-b {
+    animation: none;
+  }
+}
