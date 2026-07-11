@@ -45,6 +45,8 @@ function parseSheet(raw: string | null): CharacterSheet {
       equipment: Array.isArray(p.equipment) ? p.equipment : [],
       genusLoadout: Array.isArray(p.genusLoadout) ? p.genusLoadout : [],
       cipherLoadout: Array.isArray(p.cipherLoadout) ? p.cipherLoadout : [],
+      weaponLoadout: Array.isArray(p.weaponLoadout) ? p.weaponLoadout : [],
+      gearLoadout: Array.isArray(p.gearLoadout) ? p.gearLoadout : [],
       ssSpent: typeof p.ssSpent === "number" ? p.ssSpent : 0,
       notes: p.notes || "",
     };

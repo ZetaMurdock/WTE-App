@@ -325,6 +325,16 @@ export function aggregateEquip(items?: EquipmentItem[]): EquipMods {
   });
   return out;
 }
+/** Sum several EquipMods bonus maps into one (equipment + weapon + gear mods). */
+export function mergeMods(...parts: EquipMods[]): EquipMods {
+  const out: EquipMods = { attr: {}, spec: {}, derived: {} };
+  for (const m of parts) {
+    for (const k in m.attr) out.attr[k as AttrKey] = (out.attr[k as AttrKey] || 0) + (m.attr[k as AttrKey] || 0);
+    for (const k in m.spec) out.spec[k as SpecKey] = (out.spec[k as SpecKey] || 0) + (m.spec[k as SpecKey] || 0);
+    for (const k in m.derived) out.derived[k as DerivedKey] = (out.derived[k as DerivedKey] || 0) + (m.derived[k as DerivedKey] || 0);
+  }
+  return out;
+}
 export function sizeIndexOf(sizeId: string | undefined, speciesId?: string): number {
   const key = !sizeId || sizeId === "auto" ? SPECIES_SIZE[speciesId || ""] || "moderate" : sizeId;
   const i = SIZE_CLASSES.findIndex((s) => s.key === key);

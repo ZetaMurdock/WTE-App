@@ -1359,3 +1359,63 @@ body {
   text-transform: uppercase;
   color: var(--accent);
 }
+.use-row:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.use-mods {
+  font-size: 10px;
+  color: var(--muted);
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Loadout panel (weapons + gear browse) ── */
+.nc-budget {
+  font-size: 12px;
+  color: var(--bone);
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  letter-spacing: 1px;
+}
+.nc-budget.over {
+  color: #d05a44;
+  border-color: #b03020;
+}
+.browse {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 10px 12px;
+}
+.browse .use-list {
+  max-height: 260px;
+  overflow-y: auto;
+}
+.overclock-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 6px 0;
+}
+.oc-locked {
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+  margin: 6px 0;
+}
+.resolve-effect.oc {
+  border-top: 1px solid var(--panel-line);
+  padding-top: 8px;
+  color: var(--accent);
+}
+.chip.accent {
+  border-color: var(--accent);
+  color: var(--accent);
+  align-self: flex-start;
+}

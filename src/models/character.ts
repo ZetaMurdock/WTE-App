@@ -30,6 +30,9 @@ export interface CharacterSheet {
   /** Selected genus / cipher ability names (loadout, capped by rank slots). */
   genusLoadout?: string[];
   cipherLoadout?: string[];
+  /** Equipped weapon / gear names from the baked Codex catalogs. */
+  weaponLoadout?: string[];
+  gearLoadout?: string[];
   /** Synaptic Space spent (current SS = derived SS − ssSpent); reset by Rest. */
   ssSpent?: number;
   notes?: string;

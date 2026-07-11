@@ -11,6 +11,7 @@ import {
   effectiveAttributes,
   effectiveSpecialties,
   aggregateEquip,
+  mergeMods,
   computeDerived,
   sizeOf,
   rollGeneric,
@@ -38,6 +39,7 @@ import { SpeciesVariantsPanel } from "./SpeciesVariantsPanel";
 import { EquipmentPanel } from "./EquipmentPanel";
 import { AbilitiesPanel } from "./AbilitiesPanel";
 import { ActionsRail } from "./ActionsRail";
+import { loadoutMods, loadoutNC, weaponSlotsUsed, WEAPON_SLOTS } from "../../lib/codex";
 
 interface Props {
   characterId: string;
@@ -92,7 +94,9 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
 
   const sheet = rec.sheet;
   const rank = sheet.rank ?? 0;
-  const equip = aggregateEquip(sheet.equipment);
+  const weaponLoadout = sheet.weaponLoadout ?? [];
+  const gearLoadout = sheet.gearLoadout ?? [];
+  const equip = mergeMods(aggregateEquip(sheet.equipment), loadoutMods(weaponLoadout, gearLoadout));
   const eff = effectiveAttributes(sheet.attributes, sheet.speciesId, bgBonuses(sheet.background), equip.attr);
   const effSpec = effectiveSpecialties(sheet.specialties, equip.spec);
   const remaining = specialtyRemaining(sheet.specialties);
@@ -105,6 +109,9 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   });
   const maxSS = derived.ss;
   const ssSpent = sheet.ssSpent ?? 0;
+  const maxNC = derived.nc;
+  const ncUsed = loadoutNC(weaponLoadout, gearLoadout);
+  const slotsUsed = weaponSlotsUsed(weaponLoadout);
   const validation = validateSheet(sheet.attributes, sheet.specialties);
   const species = getSpecies(sheet.speciesId);
   const paradigm = getParadigm(sheet.paradigmId);
@@ -141,6 +148,12 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   function setEquipment(items: EquipmentItem[]) {
     persist({ ...rec!, sheet: { ...sheet, equipment: items } });
   }
+  function setWeapons(names: string[]) {
+    persist({ ...rec!, sheet: { ...sheet, weaponLoadout: names } });
+  }
+  function setGear(names: string[]) {
+    persist({ ...rec!, sheet: { ...sheet, gearLoadout: names } });
+  }
   function setGenus(names: string[]) {
     persist({ ...rec!, sheet: { ...sheet, genusLoadout: names } });
   }
@@ -173,7 +186,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
             Abilities
           </button>
           <button className="ghost-btn" onClick={() => setEquipmentOpen(true)}>
-            Equipment & Size
+            Loadout & Size
           </button>
           <button className="ghost-btn" onClick={() => setVariantsOpen(true)}>
             Species Variants
@@ -220,6 +233,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
           variantOption={sheet.variantOption}
           genusLoadout={sheet.genusLoadout ?? []}
           cipherLoadout={sheet.cipherLoadout ?? []}
+          weaponLoadout={weaponLoadout}
           maxSS={maxSS}
           ssSpent={ssSpent}
           onSpend={spendSS}
@@ -347,11 +361,20 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
         open={equipmentOpen}
         onClose={() => setEquipmentOpen(false)}
         speciesId={sheet.speciesId}
+        paradigmId={sheet.paradigmId}
         sizeId={sheet.sizeId}
         equipment={sheet.equipment}
+        weaponLoadout={weaponLoadout}
+        gearLoadout={gearLoadout}
+        maxNC={maxNC}
+        ncUsed={ncUsed}
+        slotsUsed={slotsUsed}
+        slotsMax={WEAPON_SLOTS}
         curator={curator}
         onSize={setSize}
         onEquipment={setEquipment}
+        onWeapons={setWeapons}
+        onGear={setGear}
       />
       <SpeciesVariantsPanel
         open={variantsOpen}

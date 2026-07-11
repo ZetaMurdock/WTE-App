@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Collapsible } from "../ui/Collapsible";
 import { usableGenus, usableCiphers, usableRacial, type UsableAbility } from "../../game/wte";
+import { getWeapon, weaponDomainsMet } from "../../lib/codex";
+import type { Weapon } from "../../models/codex";
 
 interface Props {
   paradigmId?: string;
@@ -9,6 +11,7 @@ interface Props {
   variantOption?: string;
   genusLoadout: string[];
   cipherLoadout: string[];
+  weaponLoadout: string[];
   maxSS: number;
   ssSpent: number;
   onSpend: (cost: number) => void;
@@ -16,10 +19,9 @@ interface Props {
   onRoll: (label: string) => void;
 }
 
-interface Active {
-  ability: UsableAbility;
-  spent: number;
-}
+type Active =
+  | { kind: "ability"; ability: UsableAbility; spent: number }
+  | { kind: "weapon"; weapon: Weapon };
 
 export function ActionsRail({
   paradigmId,
@@ -28,6 +30,7 @@ export function ActionsRail({
   variantOption,
   genusLoadout,
   cipherLoadout,
+  weaponLoadout,
   maxSS,
   ssSpent,
   onSpend,
@@ -36,21 +39,31 @@ export function ActionsRail({
 }: Props) {
   const [active, setActive] = useState<Active | null>(null);
   const [target, setTarget] = useState("");
+  const [ocOpen, setOcOpen] = useState(false);
 
   const currentSS = maxSS - ssSpent;
   const genus = usableGenus(paradigmId, genusLoadout);
   const ciphers = usableCiphers(paradigmId, cipherLoadout);
   const racial = usableRacial(speciesId, variantName, variantOption);
+  const weapons = weaponLoadout.map((n) => getWeapon(n)).filter((w): w is Weapon => !!w);
+  const activeWeapon = active?.kind === "weapon" ? active.weapon : null;
+  const weaponDomainOk = activeWeapon ? weaponDomainsMet(activeWeapon.domain, paradigmId) : false;
 
-  function use(ab: UsableAbility) {
+  function useAbility(ab: UsableAbility) {
     if (ab.ss > 0) onSpend(ab.ss);
-    setActive({ ability: ab, spent: ab.ss });
+    setActive({ kind: "ability", ability: ab, spent: ab.ss });
     setTarget("");
+    setOcOpen(false);
+  }
+  function useWeapon(w: Weapon) {
+    setActive({ kind: "weapon", weapon: w });
+    setTarget("");
+    setOcOpen(false);
   }
 
-  function row(ab: UsableAbility, i: number) {
+  function abilityRow(ab: UsableAbility, i: number) {
     return (
-      <button key={ab.source + ab.name + i} className="use-row" onClick={() => use(ab)}>
+      <button key={ab.source + ab.name + i} className="use-row" onClick={() => useAbility(ab)}>
         <span className="use-name">{ab.name}</span>
         {ab.ss > 0 ? <span className="ss-badge">{ab.ss} SS</span> : null}
         <span className="use-go">Use</span>
@@ -59,6 +72,7 @@ export function ActionsRail({
   }
 
   const pct = maxSS > 0 ? Math.max(0, Math.min(100, (currentSS / maxSS) * 100)) : 0;
+  const rollLabel = (name: string) => onRoll(`${name}${target ? " → " + target : ""}`);
 
   return (
     <div className="actions-rail">
@@ -77,7 +91,7 @@ export function ActionsRail({
         </button>
       </div>
 
-      {active && (
+      {active?.kind === "ability" && (
         <div className="resolve-card">
           <div className="resolve-head">
             <span className="resolve-name">{active.ability.name}</span>
@@ -90,40 +104,67 @@ export function ActionsRail({
             {active.ability.target ? <span>Target · {active.ability.target}</span> : null}
             {active.ability.activation ? <span>Activation · {active.ability.activation}</span> : null}
           </div>
-          <input
-            className="bg-select full"
-            placeholder="Target…"
-            value={target}
-            onChange={(e) => setTarget(e.target.value)}
-          />
+          <input className="bg-select full" placeholder="Target…" value={target} onChange={(e) => setTarget(e.target.value)} />
           <div className="resolve-actions">
-            <button
-              className="roll-btn"
-              onClick={() => onRoll(`${active.ability.name}${target ? " → " + target : ""}`)}
-            >
-              Roll d20
-            </button>
-            <button className="ghost-btn" onClick={() => setActive(null)}>
-              Clear
-            </button>
+            <button className="roll-btn" onClick={() => rollLabel(active.ability.name)}>Roll d20</button>
+            <button className="ghost-btn" onClick={() => setActive(null)}>Clear</button>
           </div>
         </div>
       )}
 
-      <Collapsible defaultOpen title={`Genus (${genus.length})`}>
-        <div className="use-list">
-          {genus.length ? genus.map(row) : <p className="list-empty">None in loadout.</p>}
+      {activeWeapon && (
+        <div className="resolve-card">
+          <div className="resolve-head">
+            <span className="resolve-name">{activeWeapon.name}</span>
+            <span className="resolve-src">weapon</span>
+          </div>
+          {activeWeapon.effect ? <p className="resolve-effect">{activeWeapon.effect}</p> : null}
+          <div className="resolve-meta">
+            {activeWeapon.damage ? <span>Damage · {activeWeapon.damage}</span> : null}
+            {activeWeapon.range ? <span>Range · {activeWeapon.range}</span> : null}
+          </div>
+          <input className="bg-select full" placeholder="Target…" value={target} onChange={(e) => setTarget(e.target.value)} />
+          {activeWeapon.ede && activeWeapon.overclock ? (
+            weaponDomainOk ? (
+              <div className="overclock-block">
+                <button className="chip accent" onClick={() => setOcOpen((o) => !o)}>
+                  {ocOpen ? "Hide Overclock" : "Overclock"}
+                </button>
+                {ocOpen ? <p className="resolve-effect oc">{activeWeapon.overclock.text}</p> : null}
+              </div>
+            ) : (
+              <div className="oc-locked">Overclock locked — needs {activeWeapon.domain}</div>
+            )
+          ) : null}
+          <div className="resolve-actions">
+            <button className="roll-btn" onClick={() => rollLabel(`${activeWeapon.name} attack`)}>Roll d20</button>
+            <button className="ghost-btn" onClick={() => setActive(null)}>Clear</button>
+          </div>
         </div>
+      )}
+
+      {weapons.length > 0 && (
+        <Collapsible defaultOpen title={`Weapons (${weapons.length})`}>
+          <div className="use-list">
+            {weapons.map((w) => (
+              <button key={w.name} className="use-row" onClick={() => useWeapon(w)}>
+                <span className="use-name">{w.name}</span>
+                {w.damage ? <span className="ss-badge">{w.damage}</span> : null}
+                <span className="use-go">Use</span>
+              </button>
+            ))}
+          </div>
+        </Collapsible>
+      )}
+
+      <Collapsible defaultOpen title={`Genus (${genus.length})`}>
+        <div className="use-list">{genus.length ? genus.map(abilityRow) : <p className="list-empty">None in loadout.</p>}</div>
       </Collapsible>
       <Collapsible defaultOpen title={`Ciphers (${ciphers.length})`}>
-        <div className="use-list">
-          {ciphers.length ? ciphers.map(row) : <p className="list-empty">None in loadout.</p>}
-        </div>
+        <div className="use-list">{ciphers.length ? ciphers.map(abilityRow) : <p className="list-empty">None in loadout.</p>}</div>
       </Collapsible>
       <Collapsible title={`Racial (${racial.length})`}>
-        <div className="use-list">
-          {racial.length ? racial.map(row) : <p className="list-empty">No racial abilities.</p>}
-        </div>
+        <div className="use-list">{racial.length ? racial.map(abilityRow) : <p className="list-empty">No racial abilities.</p>}</div>
       </Collapsible>
     </div>
   );
