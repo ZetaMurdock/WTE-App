@@ -2,7 +2,7 @@
 // re-dispatches wire events to React subscribers, so any part of the app — the
 // character sheet, the lobby, later the VTT — can broadcast and listen without
 // touching the transport. See docs/NETPLAY.md.
-import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { WebRtcTransport } from "./webrtc";
 import { NetSession } from "./session";
 import { getNetConfig, buildIceServers } from "./netconfig";
@@ -102,6 +102,33 @@ export function NetProvider({ children }: { children: ReactNode }) {
     setPeers([]);
     setRoom("");
   }, []);
+
+  // Bridge for the legacy tool iframes (same-origin): the VTT reads
+  // window.parent.wteNet to ride the P2P room for map/token sync.
+  const liveRef = useRef({ status, role, room, selfId });
+  liveRef.current = { status, role, room, selfId };
+  useEffect(() => {
+    const w = window as unknown as { wteNet?: unknown };
+    w.wteNet = {
+      get status() {
+        return liveRef.current.status;
+      },
+      get role() {
+        return liveRef.current.role;
+      },
+      get room() {
+        return liveRef.current.room;
+      },
+      get selfId() {
+        return liveRef.current.selfId;
+      },
+      publish,
+      subscribe,
+    };
+    return () => {
+      delete w.wteNet;
+    };
+  }, [publish, subscribe]);
 
   const api: NetApi = {
     status,

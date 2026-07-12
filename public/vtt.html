@@ -2278,13 +2278,21 @@ function applyRoleUI(){
   if(role==='player'&&['token','wall','light'].includes(tool))setTool('select');
   renderProps();
 }
-function syncMap(force){ if(!(VT.connected&&role==='gm'))return; clearTimeout(VT._mapT); VT._mapT=setTimeout(()=>{
-  try{ const p=VT.ref.child('map').set(JSON.parse(JSON.stringify(map)));
+// Map sync rides Firebase (legacy) AND/OR the app's P2P room (window.parent.wteNet).
+function syncMap(force){ if(!((VT.connected||vtP2P())&&role==='gm'))return; clearTimeout(VT._mapT); VT._mapT=setTimeout(()=>{
+  const payload=JSON.parse(JSON.stringify(map));
+  if(VT.connected&&VT.ref){ try{ const p=VT.ref.child('map').set(payload);
     if(p&&p.catch)p.catch(e=>{ toast('Map failed to sync to players: '+((e&&e.message)||'too large?')); addVtLog('SYNC ERROR: '+((e&&e.message)||'map rejected — likely too large')); });
-  }catch(e){ toast('Map failed to sync: '+((e&&e.message)||e)); }
+  }catch(e){ toast('Map failed to sync: '+((e&&e.message)||e)); } }
+  const n=vtP2P(); if(n){ try{ n.publish({t:'vtt-patch',scope:'map',patch:payload,rev:Date.now()}); }catch(e){} }
 }, force?0:350); }
-function pushTokenPos(t){ if(VT.connected&&(role==='gm'||ownedByMe(t))){ try{VT.ref.child('tokenPos/'+t.id).set({x:t.x,y:t.y});}catch(e){} } }
-function doPing(p){ if(VT.connected){ try{VT.ref.child('ping').set({x:p.x,y:p.y,by:myName,ts:Date.now()});}catch(e){} } else { pings.push({x:p.x,y:p.y,by:myName,ts:Date.now()}); } render(); }
+function pushTokenPos(t){ const can=(role==='gm'||ownedByMe(t));
+  if(VT.connected&&can){ try{VT.ref.child('tokenPos/'+t.id).set({x:t.x,y:t.y});}catch(e){} }
+  const n=vtP2P(); if(n&&can){ try{ n.publish({t:'vtt-patch',scope:'tokenPos',patch:{id:t.id,x:t.x,y:t.y},rev:Date.now()}); }catch(e){} } }
+function doPing(p){ let sent=false;
+  if(VT.connected){ try{VT.ref.child('ping').set({x:p.x,y:p.y,by:myName,ts:Date.now()});sent=true;}catch(e){} }
+  const n=vtP2P(); if(n){ try{ n.publish({t:'vtt-patch',scope:'ping',patch:{x:p.x,y:p.y,by:myName},rev:Date.now()});sent=true; }catch(e){} }
+  if(!sent||!VT.connected){ pings.push({x:p.x,y:p.y,by:myName,ts:Date.now()}); } render(); }
 
 // ════════════════════════════════════════════════ INIT
 let _hadScenes=scenesLoad();
@@ -2351,6 +2359,37 @@ if(!(VT&&VT.connected&&role==='player'))setTimeout(openHub,150);   // land on th
 // bring up Firebase + auth so the VTT auto-rejoins your last room once signed in
 if(fbConfig()){ vtEnsureDb().catch(()=>{}); }
 if(window.__TAURI__){ if(assetFolders.length)assetScan(); } else { const ab=document.getElementById('assets-btn'); if(ab)ab.style.display='none'; }
+// ════════════════════════════════════════════════ P2P TABLE (Phase 7b slice 4b)
+// When the app shell has an active netplay room (window.parent.wteNet), the VTT
+// links to it: the host's map + token moves + pings ride vtt-patch messages over
+// the WebRTC data channels — no Firebase needed. Firebase stays as a parallel path.
+let _p2pOn=false, _p2pUnsubs=[];
+function vtP2P(){ try{ const n=window.parent&&window.parent.wteNet; return (n&&n.status==='connected')?n:null; }catch(e){ return null; } }
+function p2pApplyMap(m){ if(role!=='player'||!m)return;
+  const sceneChanged=m.sceneId&&map&&m.sceneId!==map.sceneId;
+  const apply=()=>{ map=Object.assign(blankMap(),m); normalizeMap(); setBgImg(map.bg.src); ensureExplored(); syncControls(); renderLayers(); render();
+    if(!VT._centered){ const mine=map.tokens.find(ownedByMe); if(mine){ view.panX=cv.width/2-mine.x*view.zoom; view.panY=cv.height/2-mine.y*view.zoom; VT._centered=true; render(); } } };
+  if(sceneChanged) playSceneTransition(m.sceneFx||sceneFxType(), apply); else apply();
+}
+function p2pAttach(){
+  const n=vtP2P();
+  if(!n){ if(_p2pOn){ _p2pOn=false; _p2pUnsubs.forEach(u=>{try{u();}catch(e){}}); _p2pUnsubs=[]; addVtLog('P2P TABLE: unlinked'); } return; }
+  if(_p2pOn)return;
+  _p2pOn=true;
+  role=(n.role==='host')?'gm':'player'; if(typeof applyRoleUI==='function')applyRoleUI();
+  _p2pUnsubs.push(n.subscribe('vtt-patch',(m)=>{ try{
+    if(m.scope==='map') p2pApplyMap(m.patch);
+    else if(m.scope==='tokenPos'){ const t=byId('token',m.patch.id); if(t&&!(drag&&drag.id===m.patch.id)){ t.x=m.patch.x; t.y=m.patch.y; render(); } }
+    else if(m.scope==='ping'){ pings.push({x:m.patch.x,y:m.patch.y,by:m.patch.by||'?',ts:Date.now()}); render(); }
+    else if(m.scope==='request-snapshot'&&role==='gm'){ syncMap(true); }
+    else if(m.scope==='log'){ addVtLog(String(m.patch||'')); }
+  }catch(e){} }));
+  if(role==='player'){ try{ n.publish({t:'vtt-patch',scope:'request-snapshot',patch:null,rev:0}); }catch(e){} }
+  addVtLog('P2P TABLE: linked to room '+(n.room||'?')+' as '+role.toUpperCase());
+  toast('P2P table linked · '+(n.room||''));
+}
+setInterval(p2pAttach,2000); p2pAttach();
+
 summonFetch();   // load the bestiary into the Summon sidebar (instant from cache, rescans the local Codex)
 
 draw();
