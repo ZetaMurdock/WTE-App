@@ -2924,3 +2924,107 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ── VTT v2 (Pixi renderer + React chrome) ── */
+.vtt2 {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+.vtt2-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--panel-line);
+  flex: 0 0 auto;
+}
+.vtt2-brand {
+  font-size: 10px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-right: 8px;
+}
+.vtt2-hint {
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+  margin-left: 8px;
+}
+.vtt2-scene-name {
+  background: var(--bg);
+  border: 1px solid var(--panel-line);
+  border-radius: 5px;
+  color: var(--ink);
+  font-family: Georgia, serif;
+  font-size: 12px;
+  padding: 5px 10px;
+  width: 220px;
+}
+.vtt2-scene-name:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.vtt2-meta {
+  font-family: Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--muted);
+}
+.vtt2-stage {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 40% 30%, #0a1122 0%, var(--bg) 65%);
+}
+.vtt2-stage canvas {
+  position: absolute;
+  inset: 0;
+}
+.vtt2-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: var(--muted);
+  font-style: italic;
+}
+.vtt2-inspector {
+  position: absolute;
+  top: 54px;
+  right: 12px;
+  width: 230px;
+  background: rgba(12, 18, 32, 0.95);
+  border: 1px solid var(--panel-line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  z-index: 10;
+}
+.vtt2-insp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.vtt2-hp-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+.vtt2-sandbox-note {
+  position: absolute;
+  bottom: 10px;
+  left: 12px;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  font-style: italic;
+  z-index: 5;
+}

@@ -1,13 +1,15 @@
 import type { WteUpdate } from "../lib/tauri";
 
-export type TabId = "dashboard" | "characters" | "sheet" | "vtt" | "wiki" | "lobby" | "codex";
+export type TabId = "dashboard" | "characters" | "sheet" | "vtt" | "wiki" | "lobby" | "codex" | "vtt2";
 
 // The React "Sheet" and "Codex" are the primary experiences; the legacy iframes
-// are demoted to the end as fallbacks while the migration finishes.
+// are demoted to the end as fallbacks while the migration finishes. VTT v2 is
+// built beside the legacy VTT until it reaches parity.
 export const TABS: { id: TabId; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
   { id: "characters", label: "Sheet" },
   { id: "vtt", label: "VTT" },
+  { id: "vtt2", label: "VTT v2" },
   { id: "lobby", label: "Lobby" },
   { id: "codex", label: "Codex" },
   { id: "sheet", label: "Legacy Sheet" },

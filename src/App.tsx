@@ -6,6 +6,8 @@ import { CharactersTab } from "./components/characters/CharactersTab";
 import { LobbyView } from "./components/LobbyView";
 import { NetProvider } from "./net/NetContext";
 import { CodexBrowser } from "./components/codex/CodexBrowser";
+import { VttScreen } from "./vtt/VttScreen";
+import { Boundary } from "./components/ui/Boundary";
 import { countCharacters } from "./lib/characters";
 import {
   getVersion,
@@ -231,6 +233,12 @@ export default function App() {
         {/* Codex stays mounted so its tabs/history survive switching away */}
         <div className={"view-scroll" + (activeTab !== "codex" ? " hidden" : "")}>
           <CodexBrowser curator={curator} />
+        </div>
+        {/* VTT v2 stays mounted so the Pixi context survives tab switches */}
+        <div className={"view-scroll" + (activeTab !== "vtt2" ? " hidden" : "")}>
+          <Boundary label="VTT v2">
+            <VttScreen campaign={activeCampaign} />
+          </Boundary>
         </div>
         <ToolFrame src="sheet.html" title="Character Sheet" hidden={activeTab !== "sheet"} />
         <ToolFrame src="vtt.html" title="VTT" hidden={activeTab !== "vtt"} />
