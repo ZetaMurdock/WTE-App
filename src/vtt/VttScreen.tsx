@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Campaign } from "../models/campaign";
 import { isTauri } from "../lib/tauri";
-import { PixiVttApp } from "./engine/PixiVttApp";
+import { PixiVttApp, type VttSelection } from "./engine/PixiVttApp";
 import { listScenes, saveScene } from "./data/sceneRepo";
-import { newScene, type VttScene, type VttToken } from "./types/scene";
+import { newScene, type VttScene } from "./types/scene";
 import type { VttTool } from "./types/tool";
 import { VttToolbar } from "./VttToolbar";
 import { VttInspector } from "./VttInspector";
@@ -16,7 +16,7 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
   const saveTimer = useRef<number | undefined>(undefined);
   const [scene, setScene] = useState<VttScene | null>(null);
   const [tool, setTool] = useState<VttTool>("select");
-  const [selected, setSelected] = useState<VttToken | null>(null);
+  const [sel, setSel] = useState<VttSelection>(null);
   const [tick, setTick] = useState(0); // re-render after engine mutations
 
   const persist = useCallback((s: VttScene) => {
@@ -34,9 +34,7 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
       if (engine.scene) persist(engine.scene);
       setTick((t) => t + 1);
     };
-    engine.onSelect = (id) => {
-      setSelected(id && engine.scene ? engine.scene.data.tokens.find((t) => t.id === id) ?? null : null);
-    };
+    engine.onSelect = (s) => setSel(s);
     void engine.init(host);
     return () => {
       engineRef.current = null;
@@ -83,7 +81,10 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
   }
 
   const engine = engineRef.current;
-  const tokenCount = engine?.scene?.data.tokens.length ?? scene?.data.tokens.length ?? 0;
+  const live = engine?.scene ?? scene;
+  const tokenCount = live?.data.tokens.length ?? 0;
+  const fogOn = live?.data.fog.enabled ?? false;
+  void tick; // engine mutations bump this to refresh derived values above
 
   return (
     <div className="vtt2">
@@ -94,15 +95,19 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
         onRename={renameScene}
         tokenCount={tokenCount}
         campaignReady={!!campaign}
-        dataTick={tick}
+        fogOn={fogOn}
+        onToggleFog={() => engine?.toggleFog()}
       />
       <div className="vtt2-stage" ref={hostRef} />
       {!campaign && <div className="vtt2-sandbox-note">Sandbox table — pick a campaign on the Dashboard to persist scenes.</div>}
-      {selected && engine && (
+      {sel && engine && live && (
         <VttInspector
-          token={selected}
-          onUpdate={(patch) => engine.updateToken(selected.id, patch)}
-          onDelete={() => engine.deleteToken(selected.id)}
+          sel={sel}
+          scene={live}
+          onToken={(patch) => engine.updateToken(sel.id, patch)}
+          onWall={(patch) => engine.updateWall(sel.id, patch)}
+          onLight={(patch) => engine.updateLight(sel.id, patch)}
+          onDelete={() => engine.deleteSelected()}
           onClose={() => engine.select(null)}
         />
       )}

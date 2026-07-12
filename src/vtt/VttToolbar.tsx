@@ -7,10 +7,11 @@ interface Props {
   onRename: (name: string) => void;
   tokenCount: number;
   campaignReady: boolean;
-  dataTick: number;
+  fogOn: boolean;
+  onToggleFog: () => void;
 }
 
-export function VttToolbar({ tool, onTool, sceneName, onRename, tokenCount, campaignReady }: Props) {
+export function VttToolbar({ tool, onTool, sceneName, onRename, tokenCount, campaignReady, fogOn, onToggleFog }: Props) {
   const hint = VTT_TOOLS.find((t) => t.id === tool)?.hint ?? "";
   return (
     <div className="vtt2-toolbar">
@@ -20,6 +21,9 @@ export function VttToolbar({ tool, onTool, sceneName, onRename, tokenCount, camp
           {t.label}
         </button>
       ))}
+      <button className={"chip" + (fogOn ? " active" : "")} onClick={onToggleFog} title="Fog of war — vision from tokens + lights, blocked by walls">
+        Fog
+      </button>
       <span className="vtt2-hint">{hint}</span>
       <span className="rank-spacer" />
       <input

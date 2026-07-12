@@ -28,6 +28,8 @@ export interface VttToken {
   actorId?: string | null;
   ownerPeer?: string | null;
   visible: boolean;
+  /** Vision radius in cells (fog/vision system). */
+  vision?: number;
 }
 export interface VttWall {
   id: string;

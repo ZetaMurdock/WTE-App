@@ -2,7 +2,7 @@
 // drag always pans; wheel zooms at the cursor.
 import type { PixiVttApp } from "./PixiVttApp";
 
-type DragMode = "none" | "pan" | "token" | "measure";
+type DragMode = "none" | "pan" | "token" | "measure" | "wall";
 
 export class InputController {
   private canvas: HTMLCanvasElement | null = null;
@@ -53,22 +53,45 @@ export class InputController {
       this.mode = "none";
       return;
     }
+    if (v.tool === "light") {
+      v.addLightAt(w.x, w.y);
+      this.mode = "none";
+      return;
+    }
+    if (v.tool === "wall") {
+      this.mode = "wall";
+      this.start = v.snapVertex(w.x, w.y);
+      v.walls.preview(this.start.x, this.start.y, this.start.x, this.start.y);
+      return;
+    }
     if (v.tool === "measure") {
       this.mode = "measure";
       this.start = w;
       v.measure.show(w.x, w.y, w.x, w.y, v.scene.data.grid.size);
       return;
     }
-    // select
+    // select — tokens first, then lights, then walls
     const hit = v.tokens.pick(v.scene, w.x, w.y);
     if (hit) {
-      v.select(hit.id);
+      v.select({ kind: "token", id: hit.id });
       this.mode = "token";
       this.dragTokenId = hit.id;
-    } else {
-      v.select(null);
-      this.mode = "pan"; // drag empty space to pan even in select
+      return;
     }
+    const light = v.lights.pick(v.scene, w.x, w.y, v.camera.zoom);
+    if (light) {
+      v.select({ kind: "light", id: light });
+      this.mode = "none";
+      return;
+    }
+    const wall = v.walls.pick(v.scene, w.x, w.y, v.camera.zoom);
+    if (wall) {
+      v.select({ kind: "wall", id: wall });
+      this.mode = "none";
+      return;
+    }
+    v.select(null);
+    this.mode = "pan"; // drag empty space to pan even in select
   };
 
   private onMove = (e: PointerEvent): void => {
@@ -84,6 +107,10 @@ export class InputController {
     if (this.mode === "pan") v.camera.panBy(dx, dy);
     else if (this.mode === "token" && this.dragTokenId) v.moveToken(this.dragTokenId, w.x, w.y, false);
     else if (this.mode === "measure") v.measure.show(this.start.x, this.start.y, w.x, w.y, v.scene.data.grid.size);
+    else if (this.mode === "wall") {
+      const p = v.snapVertex(w.x, w.y);
+      v.walls.preview(this.start.x, this.start.y, p.x, p.y);
+    }
   };
 
   private onUp = (): void => {
@@ -97,6 +124,16 @@ export class InputController {
     }
     if (this.mode === "pan" && this.moved) v.persistCamera();
     if (this.mode === "measure") window.setTimeout(() => v.measure.clear(), 900);
+    if (this.mode === "wall") {
+      v.walls.clearPreview();
+      if (this.moved && v.scene) {
+        const p = v.snapVertex(
+          v.camera.screenToWorld(this.last.x, this.last.y).x,
+          v.camera.screenToWorld(this.last.x, this.last.y).y
+        );
+        v.addWall(this.start.x, this.start.y, p.x, p.y);
+      }
+    }
     this.mode = "none";
     this.dragTokenId = null;
   };
