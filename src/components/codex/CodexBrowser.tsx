@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isTauri } from "../../lib/tauri";
 import { renderCodexHtml, pageTitle } from "../../lib/md";
 import { parseCodexEntry } from "../../lib/codexParse";
-import { computeCreature } from "../../lib/codex";
-import type { CodexEntry, Creature } from "../../models/codex";
+import { computeCreature, addToArmory } from "../../lib/codex";
+import type { CodexEntry, Creature, Weapon, Equipment } from "../../models/codex";
 import { AxisWheel } from "./AxisWheel";
 import { SequenceView } from "./SequenceView";
 import { listSequences, saveSequence, deleteSequence } from "../../lib/sequences";
@@ -39,6 +39,7 @@ type View =
   | { kind: "search"; q: string; hits: SearchHit[] }
   | { kind: "sequence"; id: string }
   | { kind: "notes" }
+  | { kind: "graph"; stem: string }
   | { kind: "error"; message: string };
 
 interface ActiveRun {
@@ -93,6 +94,29 @@ function seqIdOf(url: string): string | null {
   const m = url.match(/^wte:\/\/sequence\/(.+)$/);
   return m ? decodeURIComponent(m[1]) : null;
 }
+function graphOf(url: string): string | null {
+  const m = url.match(/^wte:\/\/graph\/(.+)$/);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+// Outgoing wte-links in a page's raw markdown/HTML (mirror + authored formats).
+function extractLinks(md: string, self: string): string[] {
+  const out = new Set<string>();
+  const push = (raw: string) => {
+    let s = raw;
+    try {
+      s = decodeURIComponent(raw);
+    } catch {
+      /* keep raw */
+    }
+    const nested = s.match(/^wte:\/\/(?:page|rules?)\/(.+)$/);
+    if (nested) s = nested[1];
+    s = s.trim();
+    if (s && s !== self) out.add(s);
+  };
+  for (const m of md.matchAll(/data-wte-link="([^"]+)"/g)) push(m[1]);
+  for (const m of md.matchAll(/wte:\/\/(?:page|rules?)\/([A-Za-z0-9_%.:-]+)/g)) push(m[1]);
+  return [...out];
+}
 
 export function CodexBrowser({ curator = false }: { curator?: boolean }) {
   const [tabs, setTabs] = useState<CTab[]>([{ id: uid(), hist: [HOME], idx: 0, title: "Archive" }]);
@@ -120,6 +144,10 @@ export function CodexBrowser({ curator = false }: { curator?: boolean }) {
   const [annotate, setAnnotate] = useState<{ x: number; y: number; text: string } | null>(null);
   const [noteSearch, setNoteSearch] = useState("");
   const typeMap = useRef<Map<string, string> | null>(null);
+  const linkMap = useRef<Map<string, string[]> | null>(null);
+  const [lens, setLens] = useState<string | null>(null);
+  const [packIn, setPackIn] = useState<string | null>(null); // null = closed, "" = open
+  const [armoryNote, setArmoryNote] = useState("");
   const readerRef = useRef<HTMLDivElement>(null);
 
   const tab = tabs.find((t) => t.id === activeId) ?? tabs[0];
@@ -218,6 +246,13 @@ export function CodexBrowser({ curator = false }: { curator?: boolean }) {
       retitle(tab.id, "Notes");
       return;
     }
+    const g = graphOf(url);
+    if (g) {
+      setView({ kind: "graph", stem: g });
+      retitle(tab.id, `Graph · ${g.replace(/_/g, " ")}`);
+      void ensureTypeScan();
+      return;
+    }
     const sid = seqIdOf(url);
     if (sid) {
       setView({ kind: "sequence", id: sid });
@@ -304,21 +339,25 @@ export function CodexBrowser({ curator = false }: { curator?: boolean }) {
     });
   }
 
-  // Scan every record's TYPE once (lazily, on first type-chip use) for home filtering.
+  // One lazy archive pass builds BOTH indexes: record types (home filter chips)
+  // and the link graph (connections/graph view).
   async function ensureTypeScan() {
     if (typeMap.current || scanState === "scanning") return;
     setScanState("scanning");
     const map = new Map<string, string>();
+    const links = new Map<string, string[]>();
     for (const p of pages) {
       try {
         const md = await invoke<string>("wte_load_page", { path: p });
         const e = parseCodexEntry(md, p);
         if (e) map.set(p, e.type);
+        links.set(p, extractLinks(md, p));
       } catch {
         /* unreadable page */
       }
     }
     typeMap.current = map;
+    linkMap.current = links;
     setScanState("done");
   }
 
@@ -340,6 +379,56 @@ export function CodexBrowser({ curator = false }: { curator?: boolean }) {
     } catch {
       /* ignore */
     }
+  }
+
+  // Item → sheet: save a weapon/equipment record into the custom armory, where the
+  // Loadout tab's catalogs pick it up.
+  function addArmory(entry: Weapon | Equipment) {
+    addToArmory(entry);
+    setArmoryNote(`${entry.name} added to the armory — equip it from the sheet's Loadout tab.`);
+    window.setTimeout(() => setArmoryNote(""), 5000);
+  }
+
+  // Packs: import a shared Sequence (JSON) — fresh ids, saved, opened.
+  function importPack(text: string): void {
+    try {
+      const p = JSON.parse(text) as { sequence?: Partial<Sequence> } & Partial<Sequence>;
+      const src = (p.sequence ?? p) as Partial<Sequence>;
+      if (!src || typeof src.title !== "string" || !Array.isArray(src.recordIds)) throw new Error("bad pack");
+      const s: Sequence = {
+        ...newSequence(src.title),
+        description: src.description || "",
+        icon: src.icon || "◈",
+        color: src.color || "#689a96",
+        scope: (src.scope as Sequence["scope"]) || "community",
+        variables: Array.isArray(src.variables) ? src.variables : [],
+        recordIds: src.recordIds,
+        scripts: (src.scripts || []).map((sc) => ({
+          id: "sc-" + Math.random().toString(36).slice(2, 10),
+          title: sc.title || "Script",
+          steps: Array.isArray(sc.steps) ? sc.steps : [],
+          variables: sc.variables || [],
+          visibility: sc.visibility === "gm" ? "gm" : "player",
+        })),
+        visibility: src.visibility === "gm" ? "gm" : "player",
+      };
+      setSeqs((ss) => [s, ...ss]);
+      void saveSequence(s).catch(() => {});
+      setPackIn(null);
+      navigate(`wte://sequence/${s.id}`);
+    } catch {
+      setPackIn("__error__");
+    }
+  }
+
+  // Connections (references / used-by) once the archive scan has run.
+  function connectionsFor(stem: string): { refs: string[]; usedBy: string[] } | null {
+    const lm = linkMap.current;
+    if (!lm) return null;
+    const refs = (lm.get(stem) || []).filter((s) => lm.has(s));
+    const usedBy: string[] = [];
+    for (const [p, ls] of lm) if (p !== stem && ls.includes(stem)) usedBy.push(p);
+    return { refs, usedBy };
   }
 
   // Reader link interception: wte:// + mirrored data-wte-link anchors navigate
@@ -512,7 +601,30 @@ export function CodexBrowser({ curator = false }: { curator?: boolean }) {
               <button className="chip" style={{ marginLeft: 10 }} onClick={() => void createSequence()}>
                 + New Sequence
               </button>
+              <button className="chip" style={{ marginLeft: 6 }} onClick={() => setPackIn(packIn == null ? "" : null)}>
+                Import pack
+              </button>
             </div>
+            {packIn != null && (
+              <div className="pack-import">
+                {packIn === "__error__" && <p className="list-empty">That didn't parse as a W.T.E pack — paste the exported JSON.</p>}
+                <textarea
+                  className="sheet-notes"
+                  style={{ minHeight: 90 }}
+                  placeholder="Paste a Sequence pack (JSON) here…"
+                  value={packIn === "__error__" ? "" : packIn}
+                  onChange={(e) => setPackIn(e.target.value)}
+                />
+                <div className="act-actions">
+                  <button className="primary-btn seq-begin" disabled={!packIn || packIn === "__error__"} onClick={() => importPack(packIn!)}>
+                    Import
+                  </button>
+                  <button className="ghost-btn" onClick={() => setPackIn(null)}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
             {seqs.length > 0 && (
               <div className="chip-row" style={{ marginBottom: 10 }}>
                 {["All", ...Array.from(new Set(seqs.flatMap((s) => s.variables)))].map((v) => (
@@ -544,7 +656,22 @@ export function CodexBrowser({ curator = false }: { curator?: boolean }) {
 
             <div className="cdx-home-grid">
               <div className="cdx-home-col">
-                <div className="panel-title">{homeFilter ? "Matching records" : "Records"}</div>
+                <div className="panel-title">
+                  {lens ? "Session lens" : homeFilter ? "Matching records" : "Records"}
+                </div>
+                {seqs.length > 0 && (
+                  <div className="chip-row" style={{ marginBottom: 8 }}>
+                    <span className="conn-h" style={{ marginRight: 4 }}>Lens</span>
+                    <button className={"chip" + (!lens ? " active" : "")} onClick={() => setLens(null)}>
+                      None
+                    </button>
+                    {seqs.map((s) => (
+                      <button key={s.id} className={"chip" + (lens === s.id ? " active" : "")} onClick={() => setLens(s.id)} style={lens === s.id ? { borderColor: s.color } : undefined}>
+                        {s.icon} {s.title.slice(0, 18)}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <div className="chip-row" style={{ marginBottom: 8 }}>
                   {TYPE_CHIPS.map((t) => (
                     <button
@@ -563,12 +690,15 @@ export function CodexBrowser({ curator = false }: { curator?: boolean }) {
                   <p className="list-empty">Calibrating the archive index…</p>
                 )}
                 <div className="cdx-list">
-                  {filteredPages.map((p) => (
+                  {(lens ? (seqs.find((s) => s.id === lens)?.recordIds ?? []) : filteredPages).map((p) => (
                     <button key={p} className="cdx-item" onClick={() => navigate(`wte://page/${encodeURIComponent(p)}`)}>
                       {p.replace(/_/g, " ")}
                     </button>
                   ))}
-                  {pages.length === 0 && <p className="list-empty">No records yet — import or author pages.</p>}
+                  {lens && (seqs.find((s) => s.id === lens)?.recordIds.length ?? 0) === 0 && (
+                    <p className="list-empty">This sequence has no records yet.</p>
+                  )}
+                  {!lens && pages.length === 0 && <p className="list-empty">No records yet — import or author pages.</p>}
                 </div>
               </div>
               <div className="cdx-home-col">
@@ -639,8 +769,48 @@ export function CodexBrowser({ curator = false }: { curator?: boolean }) {
           <div className="cdx-reader" ref={readerRef} onClick={onReaderClick} onMouseUp={onReaderMouseUp}>
             <div className="cdx-page-meta">wte://page/{view.stem}</div>
             {spawnNote && <div className="cdx-spawn-note">{spawnNote}</div>}
-            {view.entry && <TypedCard entry={view.entry} onSpawn={spawnInVtt} />}
+            {armoryNote && <div className="cdx-spawn-note">{armoryNote}</div>}
+            {view.entry && <TypedCard entry={view.entry} onSpawn={spawnInVtt} onArmory={addArmory} />}
             <div className="cdx-content" dangerouslySetInnerHTML={{ __html: view.html }} />
+            {(() => {
+              const conn = connectionsFor(view.stem);
+              return (
+                <div className="notes-section">
+                  <div className="panel-title">
+                    Connections
+                    <button className="chip" style={{ marginLeft: 10 }} onClick={() => navigate(`wte://graph/${encodeURIComponent(view.stem)}`)}>
+                      Open graph
+                    </button>
+                  </div>
+                  {!conn ? (
+                    <button className="chip" onClick={() => void ensureTypeScan()}>
+                      {scanState === "scanning" ? "Calibrating the archive…" : "Calibrate connections"}
+                    </button>
+                  ) : (
+                    <div className="conn-grid">
+                      <div>
+                        <div className="conn-h">References · {conn.refs.length}</div>
+                        {conn.refs.slice(0, 12).map((s) => (
+                          <button key={s} className="cdx-item dim" onClick={() => navigate(`wte://page/${encodeURIComponent(s)}`)}>
+                            {s.replace(/_/g, " ")}
+                          </button>
+                        ))}
+                        {conn.refs.length === 0 && <p className="list-empty">No outgoing links.</p>}
+                      </div>
+                      <div>
+                        <div className="conn-h">Used by · {conn.usedBy.length}</div>
+                        {conn.usedBy.slice(0, 12).map((s) => (
+                          <button key={s} className="cdx-item dim" onClick={() => navigate(`wte://page/${encodeURIComponent(s)}`)}>
+                            {s.replace(/_/g, " ")}
+                          </button>
+                        ))}
+                        {conn.usedBy.length === 0 && <p className="list-empty">Nothing links here yet.</p>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             <div className="notes-section">
               <div className="panel-title">
                 Notes
@@ -728,6 +898,49 @@ export function CodexBrowser({ curator = false }: { curator?: boolean }) {
             );
           })()}
 
+        {view.kind === "graph" &&
+          (() => {
+            const conn = connectionsFor(view.stem);
+            const node = (s: string, x: number, y: number, cls: string) => (
+              <g key={cls + s} className={"graph-node " + cls} transform={`translate(${x} ${y})`} onClick={() => navigate(`wte://page/${encodeURIComponent(s)}`)}>
+                <line x1={-x} y1={-y} x2={0} y2={0} className="graph-edge" />
+                <circle r={7} className="graph-dot" />
+                <text x={x >= 0 ? 12 : -12} y={4} className="graph-label" style={{ textAnchor: x >= 0 ? "start" : "end" }}>
+                  {s.replace(/_/g, " ").slice(0, 30)}
+                </text>
+              </g>
+            );
+            const arc = (list: string[], side: 1 | -1) =>
+              list.slice(0, 16).map((s, i, all) => {
+                const spread = Math.min(150, all.length * 22);
+                const a = (((i - (all.length - 1) / 2) * (spread / Math.max(all.length - 1, 1)) + (side === 1 ? 0 : 180)) * Math.PI) / 180;
+                return node(s, Math.cos(a) * 300, Math.sin(a) * 220, side === 1 ? "out" : "in");
+              });
+            return (
+              <div className="graph-wrap">
+                <div className="cdx-page-meta" style={{ margin: "16px 24px 0" }}>
+                  wte://graph/{view.stem} · <span className="graph-key out">references →</span> · <span className="graph-key in">← used by</span>
+                </div>
+                {!conn ? (
+                  <p className="list-empty" style={{ padding: 24 }}>
+                    {scanState === "scanning" ? "Calibrating the archive graph…" : "Graph needs the archive scan."}
+                  </p>
+                ) : (
+                  <svg className="graph-svg" viewBox="-500 -300 1000 600" preserveAspectRatio="xMidYMid meet">
+                    {arc(conn.refs, 1)}
+                    {arc(conn.usedBy, -1)}
+                    <g className="graph-center" onClick={() => navigate(`wte://page/${encodeURIComponent(view.stem)}`)}>
+                      <circle r={34} className="graph-core" />
+                      <text y={4} className="graph-core-label">
+                        {view.stem.replace(/_/g, " ").slice(0, 18)}
+                      </text>
+                    </g>
+                  </svg>
+                )}
+              </div>
+            );
+          })()}
+
         {view.kind === "error" && (
           <div className="cdx-reader">
             <p className="list-empty">{view.message}</p>
@@ -749,7 +962,15 @@ function Spec({ label, value }: { label: string; value?: string | number | null 
   );
 }
 
-function TypedCard({ entry, onSpawn }: { entry: CodexEntry; onSpawn: (c: Creature) => void }) {
+function TypedCard({
+  entry,
+  onSpawn,
+  onArmory,
+}: {
+  entry: CodexEntry;
+  onSpawn: (c: Creature) => void;
+  onArmory: (e: Weapon | Equipment) => void;
+}) {
   return (
     <div className="cdx-card">
       <div className="cdx-card-head">
@@ -758,6 +979,11 @@ function TypedCard({ entry, onSpawn }: { entry: CodexEntry; onSpawn: (c: Creatur
         {entry.type === "creature" && (
           <button className="primary-btn cdx-card-act" onClick={() => onSpawn(entry)}>
             Spawn in VTT
+          </button>
+        )}
+        {(entry.type === "weapon" || entry.type === "equipment") && (
+          <button className="primary-btn cdx-card-act" onClick={() => onArmory(entry)}>
+            Add to armory
           </button>
         )}
       </div>

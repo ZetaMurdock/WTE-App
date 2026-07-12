@@ -2829,3 +2829,98 @@ body {
 .cdx-annotate:hover {
   color: var(--ink);
 }
+
+/* ── Connections, graph view, lens, packs (Remaster slice 6) ── */
+.conn-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+}
+.conn-h {
+  font-family: Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.graph-wrap {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.graph-svg {
+  flex: 1;
+  width: 100%;
+  min-height: 460px;
+}
+.graph-key.out {
+  color: var(--accent);
+}
+.graph-key.in {
+  color: var(--violet);
+}
+.graph-center {
+  cursor: pointer;
+}
+.graph-core {
+  fill: rgba(10, 15, 28, 0.92);
+  stroke: var(--ink);
+  stroke-width: 1;
+}
+.graph-core-label {
+  fill: var(--ink);
+  font-family: Georgia, serif;
+  font-size: 11px;
+  text-anchor: middle;
+}
+.graph-node {
+  cursor: pointer;
+  animation: axis-nodein 0.35s ease-out both;
+}
+.graph-edge {
+  stroke-width: 1;
+  opacity: 0.35;
+}
+.graph-node.out .graph-edge,
+.graph-node.out .graph-dot {
+  stroke: var(--accent);
+}
+.graph-node.out .graph-dot {
+  fill: rgba(10, 15, 28, 0.9);
+}
+.graph-node.in .graph-edge,
+.graph-node.in .graph-dot {
+  stroke: var(--violet);
+}
+.graph-node.in .graph-dot {
+  fill: rgba(10, 15, 28, 0.9);
+}
+.graph-label {
+  fill: var(--bone);
+  font-family: Georgia, serif;
+  font-size: 10.5px;
+  paint-order: stroke;
+  stroke: rgba(7, 11, 20, 0.85);
+  stroke-width: 3px;
+}
+.graph-node:hover .graph-label {
+  fill: var(--ink);
+}
+.graph-node:hover .graph-dot {
+  stroke-width: 2;
+}
+.pack-import {
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+@media (max-width: 720px) {
+  .conn-grid {
+    grid-template-columns: 1fr;
+  }
+}

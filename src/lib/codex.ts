@@ -11,19 +11,38 @@ import { isTauri } from "./tauri";
 const WEAPONS = weaponsData as Weapon[];
 const GEAR = gearData as Equipment[];
 
+// ── Custom armory: weapon/equipment records added from Codex pages (localStorage).
+// Merged after the baked catalogs so they're equippable in the sheet's Loadout. ──
+function customList<T>(key: string): T[] {
+  try {
+    return (JSON.parse(localStorage.getItem(key) || "[]") as T[]) || [];
+  } catch {
+    return [];
+  }
+}
+export function addToArmory(entry: Weapon | Equipment): void {
+  const key = entry.type === "weapon" ? "wte-armory-weapons" : "wte-armory-gear";
+  const list = customList<Weapon | Equipment>(key).filter((x) => x.name.toLowerCase() !== entry.name.toLowerCase());
+  list.push(entry);
+  try {
+    localStorage.setItem(key, JSON.stringify(list));
+  } catch {
+    /* ignore */
+  }
+}
 export function listWeapons(): Weapon[] {
-  return WEAPONS;
+  return [...WEAPONS, ...customList<Weapon>("wte-armory-weapons")];
 }
 export function listEquipment(): Equipment[] {
-  return GEAR;
+  return [...GEAR, ...customList<Equipment>("wte-armory-gear")];
 }
 export function getWeapon(name: string): Weapon | undefined {
   const n = name.toLowerCase();
-  return WEAPONS.find((w) => w.name.toLowerCase() === n);
+  return listWeapons().find((w) => w.name.toLowerCase() === n);
 }
 export function getEquipment(name: string): Equipment | undefined {
   const n = name.toLowerCase();
-  return GEAR.find((g) => g.name.toLowerCase() === n);
+  return listEquipment().find((g) => g.name.toLowerCase() === n);
 }
 
 // A weapon is ranged if its range/profile names "ranged" or a distance over 5 ft (melee otherwise).

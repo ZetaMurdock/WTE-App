@@ -20,7 +20,19 @@ export function SequenceView({ seq, pages, onSave, onDelete, onOpenPage, onBegin
   const [varInput, setVarInput] = useState("");
   const [openScript, setOpenScript] = useState<string | null>(null);
   const [stepSearch, setStepSearch] = useState("");
+  const [packOut, setPackOut] = useState("");
   const dragIdx = useRef<number | null>(null);
+
+  // Packs: serialize this sequence for sharing (clipboard + visible JSON fallback).
+  function exportPack() {
+    const json = JSON.stringify({ wtePack: 1, sequence: { ...seq, id: undefined, campaignId: undefined } }, null, 2);
+    setPackOut(json);
+    try {
+      void navigator.clipboard.writeText(json);
+    } catch {
+      /* the textarea below is the fallback */
+    }
+  }
 
   const patch = (p: Partial<Sequence>) => onSave({ ...seq, ...p });
 
@@ -81,12 +93,25 @@ export function SequenceView({ seq, pages, onSave, onDelete, onOpenPage, onBegin
               {seq.visibility === "gm" ? "GM only" : "Player visible"}
             </button>
             <span className="rank-spacer" />
+            <button className="icon-btn" onClick={exportPack}>
+              Export pack
+            </button>
             <button className="icon-btn" onClick={() => onDelete(seq.id)}>
               Delete
             </button>
           </div>
         </div>
       </div>
+
+      {packOut && (
+        <div className="pack-import">
+          <p className="lobby-note">Pack copied to the clipboard — share it, and import via “Import pack” on the archive index.</p>
+          <textarea className="sheet-notes" style={{ minHeight: 80 }} readOnly value={packOut} onFocus={(e) => e.target.select()} />
+          <button className="ghost-btn" onClick={() => setPackOut("")}>
+            Close
+          </button>
+        </div>
+      )}
 
       <div className="seq-pick-row">
         {SEQ_ICONS.map((i) => (
