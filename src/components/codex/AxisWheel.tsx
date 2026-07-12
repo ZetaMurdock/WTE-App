@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 // The Axis Wheel — the Codex's Archive View (Remaster slice 3). A dark star-chart
 // index: slow counter-rotating astrolabe rings around a central Axis, the record
@@ -54,6 +54,16 @@ function mulberry32(seed: number) {
 export function AxisWheel({ pageCount, typeMap, scanning, marks, recents, sequences, onOpenType, onOpenIndex, onOpen, onOpenSeq, onBeginScript }: Props) {
   const [hover, setHover] = useState<string | null>(null);
   const [hoverSeq, setHoverSeq] = useState<string | null>(null);
+  // Grace timer: the branch fan survives the pointer crossing gaps on its way to a node.
+  const seqLeave = useRef<number | undefined>(undefined);
+  function seqEnter(id: string) {
+    window.clearTimeout(seqLeave.current);
+    setHoverSeq(id);
+  }
+  function seqOut() {
+    window.clearTimeout(seqLeave.current);
+    seqLeave.current = window.setTimeout(() => setHoverSeq(null), 380);
+  }
 
   const stars = useMemo(() => {
     const rnd = mulberry32(1889);
@@ -83,8 +93,8 @@ export function AxisWheel({ pageCount, typeMap, scanning, marks, recents, sequen
     }
     return list.map((m, i) => {
       const angle = ((i * 137.5 + 24) * Math.PI) / 180; // golden-angle spread
-      const r = 330 + (i % 3) * 34;
-      return { ...m, x: Math.cos(angle) * r, y: Math.sin(angle) * r * 0.82 };
+      const r = 242 + (i % 3) * 27; // between the constellation orbit and the outer rings
+      return { ...m, x: Math.cos(angle) * r, y: Math.sin(angle) * r * 0.85 };
     });
   }, [marks, recents]);
 
@@ -183,23 +193,26 @@ export function AxisWheel({ pageCount, typeMap, scanning, marks, recents, sequen
           );
         })}
 
-        {/* Sequences — stations ON their own bezel ring; hover branches into Scripts */}
+        {/* Sequences — large stations on the OUTERMOST bezel ring; hover unseals
+            animated branches fanning inward to the sequence's Scripts. */}
         {sequences.length > 0 && (
           <g className="axis-seqring">
-            <circle r={147} className="axis-line" />
-            <circle r={133} className="axis-line" />
-            {Array.from({ length: 72 }, (_, i) => (
-              <line key={i} x1={133} y1={0} x2={137} y2={0} className="axis-tick" transform={`rotate(${i * 5})`} />
-            ))}
+            <g className="axis-ring rot-b">
+              <circle r={372} className="axis-line" />
+              {Array.from({ length: 90 }, (_, i) => (
+                <line key={i} x1={366} y1={0} x2={i % 5 === 0 ? 356 : 361} y2={0} className="axis-tick" transform={`rotate(${i * 4})`} />
+              ))}
+            </g>
+            <circle r={344} className="axis-line faint" />
           </g>
         )}
         {sequences.slice(0, 10).map((s, i) => {
           const deg = i * (360 / Math.min(sequences.length, 10)) - 90 + 18;
           const a = (deg * Math.PI) / 180;
-          const x = Math.cos(a) * 140;
-          const y = Math.sin(a) * 140;
+          const x = Math.cos(a) * 358;
+          const y = Math.sin(a) * 358;
           const open = hoverSeq === s.id;
-          // branches: the sequence's scripts + an "open" node, fanned outward from the station
+          // branches fan INWARD from the outer station toward the wheel
           const branches: { key: string; label: string; glyph: string; act: () => void }[] = [
             { key: "open", label: "Open sequence", glyph: s.icon, act: () => onOpenSeq(s.id) },
             ...s.scripts.slice(0, 4).map((sc) => ({
@@ -214,27 +227,37 @@ export function AxisWheel({ pageCount, typeMap, scanning, marks, recents, sequen
               key={s.id}
               className={"axis-seq" + (open ? " open" : "")}
               transform={`translate(${x} ${y})`}
-              onMouseEnter={() => setHoverSeq(s.id)}
-              onMouseLeave={() => setHoverSeq(null)}
+              onMouseEnter={() => seqEnter(s.id)}
+              onMouseLeave={seqOut}
             >
+              {/* invisible hover zone keeps the fan alive while travelling to a node */}
+              {open && <circle r={150} className="axis-seq-hitzone" />}
               {open && (
                 <g className="axis-branches">
                   {branches.map((b, bi) => {
-                    const off = (bi - (branches.length - 1) / 2) * 27;
-                    const br = ((deg + off) * Math.PI) / 180;
-                    const bx = Math.cos(br) * 74;
-                    const by = Math.sin(br) * 74;
+                    const off = (bi - (branches.length - 1) / 2) * 24;
+                    const br = ((deg + 180 + off) * Math.PI) / 180;
+                    const bx = Math.cos(br) * 104;
+                    const by = Math.sin(br) * 104;
                     const rightSide = Math.cos(br) >= 0;
                     return (
-                      <g key={b.key} className="axis-branch" onClick={(e) => { e.stopPropagation(); b.act(); }}>
-                        <line x1={0} y1={0} x2={bx} y2={by} className="axis-branch-line" style={{ stroke: s.color }} />
-                        <circle cx={bx} cy={by} r={9} className="axis-branch-node" style={{ stroke: s.color }} />
-                        <text x={bx} y={by + 3.5} className="axis-branch-glyph" style={{ fill: s.color }}>
+                      <g
+                        key={b.key}
+                        className="axis-branch"
+                        style={{ animationDelay: `${bi * 70}ms` }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          b.act();
+                        }}
+                      >
+                        <line x1={0} y1={0} x2={bx} y2={by} className="axis-branch-line" style={{ stroke: s.color, animationDelay: `${bi * 70}ms` }} />
+                        <circle cx={bx} cy={by} r={13} className="axis-branch-node" style={{ stroke: s.color }} />
+                        <text x={bx} y={by + 4} className="axis-branch-glyph" style={{ fill: s.color }}>
                           {b.glyph}
                         </text>
                         <text
-                          x={bx + (rightSide ? 14 : -14)}
-                          y={by + 3.5}
+                          x={bx + (rightSide ? 19 : -19)}
+                          y={by + 4}
                           className="axis-branch-label"
                           style={{ textAnchor: rightSide ? "start" : "end" }}
                         >
@@ -245,12 +268,12 @@ export function AxisWheel({ pageCount, typeMap, scanning, marks, recents, sequen
                   })}
                 </g>
               )}
-              <circle r={13} className="axis-seq-disc" style={{ stroke: s.color }} onClick={() => onOpenSeq(s.id)} />
-              <text className="axis-seq-glyph" y={4.5} style={{ fill: s.color }} onClick={() => onOpenSeq(s.id)}>
+              <circle r={23} className="axis-seq-disc" style={{ stroke: s.color }} onClick={() => onOpenSeq(s.id)} />
+              <text className="axis-seq-glyph" y={7} style={{ fill: s.color }} onClick={() => onOpenSeq(s.id)}>
                 {s.icon}
               </text>
               {!open && (
-                <text className="axis-seq-label" y={29}>
+                <text className="axis-seq-label" y={42}>
                   {s.title.length > 18 ? s.title.slice(0, 17) + "…" : s.title}
                 </text>
               )}

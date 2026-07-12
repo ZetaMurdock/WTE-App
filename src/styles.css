@@ -2676,3 +2676,53 @@ body {
 .axis-branch:hover .axis-branch-label {
   fill: var(--ink);
 }
+
+/* ── Sequence stations v2: outer-ring, larger, animated branch unseal ── */
+.axis-seq-hitzone {
+  fill: transparent;
+  pointer-events: all;
+}
+.axis-seq-disc {
+  stroke-width: 1.3;
+}
+.axis-seq.open .axis-seq-disc {
+  stroke-width: 2.2;
+}
+.axis-branch {
+  animation: axis-nodein 0.3s ease-out both;
+}
+@keyframes axis-nodein {
+  from {
+    opacity: 0;
+  }
+}
+.axis-branch-line {
+  stroke-dasharray: 130;
+  stroke-dashoffset: 130;
+  animation: axis-draw 0.4s ease-out both;
+}
+@keyframes axis-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.axis-branch-glyph {
+  font-size: 11px;
+}
+.axis-branch-label {
+  font-size: 11px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .axis-branch,
+  .axis-branch-line {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
+.axis-seq-glyph {
+  font-size: 20px;
+}
+.axis-seq-label {
+  font-size: 11px;
+  letter-spacing: 1.5px;
+}
