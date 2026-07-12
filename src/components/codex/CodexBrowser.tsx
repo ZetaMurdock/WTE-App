@@ -5,6 +5,9 @@ import { parseCodexEntry } from "../../lib/codexParse";
 import { computeCreature } from "../../lib/codex";
 import type { CodexEntry, Creature } from "../../models/codex";
 import { AxisWheel } from "./AxisWheel";
+import { SequenceView } from "./SequenceView";
+import { listSequences, saveSequence, deleteSequence } from "../../lib/sequences";
+import { newSequence, type Script, type Sequence } from "../../models/sequence";
 
 // The new Codex: a browser built solely for W.T.E (Remaster slice 1 — the usable
 // shell: tabs, wte:// address bar, history, search, bookmarks, recents, reader).
@@ -31,7 +34,14 @@ type View =
   | { kind: "home" }
   | { kind: "page"; stem: string; title: string; html: string; entry: CodexEntry | null }
   | { kind: "search"; q: string; hits: SearchHit[] }
+  | { kind: "sequence"; id: string }
   | { kind: "error"; message: string };
+
+interface ActiveRun {
+  seqTitle: string;
+  script: Script;
+  idx: number;
+}
 
 // Token colors per creature Class — must match the legacy VTT's SUMMON_COLORS.
 const VTT_CLASS_COLORS: Record<number, string> = {
@@ -69,6 +79,10 @@ function queryOf(url: string): string | null {
   const m = url.match(/^wte:\/\/search\?q=(.*)$/);
   return m ? decodeURIComponent(m[1]) : null;
 }
+function seqIdOf(url: string): string | null {
+  const m = url.match(/^wte:\/\/sequence\/(.+)$/);
+  return m ? decodeURIComponent(m[1]) : null;
+}
 
 export function CodexBrowser() {
   const [tabs, setTabs] = useState<CTab[]>([{ id: uid(), hist: [HOME], idx: 0, title: "Archive" }]);
@@ -89,6 +103,9 @@ export function CodexBrowser() {
   });
   const [scanState, setScanState] = useState<"idle" | "scanning" | "done">("idle");
   const [spawnNote, setSpawnNote] = useState("");
+  const [seqs, setSeqs] = useState<Sequence[]>([]);
+  const [seqVarFilter, setSeqVarFilter] = useState("All");
+  const [run, setRun] = useState<ActiveRun | null>(null);
   const typeMap = useRef<Map<string, string> | null>(null);
   const readerRef = useRef<HTMLDivElement>(null);
 
@@ -96,8 +113,39 @@ export function CodexBrowser() {
   const url = tab.hist[tab.idx];
 
   useEffect(() => {
-    if (isTauri()) invoke<string[]>("wte_list_pages").then(setPages).catch(() => setPages([]));
+    if (isTauri()) {
+      invoke<string[]>("wte_list_pages").then(setPages).catch(() => setPages([]));
+      listSequences().then(setSeqs).catch(() => setSeqs([]));
+    }
   }, []);
+
+  // ── Sequences: persistence + guided-flow runner ──
+  function persistSeq(next: Sequence) {
+    setSeqs((ss) => ss.map((s) => (s.id === next.id ? next : s)));
+    void saveSequence(next);
+  }
+  async function createSequence() {
+    const s = newSequence("New Sequence");
+    await saveSequence(s).catch(() => {});
+    setSeqs((ss) => [s, ...ss]);
+    navigate(`wte://sequence/${s.id}`);
+  }
+  async function removeSequence(id: string) {
+    setSeqs((ss) => ss.filter((s) => s.id !== id));
+    await deleteSequence(id).catch(() => {});
+    navigate(HOME);
+  }
+  function beginRun(seq: Sequence, script: Script) {
+    setRun({ seqTitle: seq.title, script, idx: 0 });
+    navigate(`wte://page/${encodeURIComponent(script.steps[0].stem)}`);
+  }
+  function runStep(delta: number) {
+    if (!run) return;
+    const idx = Math.max(0, Math.min(run.script.steps.length - 1, run.idx + delta));
+    if (idx === run.idx) return;
+    setRun({ ...run, idx });
+    navigate(`wte://page/${encodeURIComponent(run.script.steps[idx].stem)}`);
+  }
 
   // Calibrate the wheel's constellation counts in the background once records list.
   useEffect(() => {
@@ -127,6 +175,12 @@ export function CodexBrowser() {
     if (url === HOME) {
       setView({ kind: "home" });
       retitle(tab.id, "Archive");
+      return;
+    }
+    const sid = seqIdOf(url);
+    if (sid) {
+      setView({ kind: "sequence", id: sid });
+      retitle(tab.id, seqs.find((s) => s.id === sid)?.title || "Sequence");
       return;
     }
     if (q != null) {
@@ -327,6 +381,26 @@ export function CodexBrowser() {
         </button>
       </div>
 
+      {run && (
+        <div className="cdx-runner">
+          <span className="cdx-runner-title">
+            ▸ {run.seqTitle} · {run.script.title}
+          </span>
+          <span className="cdx-runner-step">
+            step {run.idx + 1} / {run.script.steps.length}
+          </span>
+          <button className="cdx-nav" disabled={run.idx === 0} onClick={() => runStep(-1)}>
+            ←
+          </button>
+          <button className="cdx-nav" disabled={run.idx >= run.script.steps.length - 1} onClick={() => runStep(1)}>
+            →
+          </button>
+          <button className="icon-btn" onClick={() => setRun(null)}>
+            End
+          </button>
+        </div>
+      )}
+
       <div className="cdx-body">
         {view.kind === "home" && homeMode === "wheel" && (
           <div className="axis-home">
@@ -336,6 +410,8 @@ export function CodexBrowser() {
               scanning={scanState === "scanning"}
               marks={marks}
               recents={recents}
+              sequences={seqs.map((s) => ({ id: s.id, title: s.title, icon: s.icon, color: s.color }))}
+              onOpenSeq={(id) => navigate(`wte://sequence/${id}`)}
               onOpenType={(chip) => {
                 setTypeFilter(chip);
                 setMode("index");
@@ -374,6 +450,41 @@ export function CodexBrowser() {
                 }}
               />
             </div>
+            <div className="panel-title">
+              Sequences
+              <button className="chip" style={{ marginLeft: 10 }} onClick={() => void createSequence()}>
+                + New Sequence
+              </button>
+            </div>
+            {seqs.length > 0 && (
+              <div className="chip-row" style={{ marginBottom: 10 }}>
+                {["All", ...Array.from(new Set(seqs.flatMap((s) => s.variables)))].map((v) => (
+                  <button key={v} className={"chip" + (seqVarFilter === v ? " active" : "")} onClick={() => setSeqVarFilter(v)}>
+                    {v}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="seq-row">
+              {seqs
+                .filter((s) => seqVarFilter === "All" || s.variables.includes(seqVarFilter))
+                .map((s) => (
+                  <button key={s.id} className="seq-card" onClick={() => navigate(`wte://sequence/${s.id}`)}>
+                    <span className="seq-card-glyph" style={{ color: s.color, borderColor: s.color }}>
+                      {s.icon}
+                    </span>
+                    <span className="seq-card-main">
+                      <span className="seq-card-title">{s.title}</span>
+                      <span className="seq-card-meta">
+                        {s.recordIds.length} records · {s.scripts.length} scripts
+                        {s.visibility === "gm" ? " · GM" : ""}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              {seqs.length === 0 && <p className="list-empty">Knowledge paths through the archive — session prep, onboarding, investigations.</p>}
+            </div>
+
             <div className="cdx-home-grid">
               <div className="cdx-home-col">
                 <div className="panel-title">{homeFilter ? "Matching records" : "Records"}</div>
@@ -456,6 +567,27 @@ export function CodexBrowser() {
             <div className="cdx-content" dangerouslySetInnerHTML={{ __html: view.html }} />
           </div>
         )}
+
+        {view.kind === "sequence" &&
+          (() => {
+            const s = seqs.find((x) => x.id === view.id);
+            return (
+              <div className="cdx-reader">
+                {s ? (
+                  <SequenceView
+                    seq={s}
+                    pages={pages}
+                    onSave={persistSeq}
+                    onDelete={(id) => void removeSequence(id)}
+                    onOpenPage={(stem) => navigate(`wte://page/${encodeURIComponent(stem)}`)}
+                    onBegin={beginRun}
+                  />
+                ) : (
+                  <p className="list-empty">Sequence not found.</p>
+                )}
+              </div>
+            );
+          })()}
 
         {view.kind === "error" && (
           <div className="cdx-reader">

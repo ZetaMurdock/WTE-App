@@ -443,6 +443,17 @@ CREATE TABLE IF NOT EXISTS rolls (
 );
 ";
 
+// Codex Remaster slice 4: Sequences (knowledge paths, with embedded Scripts +
+// Variables) stored as JSON docs — flexible now, packable/exportable later.
+const SCHEMA_V3: &str = "
+CREATE TABLE IF NOT EXISTS codex_sequences (
+  id TEXT PRIMARY KEY,
+  campaign_id TEXT,
+  data TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+";
+
 fn main() {
     let migrations = vec![
         tauri_plugin_sql::Migration {
@@ -455,6 +466,12 @@ fn main() {
             version: 2,
             description: "add rolls table",
             sql: SCHEMA_V2,
+            kind: tauri_plugin_sql::MigrationKind::Up,
+        },
+        tauri_plugin_sql::Migration {
+            version: 3,
+            description: "add codex sequences table",
+            sql: SCHEMA_V3,
             kind: tauri_plugin_sql::MigrationKind::Up,
         },
     ];

@@ -9,6 +9,12 @@ interface Mark {
   url: string;
   title: string;
 }
+interface SeqNode {
+  id: string;
+  title: string;
+  icon: string;
+  color: string;
+}
 interface Props {
   pageCount: number;
   /** stem → type ("creature" | "weapon" | …) once the archive scan completes. */
@@ -16,9 +22,12 @@ interface Props {
   scanning: boolean;
   marks: Mark[];
   recents: Mark[];
+  /** User Sequences — they orbit between the core and the constellations. */
+  sequences: SeqNode[];
   onOpenType: (chip: string) => void; // "Creature" | … | "All"
   onOpenIndex: () => void;
   onOpen: (url: string) => void;
+  onOpenSeq: (id: string) => void;
 }
 
 const NODES: { chip: string; label: string; type: string | null; angle: number }[] = [
@@ -40,7 +49,7 @@ function mulberry32(seed: number) {
   };
 }
 
-export function AxisWheel({ pageCount, typeMap, scanning, marks, recents, onOpenType, onOpenIndex, onOpen }: Props) {
+export function AxisWheel({ pageCount, typeMap, scanning, marks, recents, sequences, onOpenType, onOpenIndex, onOpen, onOpenSeq }: Props) {
   const [hover, setHover] = useState<string | null>(null);
 
   const stars = useMemo(() => {
@@ -166,6 +175,26 @@ export function AxisWheel({ pageCount, typeMap, scanning, marks, recents, onOpen
               </text>
               <text className="axis-node-label" y={48}>
                 {n.label.toUpperCase()}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Sequences — user knowledge paths on the inner orbit */}
+        {sequences.length > 0 && <circle r={140} className="axis-line faint dash" />}
+        {sequences.slice(0, 10).map((s, i) => {
+          const a = ((i * (360 / Math.min(sequences.length, 10)) - 90 + 18) * Math.PI) / 180;
+          const x = Math.cos(a) * 140;
+          const y = Math.sin(a) * 140;
+          return (
+            <g key={s.id} className="axis-seq" transform={`translate(${x} ${y})`} onClick={() => onOpenSeq(s.id)}>
+              <title>{s.title}</title>
+              <circle r={14} className="axis-seq-disc" style={{ stroke: s.color }} />
+              <text className="axis-seq-glyph" y={4.5} style={{ fill: s.color }}>
+                {s.icon}
+              </text>
+              <text className="axis-seq-label" y={30}>
+                {s.title.length > 18 ? s.title.slice(0, 17) + "…" : s.title}
               </text>
             </g>
           );
