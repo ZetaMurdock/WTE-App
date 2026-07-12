@@ -14,6 +14,7 @@ interface SeqNode {
   title: string;
   icon: string;
   color: string;
+  scripts: { id: string; title: string }[];
 }
 interface Props {
   pageCount: number;
@@ -28,6 +29,7 @@ interface Props {
   onOpenIndex: () => void;
   onOpen: (url: string) => void;
   onOpenSeq: (id: string) => void;
+  onBeginScript: (seqId: string, scriptId: string) => void;
 }
 
 const NODES: { chip: string; label: string; type: string | null; angle: number }[] = [
@@ -49,8 +51,9 @@ function mulberry32(seed: number) {
   };
 }
 
-export function AxisWheel({ pageCount, typeMap, scanning, marks, recents, sequences, onOpenType, onOpenIndex, onOpen, onOpenSeq }: Props) {
+export function AxisWheel({ pageCount, typeMap, scanning, marks, recents, sequences, onOpenType, onOpenIndex, onOpen, onOpenSeq, onBeginScript }: Props) {
   const [hover, setHover] = useState<string | null>(null);
+  const [hoverSeq, setHoverSeq] = useState<string | null>(null);
 
   const stars = useMemo(() => {
     const rnd = mulberry32(1889);
@@ -180,22 +183,77 @@ export function AxisWheel({ pageCount, typeMap, scanning, marks, recents, sequen
           );
         })}
 
-        {/* Sequences — user knowledge paths on the inner orbit */}
-        {sequences.length > 0 && <circle r={140} className="axis-line faint dash" />}
+        {/* Sequences — stations ON their own bezel ring; hover branches into Scripts */}
+        {sequences.length > 0 && (
+          <g className="axis-seqring">
+            <circle r={147} className="axis-line" />
+            <circle r={133} className="axis-line" />
+            {Array.from({ length: 72 }, (_, i) => (
+              <line key={i} x1={133} y1={0} x2={137} y2={0} className="axis-tick" transform={`rotate(${i * 5})`} />
+            ))}
+          </g>
+        )}
         {sequences.slice(0, 10).map((s, i) => {
-          const a = ((i * (360 / Math.min(sequences.length, 10)) - 90 + 18) * Math.PI) / 180;
+          const deg = i * (360 / Math.min(sequences.length, 10)) - 90 + 18;
+          const a = (deg * Math.PI) / 180;
           const x = Math.cos(a) * 140;
           const y = Math.sin(a) * 140;
+          const open = hoverSeq === s.id;
+          // branches: the sequence's scripts + an "open" node, fanned outward from the station
+          const branches: { key: string; label: string; glyph: string; act: () => void }[] = [
+            { key: "open", label: "Open sequence", glyph: s.icon, act: () => onOpenSeq(s.id) },
+            ...s.scripts.slice(0, 4).map((sc) => ({
+              key: sc.id,
+              label: sc.title,
+              glyph: "▸",
+              act: () => onBeginScript(s.id, sc.id),
+            })),
+          ];
           return (
-            <g key={s.id} className="axis-seq" transform={`translate(${x} ${y})`} onClick={() => onOpenSeq(s.id)}>
-              <title>{s.title}</title>
-              <circle r={14} className="axis-seq-disc" style={{ stroke: s.color }} />
-              <text className="axis-seq-glyph" y={4.5} style={{ fill: s.color }}>
+            <g
+              key={s.id}
+              className={"axis-seq" + (open ? " open" : "")}
+              transform={`translate(${x} ${y})`}
+              onMouseEnter={() => setHoverSeq(s.id)}
+              onMouseLeave={() => setHoverSeq(null)}
+            >
+              {open && (
+                <g className="axis-branches">
+                  {branches.map((b, bi) => {
+                    const off = (bi - (branches.length - 1) / 2) * 27;
+                    const br = ((deg + off) * Math.PI) / 180;
+                    const bx = Math.cos(br) * 74;
+                    const by = Math.sin(br) * 74;
+                    const rightSide = Math.cos(br) >= 0;
+                    return (
+                      <g key={b.key} className="axis-branch" onClick={(e) => { e.stopPropagation(); b.act(); }}>
+                        <line x1={0} y1={0} x2={bx} y2={by} className="axis-branch-line" style={{ stroke: s.color }} />
+                        <circle cx={bx} cy={by} r={9} className="axis-branch-node" style={{ stroke: s.color }} />
+                        <text x={bx} y={by + 3.5} className="axis-branch-glyph" style={{ fill: s.color }}>
+                          {b.glyph}
+                        </text>
+                        <text
+                          x={bx + (rightSide ? 14 : -14)}
+                          y={by + 3.5}
+                          className="axis-branch-label"
+                          style={{ textAnchor: rightSide ? "start" : "end" }}
+                        >
+                          {b.label.length > 22 ? b.label.slice(0, 21) + "…" : b.label}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </g>
+              )}
+              <circle r={13} className="axis-seq-disc" style={{ stroke: s.color }} onClick={() => onOpenSeq(s.id)} />
+              <text className="axis-seq-glyph" y={4.5} style={{ fill: s.color }} onClick={() => onOpenSeq(s.id)}>
                 {s.icon}
               </text>
-              <text className="axis-seq-label" y={30}>
-                {s.title.length > 18 ? s.title.slice(0, 17) + "…" : s.title}
-              </text>
+              {!open && (
+                <text className="axis-seq-label" y={29}>
+                  {s.title.length > 18 ? s.title.slice(0, 17) + "…" : s.title}
+                </text>
+              )}
             </g>
           );
         })}

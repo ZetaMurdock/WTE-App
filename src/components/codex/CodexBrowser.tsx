@@ -73,7 +73,13 @@ const save = (key: string, v: unknown) => {
 
 function stemOf(url: string): string | null {
   const m = url.match(/^wte:\/\/(?:page|rules?)\/(.+)$/);
-  return m ? decodeURIComponent(m[1]) : null;
+  if (!m) return null;
+  let s = decodeURIComponent(m[1]);
+  // Unwrap double-wrapped links (mirrored pages carry full wte://rules/… URLs
+  // in data-wte-link, which used to get nested inside wte://page/…).
+  const nested = s.match(/^wte:\/\/(?:page|rules?)\/(.+)$/);
+  if (nested) s = decodeURIComponent(nested[1]);
+  return s;
 }
 function queryOf(url: string): string | null {
   const m = url.match(/^wte:\/\/search\?q=(.*)$/);
@@ -309,7 +315,11 @@ export function CodexBrowser() {
     e.preventDefault();
     const wl = a.getAttribute("data-wte-link");
     const href = a.getAttribute("href") || "";
-    if (wl) return navigate(`wte://page/${encodeURIComponent(wl)}`);
+    if (wl) {
+      // data-wte-link may be a bare page name OR a full wte://rules/… URL — canonicalize.
+      const stem = stemOf(wl) ?? wl;
+      return navigate(`wte://page/${encodeURIComponent(stem)}`);
+    }
     if (href.startsWith("wte://")) {
       const stem = stemOf(href);
       return navigate(stem ? `wte://page/${encodeURIComponent(stem)}` : href);
@@ -324,7 +334,7 @@ export function CodexBrowser() {
       const want = typeFilter.toLowerCase();
       list = list.filter((p) => typeMap.current!.get(p) === want);
     }
-    return list.slice(0, 60);
+    return list; // every record — the list box scrolls
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pages, homeFilter, typeFilter, scanState]);
 
@@ -410,8 +420,20 @@ export function CodexBrowser() {
               scanning={scanState === "scanning"}
               marks={marks}
               recents={recents}
-              sequences={seqs.map((s) => ({ id: s.id, title: s.title, icon: s.icon, color: s.color }))}
+              sequences={seqs.map((s) => ({
+                id: s.id,
+                title: s.title,
+                icon: s.icon,
+                color: s.color,
+                scripts: s.scripts.map((sc) => ({ id: sc.id, title: sc.title })),
+              }))}
               onOpenSeq={(id) => navigate(`wte://sequence/${id}`)}
+              onBeginScript={(seqId, scriptId) => {
+                const s = seqs.find((x) => x.id === seqId);
+                const sc = s?.scripts.find((x) => x.id === scriptId);
+                if (s && sc && sc.steps.length) beginRun(s, sc);
+                else navigate(`wte://sequence/${seqId}`);
+              }}
               onOpenType={(chip) => {
                 setTypeFilter(chip);
                 setMode("index");

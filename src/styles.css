@@ -2624,3 +2624,55 @@ body {
 .axis-seq:hover .axis-seq-label {
   fill: var(--bone);
 }
+
+/* ── Sequence ring: stations on the bezel, hover branches into scripts ── */
+.axis-seqring .axis-line {
+  opacity: 0.8;
+}
+.axis-seq .axis-seq-disc,
+.axis-seq .axis-seq-glyph {
+  cursor: pointer;
+}
+.axis-seq.open .axis-seq-disc {
+  stroke-width: 1.8;
+}
+.axis-branches {
+  animation: axis-unseal 0.32s ease-out;
+}
+@keyframes axis-unseal {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+}
+.axis-branch {
+  cursor: pointer;
+}
+.axis-branch-line {
+  stroke-width: 1;
+  opacity: 0.55;
+}
+.axis-branch-node {
+  fill: rgba(10, 15, 28, 0.95);
+  stroke-width: 1;
+}
+.axis-branch:hover .axis-branch-node {
+  stroke-width: 1.8;
+}
+.axis-branch-glyph {
+  font-size: 9px;
+  text-anchor: middle;
+  pointer-events: none;
+}
+.axis-branch-label {
+  fill: var(--bone);
+  font-family: Georgia, serif;
+  font-size: 9.5px;
+  letter-spacing: 0.5px;
+  paint-order: stroke;
+  stroke: rgba(7, 11, 20, 0.85);
+  stroke-width: 3px;
+}
+.axis-branch:hover .axis-branch-label {
+  fill: var(--ink);
+}
