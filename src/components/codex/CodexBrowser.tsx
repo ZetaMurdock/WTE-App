@@ -8,6 +8,9 @@ import { AxisWheel } from "./AxisWheel";
 import { SequenceView } from "./SequenceView";
 import { listSequences, saveSequence, deleteSequence } from "../../lib/sequences";
 import { newSequence, type Script, type Sequence } from "../../models/sequence";
+import { NotesPanel } from "./NotesPanel";
+import { listNotes, saveNote, deleteNote } from "../../lib/notes";
+import { newNote, type CodexNote } from "../../models/note";
 
 // The new Codex: a browser built solely for W.T.E (Remaster slice 1 — the usable
 // shell: tabs, wte:// address bar, history, search, bookmarks, recents, reader).
@@ -35,6 +38,7 @@ type View =
   | { kind: "page"; stem: string; title: string; html: string; entry: CodexEntry | null }
   | { kind: "search"; q: string; hits: SearchHit[] }
   | { kind: "sequence"; id: string }
+  | { kind: "notes" }
   | { kind: "error"; message: string };
 
 interface ActiveRun {
@@ -90,7 +94,7 @@ function seqIdOf(url: string): string | null {
   return m ? decodeURIComponent(m[1]) : null;
 }
 
-export function CodexBrowser() {
+export function CodexBrowser({ curator = false }: { curator?: boolean }) {
   const [tabs, setTabs] = useState<CTab[]>([{ id: uid(), hist: [HOME], idx: 0, title: "Archive" }]);
   const [activeId, setActiveId] = useState(tabs[0].id);
   const [addr, setAddr] = useState(HOME);
@@ -112,6 +116,9 @@ export function CodexBrowser() {
   const [seqs, setSeqs] = useState<Sequence[]>([]);
   const [seqVarFilter, setSeqVarFilter] = useState("All");
   const [run, setRun] = useState<ActiveRun | null>(null);
+  const [notes, setNotes] = useState<CodexNote[]>([]);
+  const [annotate, setAnnotate] = useState<{ x: number; y: number; text: string } | null>(null);
+  const [noteSearch, setNoteSearch] = useState("");
   const typeMap = useRef<Map<string, string> | null>(null);
   const readerRef = useRef<HTMLDivElement>(null);
 
@@ -122,8 +129,31 @@ export function CodexBrowser() {
     if (isTauri()) {
       invoke<string[]>("wte_list_pages").then(setPages).catch(() => setPages([]));
       listSequences().then(setSeqs).catch(() => setSeqs([]));
+      listNotes().then(setNotes).catch(() => setNotes([]));
     }
   }, []);
+
+  // ── Notes: state-first, persisted best-effort ──
+  function persistNote(n: CodexNote) {
+    setNotes((ns) => ns.map((x) => (x.id === n.id ? { ...n, updatedAt: Date.now() } : x)));
+    void saveNote(n).catch(() => {});
+  }
+  function addNote(attachedTo: string | null, quote: string | null = null) {
+    const n = newNote(attachedTo, quote);
+    setNotes((ns) => [n, ...ns]);
+    void saveNote(n).catch(() => {});
+  }
+  function removeNote(id: string) {
+    setNotes((ns) => ns.filter((x) => x.id !== id));
+    void deleteNote(id).catch(() => {});
+  }
+  // Select text in the reader → a floating Annotate chip → note quoting the selection.
+  function onReaderMouseUp(e: React.MouseEvent) {
+    const sel = window.getSelection();
+    const text = sel ? sel.toString().trim() : "";
+    if (text.length > 2 && text.length < 600) setAnnotate({ x: e.clientX, y: e.clientY, text });
+    else setAnnotate(null);
+  }
 
   // ── Sequences: persistence + guided-flow runner ──
   function persistSeq(next: Sequence) {
@@ -181,6 +211,11 @@ export function CodexBrowser() {
     if (url === HOME) {
       setView({ kind: "home" });
       retitle(tab.id, "Archive");
+      return;
+    }
+    if (url === "wte://notes") {
+      setView({ kind: "notes" });
+      retitle(tab.id, "Notes");
       return;
     }
     const sid = seqIdOf(url);
@@ -557,6 +592,25 @@ export function CodexBrowser() {
                     </button>
                   ))}
                 </div>
+                <div className="panel-title" style={{ marginTop: 18 }}>
+                  Recent notes
+                  <button className="chip" style={{ marginLeft: 10 }} onClick={() => navigate("wte://notes")}>
+                    All notes
+                  </button>
+                </div>
+                <div className="cdx-list">
+                  {notes.filter((n) => curator || n.visibility !== "gm").slice(0, 6).map((n) => (
+                    <button
+                      key={n.id}
+                      className="cdx-item dim"
+                      onClick={() => navigate(n.attachedTo ? `wte://page/${encodeURIComponent(n.attachedTo)}` : "wte://notes")}
+                    >
+                      {n.title || n.body.slice(0, 40) || "(untitled note)"}
+                      {n.attachedTo ? " · " + n.attachedTo.replace(/_/g, " ") : ""}
+                    </button>
+                  ))}
+                  {notes.length === 0 && <p className="list-empty">Annotate a page or add a scratch note.</p>}
+                </div>
               </div>
             </div>
           </div>
@@ -582,11 +636,74 @@ export function CodexBrowser() {
         )}
 
         {view.kind === "page" && (
-          <div className="cdx-reader" ref={readerRef} onClick={onReaderClick}>
+          <div className="cdx-reader" ref={readerRef} onClick={onReaderClick} onMouseUp={onReaderMouseUp}>
             <div className="cdx-page-meta">wte://page/{view.stem}</div>
             {spawnNote && <div className="cdx-spawn-note">{spawnNote}</div>}
             {view.entry && <TypedCard entry={view.entry} onSpawn={spawnInVtt} />}
             <div className="cdx-content" dangerouslySetInnerHTML={{ __html: view.html }} />
+            <div className="notes-section">
+              <div className="panel-title">
+                Notes
+                <button className="chip" style={{ marginLeft: 10 }} onClick={() => addNote(view.stem)}>
+                  + Add note
+                </button>
+              </div>
+              <NotesPanel
+                notes={notes.filter((n) => n.attachedTo === view.stem)}
+                curator={curator}
+                onSave={persistNote}
+                onDelete={removeNote}
+              />
+            </div>
+            {annotate && (
+              <button
+                className="cdx-annotate"
+                style={{ left: annotate.x, top: annotate.y + 14 }}
+                onClick={() => {
+                  addNote(view.stem, annotate.text);
+                  setAnnotate(null);
+                  window.getSelection()?.removeAllRanges();
+                }}
+              >
+                ✎ Annotate selection
+              </button>
+            )}
+          </div>
+        )}
+
+        {view.kind === "notes" && (
+          <div className="cdx-reader">
+            <div className="act-toolbar">
+              <h2 className="cdx-search-head" style={{ margin: 0, flex: 1 }}>
+                Notes · {notes.filter((n) => curator || n.visibility !== "gm").length}
+              </h2>
+              <button className="chip" onClick={() => addNote(null)}>
+                + Scratch note
+              </button>
+            </div>
+            <input
+              className="bg-select full"
+              placeholder="Search notes — title, body, tag, page…"
+              value={noteSearch}
+              onChange={(e) => setNoteSearch(e.target.value)}
+              style={{ marginBottom: 14 }}
+            />
+            <NotesPanel
+              notes={notes.filter((n) => {
+                const f = noteSearch.trim().toLowerCase();
+                if (!f) return true;
+                return (
+                  n.title.toLowerCase().includes(f) ||
+                  n.body.toLowerCase().includes(f) ||
+                  (n.attachedTo || "").toLowerCase().includes(f) ||
+                  n.tags.some((t) => t.toLowerCase().includes(f))
+                );
+              })}
+              curator={curator}
+              onSave={persistNote}
+              onDelete={removeNote}
+              onOpenPage={(stem) => navigate(`wte://page/${encodeURIComponent(stem)}`)}
+            />
           </div>
         )}
 

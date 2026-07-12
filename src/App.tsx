@@ -230,7 +230,7 @@ export default function App() {
         )}
         {/* Codex stays mounted so its tabs/history survive switching away */}
         <div className={"view-scroll" + (activeTab !== "codex" ? " hidden" : "")}>
-          <CodexBrowser />
+          <CodexBrowser curator={curator} />
         </div>
         <ToolFrame src="sheet.html" title="Character Sheet" hidden={activeTab !== "sheet"} />
         <ToolFrame src="vtt.html" title="VTT" hidden={activeTab !== "vtt"} />

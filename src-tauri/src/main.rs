@@ -454,6 +454,15 @@ CREATE TABLE IF NOT EXISTS codex_sequences (
 );
 ";
 
+// Codex Remaster slice 5: first-class notes. The v1 notes table gains page
+// attachment, GM/player visibility, tags, and an annotated-selection quote.
+const SCHEMA_V4: &str = "
+ALTER TABLE notes ADD COLUMN attached_to TEXT;
+ALTER TABLE notes ADD COLUMN visibility TEXT;
+ALTER TABLE notes ADD COLUMN tags TEXT;
+ALTER TABLE notes ADD COLUMN quote TEXT;
+";
+
 fn main() {
     let migrations = vec![
         tauri_plugin_sql::Migration {
@@ -472,6 +481,12 @@ fn main() {
             version: 3,
             description: "add codex sequences table",
             sql: SCHEMA_V3,
+            kind: tauri_plugin_sql::MigrationKind::Up,
+        },
+        tauri_plugin_sql::Migration {
+            version: 4,
+            description: "extend notes: page attachment, visibility, tags, quote",
+            sql: SCHEMA_V4,
             kind: tauri_plugin_sql::MigrationKind::Up,
         },
     ];

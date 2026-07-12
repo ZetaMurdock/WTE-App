@@ -2726,3 +2726,106 @@ body {
   font-size: 11px;
   letter-spacing: 1.5px;
 }
+
+/* ── Notes (Remaster slice 5) ── */
+.notes-section {
+  margin-top: 34px;
+  border-top: 1px solid var(--panel-line);
+  padding-top: 16px;
+}
+.notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.note-card {
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  padding: 10px 13px;
+}
+.note-card.gm {
+  border-left: 2px solid var(--violet);
+}
+.note-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.note-title {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  color: var(--ink);
+  font-family: Georgia, serif;
+  font-size: 14px;
+  padding: 2px 0;
+}
+.note-title:focus {
+  outline: none;
+}
+.note-quote {
+  margin: 8px 0 4px;
+  padding: 4px 10px;
+  border-left: 2px solid var(--accent);
+  font-size: 12px;
+  font-style: italic;
+  color: var(--bone);
+}
+.note-body {
+  width: 100%;
+  min-height: 52px;
+  background: var(--bg);
+  border: 1px solid var(--panel-line);
+  border-radius: 5px;
+  color: var(--bone);
+  font-family: Georgia, serif;
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 8px 10px;
+  margin-top: 6px;
+  resize: vertical;
+}
+.note-body:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.note-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.note-tag-input {
+  background: none;
+  border: none;
+  border-bottom: 1px dotted var(--panel-line);
+  color: var(--bone);
+  font-family: Georgia, serif;
+  font-size: 11px;
+  padding: 3px 2px;
+  min-width: 170px;
+}
+.note-tag-input:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
+}
+.cdx-annotate {
+  position: fixed;
+  z-index: 50;
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 16px;
+  color: var(--accent);
+  font-family: Georgia, serif;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  padding: 6px 13px;
+  cursor: pointer;
+  animation: axis-nodein 0.2s ease-out;
+}
+.cdx-annotate:hover {
+  color: var(--ink);
+}
