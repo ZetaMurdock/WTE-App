@@ -444,8 +444,21 @@ export function effectiveAttributes(
   return out;
 }
 
-/** The 10 derived stats + max HP, ported from calcAll(). Reductions are applied last
- *  with NO floor, so an over-specialized build can legitimately go 0 or negative. */
+/** Derived rework: the three CORE stats (Synaptic Space, Neuronal Capacity, Movement)
+ *  stay as totals — raw pool × rank multiplier. Every OTHER derived stat is now a
+ *  MODIFIER derived from its raw pool:
+ *    raw ≤ 40           → ⌊(raw − 20) / 4⌋            (−4 … +5)
+ *    raw > 40           → ⌊5 + blocks·11⁄3 · rankMult⌋ where blocks = ⌊(raw − 40)/15⌋
+ *  i.e. each 15 raw above 40 banks 11 points, divided by 3, scaled by rank. */
+export const CORE_DERIVED: ReadonlySet<DerivedKey> = new Set<DerivedKey>(["ss", "nc", "mv"]);
+export function derivedMod(raw: number, rank = 0): number {
+  if (raw <= 40) return Math.floor((raw - 20) / 4);
+  const blocks = Math.floor((raw - 40) / 15);
+  return Math.floor(5 + ((blocks * 11) / 3) * rankMult(rank));
+}
+
+/** Raw pools ported from calcAll(). Reductions are applied last with NO floor, so an
+ *  over-specialized build can legitimately go 0 or negative. */
 export interface DerivedOpts {
   speciesId?: string;
   rank?: number;
@@ -458,10 +471,11 @@ export function computeDerived(
   attrsIn: Attributes,
   specsIn: Specialties,
   opts: DerivedOpts = {}
-): Derived & { hpMax: number } {
+): Derived & { hpMax: number; raw: Derived } {
   const a = effectiveAttributes(attrsIn, opts.speciesId, opts.bgBonuses, opts.equip?.attr);
   const s = { ...specsIn };
   for (const k of SPEC_KEYS) s[k] = Math.min(SPEC_MAX, (s[k] || 0) + (opts.equip?.spec?.[k] || 0));
+  const rank = opts.rank ?? 0;
 
   const red = (pts: number) => Math.floor(pts / RED_DIV);
   const dv = (contribs: number, reductions: number) => {
@@ -470,7 +484,7 @@ export function computeDerived(
     return max - reductions;
   };
 
-  const d: Derived = {
+  const raw: Derived = {
     atk: dv(a.phy + s.wt + s.ctrl, red(s.pre) + red(s.bal)),
     dhp: dv(s.wt + a.end, red(s.adp) + red(s.cun)),
     mv: dv(a.dex + a.ap + s.pri, red(s.wt) + red(s.pre)),
@@ -480,13 +494,21 @@ export function computeDerived(
     rr: dv(a.end + s.bal + s.adp, red(s.wt) + red(s.ctrl) + red(s.cun)),
     ad: dv(a.ap + s.pre + s.cun + s.pri, red(s.wt) + red(s.mf)),
     inf: dv(a.cha + s.cun + s.ins + s.ver, red(s.adp) + red(s.per)),
-    pr: dv(a.wis + s.per + s.cun, red(s.mf) + red(s.bal)),
+    pr: dv(a.wis + s.per + s.cun + s.bal, red(s.mf)),
   };
+  // Equipment MODS on derived stats feed the RAW pool (everything flows through raw).
   const ed = opts.equip?.derived;
-  if (ed) for (const stat of DERIVED) d[stat.key] += ed[stat.key] || 0;
+  if (ed) for (const stat of DERIVED) raw[stat.key] += ed[stat.key] || 0;
+
+  const d: Derived = { ...raw };
+  for (const stat of DERIVED) {
+    d[stat.key] = CORE_DERIVED.has(stat.key)
+      ? Math.round(raw[stat.key] * rankMult(rank))
+      : derivedMod(raw[stat.key], rank);
+  }
   if (opts.sizeMove != null) d.mv = Math.max(d.mv, opts.sizeMove);
-  const hpMax = Math.max(0, Math.floor((d.dhp / 2) * rankMult(opts.rank ?? 0)) + attrMod(a.end));
-  return { ...d, hpMax };
+  const hpMax = Math.max(0, Math.floor((raw.dhp / 2) * rankMult(rank)) + attrMod(a.end));
+  return { ...d, hpMax, raw };
 }
 
 export function specialtyTotal(specs: Specialties): number {
