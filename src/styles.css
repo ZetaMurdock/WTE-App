@@ -1027,56 +1027,78 @@ body {
   flex-wrap: wrap;
 }
 /* Vitals tiles — Health / DHP / Movement / Synaptic Space (D&D-Beyond-style) */
+/* Compact orb-gauge vitals — symmetrical small cells */
 .vitals-bar {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin-bottom: 18px;
+  gap: 10px;
+  margin-bottom: 12px;
 }
-.vital-tile {
-  position: relative;
+.vital-cell {
   background: var(--panel);
   border: 1px solid var(--panel-line);
-  border-top: 3px solid var(--accent);
-  border-radius: 10px;
-  padding: 12px 14px 14px;
-  text-align: center;
-  overflow: hidden;
+  border-radius: 8px;
+  padding: 8px 6px 9px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
 }
-.vital-hp {
-  border-top-color: #a1584a;
-}
-.vital-dhp {
-  border-top-color: #a08a4f;
-}
-.vital-mv {
-  border-top-color: #6f9a68;
-}
-.vital-ss {
-  border-top-color: #837aae;
-}
-.vital-label {
-  font-size: 10px;
-  letter-spacing: 2px;
+.vital-cap {
+  font-size: 9px;
+  letter-spacing: 1.5px;
   text-transform: uppercase;
   color: var(--muted);
 }
-.vital-value {
-  font-family: Georgia, serif;
-  font-size: 30px;
-  line-height: 1.1;
-  color: var(--ink);
-  margin-top: 4px;
+.vital-orbs {
+  display: grid;
+  grid-template-columns: repeat(5, 8px);
+  gap: 4px;
+  justify-content: center;
 }
-.vital-gear {
-  margin-top: 4px;
+.vorb {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid var(--panel-line);
+  box-sizing: border-box;
+  transition: background 0.15s;
+}
+.vital-hp .vorb.on {
+  background: #a1584a;
+  border-color: #a1584a;
+}
+.vital-dhp .vorb.on {
+  background: #a08a4f;
+  border-color: #a08a4f;
+}
+.vital-mv .vorb.on {
+  background: #6f9a68;
+  border-color: #6f9a68;
+}
+.vital-ss .vorb.on {
+  background: #837aae;
+  border-color: #837aae;
+}
+.vital-num {
   font-family: Consolas, monospace;
-  font-size: 10px;
-  letter-spacing: 0.5px;
+  font-size: 13px;
+  color: var(--ink);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.vital-delta {
+  font-style: normal;
+  font-size: 9px;
   color: var(--accent);
 }
-.vital-gear.neg {
+.vital-delta.neg {
   color: #a1584a;
+}
+.sheet-derived-under {
+  margin-bottom: 18px;
 }
 .stat-eff {
   font-family: Consolas, monospace;

@@ -260,6 +260,21 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
 
       <CharacterVitals derived={derived} derivedBase={derivedBase} ssSpent={ssSpent} />
 
+      <div className="sheet-derived-under">
+        <div className="panel-title">Derived Statistics</div>
+        <DerivedPreview
+          attributes={sheet.attributes}
+          specialties={sheet.specialties}
+          speciesId={sheet.speciesId}
+          rank={rank}
+          background={sheet.background}
+          equipment={sheet.equipment}
+          sizeId={sheet.sizeId}
+          exclude={["dhp", "mv", "ss"]}
+          showHp={false}
+        />
+      </div>
+
       {!validation.ok && (
         <ul className="validation-list">
           {validation.errors.map((err, i) => (
@@ -374,20 +389,6 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                   </div>
                 </div>
 
-                <div className="stats-derived">
-                  <div className="panel-title">Other derived stats</div>
-                  <DerivedPreview
-                    attributes={sheet.attributes}
-                    specialties={sheet.specialties}
-                    speciesId={sheet.speciesId}
-                    rank={rank}
-                    background={sheet.background}
-                    equipment={sheet.equipment}
-                    sizeId={sheet.sizeId}
-                    exclude={["dhp", "mv", "ss"]}
-                    showHp={false}
-                  />
-                </div>
               </div>
             )}
 
