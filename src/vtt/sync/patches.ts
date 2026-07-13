@@ -17,6 +17,7 @@ export type VttOp =
   | { op: "light.remove"; id: string }
   | { op: "fog.set"; enabled: boolean }
   | { op: "fog.reveal"; cells: string[] }
+  | { op: "bg.set"; src: string | null }
   | { op: "scene.switch"; sceneId: string };
 
 /** Apply an op to scene data in place. Scene-scoped only — `scene.switch` is
@@ -87,6 +88,10 @@ export function applyOp(d: VttSceneData, op: VttOp): boolean {
       if (added) d.fog.revealed = [...set];
       return added;
     }
+    case "bg.set":
+      if (d.background.src === (op.src || undefined)) return false;
+      d.background.src = op.src || undefined;
+      return true;
     case "scene.switch":
       return false; // handled by the sync layer, not by mutating this scene
   }

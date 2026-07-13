@@ -21,6 +21,8 @@ export interface VttToken {
   y: number;
   size: number; // cells of diameter
   color: string;
+  /** Token art (asset uri); falls back to the colour disc when unset. */
+  img?: string | null;
   hp?: number;
   hpMax?: number;
   /** Linked character or actor (Codex creature / party member). */

@@ -11,8 +11,10 @@ import { VttSceneBrowser } from "./VttSceneBrowser";
 import { VttActorsPanel } from "./VttActorsPanel";
 import { VttEncounterPanel } from "./VttEncounterPanel";
 import { VttRollFeed } from "./VttRollFeed";
+import { VttAssetPanel } from "./VttAssetPanel";
 import { listCharacters, type CharacterRecord } from "../lib/characters";
 import { characterToTokenSpec, creatureToTokenSpec, parseSpawnPayload } from "./data/actorSpawn";
+import { listAssets, addAsset, deleteAsset, type AssetKind, type VttAsset } from "./data/assetRepo";
 import { useVttSync } from "./sync/vttSync";
 
 // VTT v2 (slice 1): Pixi renders the map; React owns the chrome. Beside the
@@ -23,11 +25,13 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
   const saveTimer = useRef<number | undefined>(undefined);
   const [scene, setScene] = useState<VttScene | null>(null);
   const [scenes, setScenes] = useState<VttScene[]>([]);
-  // The left dock shows at most one panel at a time (scenes / actors / encounter).
-  const [leftPanel, setLeftPanel] = useState<"scenes" | "actors" | "encounter" | null>(null);
+  // The left dock shows at most one panel at a time.
+  const [leftPanel, setLeftPanel] = useState<"scenes" | "actors" | "encounter" | "assets" | null>(null);
   const [rollsOpen, setRollsOpen] = useState(false);
   const [characters, setCharacters] = useState<CharacterRecord[]>([]);
   const [charsLoading, setCharsLoading] = useState(false);
+  const [assets, setAssets] = useState<VttAsset[]>([]);
+  const [assetsLoading, setAssetsLoading] = useState(false);
   const [tool, setTool] = useState<VttTool>("select");
   const [sel, setSel] = useState<VttSelection>(null);
   const [tick, setTick] = useState(0); // re-render after engine mutations
@@ -200,6 +204,35 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
     engineRef.current?.spawnToken(characterToTokenSpec(rec));
   }
 
+  // Load the campaign's asset library for the Assets panel.
+  const loadAssets = useCallback(async () => {
+    if (!campaign || !isTauri()) {
+      setAssets([]);
+      return;
+    }
+    setAssetsLoading(true);
+    const list = await listAssets(campaign.id).catch(() => [] as VttAsset[]);
+    setAssets(list);
+    setAssetsLoading(false);
+  }, [campaign]);
+
+  useEffect(() => {
+    void loadAssets();
+  }, [loadAssets]);
+
+  async function addAssetEntry(kind: AssetKind, name: string, uri: string) {
+    if (!campaign) return;
+    const a = await addAsset(campaign.id, kind, name, uri).catch(() => null);
+    if (a) setAssets((cur) => [a, ...cur]);
+  }
+  async function removeAsset(id: string) {
+    await deleteAsset(id).catch(() => {});
+    setAssets((cur) => cur.filter((a) => a.id !== id));
+  }
+  function applyTokenArt(uri: string) {
+    if (sel?.kind === "token") engineRef.current?.updateToken(sel.id, { img: uri });
+  }
+
   // Codex creature spawns ride the legacy `wte-spawn-creature` channel. VTT v2
   // and the React Codex share one document, where `storage` events don't fire —
   // so the Codex also dispatches a same-window CustomEvent (see CodexBrowser).
@@ -261,10 +294,12 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
         scenesOpen={leftPanel === "scenes"}
         actorsOpen={leftPanel === "actors"}
         encounterOpen={leftPanel === "encounter"}
+        assetsOpen={leftPanel === "assets"}
         rollsOpen={rollsOpen}
         onToggleScenes={campaign ? () => setLeftPanel((p) => (p === "scenes" ? null : "scenes")) : undefined}
         onToggleActors={campaign ? () => setLeftPanel((p) => (p === "actors" ? null : "actors")) : undefined}
         onToggleEncounter={campaign ? () => setLeftPanel((p) => (p === "encounter" ? null : "encounter")) : undefined}
+        onToggleAssets={campaign ? () => setLeftPanel((p) => (p === "assets" ? null : "assets")) : undefined}
         onToggleRolls={campaign ? () => setRollsOpen((v) => !v) : undefined}
         syncOn={sync.connected}
         syncPeers={sync.peerCount}
@@ -300,6 +335,20 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
           onTimeline={(round, turn) => engine?.setTimeline(round, turn)}
           onTokenHp={(tokenId, hp) => engine?.updateToken(tokenId, { hp })}
           onFocusToken={(tokenId) => engine?.select({ kind: "token", id: tokenId })}
+          onClose={() => setLeftPanel(null)}
+        />
+      )}
+      {campaign && leftPanel === "assets" && (
+        <VttAssetPanel
+          assets={assets}
+          loading={assetsLoading}
+          hasSelectedToken={sel?.kind === "token"}
+          currentBg={live?.data.background.src}
+          onAdd={(kind, name, uri) => void addAssetEntry(kind, name, uri)}
+          onDelete={(id) => void removeAsset(id)}
+          onUseBackground={(uri) => engine?.setBackground(uri)}
+          onApplyToToken={applyTokenArt}
+          onRefresh={() => void loadAssets()}
           onClose={() => setLeftPanel(null)}
         />
       )}

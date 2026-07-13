@@ -12,11 +12,13 @@ interface Props {
   scenesOpen: boolean;
   actorsOpen: boolean;
   encounterOpen: boolean;
+  assetsOpen: boolean;
   rollsOpen: boolean;
   /** Undefined disables these (no campaign → no persisted scenes / vault). */
   onToggleScenes?: () => void;
   onToggleActors?: () => void;
   onToggleEncounter?: () => void;
+  onToggleAssets?: () => void;
   onToggleRolls?: () => void;
   syncOn: boolean;
   syncPeers: number;
@@ -34,10 +36,12 @@ export function VttToolbar({
   scenesOpen,
   actorsOpen,
   encounterOpen,
+  assetsOpen,
   rollsOpen,
   onToggleScenes,
   onToggleActors,
   onToggleEncounter,
+  onToggleAssets,
   onToggleRolls,
   syncOn,
   syncPeers,
@@ -69,6 +73,14 @@ export function VttToolbar({
         title="Encounter — initiative, turn order, round counter, HP/status"
       >
         Encounter
+      </button>
+      <button
+        className={"chip" + (assetsOpen ? " active" : "")}
+        onClick={onToggleAssets}
+        disabled={!onToggleAssets}
+        title="Assets — map backgrounds + token art"
+      >
+        Assets
       </button>
       <button
         className={"chip" + (rollsOpen ? " active" : "")}

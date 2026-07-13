@@ -219,6 +219,14 @@ export class PixiVttApp {
     this.onChanged();
     this.onOp({ op: "fog.set", enabled: this.scene.data.fog.enabled });
   }
+  /** Set (or clear) the scene's map-background image. */
+  setBackground(src: string | null): void {
+    if (!this.scene) return;
+    this.scene.data.background.src = src || undefined;
+    this.redraw();
+    this.onChanged();
+    this.onOp({ op: "bg.set", src: src || null });
+  }
   moveToken(id: string, wx: number, wy: number, snap: boolean): void {
     const t = this.scene?.data.tokens.find((x) => x.id === id);
     if (!t) return;
