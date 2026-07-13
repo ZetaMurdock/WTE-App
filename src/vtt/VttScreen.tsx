@@ -9,6 +9,8 @@ import { VttToolbar } from "./VttToolbar";
 import { VttInspector } from "./VttInspector";
 import { VttSceneBrowser } from "./VttSceneBrowser";
 import { VttActorsPanel } from "./VttActorsPanel";
+import { VttEncounterPanel } from "./VttEncounterPanel";
+import { VttRollFeed } from "./VttRollFeed";
 import { listCharacters, type CharacterRecord } from "../lib/characters";
 import { characterToTokenSpec, creatureToTokenSpec, parseSpawnPayload } from "./data/actorSpawn";
 
@@ -20,8 +22,9 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
   const saveTimer = useRef<number | undefined>(undefined);
   const [scene, setScene] = useState<VttScene | null>(null);
   const [scenes, setScenes] = useState<VttScene[]>([]);
-  // The left dock shows at most one panel at a time (scenes / actors).
-  const [leftPanel, setLeftPanel] = useState<"scenes" | "actors" | null>(null);
+  // The left dock shows at most one panel at a time (scenes / actors / encounter).
+  const [leftPanel, setLeftPanel] = useState<"scenes" | "actors" | "encounter" | null>(null);
+  const [rollsOpen, setRollsOpen] = useState(false);
   const [characters, setCharacters] = useState<CharacterRecord[]>([]);
   const [charsLoading, setCharsLoading] = useState(false);
   const [tool, setTool] = useState<VttTool>("select");
@@ -231,8 +234,12 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
         onToggleFog={() => engine?.toggleFog()}
         scenesOpen={leftPanel === "scenes"}
         actorsOpen={leftPanel === "actors"}
+        encounterOpen={leftPanel === "encounter"}
+        rollsOpen={rollsOpen}
         onToggleScenes={campaign ? () => setLeftPanel((p) => (p === "scenes" ? null : "scenes")) : undefined}
         onToggleActors={campaign ? () => setLeftPanel((p) => (p === "actors" ? null : "actors")) : undefined}
+        onToggleEncounter={campaign ? () => setLeftPanel((p) => (p === "encounter" ? null : "encounter")) : undefined}
+        onToggleRolls={campaign ? () => setRollsOpen((v) => !v) : undefined}
       />
       <div className="vtt2-stage" ref={hostRef} />
       {campaign && leftPanel === "scenes" && (
@@ -255,6 +262,20 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
           onClose={() => setLeftPanel(null)}
         />
       )}
+      {campaign && leftPanel === "encounter" && live && (
+        <VttEncounterPanel
+          campaignId={campaign.id}
+          sceneId={live.id}
+          tokens={live.data.tokens}
+          linkedId={live.data.encounterId ?? null}
+          onLink={(id) => engine?.setEncounterId(id)}
+          onTimeline={(round, turn) => engine?.setTimeline(round, turn)}
+          onTokenHp={(tokenId, hp) => engine?.updateToken(tokenId, { hp })}
+          onFocusToken={(tokenId) => engine?.select({ kind: "token", id: tokenId })}
+          onClose={() => setLeftPanel(null)}
+        />
+      )}
+      {campaign && rollsOpen && <VttRollFeed campaignId={campaign.id} onClose={() => setRollsOpen(false)} />}
       {!campaign && <div className="vtt2-sandbox-note">Sandbox table — pick a campaign on the Dashboard to persist scenes.</div>}
       {sel && engine && live && (
         <VttInspector

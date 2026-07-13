@@ -226,6 +226,18 @@ export class PixiVttApp {
     this.scene.data.camera = this.camera.state();
     this.onChanged();
   }
+  /** Link (or unlink) the scene's active encounter. */
+  setEncounterId(id: string | null): void {
+    if (!this.scene) return;
+    this.scene.data.encounterId = id;
+    this.onChanged();
+  }
+  /** Mirror the encounter's round/turn into the scene timeline. */
+  setTimeline(round: number, turn: number): void {
+    if (!this.scene) return;
+    this.scene.data.timeline = { round, turn };
+    this.onChanged();
+  }
 
   destroy(): void {
     this.destroyed = true;

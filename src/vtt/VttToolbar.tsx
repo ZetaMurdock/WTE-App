@@ -11,9 +11,13 @@ interface Props {
   onToggleFog: () => void;
   scenesOpen: boolean;
   actorsOpen: boolean;
+  encounterOpen: boolean;
+  rollsOpen: boolean;
   /** Undefined disables these (no campaign → no persisted scenes / vault). */
   onToggleScenes?: () => void;
   onToggleActors?: () => void;
+  onToggleEncounter?: () => void;
+  onToggleRolls?: () => void;
 }
 
 export function VttToolbar({
@@ -27,8 +31,12 @@ export function VttToolbar({
   onToggleFog,
   scenesOpen,
   actorsOpen,
+  encounterOpen,
+  rollsOpen,
   onToggleScenes,
   onToggleActors,
+  onToggleEncounter,
+  onToggleRolls,
 }: Props) {
   const hint = VTT_TOOLS.find((t) => t.id === tool)?.hint ?? "";
   return (
@@ -49,6 +57,22 @@ export function VttToolbar({
         title="Actors — spawn linked vault characters as tokens"
       >
         Actors
+      </button>
+      <button
+        className={"chip" + (encounterOpen ? " active" : "")}
+        onClick={onToggleEncounter}
+        disabled={!onToggleEncounter}
+        title="Encounter — initiative, turn order, round counter, HP/status"
+      >
+        Encounter
+      </button>
+      <button
+        className={"chip" + (rollsOpen ? " active" : "")}
+        onClick={onToggleRolls}
+        disabled={!onToggleRolls}
+        title="Roll feed — recent + live dice rolls"
+      >
+        Rolls
       </button>
       {VTT_TOOLS.map((t) => (
         <button key={t.id} className={"chip" + (tool === t.id ? " active" : "")} onClick={() => onTool(t.id)} title={t.hint}>
