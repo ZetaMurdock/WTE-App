@@ -1317,6 +1317,52 @@ body {
   color: #a08a4f;
   border-color: #a08a4f;
 }
+.cdx-custom-chip {
+  border-style: dashed;
+}
+/* Page editor modal */
+.page-editor-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 7, 13, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+}
+.page-editor {
+  width: min(680px, 92vw);
+  max-height: 88vh;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  padding: 16px 18px;
+}
+.pe-label-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.pe-hint {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+}
+.pe-content {
+  min-height: 260px;
+  resize: vertical;
+  font-family: Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.pe-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
 .stat-eff {
   font-family: Consolas, monospace;
   font-size: 11px;

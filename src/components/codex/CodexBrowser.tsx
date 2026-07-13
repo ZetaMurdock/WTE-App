@@ -12,6 +12,7 @@ import { NotesPanel } from "./NotesPanel";
 import { listNotes, saveNote, deleteNote } from "../../lib/notes";
 import { newNote, type CodexNote } from "../../models/note";
 import { allPageMeta, getPageMeta, setPageMeta as savePageMeta, type PageMeta } from "../../lib/pageMeta";
+import { PageEditor, type PageDraft } from "./PageEditor";
 
 // The new Codex: a browser built solely for W.T.E (Remaster slice 1 — the usable
 // shell: tabs, wte:// address bar, history, search, bookmarks, recents, reader).
@@ -54,6 +55,8 @@ const VTT_CLASS_COLORS: Record<number, string> = {
   1: "#6b6f7a", 2: "#c9a227", 3: "#7a4b9a", 4: "#8a3a2a", 5: "#c33fbf", 6: "#20202c",
 };
 const TYPE_CHIPS = ["All", "Creature", "Weapon", "Equipment", "Cipher", "Genus"];
+// Base "pull targets" a page can link to (feed the sheet/VTT); custom labels add to these.
+const BASE_LABELS = ["Creature", "Weapon", "Equipment", "Cipher", "Genus", "Species", "Paradigm"];
 
 function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   const w = window as unknown as { __TAURI__?: { core: { invoke: (c: string, a?: Record<string, unknown>) => Promise<T> } } };
@@ -154,6 +157,7 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
   const readerRef = useRef<HTMLDivElement>(null);
   const pageUploadRef = useRef<HTMLInputElement>(null);
   const privileged = curator || engineer;
+  const [editor, setEditor] = useState<{ initial?: PageDraft } | null>(null);
 
   function togglePull(stem: string) {
     setPageMetaMap(savePageMeta(stem, { pulled: !getPageMeta(stem, pageMetaMap).pulled }));
@@ -161,6 +165,39 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
   function toggleVisibility(stem: string) {
     const cur = getPageMeta(stem, pageMetaMap).visibility;
     setPageMetaMap(savePageMeta(stem, { visibility: cur === "player" ? "gm" : "player" }));
+  }
+
+  // Custom section labels in use (beyond the base pull targets / record types).
+  const customLabels = useMemo(() => {
+    const base = new Set([...TYPE_CHIPS, ...BASE_LABELS]);
+    return [...new Set(Object.values(pageMetaMap).map((m) => m.label).filter((l): l is string => !!l && !base.has(l)))];
+  }, [pageMetaMap]);
+  const labelChips = [...TYPE_CHIPS, ...customLabels];
+
+  async function openEditPage(stem: string) {
+    let content = "";
+    try {
+      content = await invoke<string>("wte_load_page", { path: stem });
+    } catch {
+      /* new/unavailable — start blank */
+    }
+    setEditor({ initial: { title: stem, content, label: getPageMeta(stem, pageMetaMap).label ?? BASE_LABELS[0] } });
+  }
+
+  async function savePageDraft(draft: PageDraft) {
+    try {
+      const stem = await invoke<string>("wte_save_page", { name: draft.title, content: draft.content });
+      setPageMetaMap(savePageMeta(stem, { label: draft.label }));
+      invoke<string[]>("wte_list_pages").then(setPages).catch(() => {});
+      typeMap.current = null;
+      linkMap.current = null;
+      setScanState("idle");
+      setEditor(null);
+      setUploadNote(`Saved “${draft.title}” to the ${draft.label} section.`);
+      window.setTimeout(() => setUploadNote(""), 5000);
+    } catch (e) {
+      setUploadNote("Could not save page: " + (e instanceof Error ? e.message : String(e)));
+    }
   }
 
   const tab = tabs.find((t) => t.id === activeId) ?? tabs[0];
@@ -493,9 +530,10 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
   const filteredPages = useMemo(() => {
     const f = homeFilter.trim().toLowerCase();
     let list = f ? pages.filter((p) => p.toLowerCase().includes(f)) : pages;
-    if (typeFilter !== "All" && typeMap.current) {
+    if (typeFilter !== "All") {
       const want = typeFilter.toLowerCase();
-      list = list.filter((p) => typeMap.current!.get(p) === want);
+      // Match a custom section label OR the content-derived record type.
+      list = list.filter((p) => getPageMeta(p, pageMetaMap).label === typeFilter || (typeMap.current && typeMap.current.get(p) === want));
     }
     // Players (not Curator/Engineer) only see player-visible pages.
     if (!privileged) list = list.filter((p) => getPageMeta(p, pageMetaMap).visibility === "player");
@@ -709,8 +747,11 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
                         hidden
                         onChange={(e) => void uploadPages(e.target.files)}
                       />
+                      <button className="chip" onClick={() => setEditor({})} title="Author a new Codex page">
+                        ＋ New page
+                      </button>
                       <button className="chip" onClick={() => pageUploadRef.current?.click()} title="Upload official .md pages into the Codex">
-                        ⬆ Upload pages
+                        ⬆ Upload
                       </button>
                     </>
                   )}
@@ -730,13 +771,13 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
                   </div>
                 )}
                 <div className="chip-row" style={{ marginBottom: 8 }}>
-                  {TYPE_CHIPS.map((t) => (
+                  {labelChips.map((t) => (
                     <button
                       key={t}
-                      className={"chip" + (typeFilter === t ? " active" : "")}
+                      className={"chip" + (typeFilter === t ? " active" : "") + (customLabels.includes(t) ? " cdx-custom-chip" : "")}
                       onClick={() => {
                         setTypeFilter(t);
-                        if (t !== "All") void ensureTypeScan();
+                        if (t !== "All" && TYPE_CHIPS.includes(t)) void ensureTypeScan();
                       }}
                     >
                       {t}
@@ -758,6 +799,9 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
                         </button>
                         {engineer && (
                           <div className="cdx-page-flags">
+                            <button className="cdx-flag" title="Edit this page" onClick={() => void openEditPage(p)}>
+                              ✎
+                            </button>
                             <button
                               className={"cdx-flag" + (m.pulled ? " on" : "")}
                               title={m.pulled ? "Pulled into sheet/VTT catalogs — click to stop pulling" : "Not pulled — click to pull into sheet/VTT catalogs"}
@@ -1029,6 +1073,15 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
           </div>
         )}
       </div>
+
+      {editor && (
+        <PageEditor
+          initial={editor.initial}
+          labels={[...BASE_LABELS, ...customLabels]}
+          onSave={(d) => void savePageDraft(d)}
+          onCancel={() => setEditor(null)}
+        />
+      )}
     </div>
   );
 }

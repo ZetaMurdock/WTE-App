@@ -8,6 +8,9 @@ export interface PageMeta {
   pulled: boolean;
   /** Who can see the page. */
   visibility: "gm" | "player";
+  /** Section/category the page belongs to. A custom value spawns a new Codex
+   *  section; a base type (Creature/Weapon/…) links it to that pull target. */
+  label?: string;
 }
 
 export const DEFAULT_PAGE_META: PageMeta = { pulled: true, visibility: "player" };
@@ -24,6 +27,7 @@ function readAll(): Record<string, PageMeta> {
       out[k] = {
         pulled: v.pulled !== false,
         visibility: v.visibility === "gm" ? "gm" : "player",
+        label: typeof v.label === "string" && v.label.trim() ? v.label : undefined,
       };
     }
     return out;
