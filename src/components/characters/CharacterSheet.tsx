@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getCharacter, updateCharacter, type CharacterRecord } from "../../lib/characters";
+import { getCharacter, updateCharacter, deleteCharacter, type CharacterRecord } from "../../lib/characters";
 import { logRoll } from "../../lib/rolls";
 import {
   ATTRIBUTES,
@@ -37,6 +37,7 @@ import {
 } from "../../game/wte";
 import { DerivedPreview } from "./DerivedPreview";
 import { CharacterVitals } from "./CharacterVitals";
+import { ConfirmButton } from "../ui/ConfirmButton";
 import { RollFeed, useRollFeed } from "./RollFeed";
 import { SpeciesVariantsBody } from "./SpeciesVariantsPanel";
 import { WeaponsBody, InventoryBody } from "./EquipmentPanel";
@@ -222,6 +223,16 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
               Share to party
             </button>
           )}
+          <ConfirmButton
+            className="ghost-btn"
+            label="Delete"
+            confirmLabel="Delete forever"
+            title="Delete this character"
+            onConfirm={async () => {
+              await deleteCharacter(rec!.id);
+              onBack();
+            }}
+          />
           <button className="ghost-btn" onClick={onBack}>
             ← Vault
           </button>

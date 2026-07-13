@@ -2,6 +2,7 @@ import type { Campaign } from "../../models/campaign";
 import type { CharacterRecord } from "../../lib/characters";
 import { deleteCharacter, updateCharacter } from "../../lib/characters";
 import { getSpecies, getParadigm } from "../../game/wte";
+import { ConfirmButton } from "../ui/ConfirmButton";
 
 interface Props {
   campaign: Campaign;
@@ -22,10 +23,8 @@ export function CharacterVault({ campaign, characters, loading, onNew, onOpen, o
   }
 
   async function handleDelete(c: CharacterRecord) {
-    if (confirm(`Delete "${c.name}"? This cannot be undone.`)) {
-      await deleteCharacter(c.id);
-      onChanged();
-    }
+    await deleteCharacter(c.id);
+    onChanged();
   }
 
   function subtitle(c: CharacterRecord): string {
@@ -61,9 +60,12 @@ export function CharacterVault({ campaign, characters, loading, onNew, onOpen, o
                 <button className="icon-btn" onClick={() => handleRename(c)}>
                   Rename
                 </button>
-                <button className="icon-btn" onClick={() => handleDelete(c)}>
-                  Delete
-                </button>
+                <ConfirmButton
+                  label="Delete"
+                  confirmLabel="Delete forever"
+                  title="Delete this character"
+                  onConfirm={() => void handleDelete(c)}
+                />
               </div>
             </div>
           ))}

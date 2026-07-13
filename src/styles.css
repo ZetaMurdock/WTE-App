@@ -337,6 +337,17 @@ body {
 .icon-btn:hover {
   color: var(--ink);
 }
+.icon-btn.danger {
+  color: #d08b7d;
+}
+.icon-btn.danger:hover {
+  color: #e5a595;
+}
+.confirm-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
 .list-empty {
   font-size: 13px;
   color: var(--muted);
