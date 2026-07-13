@@ -237,7 +237,6 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
             min={0}
             max={RANK_MAX}
             value={rank}
-            disabled={!curator}
             onChange={(e) => setRank(intOf(e.target.value))}
           />
         </div>
@@ -245,7 +244,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
         <div className="rank-item"><span className="rank-lbl">Genus slots</span><span className="rank-val">{genusSlots(rank)}</span></div>
         <div className="rank-item"><span className="rank-lbl">Cipher slots</span><span className="rank-val">{cipherSlots(rank)}</span></div>
         <span className="rank-spacer" />
-        <span className={"curator-flag" + (curator ? " on" : "")}>{curator ? "Curator Mode" : "Player view · stats locked"}</span>
+        {curator && <span className="curator-flag on">Curator Mode</span>}
       </div>
 
       <CharacterVitals derived={derived} derivedBase={derivedBase} ssSpent={ssSpent} />
@@ -314,7 +313,6 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                           min={ATTR_MIN}
                           max={ATTR_MAX}
                           value={sheet.attributes[a.key]}
-                          disabled={!curator}
                           onChange={(e) => setAttr(a.key, intOf(e.target.value))}
                         />
                         <RollButton
@@ -354,7 +352,6 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                             min={0}
                             max={SPEC_MAX}
                             value={sheet.specialties[s.key]}
-                            disabled={!curator}
                             onChange={(e) => setSpec(s.key, intOf(e.target.value))}
                           />
                           <RollButton className="roll-btn" title={`Roll ${s.label}`} make={() => rollSpecialty(`${s.label} Check`, pts)} onLocal={doRoll}>
@@ -406,7 +403,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                 gearLoadout={gearLoadout}
                 maxNC={maxNC}
                 ncUsed={ncUsed}
-                curator={curator}
+                curator={true}
                 onSize={setSize}
                 onEquipment={setEquipment}
                 onGear={setGear}
@@ -423,7 +420,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                     ncUsed={ncUsed}
                     slotsUsed={slotsUsed}
                     slotsMax={WEAPON_SLOTS}
-                    curator={curator}
+                    curator={true}
                     onWeapons={setWeapons}
                   />
                 </div>

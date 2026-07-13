@@ -1,4 +1,5 @@
 import type { WteUpdate } from "../lib/tauri";
+import { useNet } from "../net/NetContext";
 
 export type TabId = "dashboard" | "characters" | "sheet" | "vtt" | "wiki" | "lobby" | "codex" | "vtt2";
 
@@ -45,6 +46,11 @@ export function TopBar({
   curator,
   onToggleCurator,
 }: TopBarProps) {
+  const net = useNet();
+  // Per-campaign Curator claim: you're the Curator of campaigns you own. The only
+  // "player" case is joining someone else's netplay room as a player — hide the
+  // GM-mode button there.
+  const isNetPlayer = net.status === "connected" && net.role === "player";
   return (
     <div className="tabbar">
       <span className="brand">W.T.E</span>
@@ -66,13 +72,15 @@ export function TopBar({
           </button>
         </span>
       )}
-      <button
-        className={"tab" + (curator ? " active" : "")}
-        onClick={onToggleCurator}
-        title="Curator (GM) mode — unlock stat & rank editing"
-      >
-        {curator ? "Curator ✓" : "Curator"}
-      </button>
+      {!isNetPlayer && (
+        <button
+          className={"tab" + (curator ? " active" : "")}
+          onClick={onToggleCurator}
+          title="Curator (GM) mode — reveal GM-only Codex pages & controls"
+        >
+          {curator ? "Curator ✓" : "Curator"}
+        </button>
+      )}
       <button className="tab" onClick={onAccount} title="Google account">
         {accountLabel}
       </button>
