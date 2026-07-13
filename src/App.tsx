@@ -58,12 +58,30 @@ export default function App() {
       return false;
     }
   });
+  const [engineer, setEngineer] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("wte-engineer") === "1";
+    } catch {
+      return false;
+    }
+  });
 
   function toggleCurator() {
     setCurator((c) => {
       const next = !c;
       try {
         localStorage.setItem("wte-curator", next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
+  function toggleEngineer() {
+    setEngineer((e) => {
+      const next = !e;
+      try {
+        localStorage.setItem("wte-engineer", next ? "1" : "0");
       } catch {
         /* ignore */
       }
@@ -201,6 +219,8 @@ export default function App() {
         onAccount={handleAccount}
         curator={curator}
         onToggleCurator={toggleCurator}
+        engineer={engineer}
+        onToggleEngineer={toggleEngineer}
       />
       <div className="views">
         {activeTab === "dashboard" && (
@@ -232,7 +252,7 @@ export default function App() {
         )}
         {/* Codex stays mounted so its tabs/history survive switching away */}
         <div className={"view-scroll" + (activeTab !== "codex" ? " hidden" : "")}>
-          <CodexBrowser curator={curator} />
+          <CodexBrowser curator={curator} engineer={engineer} />
         </div>
         {/* VTT v2 stays mounted so the Pixi context survives tab switches */}
         <div className={"view-scroll" + (activeTab !== "vtt2" ? " hidden" : "")}>

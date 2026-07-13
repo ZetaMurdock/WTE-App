@@ -1271,6 +1271,52 @@ body {
   margin: 2px 0 8px;
   font-style: italic;
 }
+.cdx-page-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.cdx-page-row .cdx-item {
+  flex: 1;
+  min-width: 0;
+}
+.cdx-page-flags {
+  display: flex;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+.cdx-flag {
+  background: transparent;
+  border: 1px solid var(--panel-line);
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1;
+  padding: 3px 5px;
+  cursor: pointer;
+  opacity: 0.5;
+}
+.cdx-flag.on {
+  border-color: var(--accent);
+  color: var(--accent);
+  opacity: 1;
+}
+.cdx-gm-tag,
+.cdx-off-tag {
+  margin-left: 6px;
+  font-size: 8px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--panel-line);
+  border-radius: 3px;
+  padding: 1px 4px;
+  vertical-align: middle;
+}
+.cdx-gm-tag {
+  color: #a08a4f;
+  border-color: #a08a4f;
+}
 .stat-eff {
   font-family: Consolas, monospace;
   font-size: 11px;

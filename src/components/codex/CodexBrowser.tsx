@@ -11,6 +11,7 @@ import { newSequence, type Script, type Sequence } from "../../models/sequence";
 import { NotesPanel } from "./NotesPanel";
 import { listNotes, saveNote, deleteNote } from "../../lib/notes";
 import { newNote, type CodexNote } from "../../models/note";
+import { allPageMeta, getPageMeta, setPageMeta as savePageMeta, type PageMeta } from "../../lib/pageMeta";
 
 // The new Codex: a browser built solely for W.T.E (Remaster slice 1 — the usable
 // shell: tabs, wte:// address bar, history, search, bookmarks, recents, reader).
@@ -118,7 +119,7 @@ function extractLinks(md: string, self: string): string[] {
   return [...out];
 }
 
-export function CodexBrowser({ curator = false }: { curator?: boolean }) {
+export function CodexBrowser({ curator = false, engineer = false }: { curator?: boolean; engineer?: boolean }) {
   const [tabs, setTabs] = useState<CTab[]>([{ id: uid(), hist: [HOME], idx: 0, title: "Archive" }]);
   const [activeId, setActiveId] = useState(tabs[0].id);
   const [addr, setAddr] = useState(HOME);
@@ -149,8 +150,18 @@ export function CodexBrowser({ curator = false }: { curator?: boolean }) {
   const [packIn, setPackIn] = useState<string | null>(null); // null = closed, "" = open
   const [armoryNote, setArmoryNote] = useState("");
   const [uploadNote, setUploadNote] = useState("");
+  const [pageMetaMap, setPageMetaMap] = useState<Record<string, PageMeta>>(() => allPageMeta());
   const readerRef = useRef<HTMLDivElement>(null);
   const pageUploadRef = useRef<HTMLInputElement>(null);
+  const privileged = curator || engineer;
+
+  function togglePull(stem: string) {
+    setPageMetaMap(savePageMeta(stem, { pulled: !getPageMeta(stem, pageMetaMap).pulled }));
+  }
+  function toggleVisibility(stem: string) {
+    const cur = getPageMeta(stem, pageMetaMap).visibility;
+    setPageMetaMap(savePageMeta(stem, { visibility: cur === "player" ? "gm" : "player" }));
+  }
 
   const tab = tabs.find((t) => t.id === activeId) ?? tabs[0];
   const url = tab.hist[tab.idx];
@@ -486,9 +497,11 @@ export function CodexBrowser({ curator = false }: { curator?: boolean }) {
       const want = typeFilter.toLowerCase();
       list = list.filter((p) => typeMap.current!.get(p) === want);
     }
+    // Players (not Curator/Engineer) only see player-visible pages.
+    if (!privileged) list = list.filter((p) => getPageMeta(p, pageMetaMap).visibility === "player");
     return list; // every record — the list box scrolls
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pages, homeFilter, typeFilter, scanState]);
+  }, [pages, homeFilter, typeFilter, scanState, privileged, pageMetaMap]);
 
   return (
     <div className="cdx">
@@ -686,7 +699,7 @@ export function CodexBrowser({ curator = false }: { curator?: boolean }) {
               <div className="cdx-home-col">
                 <div className="panel-title cdx-records-head">
                   <span>{lens ? "Session lens" : homeFilter ? "Matching records" : "Records"}</span>
-                  {curator && (
+                  {privileged && (
                     <>
                       <input
                         ref={pageUploadRef}
@@ -734,11 +747,36 @@ export function CodexBrowser({ curator = false }: { curator?: boolean }) {
                   <p className="list-empty">Calibrating the archive index…</p>
                 )}
                 <div className="cdx-list">
-                  {(lens ? (seqs.find((s) => s.id === lens)?.recordIds ?? []) : filteredPages).map((p) => (
-                    <button key={p} className="cdx-item" onClick={() => navigate(`wte://page/${encodeURIComponent(p)}`)}>
-                      {p.replace(/_/g, " ")}
-                    </button>
-                  ))}
+                  {(lens ? (seqs.find((s) => s.id === lens)?.recordIds ?? []) : filteredPages).map((p) => {
+                    const m = getPageMeta(p, pageMetaMap);
+                    return (
+                      <div key={p} className="cdx-page-row">
+                        <button className="cdx-item" onClick={() => navigate(`wte://page/${encodeURIComponent(p)}`)}>
+                          {p.replace(/_/g, " ")}
+                          {privileged && m.visibility === "gm" && <span className="cdx-gm-tag">GM</span>}
+                          {privileged && !m.pulled && <span className="cdx-off-tag">not pulled</span>}
+                        </button>
+                        {engineer && (
+                          <div className="cdx-page-flags">
+                            <button
+                              className={"cdx-flag" + (m.pulled ? " on" : "")}
+                              title={m.pulled ? "Pulled into sheet/VTT catalogs — click to stop pulling" : "Not pulled — click to pull into sheet/VTT catalogs"}
+                              onClick={() => togglePull(p)}
+                            >
+                              ⤵
+                            </button>
+                            <button
+                              className={"cdx-flag" + (m.visibility === "player" ? " on" : "")}
+                              title={m.visibility === "player" ? "Player-visible — click to make GM-only" : "GM-only — click to make player-visible"}
+                              onClick={() => toggleVisibility(p)}
+                            >
+                              {m.visibility === "player" ? "👁" : "🔒"}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                   {lens && (seqs.find((s) => s.id === lens)?.recordIds.length ?? 0) === 0 && (
                     <p className="list-empty">This sequence has no records yet.</p>
                   )}

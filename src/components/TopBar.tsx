@@ -30,6 +30,8 @@ interface TopBarProps {
   onAccount: () => void;
   curator: boolean;
   onToggleCurator: () => void;
+  engineer: boolean;
+  onToggleEngineer: () => void;
 }
 
 export function TopBar({
@@ -45,6 +47,8 @@ export function TopBar({
   onAccount,
   curator,
   onToggleCurator,
+  engineer,
+  onToggleEngineer,
 }: TopBarProps) {
   const net = useNet();
   // Per-campaign Curator claim: you're the Curator of campaigns you own. The only
@@ -79,6 +83,15 @@ export function TopBar({
           title="Curator (GM) mode — reveal GM-only Codex pages & controls"
         >
           {curator ? "Curator ✓" : "Curator"}
+        </button>
+      )}
+      {!isNetPlayer && (
+        <button
+          className={"tab" + (engineer ? " active" : "")}
+          onClick={onToggleEngineer}
+          title="Engineer mode — manage which Codex pages are pulled into the sheet/VTT and visible to players"
+        >
+          {engineer ? "Engineer ✓" : "Engineer"}
         </button>
       )}
       <button className="tab" onClick={onAccount} title="Google account">
