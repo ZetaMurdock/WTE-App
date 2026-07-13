@@ -148,7 +148,9 @@ export function CodexBrowser({ curator = false }: { curator?: boolean }) {
   const [lens, setLens] = useState<string | null>(null);
   const [packIn, setPackIn] = useState<string | null>(null); // null = closed, "" = open
   const [armoryNote, setArmoryNote] = useState("");
+  const [uploadNote, setUploadNote] = useState("");
   const readerRef = useRef<HTMLDivElement>(null);
+  const pageUploadRef = useRef<HTMLInputElement>(null);
 
   const tab = tabs.find((t) => t.id === activeId) ?? tabs[0];
   const url = tab.hist[tab.idx];
@@ -160,6 +162,29 @@ export function CodexBrowser({ curator = false }: { curator?: boolean }) {
       listNotes().then(setNotes).catch(() => setNotes([]));
     }
   }, []);
+
+  // ── Official pages: upload .md files into the Codex (App Data rules overlay via
+  // wte_save_page). Restores the legacy page-import flow; desktop-only. ──
+  async function uploadPages(files: FileList | null) {
+    if (!files || !files.length || !isTauri()) return;
+    let ok = 0;
+    for (const f of Array.from(files)) {
+      try {
+        const content = await f.text();
+        const name = f.name.replace(/\.(md|markdown|txt)$/i, "");
+        await invoke("wte_save_page", { name, content });
+        ok++;
+      } catch {
+        /* skip unreadable file */
+      }
+    }
+    invoke<string[]>("wte_list_pages").then(setPages).catch(() => {});
+    typeMap.current = null; // force a re-scan so new records classify
+    linkMap.current = null;
+    setScanState("idle");
+    setUploadNote(`${ok} page${ok === 1 ? "" : "s"} uploaded into the Codex.`);
+    window.setTimeout(() => setUploadNote(""), 5000);
+  }
 
   // ── Notes: state-first, persisted best-effort ──
   function persistNote(n: CodexNote) {
@@ -659,9 +684,25 @@ export function CodexBrowser({ curator = false }: { curator?: boolean }) {
 
             <div className="cdx-home-grid">
               <div className="cdx-home-col">
-                <div className="panel-title">
-                  {lens ? "Session lens" : homeFilter ? "Matching records" : "Records"}
+                <div className="panel-title cdx-records-head">
+                  <span>{lens ? "Session lens" : homeFilter ? "Matching records" : "Records"}</span>
+                  {curator && (
+                    <>
+                      <input
+                        ref={pageUploadRef}
+                        type="file"
+                        accept=".md,.markdown,.txt"
+                        multiple
+                        hidden
+                        onChange={(e) => void uploadPages(e.target.files)}
+                      />
+                      <button className="chip" onClick={() => pageUploadRef.current?.click()} title="Upload official .md pages into the Codex">
+                        ⬆ Upload pages
+                      </button>
+                    </>
+                  )}
                 </div>
+                {uploadNote && <p className="cdx-upload-note">{uploadNote}</p>}
                 {seqs.length > 0 && (
                   <div className="chip-row" style={{ marginBottom: 8 }}>
                     <span className="conn-h" style={{ marginRight: 4 }}>Lens</span>

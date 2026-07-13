@@ -1259,6 +1259,18 @@ body {
   align-items: center;
   margin-bottom: 16px;
 }
+.cdx-records-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.cdx-upload-note {
+  font-size: 11px;
+  color: var(--accent);
+  margin: 2px 0 8px;
+  font-style: italic;
+}
 .stat-eff {
   font-family: Consolas, monospace;
   font-size: 11px;
