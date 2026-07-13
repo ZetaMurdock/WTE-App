@@ -30,6 +30,7 @@ import {
 import type { CharacterSheet } from "../../models/character";
 import { createCharacter } from "../../lib/characters";
 import { DerivedPreview } from "./DerivedPreview";
+import { AttributeRoller } from "./AttributeRoller";
 
 const STEPS = ["Identity", "Species", "Background", "Paradigm", "Attributes", "Specialties", "Review"];
 
@@ -56,6 +57,7 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
   const [bgName, setBgName] = useState("");
   const [bgMode, setBgMode] = useState<BgMode>("standard");
   const [bgAssign, setBgAssign] = useState<(AttrKey | null)[]>([null, null, null, null]);
+  const [attrMode, setAttrMode] = useState<"manual" | "roll">("manual");
   const [saving, setSaving] = useState(false);
 
   const background: Background = { name: bgName.trim() || undefined, mode: bgMode, assign: bgAssign };
@@ -263,26 +265,40 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
 
         {step === 4 && (
           <div className="wizard-split">
-            <div className="stat-editor">
-              {ATTRIBUTES.map((a) => (
-                <div className="stat-row" key={a.key}>
-                  <div className="stat-info">
-                    <span className="stat-short">{a.short}</span>
-                    <span className="stat-desc">{a.desc}</span>
-                  </div>
-                  <span className="mod-box" title="Roll modifier">
-                    {signedMod(rollMod(eff[a.key]))}
-                  </span>
-                  <input
-                    className="stat-input"
-                    type="number"
-                    min={ATTR_MIN}
-                    max={ATTR_MAX}
-                    value={attributes[a.key]}
-                    onChange={(e) => setAttr(a.key, intOf(e.target.value))}
-                  />
+            <div className="stat-editor-wrap">
+              <div className="chip-row">
+                <button className={"chip" + (attrMode === "manual" ? " active" : "")} onClick={() => setAttrMode("manual")}>
+                  Manual entry
+                </button>
+                <button className={"chip" + (attrMode === "roll" ? " active" : "")} onClick={() => setAttrMode("roll")}>
+                  Roll &amp; assign
+                </button>
+              </div>
+              {attrMode === "manual" ? (
+                <div className="stat-editor">
+                  {ATTRIBUTES.map((a) => (
+                    <div className="stat-row" key={a.key}>
+                      <div className="stat-info">
+                        <span className="stat-short">{a.short}</span>
+                        <span className="stat-desc">{a.desc}</span>
+                      </div>
+                      <span className="mod-box" title="Roll modifier">
+                        {signedMod(rollMod(eff[a.key]))}
+                      </span>
+                      <input
+                        className="stat-input"
+                        type="number"
+                        min={ATTR_MIN}
+                        max={ATTR_MAX}
+                        value={attributes[a.key]}
+                        onChange={(e) => setAttr(a.key, intOf(e.target.value))}
+                      />
+                    </div>
+                  ))}
                 </div>
-              ))}
+              ) : (
+                <AttributeRoller attributes={attributes} onSet={setAttributes} />
+              )}
             </div>
             <div className="wizard-aside">
               <div className="aside-title">Derived preview</div>

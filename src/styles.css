@@ -515,6 +515,47 @@ body {
   flex-direction: column;
   gap: 6px;
 }
+.stat-editor-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.roller {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.roller-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.roller-pool {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.roller-chip {
+  min-width: 30px;
+  text-align: center;
+  font-family: Consolas, monospace;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  padding: 4px 8px;
+}
+.roller-chip.used {
+  opacity: 0.35;
+  border-color: var(--panel-line);
+}
+.roller-left {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.5px;
+}
 .stat-row {
   display: flex;
   align-items: center;
