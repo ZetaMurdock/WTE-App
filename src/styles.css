@@ -974,6 +974,70 @@ body {
   margin-bottom: 18px;
   flex-wrap: wrap;
 }
+/* Vitals tiles — Health / DHP / Movement / Synaptic Space (D&D-Beyond-style) */
+.vitals-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.vital-tile {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-top: 3px solid var(--accent);
+  border-radius: 10px;
+  padding: 12px 14px 14px;
+  text-align: center;
+  overflow: hidden;
+}
+.vital-hp {
+  border-top-color: #a1584a;
+}
+.vital-dhp {
+  border-top-color: #a08a4f;
+}
+.vital-mv {
+  border-top-color: #6f9a68;
+}
+.vital-ss {
+  border-top-color: #837aae;
+}
+.vital-label {
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.vital-value {
+  font-family: Georgia, serif;
+  font-size: 30px;
+  line-height: 1.1;
+  color: var(--ink);
+  margin-top: 4px;
+}
+.vital-gear {
+  margin-top: 4px;
+  font-family: Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: var(--accent);
+}
+.vital-gear.neg {
+  color: #a1584a;
+}
+.stat-eff {
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  color: var(--accent);
+  min-width: 26px;
+  text-align: center;
+}
+@media (max-width: 720px) {
+  .vitals-bar {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
 .rank-item {
   display: flex;
   align-items: center;

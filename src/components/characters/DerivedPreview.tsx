@@ -10,6 +10,7 @@ import {
   type Specialties,
   type Background,
   type EquipmentItem,
+  type DerivedKey,
 } from "../../game/wte";
 
 interface Props {
@@ -20,12 +21,16 @@ interface Props {
   background?: Background;
   equipment?: EquipmentItem[];
   sizeId?: string;
+  /** Derived keys to omit (e.g. the vitals, shown separately on the sheet). */
+  exclude?: DerivedKey[];
+  /** Show the Max Health cell (default true). */
+  showHp?: boolean;
 }
 
 // Live grid of the derived stats + max HP. Core stats (SS / NC / MV) are totals
 // (raw × rank); everything else is a MODIFIER from its raw pool. Negative values
 // (over-specialized builds) are highlighted as liabilities — no clamp.
-export function DerivedPreview({ attributes, specialties, speciesId, rank, background, equipment, sizeId }: Props) {
+export function DerivedPreview({ attributes, specialties, speciesId, rank, background, equipment, sizeId, exclude, showHp = true }: Props) {
   const d = computeDerived(attributes, specialties, {
     speciesId,
     rank,
@@ -33,9 +38,10 @@ export function DerivedPreview({ attributes, specialties, speciesId, rank, backg
     equip: aggregateEquip(equipment),
     sizeMove: sizeOf(sizeId, speciesId).move,
   });
+  const skip = new Set(exclude ?? []);
   return (
     <div className="derived-grid">
-      {DERIVED.map((stat) => {
+      {DERIVED.filter((stat) => !skip.has(stat.key)).map((stat) => {
         const core = CORE_DERIVED.has(stat.key);
         const v = d[stat.key];
         return (
@@ -46,11 +52,13 @@ export function DerivedPreview({ attributes, specialties, speciesId, rank, backg
           </div>
         );
       })}
-      <div className="derived-cell hp" title="Max Health">
-        <div className="derived-label">HP</div>
-        <div className="derived-val">{d.hpMax}</div>
-        <div className="derived-full">Max Health</div>
-      </div>
+      {showHp && (
+        <div className="derived-cell hp" title="Max Health">
+          <div className="derived-label">HP</div>
+          <div className="derived-val">{d.hpMax}</div>
+          <div className="derived-full">Max Health</div>
+        </div>
+      )}
     </div>
   );
 }

@@ -36,6 +36,7 @@ import {
   type EquipmentItem,
 } from "../../game/wte";
 import { DerivedPreview } from "./DerivedPreview";
+import { CharacterVitals } from "./CharacterVitals";
 import { RollFeed, useRollFeed } from "./RollFeed";
 import { SpeciesVariantsBody } from "./SpeciesVariantsPanel";
 import { WeaponsBody, InventoryBody } from "./EquipmentPanel";
@@ -120,6 +121,13 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
     rank,
     bgBonuses: bgBonuses(sheet.background),
     equip,
+    sizeMove: sizeOf(sheet.sizeId, sheet.speciesId).move,
+  });
+  // Same, minus equipment/loadout — so vitals can show the gear contribution.
+  const derivedBase = computeDerived(sheet.attributes, sheet.specialties, {
+    speciesId: sheet.speciesId,
+    rank,
+    bgBonuses: bgBonuses(sheet.background),
     sizeMove: sizeOf(sheet.sizeId, sheet.speciesId).move,
   });
   const maxSS = derived.ss;
@@ -240,6 +248,8 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
         <span className={"curator-flag" + (curator ? " on" : "")}>{curator ? "Curator Mode" : "Player view · stats locked"}</span>
       </div>
 
+      <CharacterVitals derived={derived} derivedBase={derivedBase} ssSpent={ssSpent} />
+
       {!validation.ok && (
         <ul className="validation-list">
           {validation.errors.map((err, i) => (
@@ -293,6 +303,11 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                         <span className="mod-box" title="Roll modifier">
                           {signedMod(rollMod(eff[a.key]))}
                         </span>
+                        {eff[a.key] !== sheet.attributes[a.key] && (
+                          <span className="stat-eff" title="Effective value — includes species, background & equipped gear bonuses">
+                            ={eff[a.key]}
+                          </span>
+                        )}
                         <input
                           className="stat-input"
                           type="number"
@@ -352,7 +367,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                 </div>
 
                 <div className="stats-derived">
-                  <div className="panel-title">Derived stats</div>
+                  <div className="panel-title">Other derived stats</div>
                   <DerivedPreview
                     attributes={sheet.attributes}
                     specialties={sheet.specialties}
@@ -361,6 +376,8 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                     background={sheet.background}
                     equipment={sheet.equipment}
                     sizeId={sheet.sizeId}
+                    exclude={["dhp", "mv", "ss"]}
+                    showHp={false}
                   />
                 </div>
               </div>
