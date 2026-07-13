@@ -31,6 +31,7 @@ import type { CharacterSheet } from "../../models/character";
 import { createCharacter } from "../../lib/characters";
 import { DerivedPreview } from "./DerivedPreview";
 import { AttributeRoller } from "./AttributeRoller";
+import { PortraitFrame } from "./PortraitFrame";
 
 const STEPS = ["Identity", "Species", "Background", "Paradigm", "Attributes", "Specialties", "Review"];
 
@@ -58,6 +59,7 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
   const [bgMode, setBgMode] = useState<BgMode>("standard");
   const [bgAssign, setBgAssign] = useState<(AttrKey | null)[]>([null, null, null, null]);
   const [attrMode, setAttrMode] = useState<"manual" | "roll">("manual");
+  const [portrait, setPortrait] = useState<string | undefined>();
   const [saving, setSaving] = useState(false);
 
   const background: Background = { name: bgName.trim() || undefined, mode: bgMode, assign: bgAssign };
@@ -88,7 +90,7 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
 
   async function finish() {
     setSaving(true);
-    const sheet: CharacterSheet = { attributes, specialties, speciesId, variantName, variantOption, paradigmId, rank: 0, background, notes: "" };
+    const sheet: CharacterSheet = { attributes, specialties, speciesId, variantName, variantOption, paradigmId, rank: 0, portrait, background, notes: "" };
     try {
       const rec = await createCharacter(campaignId, name, sheet);
       onDone(rec.id);
@@ -123,16 +125,20 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
 
       <div className="wizard-body">
         {step === 0 && (
-          <div className="wizard-pane">
-            <label className="field-label">Character name</label>
-            <input
-              className="picker-input"
-              type="text"
-              placeholder="Name your Inquisitor…"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              autoFocus
-            />
+          <div className="wizard-pane identity-pane">
+            <PortraitFrame src={portrait} onChange={(u) => setPortrait(u ?? undefined)} size="lg" />
+            <div className="identity-fields">
+              <label className="field-label">Character name</label>
+              <input
+                className="picker-input"
+                type="text"
+                placeholder="Name your Inquisitor…"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoFocus
+              />
+              <p className="identity-hint">Upload a portrait (PNG) — hover the frame. You can change it later on the sheet.</p>
+            </div>
           </div>
         )}
 
@@ -341,6 +347,15 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
 
         {step === 6 && (
           <div className="wizard-pane review">
+            <div className="review-head">
+              <PortraitFrame src={portrait} size="md" />
+              <div>
+                <div className="dash-eyebrow">
+                  {[species?.name, variantName, paradigm?.name].filter(Boolean).join(" · ") || "Inquisitor"}
+                </div>
+                <h2 className="dash-title" style={{ margin: 0 }}>{name || "Unnamed Inquisitor"}</h2>
+              </div>
+            </div>
             <div className="review-row"><span>Name</span><b>{name || "Unnamed Inquisitor"}</b></div>
             <div className="review-row"><span>Species</span><b>{species?.name || "—"}{variantName ? ` · ${variantName}` : ""}</b></div>
             <div className="review-row"><span>Background</span><b>{bgName.trim() || "—"} ({bgMode})</b></div>

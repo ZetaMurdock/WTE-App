@@ -3,6 +3,7 @@ import type { CharacterRecord } from "../../lib/characters";
 import { deleteCharacter, updateCharacter } from "../../lib/characters";
 import { getSpecies, getParadigm } from "../../game/wte";
 import { ConfirmButton } from "../ui/ConfirmButton";
+import { PortraitFrame } from "./PortraitFrame";
 
 interface Props {
   campaign: Campaign;
@@ -53,8 +54,11 @@ export function CharacterVault({ campaign, characters, loading, onNew, onOpen, o
           {characters.map((c) => (
             <div className="char-card" key={c.id}>
               <button className="char-open" onClick={() => onOpen(c.id)}>
-                <div className="char-name">{c.name}</div>
-                <div className="char-meta">{subtitle(c)}</div>
+                <PortraitFrame src={c.sheet.portrait} size="sm" />
+                <div className="char-open-text">
+                  <div className="char-name">{c.name}</div>
+                  <div className="char-meta">{subtitle(c)}</div>
+                </div>
               </button>
               <div className="char-actions">
                 <button className="icon-btn" onClick={() => handleRename(c)}>

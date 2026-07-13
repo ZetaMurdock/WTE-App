@@ -23,6 +23,8 @@ export interface CharacterSheet {
   paradigmId?: string;
   /** Curator-managed rank 0..9. */
   rank?: number;
+  /** Character portrait — a PNG data URL the player uploads. */
+  portrait?: string;
   background?: Background;
   /** Size class key, or "auto" (default per species). */
   sizeId?: string;

@@ -387,13 +387,19 @@ body {
 }
 .char-open {
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   text-align: left;
   background: none;
   border: none;
   color: var(--ink);
   font-family: Georgia, serif;
-  padding: 14px 16px;
+  padding: 12px 14px;
   cursor: pointer;
+}
+.char-open-text {
+  min-width: 0;
 }
 .char-name {
   font-size: 17px;
@@ -1099,6 +1105,159 @@ body {
 }
 .sheet-derived-under {
   margin-bottom: 18px;
+}
+
+/* ── Cyber-sigil portrait frame ── */
+.portrait-frame {
+  --pf: 128px;
+  --cut: 16px;
+  width: var(--pf);
+  height: var(--pf);
+  flex: 0 0 auto;
+  background: linear-gradient(150deg, var(--accent), #40507a 55%, var(--panel-line));
+  clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut));
+  padding: 2px;
+}
+.portrait-sm {
+  --pf: 54px;
+  --cut: 9px;
+}
+.portrait-md {
+  --pf: 128px;
+  --cut: 16px;
+}
+.portrait-lg {
+  --pf: 170px;
+  --cut: 22px;
+}
+.portrait-body {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(ellipse at 50% 28%, #101a30, #070b16 82%);
+  clip-path: polygon(calc(var(--cut) - 1px) 0, 100% 0, 100% calc(100% - var(--cut) + 1px), calc(100% - var(--cut) + 1px) 100%, 0 100%, 0 calc(var(--cut) - 1px));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.portrait-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.portrait-glyph {
+  font-size: calc(var(--pf) * 0.4);
+  color: var(--accent);
+  opacity: 0.4;
+}
+.portrait-tools {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  gap: 1px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.portrait-frame:hover .portrait-tools {
+  opacity: 1;
+}
+.portrait-btn {
+  flex: 1;
+  background: rgba(7, 11, 22, 0.85);
+  border: none;
+  border-top: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 4px 2px;
+  cursor: pointer;
+}
+.portrait-btn:hover {
+  background: rgba(126, 207, 202, 0.16);
+  color: var(--ink);
+}
+
+/* ── Cyber-sigil corner brackets on selectable cards ── */
+.pick-card {
+  position: relative;
+}
+.pick-card::before,
+.pick-card::after {
+  content: "";
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  pointer-events: none;
+  opacity: 0.35;
+  transition: opacity 0.15s;
+}
+.pick-card::before {
+  top: 5px;
+  left: 5px;
+  border-top: 2px solid var(--accent);
+  border-left: 2px solid var(--accent);
+}
+.pick-card::after {
+  bottom: 5px;
+  right: 5px;
+  border-bottom: 2px solid var(--accent);
+  border-right: 2px solid var(--accent);
+}
+.pick-card:hover::before,
+.pick-card:hover::after {
+  opacity: 0.7;
+}
+.pick-card.selected::before,
+.pick-card.selected::after {
+  opacity: 1;
+}
+.pick-card.selected {
+  box-shadow: 0 0 14px rgba(126, 207, 202, 0.14);
+}
+
+/* Sheet header as a cyber-sigil summary banner */
+.sheet-banner {
+  display: flex;
+  gap: 18px;
+  align-items: stretch;
+  margin-bottom: 18px;
+}
+.sheet-banner-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.sheet-banner-actions {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.identity-pane {
+  display: flex;
+  gap: 22px;
+  align-items: center;
+}
+.identity-fields {
+  flex: 1;
+  min-width: 0;
+}
+.identity-hint {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--muted);
+  font-style: italic;
+}
+.review-head {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 16px;
 }
 .stat-eff {
   font-family: Consolas, monospace;

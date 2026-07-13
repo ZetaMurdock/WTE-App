@@ -38,6 +38,7 @@ import {
 import { DerivedPreview } from "./DerivedPreview";
 import { CharacterVitals } from "./CharacterVitals";
 import { ConfirmButton } from "../ui/ConfirmButton";
+import { PortraitFrame } from "./PortraitFrame";
 import { RollFeed, useRollFeed } from "./RollFeed";
 import { SpeciesVariantsBody } from "./SpeciesVariantsPanel";
 import { WeaponsBody, InventoryBody } from "./EquipmentPanel";
@@ -167,6 +168,9 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   function setNotes(v: string) {
     persist({ ...rec!, sheet: { ...sheet, notes: v } });
   }
+  function setPortrait(dataUrl: string | null) {
+    persist({ ...rec!, sheet: { ...sheet, portrait: dataUrl ?? undefined } });
+  }
   function setVariant(name: string | undefined) {
     persist({ ...rec!, sheet: { ...sheet, variantName: name } });
   }
@@ -210,14 +214,15 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
 
   return (
     <div className="dashboard char-sheet">
-      <div className="dash-header">
-        <div>
+      <div className="sheet-banner">
+        <PortraitFrame src={sheet.portrait} onChange={setPortrait} size="md" />
+        <div className="sheet-banner-body">
           <div className="dash-eyebrow">
             {[species?.name, sheet.variantName, paradigm?.name].filter(Boolean).join(" · ") || "Inquisitor"}
           </div>
           <h1 className="dash-title">{rec.name}</h1>
         </div>
-        <div className="sheet-head-actions">
+        <div className="sheet-banner-actions">
           {net.status === "connected" && (
             <button className="ghost-btn" onClick={shareToParty} title="Broadcast this character's summary to the room">
               Share to party

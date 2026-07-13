@@ -40,6 +40,7 @@ function parseSheet(raw: string | null): CharacterSheet {
       variantOption: p.variantOption,
       paradigmId: p.paradigmId,
       rank: typeof p.rank === "number" ? p.rank : 0,
+      portrait: p.portrait,
       background: p.background,
       sizeId: p.sizeId || "auto",
       equipment: Array.isArray(p.equipment) ? p.equipment : [],
