@@ -374,6 +374,9 @@ export function CodexBrowser({ curator = false }: { curator?: boolean }) {
     };
     try {
       localStorage.setItem("wte-spawn-creature", JSON.stringify(payload));
+      // Same-window bridge: VTT v2 shares this document with the Codex, where
+      // `storage` events don't fire — deliver the payload via a CustomEvent too.
+      window.dispatchEvent(new CustomEvent("wte-spawn-creature", { detail: payload }));
       setSpawnNote(`${c.name} sent to the VTT — it spawns on the GM's table.`);
       window.setTimeout(() => setSpawnNote(""), 5000);
     } catch {

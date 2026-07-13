@@ -30,6 +30,13 @@ export function VttInspector({ sel, scene, onToken, onWall, onLight, onDelete, o
 
       {token && (
         <>
+          {token.actorKind && (
+            <div className="vtt2-linked" title={token.actorKind === "character" ? "Linked to a vault character" : "Linked to a Codex creature"}>
+              <span className="vtt2-linked-tag">⛓ {token.actorKind === "character" ? "Character" : "Creature"}</span>
+              {typeof token.meta?.dr === "number" && token.meta.dr > 0 && <span className="vtt2-linked-meta">DR {token.meta.dr}</span>}
+              {token.meta?.flags && token.meta.flags.length > 0 && <span className="vtt2-linked-meta">{token.meta.flags.length} trait{token.meta.flags.length === 1 ? "" : "s"}</span>}
+            </div>
+          )}
           <label className="lobby-field">
             <span>Name</span>
             <input className="bg-select full" value={token.name} onChange={(e) => onToken({ name: e.target.value })} />

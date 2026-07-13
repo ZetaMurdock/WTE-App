@@ -8,6 +8,9 @@ import type { VttTool } from "./types/tool";
 import { VttToolbar } from "./VttToolbar";
 import { VttInspector } from "./VttInspector";
 import { VttSceneBrowser } from "./VttSceneBrowser";
+import { VttActorsPanel } from "./VttActorsPanel";
+import { listCharacters, type CharacterRecord } from "../lib/characters";
+import { characterToTokenSpec, creatureToTokenSpec, parseSpawnPayload } from "./data/actorSpawn";
 
 // VTT v2 (slice 1): Pixi renders the map; React owns the chrome. Beside the
 // legacy VTT, not inside it — see the rework spec in docs/ / session notes.
@@ -17,7 +20,10 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
   const saveTimer = useRef<number | undefined>(undefined);
   const [scene, setScene] = useState<VttScene | null>(null);
   const [scenes, setScenes] = useState<VttScene[]>([]);
-  const [browserOpen, setBrowserOpen] = useState(false);
+  // The left dock shows at most one panel at a time (scenes / actors).
+  const [leftPanel, setLeftPanel] = useState<"scenes" | "actors" | null>(null);
+  const [characters, setCharacters] = useState<CharacterRecord[]>([]);
+  const [charsLoading, setCharsLoading] = useState(false);
   const [tool, setTool] = useState<VttTool>("select");
   const [sel, setSel] = useState<VttSelection>(null);
   const [tick, setTick] = useState(0); // re-render after engine mutations
@@ -145,6 +151,52 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
     }
   }
 
+  // Load the campaign's vault characters for the Actors panel.
+  const loadCharacters = useCallback(async () => {
+    if (!campaign || !isTauri()) {
+      setCharacters([]);
+      return;
+    }
+    setCharsLoading(true);
+    const list = await listCharacters(campaign.id).catch(() => [] as CharacterRecord[]);
+    setCharacters(list);
+    setCharsLoading(false);
+  }, [campaign]);
+
+  useEffect(() => {
+    void loadCharacters();
+  }, [loadCharacters]);
+
+  function spawnCharacter(rec: CharacterRecord) {
+    engineRef.current?.spawnToken(characterToTokenSpec(rec));
+  }
+
+  // Codex creature spawns ride the legacy `wte-spawn-creature` channel. VTT v2
+  // and the React Codex share one document, where `storage` events don't fire —
+  // so the Codex also dispatches a same-window CustomEvent (see CodexBrowser).
+  // The `storage` listener still catches spawns from the legacy sheet/wiki iframes.
+  useEffect(() => {
+    const lastTs = { v: 0 };
+    function handle(raw: unknown) {
+      const payload = parseSpawnPayload(raw);
+      if (!payload) return;
+      const ts = payload.ts ?? Date.now();
+      if (ts === lastTs.v) return; // dedup a storage+custom double-fire
+      lastTs.v = ts;
+      engineRef.current?.spawnToken(creatureToTokenSpec(payload));
+    }
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "wte-spawn-creature" && e.newValue) handle(e.newValue);
+    };
+    const onCustom = (e: Event) => handle((e as CustomEvent).detail);
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("wte-spawn-creature", onCustom as EventListener);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("wte-spawn-creature", onCustom as EventListener);
+    };
+  }, []);
+
   function pickTool(t: VttTool) {
     setTool(t);
     engineRef.current?.setTool(t);
@@ -177,11 +229,13 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
         campaignReady={!!campaign}
         fogOn={fogOn}
         onToggleFog={() => engine?.toggleFog()}
-        browserOpen={browserOpen}
-        onToggleBrowser={campaign ? () => setBrowserOpen((v) => !v) : undefined}
+        scenesOpen={leftPanel === "scenes"}
+        actorsOpen={leftPanel === "actors"}
+        onToggleScenes={campaign ? () => setLeftPanel((p) => (p === "scenes" ? null : "scenes")) : undefined}
+        onToggleActors={campaign ? () => setLeftPanel((p) => (p === "actors" ? null : "actors")) : undefined}
       />
       <div className="vtt2-stage" ref={hostRef} />
-      {campaign && browserOpen && (
+      {campaign && leftPanel === "scenes" && (
         <VttSceneBrowser
           scenes={browserScenes}
           activeId={scene?.id ?? null}
@@ -189,7 +243,16 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
           onCreate={() => void createScene()}
           onRename={(id, name) => void renameSceneById(id, name)}
           onDelete={(id) => void deleteSceneById(id)}
-          onClose={() => setBrowserOpen(false)}
+          onClose={() => setLeftPanel(null)}
+        />
+      )}
+      {campaign && leftPanel === "actors" && (
+        <VttActorsPanel
+          characters={characters}
+          loading={charsLoading}
+          onSpawn={spawnCharacter}
+          onRefresh={() => void loadCharacters()}
+          onClose={() => setLeftPanel(null)}
         />
       )}
       {!campaign && <div className="vtt2-sandbox-note">Sandbox table — pick a campaign on the Dashboard to persist scenes.</div>}

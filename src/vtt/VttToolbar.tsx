@@ -9,9 +9,11 @@ interface Props {
   campaignReady: boolean;
   fogOn: boolean;
   onToggleFog: () => void;
-  browserOpen: boolean;
-  /** Undefined disables the Scenes button (no campaign → no persisted scenes). */
-  onToggleBrowser?: () => void;
+  scenesOpen: boolean;
+  actorsOpen: boolean;
+  /** Undefined disables these (no campaign → no persisted scenes / vault). */
+  onToggleScenes?: () => void;
+  onToggleActors?: () => void;
 }
 
 export function VttToolbar({
@@ -23,20 +25,30 @@ export function VttToolbar({
   campaignReady,
   fogOn,
   onToggleFog,
-  browserOpen,
-  onToggleBrowser,
+  scenesOpen,
+  actorsOpen,
+  onToggleScenes,
+  onToggleActors,
 }: Props) {
   const hint = VTT_TOOLS.find((t) => t.id === tool)?.hint ?? "";
   return (
     <div className="vtt2-toolbar">
       <span className="vtt2-brand">VTT v2</span>
       <button
-        className={"chip" + (browserOpen ? " active" : "")}
-        onClick={onToggleBrowser}
-        disabled={!onToggleBrowser}
+        className={"chip" + (scenesOpen ? " active" : "")}
+        onClick={onToggleScenes}
+        disabled={!onToggleScenes}
         title="Scene browser — list, create, rename, and switch scenes"
       >
         Scenes
+      </button>
+      <button
+        className={"chip" + (actorsOpen ? " active" : "")}
+        onClick={onToggleActors}
+        disabled={!onToggleActors}
+        title="Actors — spawn linked vault characters as tokens"
+      >
+        Actors
       </button>
       {VTT_TOOLS.map((t) => (
         <button key={t.id} className={"chip" + (tool === t.id ? " active" : "")} onClick={() => onTool(t.id)} title={t.hint}>

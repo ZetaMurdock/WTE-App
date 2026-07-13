@@ -26,10 +26,25 @@ export interface VttToken {
   /** Linked character or actor (Codex creature / party member). */
   characterId?: string | null;
   actorId?: string | null;
+  /** What the token is linked to, for the inspector + future stat sync. */
+  actorKind?: "character" | "creature";
+  /** Snapshot of the linked source's extra stats, shown read-only in the inspector. */
+  meta?: VttTokenMeta;
   ownerPeer?: string | null;
   visible: boolean;
   /** Vision radius in cells (fog/vision system). */
   vision?: number;
+}
+export interface VttTokenMeta {
+  /** Damage reduction (creatures). */
+  dr?: number;
+  /** Creature class id / character rank, for a short subtitle. */
+  cls?: number;
+  traits?: string;
+  desc?: string;
+  flags?: string[];
+  /** Raw stat block (creature stats or character attributes), read-only. */
+  stats?: Record<string, number>;
 }
 export interface VttWall {
   id: string;

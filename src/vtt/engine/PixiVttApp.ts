@@ -117,6 +117,49 @@ export class PixiVttApp {
     this.select({ kind: "token", id: t.id });
     this.onChanged();
   }
+  /** Place a (possibly linked) token at the current view centre, fanning out to
+   *  the nearest free cell so repeated spawns don't stack. Used by the Actors
+   *  panel and the Codex creature-spawn bridge. */
+  spawnToken(spec: Partial<VttToken>): VttToken | null {
+    if (!this.scene) return null;
+    const s = this.scene.data.grid.size;
+    const cw = this.app.canvas.clientWidth || this.app.renderer.width;
+    const ch = this.app.canvas.clientHeight || this.app.renderer.height;
+    const wc = this.camera.screenToWorld(cw / 2, ch / 2);
+    const center = this.snap(wc.x, wc.y);
+    const ccol = Math.round(center.x / s);
+    const crow = Math.round(center.y / s);
+    const occupied = new Set(this.scene.data.tokens.map((t) => `${Math.round(t.x / s)},${Math.round(t.y / s)}`));
+    let px = center.x;
+    let py = center.y;
+    scan: for (let ring = 0; ring < 8; ring++) {
+      for (let dx = -ring; dx <= ring; dx++) {
+        for (let dy = -ring; dy <= ring; dy++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;
+          if (!occupied.has(`${ccol + dx},${crow + dy}`)) {
+            px = (ccol + dx + 0.5) * s;
+            py = (crow + dy + 0.5) * s;
+            break scan;
+          }
+        }
+      }
+    }
+    const n = this.scene.data.tokens.length;
+    const t: VttToken = {
+      visible: true,
+      size: 1,
+      color: TOKEN_COLORS[n % TOKEN_COLORS.length],
+      name: `Token ${n + 1}`,
+      ...spec,
+      id: newId("tk"),
+      x: px,
+      y: py,
+    };
+    this.scene.data.tokens.push(t);
+    this.select({ kind: "token", id: t.id });
+    this.onChanged();
+    return t;
+  }
   addWall(x1: number, y1: number, x2: number, y2: number): void {
     if (!this.scene || (x1 === x2 && y1 === y2)) return;
     const w: VttWall = { id: newId("wl"), x1, y1, x2, y2, blocksLight: true };
