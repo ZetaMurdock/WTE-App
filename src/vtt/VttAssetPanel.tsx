@@ -1,5 +1,32 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { AssetKind, VttAsset } from "./data/assetRepo";
+
+// Read an image file and re-encode it to a PNG data URL (downscaling only if it
+// exceeds maxSide, to keep the stored/synced size sane). Works in the browser and
+// the Tauri webview alike — no native file APIs needed.
+async function fileToPngDataUrl(file: File, maxSide = 4096): Promise<string> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error("decode failed"));
+      i.src = url;
+    });
+    const scale = Math.min(1, maxSide / Math.max(img.width, img.height || 1));
+    const w = Math.max(1, Math.round(img.width * scale));
+    const h = Math.max(1, Math.round(img.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("no 2d context");
+    ctx.drawImage(img, 0, 0, w, h);
+    return canvas.toDataURL("image/png");
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
 
 interface Props {
   assets: VttAsset[];
@@ -31,6 +58,8 @@ export function VttAssetPanel({
   const [name, setName] = useState("");
   const [uri, setUri] = useState("");
   const [kind, setKind] = useState<AssetKind>("background");
+  const [busy, setBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   function submit() {
     const u = uri.trim();
@@ -38,6 +67,27 @@ export function VttAssetPanel({
     onAdd(kind, name.trim() || (kind === "token" ? "Token art" : "Map"), u);
     setName("");
     setUri("");
+  }
+
+  // Upload an image file: re-encode to PNG, add it to the library (using the
+  // typed name / kind selector), then apply it immediately.
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // let the same file be re-picked later
+    if (!file) return;
+    setBusy(true);
+    try {
+      const dataUrl = await fileToPngDataUrl(file);
+      const nm = name.trim() || file.name.replace(/\.[^.]+$/, "") || (kind === "token" ? "Token art" : "Map");
+      onAdd(kind, nm, dataUrl);
+      if (kind === "background") onUseBackground(dataUrl);
+      else if (hasSelectedToken) onApplyToToken(dataUrl);
+      setName("");
+    } catch {
+      /* unreadable image — ignore */
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -57,13 +107,19 @@ export function VttAssetPanel({
       </div>
 
       <div className="vtt2-asset-add">
-        <input className="bg-select full" placeholder="Image URL (http/data:)" value={uri} onChange={(e) => setUri(e.target.value)} />
         <div className="vtt2-asset-add-row">
-          <input className="bg-select" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
           <select className="bg-select" value={kind} onChange={(e) => setKind(e.target.value as AssetKind)}>
             <option value="background">Map</option>
             <option value="token">Token</option>
           </select>
+          <input className="bg-select" placeholder="Name (optional)" value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
+        <button className="vtt2-asset-upload" onClick={() => fileRef.current?.click()} disabled={busy}>
+          {busy ? "Importing…" : `⬆ Upload ${kind === "token" ? "token art" : "background"} (PNG)`}
+        </button>
+        <div className="vtt2-asset-add-row">
+          <input className="bg-select" style={{ flex: 1 }} placeholder="…or paste an image URL" value={uri} onChange={(e) => setUri(e.target.value)} />
           <button className="chip" onClick={submit} disabled={!uri.trim()}>
             Add
           </button>

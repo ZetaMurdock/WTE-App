@@ -3423,6 +3423,24 @@ body {
   min-width: 0;
   flex: 1;
 }
+.vtt2-asset-upload {
+  width: 100%;
+  background: rgba(126, 207, 202, 0.1);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: var(--accent);
+  font-family: Georgia, serif;
+  font-size: 12px;
+  padding: 8px;
+  cursor: pointer;
+}
+.vtt2-asset-upload:hover:not(:disabled) {
+  background: rgba(126, 207, 202, 0.18);
+}
+.vtt2-asset-upload:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 .vtt2-asset-clearbg {
   width: 100%;
   background: transparent;
