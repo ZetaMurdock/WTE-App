@@ -18,6 +18,8 @@ interface Props {
   onToggleActors?: () => void;
   onToggleEncounter?: () => void;
   onToggleRolls?: () => void;
+  syncOn: boolean;
+  syncPeers: number;
 }
 
 export function VttToolbar({
@@ -37,6 +39,8 @@ export function VttToolbar({
   onToggleActors,
   onToggleEncounter,
   onToggleRolls,
+  syncOn,
+  syncPeers,
 }: Props) {
   const hint = VTT_TOOLS.find((t) => t.id === tool)?.hint ?? "";
   return (
@@ -84,6 +88,11 @@ export function VttToolbar({
       </button>
       <span className="vtt2-hint">{hint}</span>
       <span className="rank-spacer" />
+      {syncOn && (
+        <span className="vtt2-sync" title={`Live sync — ${syncPeers} peer${syncPeers === 1 ? "" : "s"} in the room`}>
+          ⇄ Live · {syncPeers}
+        </span>
+      )}
       <input
         className="vtt2-scene-name"
         value={sceneName}

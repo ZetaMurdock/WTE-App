@@ -13,6 +13,7 @@ import { VttEncounterPanel } from "./VttEncounterPanel";
 import { VttRollFeed } from "./VttRollFeed";
 import { listCharacters, type CharacterRecord } from "../lib/characters";
 import { characterToTokenSpec, creatureToTokenSpec, parseSpawnPayload } from "./data/actorSpawn";
+import { useVttSync } from "./sync/vttSync";
 
 // VTT v2 (slice 1): Pixi renders the map; React owns the chrome. Beside the
 // legacy VTT, not inside it — see the rework spec in docs/ / session notes.
@@ -44,6 +45,26 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
     if (s) await saveScene(s).catch(() => {});
   }, []);
 
+  // Adopt a full scene pushed by a peer (host scene switch / late-join snapshot).
+  // Local view only — no DB write (it's the host's scene, not ours to persist).
+  const adoptSnapshot = useCallback((remote: VttScene) => {
+    setScene(remote);
+    setSel(null);
+    engineRef.current?.setScene(remote);
+    engineRef.current?.select(null);
+  }, []);
+
+  // P2P sync (slice 10). broadcastOp is wired to the engine's local-op emitter;
+  // broadcastSnapshot pushes the whole scene on host switches / to late joiners.
+  const sync = useVttSync({
+    engineRef,
+    sceneId: scene?.id ?? null,
+    getScene: () => engineRef.current?.scene ?? null,
+    onSnapshot: adoptSnapshot,
+  });
+  const broadcastRef = useRef(sync.broadcastOp);
+  broadcastRef.current = sync.broadcastOp;
+
   // Boot the engine once.
   useEffect(() => {
     const host = hostRef.current;
@@ -55,6 +76,9 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
       setTick((t) => t + 1);
     };
     engine.onSelect = (s) => setSel(s);
+    engine.onOp = (op) => broadcastRef.current(op);
+    // Dev-only handle for debugging sync ops in the preview (stripped in prod).
+    if (import.meta.env.DEV) (window as unknown as { __vttEngine?: PixiVttApp }).__vttEngine = engine;
     void engine.init(host);
     return () => {
       engineRef.current = null;
@@ -110,8 +134,10 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
       engineRef.current?.setScene(s);
       engineRef.current?.select(null);
       await reloadScenes();
+      // Push the new active scene to peers (covers the scene.switch case).
+      sync.broadcastSnapshot();
     },
-    [campaign, reloadScenes]
+    [campaign, reloadScenes, sync]
   );
 
   async function switchScene(id: string) {
@@ -240,6 +266,8 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
         onToggleActors={campaign ? () => setLeftPanel((p) => (p === "actors" ? null : "actors")) : undefined}
         onToggleEncounter={campaign ? () => setLeftPanel((p) => (p === "encounter" ? null : "encounter")) : undefined}
         onToggleRolls={campaign ? () => setRollsOpen((v) => !v) : undefined}
+        syncOn={sync.connected}
+        syncPeers={sync.peerCount}
       />
       <div className="vtt2-stage" ref={hostRef} />
       {campaign && leftPanel === "scenes" && (

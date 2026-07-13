@@ -2975,6 +2975,17 @@ body {
   letter-spacing: 1px;
   color: var(--muted);
 }
+.vtt2-sync {
+  font-family: Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  padding: 3px 7px;
+  margin-right: 8px;
+  white-space: nowrap;
+}
 .vtt2-stage {
   flex: 1;
   position: relative;

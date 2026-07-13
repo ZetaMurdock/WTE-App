@@ -13,6 +13,7 @@ import { FogLayer } from "./layers/FogLayer";
 import { MeasurementLayer } from "./layers/MeasurementLayer";
 import { computeVisibleCells } from "./systems/VisionSystem";
 import { newId, TOKEN_COLORS, type VttLight, type VttScene, type VttToken, type VttWall } from "../types/scene";
+import { applyOp, type VttOp } from "../sync/patches";
 import type { VttTool } from "../types/tool";
 
 export type VttSelection = { kind: "token" | "wall" | "light"; id: string } | null;
@@ -34,6 +35,9 @@ export class PixiVttApp {
   selection: VttSelection = null;
   onChanged: () => void = () => {};
   onSelect: (sel: VttSelection) => void = () => {};
+  /** Emitted on each LOCAL scene mutation for P2P sync (slice 10). Remote ops
+   *  arrive via applyRemote(), which never calls this — so no echo loops. */
+  onOp: (op: VttOp) => void = () => {};
 
   private input: InputController | null = null;
   private ready = false;
@@ -116,6 +120,7 @@ export class PixiVttApp {
     this.scene.data.tokens.push(t);
     this.select({ kind: "token", id: t.id });
     this.onChanged();
+    this.onOp({ op: "token.add", token: t });
   }
   /** Place a (possibly linked) token at the current view centre, fanning out to
    *  the nearest free cell so repeated spawns don't stack. Used by the Actors
@@ -158,6 +163,7 @@ export class PixiVttApp {
     this.scene.data.tokens.push(t);
     this.select({ kind: "token", id: t.id });
     this.onChanged();
+    this.onOp({ op: "token.add", token: t });
     return t;
   }
   addWall(x1: number, y1: number, x2: number, y2: number): void {
@@ -166,6 +172,7 @@ export class PixiVttApp {
     this.scene.data.walls.push(w);
     this.select({ kind: "wall", id: w.id });
     this.onChanged();
+    this.onOp({ op: "wall.add", wall: w });
   }
   addLightAt(wx: number, wy: number): void {
     if (!this.scene) return;
@@ -174,6 +181,7 @@ export class PixiVttApp {
     this.scene.data.lights.push(l);
     this.select({ kind: "light", id: l.id });
     this.onChanged();
+    this.onOp({ op: "light.add", light: l });
   }
   updateWall(id: string, patch: Partial<VttWall>): void {
     const w = this.scene?.data.walls.find((x) => x.id === id);
@@ -181,6 +189,7 @@ export class PixiVttApp {
     Object.assign(w, patch);
     this.redraw();
     this.onChanged();
+    this.onOp({ op: "wall.update", id, patch });
   }
   updateLight(id: string, patch: Partial<VttLight>): void {
     const l = this.scene?.data.lights.find((x) => x.id === id);
@@ -188,6 +197,7 @@ export class PixiVttApp {
     Object.assign(l, patch);
     this.redraw();
     this.onChanged();
+    this.onOp({ op: "light.update", id, patch });
   }
   deleteSelected(): void {
     if (!this.scene || !this.selection) return;
@@ -198,12 +208,16 @@ export class PixiVttApp {
     if (kind === "light") d.lights = d.lights.filter((x) => x.id !== id);
     this.select(null);
     this.onChanged();
+    if (kind === "token") this.onOp({ op: "token.remove", id });
+    else if (kind === "wall") this.onOp({ op: "wall.remove", id });
+    else if (kind === "light") this.onOp({ op: "light.remove", id });
   }
   toggleFog(): void {
     if (!this.scene) return;
     this.scene.data.fog.enabled = !this.scene.data.fog.enabled;
     this.redraw();
     this.onChanged();
+    this.onOp({ op: "fog.set", enabled: this.scene.data.fog.enabled });
   }
   moveToken(id: string, wx: number, wy: number, snap: boolean): void {
     const t = this.scene?.data.tokens.find((x) => x.id === id);
@@ -212,6 +226,8 @@ export class PixiVttApp {
     t.x = p.x;
     t.y = p.y;
     this.redraw();
+    // Broadcast the final resting place only (on drop) — not every drag frame.
+    if (snap) this.onOp({ op: "token.move", id, x: t.x, y: t.y });
   }
   updateToken(id: string, patch: Partial<VttToken>): void {
     if (!this.scene) return;
@@ -220,6 +236,7 @@ export class PixiVttApp {
     Object.assign(t, patch);
     this.redraw();
     this.onChanged();
+    this.onOp({ op: "token.update", id, patch });
   }
   persistCamera(): void {
     if (!this.scene) return;
@@ -236,6 +253,21 @@ export class PixiVttApp {
   setTimeline(round: number, turn: number): void {
     if (!this.scene) return;
     this.scene.data.timeline = { round, turn };
+    this.onChanged();
+  }
+  /** Apply a remote op from a peer. Mutates the scene without re-emitting (no
+   *  onOp call here → no echo loop) and persists locally. scene.switch is handled
+   *  by the sync layer, so it never reaches this method. */
+  applyRemote(op: VttOp): void {
+    if (!this.scene) return;
+    const changed = applyOp(this.scene.data, op);
+    if (!changed) return;
+    // If the selected entity was removed remotely, drop the stale selection.
+    if (op.op.endsWith(".remove") && this.selection && "id" in op && this.selection.id === op.id) {
+      this.select(null);
+    } else {
+      this.redraw();
+    }
     this.onChanged();
   }
 
