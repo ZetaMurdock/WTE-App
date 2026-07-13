@@ -1363,6 +1363,123 @@ body {
   gap: 10px;
   margin-top: 16px;
 }
+.pe-mode-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+/* Visual block editor */
+.vbe-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.vbe-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.vbe-block {
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.vbe-ctrls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.vbe-kind {
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.vbe-swatches {
+  display: flex;
+  gap: 3px;
+}
+.vbe-sw {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid var(--panel-line);
+  cursor: pointer;
+  padding: 0;
+}
+.vbe-sw.on {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+.vbe-heading {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--panel-line);
+  font-family: Georgia, serif;
+  font-size: 19px;
+  padding: 4px 2px;
+}
+.vbe-heading:focus {
+  outline: none;
+}
+.vbe-text {
+  width: 100%;
+  min-height: 54px;
+  resize: vertical;
+  background: var(--bg);
+  border: 1px solid var(--panel-line);
+  border-radius: 5px;
+  color: var(--ink);
+  font-family: Georgia, serif;
+  font-size: 13px;
+  padding: 7px 9px;
+}
+.vbe-box-body {
+  border-radius: 0 5px 5px 0;
+}
+.vbe-drop-title {
+  width: 100%;
+  background: transparent;
+  border: none;
+  font-family: Georgia, serif;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 2px;
+  margin-bottom: 4px;
+}
+.vbe-drop-title:focus {
+  outline: none;
+}
+.vbe-divider {
+  border: none;
+  border-top: 1px solid var(--accent);
+  opacity: 0.5;
+}
+/* Reader-side rendered blocks */
+.cdx-callout {
+  padding: 10px 14px;
+  border-radius: 0 6px 6px 0;
+  margin: 12px 0;
+}
+.cdx-drop {
+  margin: 12px 0;
+  border: 1px solid var(--panel-line);
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+.cdx-drop > summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-family: Georgia, serif;
+}
+.cdx-drop[open] > summary {
+  margin-bottom: 8px;
+}
 .stat-eff {
   font-family: Consolas, monospace;
   font-size: 11px;

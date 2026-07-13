@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { VisualBlockEditor, htmlToBlocks } from "./VisualBlockEditor";
 
 export interface PageDraft {
   title: string;
@@ -24,6 +25,13 @@ export function PageEditor({ initial, labels, onSave, onCancel }: Props) {
   const [label, setLabel] = useState(initial?.label ?? labels[0] ?? "");
   const [newLabel, setNewLabel] = useState("");
   const [creatingLabel, setCreatingLabel] = useState(false);
+  // Visual (no-code block builder) vs Code (raw markdown/HTML). New/empty/block
+  // pages default to Visual; existing raw markdown opens in Code.
+  const [mode, setMode] = useState<"visual" | "code">(() => {
+    if (!initial) return "visual";
+    if (htmlToBlocks(initial.content)) return "visual";
+    return initial.content.trim() ? "code" : "visual";
+  });
 
   const effectiveLabel = creatingLabel ? newLabel.trim() : label;
   const canSave = title.trim().length > 0 && effectiveLabel.length > 0;
@@ -90,15 +98,28 @@ export function PageEditor({ initial, labels, onSave, onCancel }: Props) {
           </p>
         </div>
 
-        <label className="lobby-field mt">
-          <span>Content (Markdown)</span>
-          <textarea
-            className="bg-select full pe-content"
-            value={content}
-            placeholder="# Heading&#10;&#10;Write the page…"
-            onChange={(e) => setContent(e.target.value)}
-          />
-        </label>
+        <div className="lobby-field mt">
+          <div className="pe-mode-row">
+            <span>Content</span>
+            <span className="rank-spacer" />
+            <button className={"chip" + (mode === "visual" ? " active" : "")} onClick={() => setMode("visual")}>
+              Visual
+            </button>
+            <button className={"chip" + (mode === "code" ? " active" : "")} onClick={() => setMode("code")}>
+              Code
+            </button>
+          </div>
+          {mode === "visual" ? (
+            <VisualBlockEditor value={content} onChange={setContent} />
+          ) : (
+            <textarea
+              className="bg-select full pe-content"
+              value={content}
+              placeholder="# Heading&#10;&#10;Write markdown or HTML…"
+              onChange={(e) => setContent(e.target.value)}
+            />
+          )}
+        </div>
 
         <div className="pe-actions">
           <button className="ghost-btn" onClick={onCancel}>
