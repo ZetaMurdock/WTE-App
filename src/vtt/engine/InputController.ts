@@ -58,6 +58,11 @@ export class InputController {
       this.mode = "none";
       return;
     }
+    if (v.tool === "effect") {
+      v.addEffectAt("circle", w.x, w.y);
+      this.mode = "none";
+      return;
+    }
     if (v.tool === "wall") {
       this.mode = "wall";
       this.start = v.snapVertex(w.x, w.y);
@@ -87,6 +92,12 @@ export class InputController {
     const wall = v.walls.pick(v.scene, w.x, w.y, v.camera.zoom);
     if (wall) {
       v.select({ kind: "wall", id: wall });
+      this.mode = "none";
+      return;
+    }
+    const fx = v.effects.pick(v.scene, w.x, w.y, v.camera.zoom);
+    if (fx) {
+      v.select({ kind: "effect", id: fx });
       this.mode = "none";
       return;
     }

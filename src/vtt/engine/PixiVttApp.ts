@@ -11,12 +11,26 @@ import { WallLayer } from "./layers/WallLayer";
 import { LightingLayer } from "./layers/LightingLayer";
 import { FogLayer } from "./layers/FogLayer";
 import { MeasurementLayer } from "./layers/MeasurementLayer";
+import { EffectLayer } from "./layers/EffectLayer";
 import { computeVisibleCells } from "./systems/VisionSystem";
-import { newId, TOKEN_COLORS, type VttLight, type VttScene, type VttToken, type VttWall } from "../types/scene";
+import { EffectSystem } from "./systems/EffectSystem";
+import { TimelineSystem } from "./systems/TimelineSystem";
+import { SimulationSystem } from "./systems/SimulationSystem";
+import { EncounterSystem } from "./systems/EncounterSystem";
+import {
+  newId,
+  TOKEN_COLORS,
+  type VttEffectData,
+  type VttEffectKind,
+  type VttLight,
+  type VttScene,
+  type VttToken,
+  type VttWall,
+} from "../types/scene";
 import { applyOp, type VttOp } from "../sync/patches";
 import type { VttTool } from "../types/tool";
 
-export type VttSelection = { kind: "token" | "wall" | "light"; id: string } | null;
+export type VttSelection = { kind: "token" | "wall" | "light" | "effect"; id: string } | null;
 
 export class PixiVttApp {
   readonly app = new Application();
@@ -29,6 +43,13 @@ export class PixiVttApp {
   readonly walls = new WallLayer();
   readonly fog = new FogLayer();
   readonly measure = new MeasurementLayer();
+  readonly effects = new EffectLayer();
+
+  // Engine systems (slice 12). Encounter round advance runs timeline + sim.
+  readonly effectSystem = new EffectSystem();
+  readonly timeline = new TimelineSystem();
+  readonly sim = new SimulationSystem();
+  readonly encounterSystem = new EncounterSystem(this.timeline, this.sim);
 
   scene: VttScene | null = null;
   tool: VttTool = "select";
@@ -56,6 +77,7 @@ export class PixiVttApp {
       this.bg.view,
       this.grid.view,
       this.lights.view,
+      this.effects.view,
       this.tokens.view,
       this.walls.view,
       this.walls.previewG,
@@ -80,6 +102,7 @@ export class PixiVttApp {
     this.bg.draw(this.scene);
     this.grid.draw(this.scene);
     this.lights.draw(this.scene, this.selection);
+    this.effects.draw(this.scene, this.selection);
     this.tokens.sync(this.scene, this.selection?.kind === "token" ? this.selection.id : null);
     this.walls.draw(this.scene, this.selection);
     this.fog.draw(this.scene, computeVisibleCells(this.scene.data));
@@ -183,6 +206,44 @@ export class PixiVttApp {
     this.onChanged();
     this.onOp({ op: "light.add", light: l });
   }
+  addEffectAt(kind: VttEffectKind, wx: number, wy: number): void {
+    if (!this.scene) return;
+    const round = this.scene.data.timeline.round || 0;
+    // zones anchor top-left at the clicked cell corner; circles/cones at the centre.
+    const p = kind === "zone" ? this.snapVertex(wx, wy) : this.snap(wx, wy);
+    const e = this.effectSystem.create(kind, p.x, p.y, round);
+    this.scene.data.effects.push(e);
+    this.select({ kind: "effect", id: e.id });
+    this.onChanged();
+    this.onOp({ op: "effect.add", effect: e });
+  }
+  updateEffect(id: string, patch: Partial<VttEffectData>): void {
+    const e = this.scene?.data.effects.find((x) => x.id === id);
+    if (!e) return;
+    Object.assign(e.data, patch);
+    this.redraw();
+    this.onChanged();
+    this.onOp({ op: "effect.update", id, patch });
+  }
+  /** Change an effect's kind in place (reseeds the shape defaults, keeps colour /
+   *  lifetime / status). Syncs as a remove + re-add of the same id. */
+  setEffectKind(id: string, kind: VttEffectKind): void {
+    const d = this.scene?.data;
+    if (!d) return;
+    const idx = d.effects.findIndex((e) => e.id === id);
+    if (idx < 0 || d.effects[idx].kind === kind) return;
+    const old = d.effects[idx];
+    const next = this.effectSystem.create(kind, old.x, old.y, old.data.bornRound ?? 0);
+    next.id = old.id;
+    next.data.color = old.data.color;
+    next.data.rounds = old.data.rounds;
+    next.data.status = old.data.status;
+    d.effects[idx] = next;
+    this.redraw();
+    this.onChanged();
+    this.onOp({ op: "effect.remove", id });
+    this.onOp({ op: "effect.add", effect: next });
+  }
   updateWall(id: string, patch: Partial<VttWall>): void {
     const w = this.scene?.data.walls.find((x) => x.id === id);
     if (!w) return;
@@ -206,11 +267,13 @@ export class PixiVttApp {
     if (kind === "token") d.tokens = d.tokens.filter((x) => x.id !== id);
     if (kind === "wall") d.walls = d.walls.filter((x) => x.id !== id);
     if (kind === "light") d.lights = d.lights.filter((x) => x.id !== id);
+    if (kind === "effect") d.effects = d.effects.filter((x) => x.id !== id);
     this.select(null);
     this.onChanged();
     if (kind === "token") this.onOp({ op: "token.remove", id });
     else if (kind === "wall") this.onOp({ op: "wall.remove", id });
     else if (kind === "light") this.onOp({ op: "light.remove", id });
+    else if (kind === "effect") this.onOp({ op: "effect.remove", id });
   }
   toggleFog(): void {
     if (!this.scene) return;
@@ -257,10 +320,16 @@ export class PixiVttApp {
     this.scene.data.encounterId = id;
     this.onChanged();
   }
-  /** Mirror the encounter's round/turn into the scene timeline. */
+  /** Mirror the encounter's round/turn into the scene timeline. When the round
+   *  advances, run the engine systems (expire timed effects + zone-status sim). */
   setTimeline(round: number, turn: number): void {
     if (!this.scene) return;
+    const prevRound = this.scene.data.timeline.round;
     this.scene.data.timeline = { round, turn };
+    if (round !== prevRound && round > 0) {
+      const changed = this.encounterSystem.onRound(this.scene.data, round, this.scene.data.grid.size);
+      if (changed) this.redraw();
+    }
     this.onChanged();
   }
   /** Apply a remote op from a peer. Mutates the scene without re-emitting (no

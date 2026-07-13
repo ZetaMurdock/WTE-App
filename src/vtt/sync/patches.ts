@@ -2,7 +2,7 @@
 // small op (never a full-scene resend); peers apply it to their own scene. Late
 // joiners get a full `snapshot` instead. Ops ride the reserved `vtt-patch` net
 // message (scope = scene id) so the protocol envelope stays stable.
-import type { VttLight, VttSceneData, VttToken, VttWall } from "../types/scene";
+import type { VttEffect, VttEffectData, VttLight, VttSceneData, VttToken, VttWall } from "../types/scene";
 
 export type VttOp =
   | { op: "token.add"; token: VttToken }
@@ -18,6 +18,9 @@ export type VttOp =
   | { op: "fog.set"; enabled: boolean }
   | { op: "fog.reveal"; cells: string[] }
   | { op: "bg.set"; src: string | null }
+  | { op: "effect.add"; effect: VttEffect }
+  | { op: "effect.update"; id: string; patch: Partial<VttEffectData> }
+  | { op: "effect.remove"; id: string }
   | { op: "scene.switch"; sceneId: string };
 
 /** Apply an op to scene data in place. Scene-scoped only — `scene.switch` is
@@ -92,6 +95,21 @@ export function applyOp(d: VttSceneData, op: VttOp): boolean {
       if (d.background.src === (op.src || undefined)) return false;
       d.background.src = op.src || undefined;
       return true;
+    case "effect.add":
+      if (d.effects.some((e) => e.id === op.effect.id)) return false;
+      d.effects.push(op.effect);
+      return true;
+    case "effect.update": {
+      const e = d.effects.find((x) => x.id === op.id);
+      if (!e) return false;
+      Object.assign(e.data, op.patch);
+      return true;
+    }
+    case "effect.remove": {
+      const before = d.effects.length;
+      d.effects = d.effects.filter((x) => x.id !== op.id);
+      return d.effects.length !== before;
+    }
     case "scene.switch":
       return false; // handled by the sync layer, not by mutating this scene
   }

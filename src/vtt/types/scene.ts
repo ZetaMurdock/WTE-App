@@ -36,6 +36,8 @@ export interface VttToken {
   visible: boolean;
   /** Vision radius in cells (fog/vision system). */
   vision?: number;
+  /** Condition/status tags (SimulationSystem — rendered as pips). */
+  statuses?: string[];
 }
 export interface VttTokenMeta {
   /** Damage reduction (creatures). */
@@ -64,12 +66,28 @@ export interface VttLight {
   color: string;
   intensity: number; // 0..1
 }
+export type VttEffectKind = "circle" | "cone" | "zone";
+export interface VttEffectData {
+  radius?: number; // cells (circle / cone reach)
+  dir?: number; // cone facing, radians
+  angle?: number; // cone spread, degrees
+  w?: number; // zone width, cells
+  h?: number; // zone height, cells
+  color?: string;
+  /** Lifetime in rounds; 0 / undefined = permanent. */
+  rounds?: number;
+  /** Encounter round the effect was placed on (for expiry). */
+  bornRound?: number;
+  /** Status a zone applies to tokens standing inside it (SimulationSystem). */
+  status?: string;
+  label?: string;
+}
 export interface VttEffect {
   id: string;
-  kind: string; // aoe-circle | aoe-cone | zone | weather | …
+  kind: VttEffectKind;
   x: number;
   y: number;
-  data: Record<string, unknown>;
+  data: VttEffectData;
 }
 export interface VttFogState {
   enabled: boolean;

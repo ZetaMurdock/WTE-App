@@ -3,6 +3,14 @@
 import { Assets, Container, Graphics, Sprite, Text } from "pixi.js";
 import type { VttScene, VttToken } from "../../types/scene";
 
+const STATUS_PALETTE = [0xa1584a, 0xa08a4f, 0x689a96, 0x837aae, 0x6f9a68, 0xa7aebd];
+/** Stable colour per status tag, so a given status always reads the same. */
+function statusColor(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return STATUS_PALETTE[h % STATUS_PALETTE.length];
+}
+
 interface Node {
   root: Container;
   disc: Graphics;
@@ -79,6 +87,20 @@ export class TokenLayer {
         }
       }
       if (n.art) this.sizeArt(n, t, cell);
+
+      // Status pips (SimulationSystem) — small dots along the top edge.
+      const st = t.statuses ?? [];
+      if (st.length) {
+        const pipR = Math.max(3, r * 0.15);
+        const gap = pipR * 2.4;
+        const startX = -((st.length - 1) * gap) / 2;
+        const y = -r - pipR - 2;
+        for (let i = 0; i < st.length; i++) {
+          const cx = startX + i * gap;
+          n.disc.circle(cx, y, pipR).fill(statusColor(st[i]));
+          n.disc.circle(cx, y, pipR).stroke({ width: 1, color: 0x04070d });
+        }
+      }
 
       n.label.text = t.name || "";
       n.label.position.set(0, r + 4);

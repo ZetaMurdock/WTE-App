@@ -361,6 +361,8 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
           onToken={(patch) => engine.updateToken(sel.id, patch)}
           onWall={(patch) => engine.updateWall(sel.id, patch)}
           onLight={(patch) => engine.updateLight(sel.id, patch)}
+          onEffect={(patch) => engine.updateEffect(sel.id, patch)}
+          onEffectKind={(kind) => engine.setEffectKind(sel.id, kind)}
           onDelete={() => engine.deleteSelected()}
           onClose={() => engine.select(null)}
         />
