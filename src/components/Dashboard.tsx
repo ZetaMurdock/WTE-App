@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import type { Campaign } from "../models/campaign";
 import type { TabId } from "./TopBar";
 import { CampaignPicker } from "./CampaignPicker";
+import { listScenes } from "../vtt/data/sceneRepo";
 
 interface Props {
   loading: boolean;
@@ -29,6 +31,27 @@ export function Dashboard({
   onOpenCharacters,
   onSwitchCampaign,
 }: Props) {
+  // The campaign's active VTT v2 scene, shown on the dashboard as a shortcut in.
+  // Re-fetched whenever the dashboard mounts (it re-mounts on every tab return).
+  const [activeSceneName, setActiveSceneName] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    if (!campaign) {
+      setActiveSceneName(null);
+      return;
+    }
+    listScenes(campaign.id)
+      .then((all) => {
+        if (!alive) return;
+        const active = all.find((s) => s.active) ?? all[0] ?? null;
+        setActiveSceneName(active?.name ?? null);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [campaign]);
+
   if (loading) {
     return (
       <div className="dashboard">
@@ -72,7 +95,12 @@ export function Dashboard({
               : "No characters yet — create one"}
           </div>
         </button>
-        <Panel title="Active scene" empty="No scene set" />
+        <button className="panel panel-btn" onClick={() => onOpenTool("vtt2")}>
+          <div className="panel-title">Active scene</div>
+          <div className={activeSceneName ? "panel-count" : "panel-empty"}>
+            {activeSceneName ? `${activeSceneName} — open VTT v2` : "No scene set — open VTT v2"}
+          </div>
+        </button>
         <Panel title="Recent Codex" empty="No pages opened" />
         <Panel title="Session notes" empty="No notes yet" />
         <Panel title="Next session" empty="Not scheduled" />
@@ -87,8 +115,11 @@ export function Dashboard({
           <button className="launch-btn" onClick={() => onOpenTool("sheet")}>
             Sheet (Legacy)
           </button>
+          <button className="launch-btn" onClick={() => onOpenTool("vtt2")}>
+            VTT v2
+          </button>
           <button className="launch-btn" onClick={() => onOpenTool("vtt")}>
-            VTT
+            VTT (Legacy)
           </button>
           <button className="launch-btn" onClick={() => onOpenTool("wiki")}>
             Codex

@@ -2,11 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Campaign } from "../models/campaign";
 import { isTauri } from "../lib/tauri";
 import { PixiVttApp, type VttSelection } from "./engine/PixiVttApp";
-import { listScenes, saveScene } from "./data/sceneRepo";
+import { listScenes, saveScene, getScene, setActiveScene, deleteScene } from "./data/sceneRepo";
 import { newScene, type VttScene } from "./types/scene";
 import type { VttTool } from "./types/tool";
 import { VttToolbar } from "./VttToolbar";
 import { VttInspector } from "./VttInspector";
+import { VttSceneBrowser } from "./VttSceneBrowser";
 
 // VTT v2 (slice 1): Pixi renders the map; React owns the chrome. Beside the
 // legacy VTT, not inside it — see the rework spec in docs/ / session notes.
@@ -15,6 +16,8 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
   const engineRef = useRef<PixiVttApp | null>(null);
   const saveTimer = useRef<number | undefined>(undefined);
   const [scene, setScene] = useState<VttScene | null>(null);
+  const [scenes, setScenes] = useState<VttScene[]>([]);
+  const [browserOpen, setBrowserOpen] = useState(false);
   const [tool, setTool] = useState<VttTool>("select");
   const [sel, setSel] = useState<VttSelection>(null);
   const [tick, setTick] = useState(0); // re-render after engine mutations
@@ -22,6 +25,14 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
   const persist = useCallback((s: VttScene) => {
     window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => void saveScene(s).catch(() => {}), 500);
+  }, []);
+
+  // Flush the debounced autosave immediately — used before switching scenes so
+  // in-flight edits aren't lost when the engine's scene object is swapped out.
+  const flush = useCallback(async () => {
+    window.clearTimeout(saveTimer.current);
+    const s = engineRef.current?.scene;
+    if (s) await saveScene(s).catch(() => {});
   }, []);
 
   // Boot the engine once.
@@ -43,23 +54,28 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load (or create) the campaign's scene.
+  // Load (or create) the campaign's scene, plus the full scene list for the browser.
   useEffect(() => {
     let alive = true;
     async function load() {
       let s: VttScene | null = null;
+      let all: VttScene[] = [];
       if (campaign && isTauri()) {
-        const all = await listScenes(campaign.id).catch(() => [] as VttScene[]);
+        all = await listScenes(campaign.id).catch(() => [] as VttScene[]);
         s = all.find((x) => x.active) ?? all[0] ?? null;
       }
       if (!s) {
         // No campaign → an in-memory sandbox table; with a campaign, seed Scene 1.
         s = newScene(campaign?.id ?? "sandbox", campaign ? campaign.name + " · Scene 1" : "Sandbox");
         s.active = true;
-        if (campaign) void saveScene(s).catch(() => {});
+        if (campaign) {
+          await saveScene(s).catch(() => {});
+          all = [s];
+        }
       }
       if (!alive) return;
       setScene(s);
+      setScenes(all);
       engineRef.current?.setScene(s);
     }
     void load();
@@ -67,6 +83,67 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
       alive = false;
     };
   }, [campaign]);
+
+  const reloadScenes = useCallback(async () => {
+    if (!campaign || !isTauri()) return;
+    const all = await listScenes(campaign.id).catch(() => [] as VttScene[]);
+    setScenes(all);
+  }, [campaign]);
+
+  // Adopt a scene as the live one: mark it active in the DB, swap it into the
+  // engine, clear any selection, and refresh the browser list.
+  const adopt = useCallback(
+    async (s: VttScene) => {
+      if (campaign) await setActiveScene(campaign.id, s.id).catch(() => {});
+      s.active = true;
+      setScene(s);
+      setSel(null);
+      engineRef.current?.setScene(s);
+      engineRef.current?.select(null);
+      await reloadScenes();
+    },
+    [campaign, reloadScenes]
+  );
+
+  async function switchScene(id: string) {
+    if (!campaign || id === scene?.id) return;
+    await flush();
+    const target = await getScene(id).catch(() => null);
+    if (target) await adopt(target);
+  }
+
+  async function createScene() {
+    if (!campaign) return;
+    await flush();
+    const s = newScene(campaign.id, `${campaign.name} · Scene ${scenes.length + 1}`);
+    await saveScene(s).catch(() => {});
+    await adopt(s);
+  }
+
+  async function renameSceneById(id: string, name: string) {
+    if (id === scene?.id && engineRef.current?.scene) {
+      engineRef.current.scene.name = name;
+      setScene((s) => (s ? { ...s, name } : s));
+      await saveScene(engineRef.current.scene).catch(() => {});
+    } else {
+      const target = scenes.find((s) => s.id === id);
+      if (target) await saveScene({ ...target, name }).catch(() => {});
+    }
+    await reloadScenes();
+  }
+
+  async function deleteSceneById(id: string) {
+    if (!campaign) return;
+    await deleteScene(id).catch(() => {});
+    if (id === scene?.id) {
+      const remaining = await listScenes(campaign.id).catch(() => [] as VttScene[]);
+      const next = remaining.find((x) => x.active) ?? remaining[0] ?? null;
+      if (next) await adopt(next);
+      else setScenes(remaining);
+    } else {
+      await reloadScenes();
+    }
+  }
 
   function pickTool(t: VttTool) {
     setTool(t);
@@ -86,6 +163,9 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
   const fogOn = live?.data.fog.enabled ?? false;
   void tick; // engine mutations bump this to refresh derived values above
 
+  // Show the live scene's current token count in the browser's active row.
+  const browserScenes = live ? scenes.map((s) => (s.id === live.id ? { ...s, data: live.data } : s)) : scenes;
+
   return (
     <div className="vtt2">
       <VttToolbar
@@ -97,8 +177,21 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
         campaignReady={!!campaign}
         fogOn={fogOn}
         onToggleFog={() => engine?.toggleFog()}
+        browserOpen={browserOpen}
+        onToggleBrowser={campaign ? () => setBrowserOpen((v) => !v) : undefined}
       />
       <div className="vtt2-stage" ref={hostRef} />
+      {campaign && browserOpen && (
+        <VttSceneBrowser
+          scenes={browserScenes}
+          activeId={scene?.id ?? null}
+          onSwitch={(id) => void switchScene(id)}
+          onCreate={() => void createScene()}
+          onRename={(id, name) => void renameSceneById(id, name)}
+          onDelete={(id) => void deleteSceneById(id)}
+          onClose={() => setBrowserOpen(false)}
+        />
+      )}
       {!campaign && <div className="vtt2-sandbox-note">Sandbox table — pick a campaign on the Dashboard to persist scenes.</div>}
       {sel && engine && live && (
         <VttInspector

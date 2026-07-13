@@ -9,13 +9,35 @@ interface Props {
   campaignReady: boolean;
   fogOn: boolean;
   onToggleFog: () => void;
+  browserOpen: boolean;
+  /** Undefined disables the Scenes button (no campaign → no persisted scenes). */
+  onToggleBrowser?: () => void;
 }
 
-export function VttToolbar({ tool, onTool, sceneName, onRename, tokenCount, campaignReady, fogOn, onToggleFog }: Props) {
+export function VttToolbar({
+  tool,
+  onTool,
+  sceneName,
+  onRename,
+  tokenCount,
+  campaignReady,
+  fogOn,
+  onToggleFog,
+  browserOpen,
+  onToggleBrowser,
+}: Props) {
   const hint = VTT_TOOLS.find((t) => t.id === tool)?.hint ?? "";
   return (
     <div className="vtt2-toolbar">
       <span className="vtt2-brand">VTT v2</span>
+      <button
+        className={"chip" + (browserOpen ? " active" : "")}
+        onClick={onToggleBrowser}
+        disabled={!onToggleBrowser}
+        title="Scene browser — list, create, rename, and switch scenes"
+      >
+        Scenes
+      </button>
       {VTT_TOOLS.map((t) => (
         <button key={t.id} className={"chip" + (tool === t.id ? " active" : "")} onClick={() => onTool(t.id)} title={t.hint}>
           {t.label}
