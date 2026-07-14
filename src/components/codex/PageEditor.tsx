@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { VisualBlockEditor, htmlToBlocks } from "./VisualBlockEditor";
+import { VisualBlockEditor } from "./VisualBlockEditor";
 
 export interface PageDraft {
   title: string;
@@ -25,13 +25,9 @@ export function PageEditor({ initial, labels, onSave, onCancel }: Props) {
   const [label, setLabel] = useState(initial?.label ?? labels[0] ?? "");
   const [newLabel, setNewLabel] = useState("");
   const [creatingLabel, setCreatingLabel] = useState(false);
-  // Visual (no-code block builder) vs Code (raw markdown/HTML). New/empty/block
-  // pages default to Visual; existing raw markdown opens in Code.
-  const [mode, setMode] = useState<"visual" | "code">(() => {
-    if (!initial) return "visual";
-    if (htmlToBlocks(initial.content)) return "visual";
-    return initial.content.trim() ? "code" : "visual";
-  });
+  // Visual (no-code block builder) vs Code (raw markdown/HTML). Any content now
+  // parses into blocks, so Visual is the default for every page.
+  const [mode, setMode] = useState<"visual" | "code">("visual");
 
   const effectiveLabel = creatingLabel ? newLabel.trim() : label;
   const canSave = title.trim().length > 0 && effectiveLabel.length > 0;

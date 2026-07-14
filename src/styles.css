@@ -1460,6 +1460,66 @@ body {
   border-top: 1px solid var(--accent);
   opacity: 0.5;
 }
+.vbe-lvl {
+  background: var(--bg);
+  border: 1px solid var(--panel-line);
+  border-radius: 4px;
+  color: var(--ink);
+  font-size: 11px;
+  padding: 2px 4px;
+}
+.vbe-html {
+  font-family: Consolas, monospace;
+  font-size: 12px;
+}
+.vbe-img-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.vbe-img-row .bg-select {
+  flex: 1;
+  min-width: 120px;
+}
+.vbe-img-preview {
+  max-height: 60px;
+  border-radius: 4px;
+  border: 1px solid var(--panel-line);
+}
+.vbe-table-wrap {
+  overflow-x: auto;
+}
+.vbe-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.vbe-table td {
+  border: 1px solid var(--panel-line);
+  padding: 0;
+}
+.vbe-table input {
+  width: 100%;
+  min-width: 70px;
+  background: transparent;
+  border: none;
+  color: var(--ink);
+  font-family: Georgia, serif;
+  font-size: 12px;
+  padding: 5px 7px;
+}
+.vbe-table input:focus {
+  outline: 1px solid var(--accent);
+}
+.vbe-table tr:first-child input {
+  font-weight: 600;
+  color: var(--accent);
+}
+.vbe-table-btns {
+  display: flex;
+  gap: 6px;
+  margin-top: 5px;
+}
 /* Reader-side rendered blocks */
 .cdx-callout {
   padding: 10px 14px;
