@@ -202,3 +202,54 @@ export async function restoreAuth(cb: (user: AuthUser | null) => void): Promise<
     /* ignore */
   }
 }
+
+// ── Firebase Realtime Database access (for shared/published Codex content) ──
+
+/** The user's Firebase config (localStorage). Publishing needs a databaseURL. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function getFirebaseConfig(): any | null {
+  return getFbConfig();
+}
+
+/** True when a Firebase config with a Realtime-Database URL is present. */
+export function firebasePublishConfigured(): boolean {
+  const cfg = getFbConfig();
+  return !!(cfg && cfg.databaseURL && cfg.projectId);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let __wteFbDb: Promise<any> | null = null;
+/** Load Firebase app+auth+database and return the database() handle. Throws with a
+ *  user-facing message if the config lacks a databaseURL. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function firebaseDb(): Promise<any> {
+  const cfg = getFbConfig();
+  if (!cfg || !cfg.databaseURL) {
+    return Promise.reject(new Error("Add your Firebase config with a databaseURL (Netplay settings) to use shared/published pages."));
+  }
+  if (__wteFbDb) return __wteFbDb;
+  __wteFbDb = (async () => {
+    await ensureFirebase(cfg);
+    if (!window.firebase.database) {
+      await new Promise<void>((res, rej) => {
+        const s = document.createElement("script");
+        s.src = "https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js";
+        s.onload = () => res();
+        s.onerror = () => rej(new Error("Could not load Firebase Database."));
+        document.head.appendChild(s);
+      });
+    }
+    return window.firebase.database();
+  })();
+  return __wteFbDb;
+}
+
+/** Display name of the signed-in Firebase user, if any. */
+export function firebaseUserName(): string | null {
+  try {
+    const u = window.firebase?.auth?.().currentUser;
+    return u ? u.displayName || u.email || u.uid : null;
+  } catch {
+    return null;
+  }
+}

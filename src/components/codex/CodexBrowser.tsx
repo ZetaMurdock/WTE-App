@@ -13,6 +13,8 @@ import { listNotes, saveNote, deleteNote } from "../../lib/notes";
 import { newNote, type CodexNote } from "../../models/note";
 import { allPageMeta, getPageMeta, setPageMeta as savePageMeta, type PageMeta } from "../../lib/pageMeta";
 import { PageEditor, type PageDraft } from "./PageEditor";
+import { firebasePublishConfigured } from "../../lib/tauri";
+import { publishPage, unpublishPage, fetchPublishedPages } from "../../lib/publishedPages";
 
 // The new Codex: a browser built solely for W.T.E (Remaster slice 1 — the usable
 // shell: tabs, wte:// address bar, history, search, bookmarks, recents, reader).
@@ -158,6 +160,8 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
   const pageUploadRef = useRef<HTMLInputElement>(null);
   const privileged = curator || engineer;
   const [editor, setEditor] = useState<{ initial?: PageDraft } | null>(null);
+  const publishAvail = firebasePublishConfigured();
+  const [publishedStems, setPublishedStems] = useState<Set<string>>(new Set());
 
   function togglePull(stem: string) {
     setPageMetaMap(savePageMeta(stem, { pulled: !getPageMeta(stem, pageMetaMap).pulled }));
@@ -210,6 +214,56 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
       listNotes().then(setNotes).catch(() => setNotes([]));
     }
   }, []);
+
+  // ── Global publish: Engineers push pages to a shared Firebase node; anyone can
+  // sync the official set into their local Codex. ──
+  useEffect(() => {
+    if (isTauri() && publishAvail) {
+      fetchPublishedPages().then((ps) => setPublishedStems(new Set(ps.map((p) => p.stem)))).catch(() => {});
+    }
+  }, [publishAvail]);
+
+  async function togglePublish(stem: string) {
+    try {
+      if (publishedStems.has(stem)) {
+        await unpublishPage(stem);
+        setPublishedStems((s) => {
+          const n = new Set(s);
+          n.delete(stem);
+          return n;
+        });
+        setUploadNote(`Unpublished “${stem.replace(/_/g, " ")}”.`);
+      } else {
+        const content = await invoke<string>("wte_load_page", { path: stem }).catch(() => "");
+        await publishPage({ stem, title: stem, content, label: getPageMeta(stem, pageMetaMap).label });
+        setPublishedStems((s) => new Set(s).add(stem));
+        setUploadNote(`Published “${stem.replace(/_/g, " ")}” — everyone can now sync it.`);
+      }
+    } catch (e) {
+      setUploadNote("Publish failed: " + (e instanceof Error ? e.message : String(e)));
+    }
+    window.setTimeout(() => setUploadNote(""), 6000);
+  }
+
+  async function syncOfficial() {
+    try {
+      const pages = await fetchPublishedPages();
+      for (const p of pages) {
+        const stem = await invoke<string>("wte_save_page", { name: p.title || p.stem, content: p.content });
+        if (p.label) savePageMeta(stem, { label: p.label });
+      }
+      setPublishedStems(new Set(pages.map((p) => p.stem)));
+      setPageMetaMap(allPageMeta());
+      invoke<string[]>("wte_list_pages").then(setPages).catch(() => {});
+      typeMap.current = null;
+      linkMap.current = null;
+      setScanState("idle");
+      setUploadNote(`Synced ${pages.length} official page${pages.length === 1 ? "" : "s"} into your Codex.`);
+    } catch (e) {
+      setUploadNote("Sync failed: " + (e instanceof Error ? e.message : String(e)));
+    }
+    window.setTimeout(() => setUploadNote(""), 6000);
+  }
 
   // ── Official pages: upload .md files into the Codex (App Data rules overlay via
   // wte_save_page). Restores the legacy page-import flow; desktop-only. ──
@@ -755,6 +809,11 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
                       </button>
                     </>
                   )}
+                  {publishAvail && (
+                    <button className="chip" onClick={() => void syncOfficial()} title="Pull the latest official published pages into your Codex">
+                      ⬇ Sync official
+                    </button>
+                  )}
                 </div>
                 {uploadNote && <p className="cdx-upload-note">{uploadNote}</p>}
                 {seqs.length > 0 && (
@@ -802,6 +861,15 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
                             <button className="cdx-flag" title="Edit this page" onClick={() => void openEditPage(p)}>
                               ✎
                             </button>
+                            {publishAvail && (
+                              <button
+                                className={"cdx-flag" + (publishedStems.has(p) ? " on" : "")}
+                                title={publishedStems.has(p) ? "Published to the shared Codex — click to unpublish" : "Publish to the shared official Codex (everyone can sync it)"}
+                                onClick={() => void togglePublish(p)}
+                              >
+                                ⇪
+                              </button>
+                            )}
                             <button
                               className={"cdx-flag" + (m.pulled ? " on" : "")}
                               title={m.pulled ? "Pulled into sheet/VTT catalogs — click to stop pulling" : "Not pulled — click to pull into sheet/VTT catalogs"}
