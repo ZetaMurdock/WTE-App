@@ -9,6 +9,7 @@ import { VttToolbar } from "./VttToolbar";
 import { VttActionBar } from "./VttActionBar";
 import { VttGridPanel } from "./VttGridPanel";
 import { VttSceneWheel } from "./VttSceneWheel";
+import { VttRadialMenu } from "./VttRadialMenu";
 import { ThreeVttView } from "./engine3d/ThreeVttView";
 import { VttInspector } from "./VttInspector";
 import { useNet } from "../net/NetContext";
@@ -362,6 +363,10 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
       />
       <div className="vtt2-stage" ref={hostRef}>
         <div className="vtt2-stage3d" ref={host3dRef} style={{ display: viewMode === "3d" ? "block" : "none" }} />
+        {viewMode === "2d" && sel?.kind === "token" && engine && live && (() => {
+          const t = live.data.tokens.find((x) => x.id === sel.id);
+          return t ? <VttRadialMenu engine={engine} token={t} /> : null;
+        })()}
       </div>
       <VttActionBar
         tool={tool}

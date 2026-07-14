@@ -3934,6 +3934,36 @@ body {
   background: var(--panel-line);
   margin: 0 4px;
 }
+/* Radial quick-action menu around the selected token (Owlbear-style glass) */
+.vtt2-radial {
+  position: absolute;
+  width: 0;
+  height: 0;
+  z-index: 6;
+  pointer-events: none;
+}
+.vtt2-radial-btn {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(10, 17, 34, 0.78);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(126, 207, 202, 0.55);
+  color: var(--ink);
+  font-family: Georgia, serif;
+  font-size: 11px;
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.4);
+  transition: background 0.12s, border-color 0.12s;
+}
+.vtt2-radial-btn:hover {
+  background: rgba(126, 207, 202, 0.22);
+  border-color: var(--accent);
+}
 /* Pilot mode button (3D view, above the action bar) */
 .vtt2-pilot-btn {
   position: absolute;

@@ -11,6 +11,8 @@ export class InputController {
   private last = { x: 0, y: 0 };
   private start = { x: 0, y: 0 }; // world coords for measure
   private moved = false;
+  // pan velocity (EMA of pointer deltas) for the momentum fling on release
+  private vel = { x: 0, y: 0 };
 
   constructor(private vtt: PixiVttApp) {}
 
@@ -39,6 +41,8 @@ export class InputController {
   private onDown = (e: PointerEvent): void => {
     const v = this.vtt;
     if (!v.scene) return;
+    v.camera.cancelFling(); // grabbing the map arrests any glide
+    this.vel = { x: 0, y: 0 };
     const s = this.pos(e);
     this.last = s;
     this.moved = false;
@@ -115,7 +119,10 @@ export class InputController {
     this.last = s;
     const w = v.camera.screenToWorld(s.x, s.y);
 
-    if (this.mode === "pan") v.camera.panBy(dx, dy);
+    if (this.mode === "pan") {
+      v.camera.panBy(dx, dy);
+      this.vel = { x: 0.75 * this.vel.x + 0.25 * dx, y: 0.75 * this.vel.y + 0.25 * dy };
+    }
     else if (this.mode === "token" && this.dragTokenId) v.moveToken(this.dragTokenId, w.x, w.y, false);
     else if (this.mode === "measure") v.measure.show(this.start.x, this.start.y, w.x, w.y, v.scene.data.grid.size);
     else if (this.mode === "wall") {
@@ -133,7 +140,11 @@ export class InputController {
         v.onChanged();
       }
     }
-    if (this.mode === "pan" && this.moved) v.persistCamera();
+    if (this.mode === "pan" && this.moved) {
+      // fling: keep gliding if the pointer was moving on release (persist on stop)
+      if (Math.hypot(this.vel.x, this.vel.y) > 2) v.camera.fling(this.vel.x, this.vel.y);
+      else v.persistCamera();
+    }
     if (this.mode === "measure") window.setTimeout(() => v.measure.clear(), 900);
     if (this.mode === "wall") {
       v.walls.clearPreview();

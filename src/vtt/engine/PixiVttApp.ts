@@ -90,6 +90,12 @@ export class PixiVttApp {
     this.app.stage.addChild(this.world);
     this.input = new InputController(this);
     this.input.attach(this.app.canvas);
+    // camera momentum: glide after a fling, persist once it settles
+    this.app.ticker.add(() => {
+      const was = this.camera.flinging;
+      const moving = this.camera.tick(this.app.ticker.deltaTime);
+      if (was && !moving) this.persistCamera();
+    });
     this.ready = true;
     if (this.scene) this.setScene(this.scene);
   }
