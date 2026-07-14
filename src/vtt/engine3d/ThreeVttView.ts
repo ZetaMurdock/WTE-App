@@ -10,9 +10,101 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import type { VttScene, VttToken } from "../types/scene";
+import { defaultAtmosphere, type VttAtmosphere, type VttScene, type VttToken } from "../types/scene";
 import type { VttSelection } from "../engine/PixiVttApp";
 import { cellKey, computeVisibleCells } from "../engine/systems/VisionSystem";
+
+// ── Mood presets: ambient / sun / fog-and-backdrop colours ──
+const MOODS: Record<VttAtmosphere["mood"], { amb: number; ambI: number; sun: number; sunI: number; fog: number }> = {
+  neutral: { amb: 0x8090b0, ambI: 0.7, sun: 0xfff4e0, sunI: 1.1, fog: 0x060a14 },
+  moonlight: { amb: 0x6f82c8, ambI: 0.55, sun: 0xbfd2ff, sunI: 0.8, fog: 0x0a1028 },
+  hellfire: { amb: 0x8c3620, ambI: 0.55, sun: 0xff8340, sunI: 1.05, fog: 0x1c0a05 },
+  toxic: { amb: 0x4e7a50, ambI: 0.62, sun: 0xc2e890, sunI: 0.9, fog: 0x0a1608 },
+  dusk: { amb: 0x9a7090, ambI: 0.6, sun: 0xffb070, sunI: 0.9, fog: 0x160a14 },
+};
+
+// ── Generated textures (once per session) ──
+let starTexC: THREE.Texture | null = null;
+function starTexture(): THREE.Texture {
+  if (starTexC) return starTexC;
+  const c = document.createElement("canvas");
+  c.width = 1024;
+  c.height = 512;
+  const x = c.getContext("2d")!;
+  x.fillStyle = "#04060f";
+  x.fillRect(0, 0, 1024, 512);
+  // nebulas
+  for (let i = 0; i < 5; i++) {
+    const gx = Math.random() * 1024, gy = Math.random() * 512, gr = 90 + Math.random() * 160;
+    const g = x.createRadialGradient(gx, gy, 0, gx, gy, gr);
+    const hue = [200, 260, 180, 300, 220][i];
+    g.addColorStop(0, `hsla(${hue},60%,40%,0.20)`);
+    g.addColorStop(1, "transparent");
+    x.fillStyle = g;
+    x.fillRect(0, 0, 1024, 512);
+  }
+  // stars
+  for (let i = 0; i < 700; i++) {
+    const a = 0.3 + Math.random() * 0.7;
+    x.fillStyle = `rgba(255,255,255,${a})`;
+    const s = Math.random() < 0.94 ? 1 : 2;
+    x.fillRect(Math.random() * 1024, Math.random() * 512, s, s);
+  }
+  starTexC = new THREE.CanvasTexture(c);
+  starTexC.colorSpace = THREE.SRGBColorSpace;
+  return starTexC;
+}
+let rockTexC: THREE.Texture | null = null;
+function rockTexture(): THREE.Texture {
+  if (rockTexC) return rockTexC;
+  const c = document.createElement("canvas");
+  c.width = c.height = 512;
+  const x = c.getContext("2d")!;
+  x.fillStyle = "#17130f";
+  x.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 900; i++) {
+    const shade = 12 + Math.random() * 26;
+    x.fillStyle = `rgba(${shade + 8},${shade + 4},${shade},${0.25 + Math.random() * 0.5})`;
+    const w = 6 + Math.random() * 46, h = 4 + Math.random() * 22;
+    x.fillRect(Math.random() * 512, Math.random() * 512, w, h);
+  }
+  rockTexC = new THREE.CanvasTexture(c);
+  rockTexC.wrapS = rockTexC.wrapT = THREE.RepeatWrapping;
+  return rockTexC;
+}
+let mistTexC: THREE.Texture | null = null;
+function mistTexture(): THREE.Texture {
+  if (mistTexC) return mistTexC;
+  const c = document.createElement("canvas");
+  c.width = c.height = 256;
+  const x = c.getContext("2d")!;
+  for (let i = 0; i < 26; i++) {
+    const gx = Math.random() * 256, gy = Math.random() * 256, gr = 30 + Math.random() * 60;
+    const g = x.createRadialGradient(gx, gy, 0, gx, gy, gr);
+    g.addColorStop(0, "rgba(255,255,255,0.16)");
+    g.addColorStop(1, "transparent");
+    x.fillStyle = g;
+    x.fillRect(0, 0, 256, 256);
+  }
+  mistTexC = new THREE.CanvasTexture(c);
+  mistTexC.wrapS = mistTexC.wrapT = THREE.RepeatWrapping;
+  return mistTexC;
+}
+let dotTexC: THREE.Texture | null = null;
+function dotTexture(): THREE.Texture {
+  if (dotTexC) return dotTexC;
+  const c = document.createElement("canvas");
+  c.width = c.height = 32;
+  const x = c.getContext("2d")!;
+  const g = x.createRadialGradient(16, 16, 0, 16, 16, 16);
+  g.addColorStop(0, "rgba(255,255,255,1)");
+  g.addColorStop(0.5, "rgba(255,255,255,0.4)");
+  g.addColorStop(1, "transparent");
+  x.fillStyle = g;
+  x.fillRect(0, 0, 32, 32);
+  dotTexC = new THREE.CanvasTexture(c);
+  return dotTexC;
+}
 
 interface Hooks {
   onSelect: (sel: VttSelection) => void;
@@ -53,6 +145,15 @@ export class ThreeVttView {
   private lightGroup = new THREE.Group();
   private tokenGroup = new THREE.Group();
   private fogGroup = new THREE.Group();
+  private envGroup = new THREE.Group();
+  private ambient!: THREE.AmbientLight;
+  private sun!: THREE.DirectionalLight;
+  private atmo: VttAtmosphere = defaultAtmosphere();
+  private atmoKey = "";
+  private mist: THREE.Mesh | null = null;
+  private particlePts: THREE.Points | null = null;
+  private particleVel: Float32Array | null = null;
+  private particleBounds = { w: 0, d: 0, h: 0 };
   private texCache = new Map<string, THREE.Texture>();
   private groundTexSrc = "";
   private groundTex: THREE.Texture | null = null;
@@ -82,10 +183,10 @@ export class ThreeVttView {
     host.appendChild(r.domElement);
     this.renderer = r;
 
-    this.scene3.add(new THREE.AmbientLight(0x8090b0, 0.7));
-    const sun = new THREE.DirectionalLight(0xfff4e0, 1.1);
-    sun.position.set(1500, 2600, 1000);
-    this.scene3.add(sun, this.wallGroup, this.lightGroup, this.tokenGroup, this.fogGroup);
+    this.ambient = new THREE.AmbientLight(0x8090b0, 0.7);
+    this.sun = new THREE.DirectionalLight(0xfff4e0, 1.1);
+    this.sun.position.set(1500, 2600, 1000);
+    this.scene3.add(this.ambient, this.sun, this.sun.target, this.wallGroup, this.lightGroup, this.tokenGroup, this.fogGroup, this.envGroup);
 
     this.controls = new OrbitControls(this.camera, r.domElement);
     this.controls.enableDamping = true;
@@ -123,6 +224,7 @@ export class ThreeVttView {
     const dt = Math.min(this.clock.getDelta(), 0.1);
     if (this.pilotId) this.updatePilot(dt);
     else this.controls?.update();
+    this.animateAtmosphere(dt);
     this.renderer.render(this.scene3, this.camera);
     this.rendered++;
   }
@@ -266,6 +368,7 @@ export class ThreeVttView {
     this.selection = selection;
     // Vision parity with the 2D fog: null = fog off (everything visible).
     const visible = scene.data.fog.enabled && scene.data.layers.fog ? computeVisibleCells(scene.data) : null;
+    this.applyAtmosphere(scene);
     this.buildGround(scene);
     this.buildWalls(scene);
     this.buildLights(scene);
@@ -307,6 +410,201 @@ export class ThreeVttView {
     };
     addMesh(unseen, 0.92);
     addMesh(explored, 0.55);
+  }
+
+  /** Apply the scene's atmosphere: backdrop, depth fog, mood lighting, ground
+   *  mist, particles, and shadow mapping. Rebuilds only when settings change. */
+  private applyAtmosphere(scene: VttScene): void {
+    const atmo = scene.data.atmosphere ?? defaultAtmosphere();
+    const { grid } = scene.data;
+    const span = Math.max(grid.cols, grid.rows) * grid.size;
+    const cx = (grid.cols * grid.size) / 2;
+    const cz = (grid.rows * grid.size) / 2;
+    const key = JSON.stringify(atmo) + ":" + span;
+    if (key === this.atmoKey) return;
+    this.atmoKey = key;
+    this.atmo = atmo;
+    const mood = MOODS[atmo.mood] ?? MOODS.neutral;
+
+    // mood lighting
+    this.ambient.color.set(mood.amb);
+    this.ambient.intensity = mood.ambI;
+    this.sun.color.set(mood.sun);
+    this.sun.intensity = mood.sunI;
+    this.sun.position.set(cx + span * 0.5, span * 1.2, cz + span * 0.4);
+    this.sun.target.position.set(cx, 0, cz);
+
+    // depth fog + clear colour (edges melt into the haze)
+    this.renderer?.setClearColor(mood.fog);
+    this.scene3.fog = atmo.fog > 0 ? new THREE.Fog(mood.fog, span * 0.55, span * (2.6 - atmo.fog * 1.7)) : null;
+
+    // shadows
+    const sh = atmo.shadows;
+    if (this.renderer) this.renderer.shadowMap.enabled = sh;
+    this.sun.castShadow = sh;
+    if (sh) {
+      this.sun.shadow.camera.left = -span * 0.75;
+      this.sun.shadow.camera.right = span * 0.75;
+      this.sun.shadow.camera.top = span * 0.75;
+      this.sun.shadow.camera.bottom = -span * 0.75;
+      this.sun.shadow.camera.near = 1;
+      this.sun.shadow.camera.far = span * 4;
+      this.sun.shadow.mapSize.set(2048, 2048);
+      this.sun.shadow.camera.updateProjectionMatrix();
+    }
+    if (this.ground) {
+      this.ground.receiveShadow = true;
+      (this.ground.material as THREE.Material).needsUpdate = true;
+    }
+
+    // environmental backdrop
+    for (const ch of this.envGroup.children) {
+      (ch as THREE.Mesh).geometry?.dispose();
+    }
+    this.envGroup.clear();
+    if (atmo.env === "space") {
+      const sky = new THREE.Mesh(
+        new THREE.SphereGeometry(span * 6, 32, 16),
+        new THREE.MeshBasicMaterial({ map: starTexture(), side: THREE.BackSide, fog: false })
+      );
+      sky.position.set(cx, 0, cz);
+      this.envGroup.add(sky);
+    } else if (atmo.env === "cavern") {
+      const rock = rockTexture();
+      rock.repeat.set(6, 3);
+      const wall = new THREE.Mesh(
+        new THREE.CylinderGeometry(span * 1.7, span * 1.7, span * 5, 48, 1, true),
+        new THREE.MeshStandardMaterial({ map: rock, side: THREE.BackSide, roughness: 1 })
+      );
+      wall.position.set(cx, 0, cz);
+      this.envGroup.add(wall);
+    } else if (atmo.env === "wireframe") {
+      const plane = new THREE.Mesh(
+        new THREE.PlaneGeometry(span * 12, span * 12, 56, 56),
+        new THREE.MeshBasicMaterial({ wireframe: true, color: 0x14403c, fog: true })
+      );
+      plane.rotation.x = -Math.PI / 2;
+      plane.position.set(cx, -4, cz);
+      this.envGroup.add(plane);
+    }
+
+    // ground mist
+    if (this.mist) {
+      this.mist.geometry.dispose();
+      (this.mist.material as THREE.Material).dispose();
+      this.scene3.remove(this.mist);
+      this.mist = null;
+    }
+    if (atmo.mist) {
+      const tex = mistTexture().clone();
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(4, 3);
+      this.mist = new THREE.Mesh(
+        new THREE.PlaneGeometry(grid.cols * grid.size * 1.15, grid.rows * grid.size * 1.15),
+        new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.55, depthWrite: false })
+      );
+      this.mist.rotation.x = -Math.PI / 2;
+      this.mist.position.set(cx, grid.size * 0.18, cz);
+      this.scene3.add(this.mist);
+    }
+
+    // particles
+    this.buildParticles(atmo.particles, scene, span, cx, cz);
+  }
+
+  private buildParticles(kind: VttAtmosphere["particles"], scene: VttScene, span: number, cx: number, cz: number): void {
+    if (this.particlePts) {
+      this.particlePts.geometry.dispose();
+      (this.particlePts.material as THREE.Material).dispose();
+      this.scene3.remove(this.particlePts);
+      this.particlePts = null;
+      this.particleVel = null;
+    }
+    if (kind === "none") return;
+    const { grid } = scene.data;
+    const w = grid.cols * grid.size;
+    const d = grid.rows * grid.size;
+    const h = span * 0.45;
+    this.particleBounds = { w, d, h };
+    const N = kind === "rain" ? 600 : 350;
+    const pos = new Float32Array(N * 3);
+    const vel = new Float32Array(N * 3);
+    const s = grid.size;
+    for (let i = 0; i < N; i++) {
+      pos[i * 3] = Math.random() * w;
+      pos[i * 3 + 1] = Math.random() * h;
+      pos[i * 3 + 2] = Math.random() * d;
+      if (kind === "embers") {
+        vel[i * 3] = (Math.random() - 0.5) * s * 0.15;
+        vel[i * 3 + 1] = s * (0.25 + Math.random() * 0.45); // drift up
+        vel[i * 3 + 2] = (Math.random() - 0.5) * s * 0.15;
+      } else if (kind === "spores") {
+        vel[i * 3] = (Math.random() - 0.5) * s * 0.12;
+        vel[i * 3 + 1] = (Math.random() - 0.5) * s * 0.08;
+        vel[i * 3 + 2] = (Math.random() - 0.5) * s * 0.12;
+      } else if (kind === "rain") {
+        vel[i * 3] = s * 0.35;
+        vel[i * 3 + 1] = -s * (6 + Math.random() * 3); // fast fall
+        vel[i * 3 + 2] = 0;
+      } else {
+        vel[i * 3] = (Math.random() - 0.5) * s * 0.3; // snow sway
+        vel[i * 3 + 1] = -s * (0.5 + Math.random() * 0.4);
+        vel[i * 3 + 2] = (Math.random() - 0.5) * s * 0.3;
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    const conf =
+      kind === "embers"
+        ? { color: 0xff9040, size: s * 0.12, opacity: 0.9, blending: THREE.AdditiveBlending }
+        : kind === "spores"
+          ? { color: 0x9fe07a, size: s * 0.16, opacity: 0.7, blending: THREE.AdditiveBlending }
+          : kind === "rain"
+            ? { color: 0x9ab8d8, size: s * 0.08, opacity: 0.55, blending: THREE.NormalBlending }
+            : { color: 0xffffff, size: s * 0.14, opacity: 0.85, blending: THREE.NormalBlending };
+    const mat = new THREE.PointsMaterial({
+      map: dotTexture(),
+      color: conf.color,
+      size: conf.size,
+      transparent: true,
+      opacity: conf.opacity,
+      depthWrite: false,
+      blending: conf.blending,
+    });
+    this.particlePts = new THREE.Points(geo, mat);
+    this.particlePts.userData.vel = vel;
+    this.particleVel = vel;
+    this.scene3.add(this.particlePts);
+    void cx;
+    void cz;
+  }
+
+  /** Advance mist scroll + particle motion each frame. */
+  private animateAtmosphere(dt: number): void {
+    if (this.mist) {
+      const tex = (this.mist.material as THREE.MeshBasicMaterial).map;
+      if (tex) {
+        tex.offset.x += dt * 0.012;
+        tex.offset.y += dt * 0.006;
+      }
+    }
+    if (this.particlePts && this.particleVel) {
+      const pos = this.particlePts.geometry.attributes.position;
+      const { w, d, h } = this.particleBounds;
+      for (let i = 0; i < pos.count; i++) {
+        let x = pos.getX(i) + this.particleVel[i * 3] * dt;
+        let y = pos.getY(i) + this.particleVel[i * 3 + 1] * dt;
+        let z = pos.getZ(i) + this.particleVel[i * 3 + 2] * dt;
+        if (y < 0) y = h; // fell below the floor → respawn at the top
+        if (y > h) y = 0; // drifted above → respawn at the floor
+        if (x < 0) x += w;
+        if (x > w) x -= w;
+        if (z < 0) z += d;
+        if (z > d) z -= d;
+        pos.setXYZ(i, x, y, z);
+      }
+      pos.needsUpdate = true;
+    }
   }
 
   /** Terrain elevation (world units) at a 2D map point; 0 on flat scenes. */
@@ -419,6 +717,8 @@ export class ThreeVttView {
       const box = new THREE.Mesh(new THREE.BoxGeometry(len, height, WALL_THICKNESS * s), this.selection?.kind === "wall" && this.selection.id === wl.id ? selMat : mat);
       box.position.set((wl.x1 + wl.x2) / 2, height / 2, (wl.y1 + wl.y2) / 2);
       box.rotation.y = -Math.atan2(dy, dx);
+      box.castShadow = this.atmo.shadows;
+      box.receiveShadow = this.atmo.shadows;
       this.wallGroup.add(box);
     }
   }
@@ -427,10 +727,16 @@ export class ThreeVttView {
     this.lightGroup.clear();
     const s = scene.data.grid.size;
     if (!scene.data.layers.lights) return;
+    let shadowLights = 0;
     for (const l of scene.data.lights) {
       const col = new THREE.Color(l.color || "#a08a4f");
       const pt = new THREE.PointLight(col, (l.intensity ?? 0.5) * 3.2, l.radius * s * 2.4, 1.6);
       pt.position.set(l.x, this.heightAt(scene, l.x, l.y) + s * 0.9, l.y);
+      if (this.atmo.shadows && shadowLights < 4) {
+        pt.castShadow = true; // walls/pillars cast from nearby lights (cap at 4 for GPU)
+        pt.shadow.mapSize.set(512, 512);
+        shadowLights++;
+      }
       const marker = new THREE.Mesh(new THREE.SphereGeometry(s * 0.1, 12, 12), new THREE.MeshBasicMaterial({ color: col }));
       marker.position.copy(pt.position);
       this.lightGroup.add(pt, marker);
@@ -507,6 +813,9 @@ export class ThreeVttView {
    *  token's cells, feet at y=0 within the wrapper. */
   private instantiateModel(template: THREE.Object3D, worldSize: number): THREE.Object3D {
     const inst = template.clone(true);
+    inst.traverse((o) => {
+      o.castShadow = this.atmo.shadows;
+    });
     const box = new THREE.Box3().setFromObject(inst);
     const dim = new THREE.Vector3();
     box.getSize(dim);

@@ -393,9 +393,11 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
           grid={live.data.grid}
           background={live.data.background}
           terrain={live.data.terrain ?? null}
+          atmosphere={live.data.atmosphere ?? null}
           onGrid={(patch) => engine?.setGrid(patch)}
           onBackground={(patch) => engine?.setBackgroundProps(patch)}
           onTerrain={(t) => engine?.setTerrain(t)}
+          onAtmosphere={(a) => engine?.setAtmosphere(a)}
           onClose={() => setGridOpen(false)}
         />
       )}

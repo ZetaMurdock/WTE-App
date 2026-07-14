@@ -116,6 +116,24 @@ export interface VttTerrain {
   /** World height of a full-white cell, in grid cells. */
   maxCells: number;
 }
+/** 3D atmosphere: environmental backdrop, depth fog, mist, particles, mood
+ *  lighting and shadows. Curator-set per scene; synced like everything else. */
+export interface VttAtmosphere {
+  /** Environmental backdrop surrounding the map. */
+  env: "void" | "space" | "cavern" | "wireframe";
+  /** Mood preset tinting ambient light, sun, and fog colour. */
+  mood: "neutral" | "moonlight" | "hellfire" | "toxic" | "dusk";
+  /** Depth-fog amount 0..1 (0 = off) — map edges melt into the haze. */
+  fog: number;
+  /** Crawling ground-mist layer just above the floor. */
+  mist: boolean;
+  particles: "none" | "embers" | "spores" | "rain" | "snow";
+  /** Lights and the sun cast real shadows (costs GPU). */
+  shadows: boolean;
+}
+export function defaultAtmosphere(): VttAtmosphere {
+  return { env: "space", mood: "neutral", fog: 0.35, mist: false, particles: "none", shadows: false };
+}
 export interface VttBackground {
   color: string;
   src?: string; // image url / asset path
@@ -138,6 +156,7 @@ export interface VttSceneData {
   layers: VttLayerState;
   timeline: VttTimelineState;
   terrain?: VttTerrain | null;
+  atmosphere?: VttAtmosphere | null;
   encounterId?: string | null;
 }
 

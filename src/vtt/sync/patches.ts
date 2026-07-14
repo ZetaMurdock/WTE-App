@@ -2,7 +2,7 @@
 // small op (never a full-scene resend); peers apply it to their own scene. Late
 // joiners get a full `snapshot` instead. Ops ride the reserved `vtt-patch` net
 // message (scope = scene id) so the protocol envelope stays stable.
-import type { VttBackground, VttEffect, VttEffectData, VttGrid, VttLight, VttSceneData, VttTerrain, VttToken, VttWall } from "../types/scene";
+import type { VttAtmosphere, VttBackground, VttEffect, VttEffectData, VttGrid, VttLight, VttSceneData, VttTerrain, VttToken, VttWall } from "../types/scene";
 
 export type VttOp =
   | { op: "token.add"; token: VttToken }
@@ -20,6 +20,7 @@ export type VttOp =
   | { op: "bg.set"; src?: string | null; patch?: Partial<VttBackground> }
   | { op: "grid.set"; patch: Partial<VttGrid> }
   | { op: "terrain.set"; terrain: VttTerrain | null }
+  | { op: "atmo.set"; atmo: VttAtmosphere }
   | { op: "effect.add"; effect: VttEffect }
   | { op: "effect.update"; id: string; patch: Partial<VttEffectData> }
   | { op: "effect.remove"; id: string }
@@ -102,6 +103,9 @@ export function applyOp(d: VttSceneData, op: VttOp): boolean {
       return true;
     case "terrain.set":
       d.terrain = op.terrain;
+      return true;
+    case "atmo.set":
+      d.atmosphere = op.atmo;
       return true;
     case "effect.add":
       if (d.effects.some((e) => e.id === op.effect.id)) return false;

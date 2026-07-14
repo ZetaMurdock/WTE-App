@@ -20,6 +20,7 @@ import { EncounterSystem } from "./systems/EncounterSystem";
 import {
   newId,
   TOKEN_COLORS,
+  type VttAtmosphere,
   type VttBackground,
   type VttEffectData,
   type VttEffectKind,
@@ -317,6 +318,13 @@ export class PixiVttApp {
     this.scene.data.terrain = terrain;
     this.onChanged();
     this.onOp({ op: "terrain.set", terrain });
+  }
+  /** Set the 3D atmosphere (backdrop / fog / mist / particles / mood / shadows). */
+  setAtmosphere(atmo: VttAtmosphere): void {
+    if (!this.scene) return;
+    this.scene.data.atmosphere = atmo;
+    this.onChanged();
+    this.onOp({ op: "atmo.set", atmo });
   }
   moveToken(id: string, wx: number, wy: number, snap: boolean): void {
     const t = this.scene?.data.tokens.find((x) => x.id === id);

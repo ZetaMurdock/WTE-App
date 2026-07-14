@@ -1,13 +1,15 @@
 import { useRef } from "react";
-import type { VttBackground, VttGrid, VttTerrain } from "./types/scene";
+import { defaultAtmosphere, type VttAtmosphere, type VttBackground, type VttGrid, type VttTerrain } from "./types/scene";
 
 interface Props {
   grid: VttGrid;
   background: VttBackground;
   terrain: VttTerrain | null;
+  atmosphere: VttAtmosphere | null;
   onGrid: (patch: Partial<VttGrid>) => void;
   onBackground: (patch: Partial<VttBackground>) => void;
   onTerrain: (terrain: VttTerrain | null) => void;
+  onAtmosphere: (atmo: VttAtmosphere) => void;
   onClose: () => void;
 }
 
@@ -40,9 +42,11 @@ async function heightsFromImage(file: File, cols: number, rows: number): Promise
 
 // Curator grid & map controls: resize the grid (cell size / cols / rows),
 // control how the background image fits, and set the 3D terrain heightmap.
-export function VttGridPanel({ grid, background, terrain, onGrid, onBackground, onTerrain, onClose }: Props) {
+export function VttGridPanel({ grid, background, terrain, atmosphere, onGrid, onBackground, onTerrain, onAtmosphere, onClose }: Props) {
   const fit = background.fit ?? "grid";
   const terrainFileRef = useRef<HTMLInputElement>(null);
+  const atmo = atmosphere ?? defaultAtmosphere();
+  const patchAtmo = (p: Partial<VttAtmosphere>) => onAtmosphere({ ...atmo, ...p });
 
   async function onHeightmapFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -160,6 +164,58 @@ export function VttGridPanel({ grid, background, terrain, onGrid, onBackground, 
       <p className="vtt2-actor-hint" style={{ marginTop: 6 }}>
         White = high, black = flat. Elevation shows in the 3D view; tokens and fog sit on it. Re-upload after resizing the grid.
       </p>
+
+      <div className="panel-title" style={{ marginTop: 14 }}>
+        Atmosphere (3D)
+      </div>
+      <div className="vtt2-hp-row">
+        <label className="lobby-field">
+          <span>Backdrop</span>
+          <select className="bg-select full" value={atmo.env} onChange={(e) => patchAtmo({ env: e.target.value as VttAtmosphere["env"] })}>
+            <option value="void">Void</option>
+            <option value="space">Deep space</option>
+            <option value="cavern">Cavern</option>
+            <option value="wireframe">Wireframe</option>
+          </select>
+        </label>
+        <label className="lobby-field">
+          <span>Mood</span>
+          <select className="bg-select full" value={atmo.mood} onChange={(e) => patchAtmo({ mood: e.target.value as VttAtmosphere["mood"] })}>
+            <option value="neutral">Neutral</option>
+            <option value="moonlight">Moonlight</option>
+            <option value="hellfire">Hellfire</option>
+            <option value="toxic">Toxic</option>
+            <option value="dusk">Dusk</option>
+          </select>
+        </label>
+      </div>
+      <label className="lobby-field mt">
+        <span>Depth fog · {Math.round(atmo.fog * 100)}%</span>
+        <input type="range" min={0} max={1} step={0.05} value={atmo.fog} onChange={(e) => patchAtmo({ fog: parseFloat(e.target.value) })} />
+      </label>
+      <div className="vtt2-hp-row" style={{ marginTop: 6 }}>
+        <label className="lobby-field">
+          <span>Particles</span>
+          <select className="bg-select full" value={atmo.particles} onChange={(e) => patchAtmo({ particles: e.target.value as VttAtmosphere["particles"] })}>
+            <option value="none">None</option>
+            <option value="embers">Embers</option>
+            <option value="spores">Spores</option>
+            <option value="rain">Rain</option>
+            <option value="snow">Snow</option>
+          </select>
+        </label>
+        <div className="lobby-field">
+          <span>Layers</span>
+          <div className="chip-row" style={{ marginTop: 2 }}>
+            <button className={"chip" + (atmo.mist ? " active" : "")} onClick={() => patchAtmo({ mist: !atmo.mist })} title="Crawling ground mist above the floor">
+              Mist
+            </button>
+            <button className={"chip" + (atmo.shadows ? " active" : "")} onClick={() => patchAtmo({ shadows: !atmo.shadows })} title="Sun + nearby lights cast real shadows (GPU cost)">
+              Shadows
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
