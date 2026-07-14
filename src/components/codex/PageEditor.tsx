@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { VisualBlockEditor } from "./VisualBlockEditor";
+import { VisualDocEditor } from "./visualdoc/VisualDocEditor";
 import { CodeArea } from "./CodeArea";
 
 export interface PageDraft {
@@ -26,9 +26,9 @@ export function PageEditor({ initial, labels, onSave, onCancel }: Props) {
   const [label, setLabel] = useState(initial?.label ?? labels[0] ?? "");
   const [newLabel, setNewLabel] = useState("");
   const [creatingLabel, setCreatingLabel] = useState(false);
-  // Visual (no-code block builder) vs Code (raw markdown/HTML). Any content now
-  // parses into blocks, so Visual is the default for every page.
-  const [mode, setMode] = useState<"visual" | "code">("visual");
+  // Design (the Visual Engine — semantic tree, WYSIWYG) vs Code (raw source with
+  // highlighting + linting). The engine imports any legacy markdown/HTML page.
+  const [mode, setMode] = useState<"design" | "code">("design");
 
   const effectiveLabel = creatingLabel ? newLabel.trim() : label;
   const canSave = title.trim().length > 0 && effectiveLabel.length > 0;
@@ -99,15 +99,15 @@ export function PageEditor({ initial, labels, onSave, onCancel }: Props) {
           <div className="pe-mode-row">
             <span>Content</span>
             <span className="rank-spacer" />
-            <button className={"chip" + (mode === "visual" ? " active" : "")} onClick={() => setMode("visual")}>
-              Visual
+            <button className={"chip" + (mode === "design" ? " active" : "")} onClick={() => setMode("design")}>
+              Design
             </button>
             <button className={"chip" + (mode === "code" ? " active" : "")} onClick={() => setMode("code")}>
               Code
             </button>
           </div>
-          {mode === "visual" ? (
-            <VisualBlockEditor value={content} onChange={setContent} />
+          {mode === "design" ? (
+            <VisualDocEditor key={mode} value={content} onChange={setContent} />
           ) : (
             <CodeArea value={content} onChange={setContent} />
           )}
