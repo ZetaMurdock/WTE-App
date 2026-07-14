@@ -18,6 +18,21 @@ interface Hooks {
   onSelect: (sel: VttSelection) => void;
   /** done=true on drop (snap + broadcast); false while dragging. */
   onMove: (id: string, wx: number, wy: number, done: boolean) => void;
+  /** Throttled raw-position broadcast while piloting (peers see live motion). */
+  onLive?: (id: string, wx: number, wy: number) => void;
+  /** Pilot mode started (token id) / ended (null). */
+  onPilotChange?: (id: string | null) => void;
+}
+
+/** Distance from point to segment < r (circle-vs-wall collision). */
+function segCircle(x1: number, y1: number, x2: number, y2: number, px: number, py: number, r: number): boolean {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const L2 = dx * dx + dy * dy || 1;
+  const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / L2));
+  const qx = x1 + t * dx;
+  const qy = y1 + t * dy;
+  return (px - qx) ** 2 + (py - qy) ** 2 < r * r;
 }
 
 const WALL_HEIGHT_CELLS = 2.2;
@@ -48,6 +63,12 @@ export class ThreeVttView {
   private downAt = { x: 0, y: 0 };
   private moved = false;
 
+  // ── Pilot mode: possess a token and drive it with the arrow keys ──
+  private pilotId: string | null = null;
+  private keys = new Set<string>();
+  private clock = new THREE.Clock();
+  private lastLiveOp = 0;
+
   private vtt: VttScene | null = null;
   private selection: VttSelection = null;
 
@@ -74,6 +95,8 @@ export class ThreeVttView {
     r.domElement.addEventListener("pointerdown", this.onDown);
     r.domElement.addEventListener("pointermove", this.onMovePtr);
     window.addEventListener("pointerup", this.onUp);
+    window.addEventListener("keydown", this.onKeyDown);
+    window.addEventListener("keyup", this.onKeyUp);
 
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(host);
@@ -92,14 +115,116 @@ export class ThreeVttView {
     loop();
   }
 
-  /** One frame: size check + controls + render. The rAF loop drives this; it is
-   *  public so tests / headless environments (where rAF is paused) can render. */
+  /** One frame: size check + pilot step + controls + render. The rAF loop drives
+   *  this; public so tests / headless environments (where rAF is paused) can render. */
   renderOnce(): void {
     if (!this.renderer) return;
     this.ensureSize(); // covers hidden→shown flips the ResizeObserver can miss
-    this.controls?.update();
+    const dt = Math.min(this.clock.getDelta(), 0.1);
+    if (this.pilotId) this.updatePilot(dt);
+    else this.controls?.update();
     this.renderer.render(this.scene3, this.camera);
     this.rendered++;
+  }
+
+  /** Enter pilot mode on a token: arrow keys drive it (camera-relative), walls
+   *  block, the camera follows third-person. Esc or stopPilot() exits. */
+  startPilot(id: string): void {
+    this.pilotId = id;
+    this.keys.clear();
+    this.clock.getDelta(); // reset dt so the first step isn't huge
+    if (this.controls) this.controls.enabled = false;
+    this.hooks.onPilotChange?.(id);
+  }
+  stopPilot(commit = true): void {
+    if (!this.pilotId) return;
+    const id = this.pilotId;
+    this.pilotId = null;
+    this.keys.clear();
+    if (this.controls) this.controls.enabled = true;
+    const t = this.vtt?.data.tokens.find((x) => x.id === id);
+    if (commit && t) this.hooks.onMove(id, t.x, t.y, true); // snap + broadcast + persist
+    this.hooks.onPilotChange?.(null);
+  }
+  get piloting(): string | null {
+    return this.pilotId;
+  }
+
+  private onKeyDown = (e: KeyboardEvent): void => {
+    if (!this.pilotId) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      this.stopPilot();
+      return;
+    }
+    if (e.key.startsWith("Arrow")) {
+      e.preventDefault();
+      this.keys.add(e.key);
+    }
+  };
+  private onKeyUp = (e: KeyboardEvent): void => {
+    if (e.key.startsWith("Arrow")) this.keys.delete(e.key);
+  };
+
+  /** Reposition a token's visual (sprite/model + ring) without a rebuild. */
+  private moveVisual(id: string, x: number, z: number): void {
+    if (!this.vtt) return;
+    const y = this.heightAt(this.vtt, x, z);
+    for (const ch of this.tokenGroup.children) {
+      if (ch.userData.tokenId === id) ch.position.set(x, y + (ch.userData.yOff ?? 0), z);
+      else if (ch.userData.ringFor === id) ch.position.set(x, y + 2, z);
+    }
+  }
+
+  private updatePilot(dt: number): void {
+    if (!this.pilotId || !this.vtt) return;
+    const t = this.vtt.data.tokens.find((x) => x.id === this.pilotId);
+    if (!t) {
+      this.stopPilot(false);
+      return;
+    }
+    const g = this.vtt.data.grid;
+    // camera-relative movement on the ground plane
+    const fwd = new THREE.Vector3();
+    this.camera.getWorldDirection(fwd);
+    fwd.y = 0;
+    if (fwd.lengthSq() < 0.0001) fwd.set(0, 0, -1);
+    fwd.normalize();
+    const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0));
+    let mx = 0;
+    let mz = 0;
+    if (this.keys.has("ArrowUp")) (mx += fwd.x), (mz += fwd.z);
+    if (this.keys.has("ArrowDown")) (mx -= fwd.x), (mz -= fwd.z);
+    if (this.keys.has("ArrowRight")) (mx += right.x), (mz += right.z);
+    if (this.keys.has("ArrowLeft")) (mx -= right.x), (mz -= right.z);
+    if (mx || mz) {
+      const len = Math.hypot(mx, mz);
+      const speed = 5 * g.size; // 5 cells per second
+      const nx = Math.max(0, Math.min(g.cols * g.size, t.x + (mx / len) * speed * dt));
+      const nz = Math.max(0, Math.min(g.rows * g.size, t.y + (mz / len) * speed * dt));
+      const r = ((t.size || 1) * g.size) / 2 - 6; // body radius, slight give
+      const blocked = this.vtt.data.walls.some((w) => segCircle(w.x1, w.y1, w.x2, w.y2, nx, nz, Math.max(8, r)));
+      if (!blocked) {
+        this.hooks.onMove(this.pilotId, nx, nz, false);
+        this.moveVisual(this.pilotId, nx, nz);
+        const now = performance.now();
+        if (now - this.lastLiveOp > 250) {
+          this.lastLiveOp = now;
+          this.hooks.onLive?.(this.pilotId, nx, nz);
+        }
+      }
+    }
+    // third-person follow: keep the camera's current bearing, settle behind/above
+    const elev = this.heightAt(this.vtt, t.x, t.y);
+    const target = new THREE.Vector3(t.x, elev + g.size * 0.8, t.y);
+    this.controls?.target.lerp(target, 0.18);
+    const off = new THREE.Vector3().subVectors(this.camera.position, this.controls?.target ?? target);
+    off.y = 0;
+    if (off.lengthSq() < 1) off.set(0, 0, 1);
+    off.normalize().multiplyScalar(6 * g.size);
+    const desired = new THREE.Vector3(target.x + off.x, elev + 3.2 * g.size, target.z + off.z);
+    this.camera.position.lerp(desired, 0.08);
+    this.camera.lookAt(this.controls?.target ?? target);
   }
 
   /** Diagnostics (dev). */
@@ -510,6 +635,8 @@ export class ThreeVttView {
       this.renderer.domElement.removeEventListener("pointerdown", this.onDown);
       this.renderer.domElement.removeEventListener("pointermove", this.onMovePtr);
       window.removeEventListener("pointerup", this.onUp);
+      window.removeEventListener("keydown", this.onKeyDown);
+      window.removeEventListener("keyup", this.onKeyUp);
       this.renderer.dispose();
       this.renderer.domElement.remove();
     }

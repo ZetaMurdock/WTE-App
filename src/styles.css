@@ -3934,6 +3934,27 @@ body {
   background: var(--panel-line);
   margin: 0 4px;
 }
+/* Pilot mode button (3D view, above the action bar) */
+.vtt2-pilot-btn {
+  position: absolute;
+  left: 50%;
+  bottom: 64px;
+  transform: translateX(-50%);
+  background: rgba(10, 17, 34, 0.92);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  color: var(--accent);
+  font-family: Georgia, serif;
+  font-size: 12px;
+  padding: 7px 16px;
+  cursor: pointer;
+  z-index: 8;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+}
+.vtt2-pilot-btn.on {
+  background: rgba(126, 207, 202, 0.16);
+  color: var(--ink);
+}
 /* Curator Grid & Map panel (right side, clear of the inspector) */
 .vtt2-gridpanel {
   position: absolute;

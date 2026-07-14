@@ -37,6 +37,7 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
   // 3D is a VIEW MODE over the same scene: the three.js renderer mirrors the
   // engine's scene and routes selection/moves back through it (single authority).
   const [viewMode, setViewMode] = useState<"2d" | "3d">("2d");
+  const [pilotingId, setPilotingId] = useState<string | null>(null);
   const host3dRef = useRef<HTMLDivElement>(null);
   const threeRef = useRef<ThreeVttView | null>(null);
   // Per-campaign Curator claim: only joining someone else's netplay room as a
@@ -56,6 +57,9 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
             eng.moveToken(id, wx, wy, done);
             if (done) eng.onChanged(); // mirrors the 2D InputController's drop path
           },
+          // Throttled raw-position broadcast while piloting, so peers see the flight.
+          onLive: (id, wx, wy) => engineRef.current?.onOp({ op: "token.move", id, x: wx, y: wy }),
+          onPilotChange: (id) => setPilotingId(id),
         });
         view.init(host3dRef.current);
         threeRef.current = view;
@@ -369,6 +373,15 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
       />
       {campaign && !isNetPlayer && (
         <VttSceneWheel scenes={scenes} activeId={scene?.id ?? null} onSwitch={(id) => void switchScene(id)} />
+      )}
+      {viewMode === "3d" && (pilotingId || sel?.kind === "token") && (
+        <button
+          className={"vtt2-pilot-btn" + (pilotingId ? " on" : "")}
+          onClick={() => (pilotingId ? threeRef.current?.stopPilot() : sel && threeRef.current?.startPilot(sel.id))}
+          title={pilotingId ? "Stop piloting (Esc)" : "Pilot this token — arrow keys move it, walls block, Esc stops"}
+        >
+          {pilotingId ? "Stop piloting · Esc" : "Pilot token · arrow keys"}
+        </button>
       )}
       {gridOpen && !isNetPlayer && live && (
         <VttGridPanel
