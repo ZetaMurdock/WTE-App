@@ -23,6 +23,8 @@ export interface VttToken {
   color: string;
   /** Token art (asset uri); falls back to the colour disc when unset. */
   img?: string | null;
+  /** 3D model (GLB asset uri) — rendered instead of the billboard in the 3D view. */
+  model?: string | null;
   hp?: number;
   hpMax?: number;
   /** Linked character or actor (Codex creature / party member). */

@@ -9,6 +9,7 @@
 // single mutation authority (so ops/persistence/2D all update as usual).
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import type { VttScene, VttToken } from "../types/scene";
 import type { VttSelection } from "../engine/PixiVttApp";
 import { cellKey, computeVisibleCells } from "../engine/systems/VisionSystem";
@@ -362,8 +363,40 @@ export class ThreeVttView {
     return tex;
   }
 
+  // ── GLB token models: template cache by uri; instances cloned per build.
+  // While a model loads (or if it fails) the billboard fallback shows instead. ──
+  private modelLoader = new GLTFLoader();
+  private modelCache = new Map<string, Promise<THREE.Object3D | null>>();
+  private buildGen = 0;
+  private loadModel(uri: string): Promise<THREE.Object3D | null> {
+    let p = this.modelCache.get(uri);
+    if (!p) {
+      p = new Promise((resolve) => {
+        this.modelLoader.load(uri, (gltf) => resolve(gltf.scene), undefined, () => resolve(null));
+      });
+      this.modelCache.set(uri, p);
+    }
+    return p;
+  }
+  /** Clone a loaded template, uniformly scaled so its ground footprint spans the
+   *  token's cells, feet at y=0 within the wrapper. */
+  private instantiateModel(template: THREE.Object3D, worldSize: number): THREE.Object3D {
+    const inst = template.clone(true);
+    const box = new THREE.Box3().setFromObject(inst);
+    const dim = new THREE.Vector3();
+    box.getSize(dim);
+    const footprint = Math.max(dim.x, dim.z, 0.001);
+    const k = worldSize / footprint;
+    const wrapper = new THREE.Group();
+    inst.scale.setScalar(k);
+    inst.position.set(-((box.min.x + box.max.x) / 2) * k, -box.min.y * k, -((box.min.z + box.max.z) / 2) * k);
+    wrapper.add(inst);
+    return wrapper;
+  }
+
   private buildTokens(scene: VttScene, visible: Set<string> | null = null): void {
     this.tokenGroup.clear();
+    const gen = ++this.buildGen;
     const s = scene.data.grid.size;
     if (!scene.data.layers.tokens) return;
     for (const t of scene.data.tokens) {
@@ -372,10 +405,27 @@ export class ThreeVttView {
       if (visible && !visible.has(cellKey(Math.floor(t.x / s), Math.floor(t.y / s)))) continue;
       const size = (t.size || 1) * s;
       const elev = this.heightAt(scene, t.x, t.y);
+      if (t.model) {
+        const uri = t.model;
+        const tid = t.id;
+        void this.loadModel(uri).then((template) => {
+          if (!template || gen !== this.buildGen) return; // failed, or a newer build replaced us
+          const obj = this.instantiateModel(template, size);
+          obj.position.set(t.x, elev, t.y);
+          obj.userData.tokenId = tid;
+          obj.userData.yOff = 0;
+          // remove this token's placeholder billboard, then add the model
+          for (const ch of [...this.tokenGroup.children]) {
+            if (ch.userData.tokenId === tid && (ch as THREE.Sprite).isSprite) this.tokenGroup.remove(ch);
+          }
+          this.tokenGroup.add(obj);
+        });
+      }
       const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.tokenTexture(t), transparent: true }));
       spr.scale.set(size, size * (300 / 256), 1);
       spr.position.set(t.x, elev + (size * (300 / 256)) / 2, t.y);
       spr.userData.tokenId = t.id;
+      spr.userData.yOff = (size * (300 / 256)) / 2;
       if (this.selection?.kind === "token" && this.selection.id === t.id) {
         const ring = new THREE.Mesh(
           new THREE.RingGeometry(size * 0.5, size * 0.56, 40),
@@ -408,11 +458,20 @@ export class ThreeVttView {
     this.downAt = { x: e.clientX, y: e.clientY };
     this.moved = false;
     this.ray.setFromCamera(this.pointer, this.camera);
-    const hits = this.ray.intersectObjects(this.tokenGroup.children, false);
-    const hit = hits.find((h) => h.object.userData.tokenId);
-    if (hit) {
-      this.dragId = hit.object.userData.tokenId as string;
-      this.hooks.onSelect({ kind: "token", id: this.dragId });
+    // recursive: GLB models are nested meshes — walk ancestors for the token id
+    const hits = this.ray.intersectObjects(this.tokenGroup.children, true);
+    let tokenId: string | null = null;
+    for (const h of hits) {
+      let o: THREE.Object3D | null = h.object;
+      while (o && !o.userData.tokenId) o = o.parent;
+      if (o?.userData.tokenId) {
+        tokenId = o.userData.tokenId as string;
+        break;
+      }
+    }
+    if (tokenId) {
+      this.dragId = tokenId;
+      this.hooks.onSelect({ kind: "token", id: tokenId });
       if (this.controls) this.controls.enabled = false;
     }
   };
@@ -428,7 +487,7 @@ export class ThreeVttView {
     // updates don't tick a re-sync (by design), so this is the live feedback.
     // p.y is the raycast hit on the (possibly terrain-displaced) ground.
     for (const ch of this.tokenGroup.children) {
-      if (ch.userData.tokenId === this.dragId) ch.position.set(p.x, p.y + ch.scale.y / 2, p.z);
+      if (ch.userData.tokenId === this.dragId) ch.position.set(p.x, p.y + (ch.userData.yOff ?? 0), p.z);
       else if (ch.userData.ringFor === this.dragId) ch.position.set(p.x, p.y + 2, p.z);
     }
   };

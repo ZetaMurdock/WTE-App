@@ -283,6 +283,9 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
   function applyTokenArt(uri: string) {
     if (sel?.kind === "token") engineRef.current?.updateToken(sel.id, { img: uri });
   }
+  function applyTokenModel(uri: string) {
+    if (sel?.kind === "token") engineRef.current?.updateToken(sel.id, { model: uri });
+  }
 
   // Codex creature spawns ride the legacy `wte-spawn-creature` channel. VTT v2
   // and the React Codex share one document, where `storage` events don't fire —
@@ -421,6 +424,7 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
           onDelete={(id) => void removeAsset(id)}
           onUseBackground={(uri) => engine?.setBackground(uri)}
           onApplyToToken={applyTokenArt}
+          onApplyModel={applyTokenModel}
           onRefresh={() => void loadAssets()}
           onClose={() => setLeftPanel(null)}
         />

@@ -4,7 +4,7 @@
 import { getDb, sqlAvailable } from "../../lib/db";
 import { newId } from "../types/scene";
 
-export type AssetKind = "background" | "token";
+export type AssetKind = "background" | "token" | "model";
 
 export interface VttAsset {
   id: string;
@@ -28,7 +28,7 @@ function parse(r: Row): VttAsset {
   return {
     id: r.id,
     campaignId: r.campaign_id,
-    kind: (r.kind === "token" ? "token" : "background") as AssetKind,
+    kind: (r.kind === "token" ? "token" : r.kind === "model" ? "model" : "background") as AssetKind,
     name: r.name,
     uri: r.uri,
     createdAt: r.created_at,

@@ -103,6 +103,11 @@ export function VttInspector({ sel, scene, onToken, onWall, onLight, onEffect, o
               <input className="bg-select full" type="number" value={token.hpMax ?? 0} onChange={(e) => onToken({ hpMax: parseInt(e.target.value, 10) || 0 })} />
             </label>
           </div>
+          {token.model && (
+            <button className="chip" style={{ marginTop: 10 }} onClick={() => onToken({ model: null })} title="Remove the 3D model — the token falls back to its billboard">
+              3D model attached — remove
+            </button>
+          )}
           <div className="lobby-field mt">
             <span>Statuses</span>
             <div className="vtt2-enc-statuses" style={{ marginTop: 2 }}>
