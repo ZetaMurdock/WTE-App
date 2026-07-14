@@ -11,6 +11,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { VttScene, VttToken } from "../types/scene";
 import type { VttSelection } from "../engine/PixiVttApp";
+import { cellKey, computeVisibleCells } from "../engine/systems/VisionSystem";
 
 interface Hooks {
   onSelect: (sel: VttSelection) => void;
@@ -35,6 +36,7 @@ export class ThreeVttView {
   private wallGroup = new THREE.Group();
   private lightGroup = new THREE.Group();
   private tokenGroup = new THREE.Group();
+  private fogGroup = new THREE.Group();
   private texCache = new Map<string, THREE.Texture>();
   private groundTexSrc = "";
   private groundTex: THREE.Texture | null = null;
@@ -61,7 +63,7 @@ export class ThreeVttView {
     this.scene3.add(new THREE.AmbientLight(0x8090b0, 0.7));
     const sun = new THREE.DirectionalLight(0xfff4e0, 1.1);
     sun.position.set(1500, 2600, 1000);
-    this.scene3.add(sun, this.wallGroup, this.lightGroup, this.tokenGroup);
+    this.scene3.add(sun, this.wallGroup, this.lightGroup, this.tokenGroup, this.fogGroup);
 
     this.controls = new OrbitControls(this.camera, r.domElement);
     this.controls.enableDamping = true;
@@ -136,11 +138,48 @@ export class ThreeVttView {
     const firstScene = this.vtt?.id !== scene.id;
     this.vtt = scene;
     this.selection = selection;
+    // Vision parity with the 2D fog: null = fog off (everything visible).
+    const visible = scene.data.fog.enabled && scene.data.layers.fog ? computeVisibleCells(scene.data) : null;
     this.buildGround(scene);
     this.buildWalls(scene);
     this.buildLights(scene);
-    this.buildTokens(scene);
+    this.buildTokens(scene, visible);
+    this.buildFog(scene, visible);
     if (firstScene) this.frame(scene);
+  }
+
+  /** Fog of war in 3D: dark quads over non-visible cells (deep for unseen, dim
+   *  for explored), floating just above the ground. Tokens outside vision are
+   *  hidden in buildTokens — matching how the 2D fog paints over them. */
+  private buildFog(scene: VttScene, visible: Set<string> | null): void {
+    for (const ch of this.fogGroup.children) (ch as THREE.Mesh).geometry?.dispose();
+    this.fogGroup.clear();
+    if (!visible) return;
+    const { grid, fog } = scene.data;
+    const revealed = new Set(fog.revealed);
+    const s = grid.size;
+    const unseen: number[] = [];
+    const explored: number[] = [];
+    const quad = (arr: number[], c: number, r: number) => {
+      const x0 = c * s, x1 = x0 + s, z0 = r * s, z1 = z0 + s, y = 3;
+      arr.push(x0, y, z0, x0, y, z1, x1, y, z1, x0, y, z0, x1, y, z1, x1, y, z0);
+    };
+    for (let c = 0; c < grid.cols; c++) {
+      for (let r = 0; r < grid.rows; r++) {
+        const k = cellKey(c, r);
+        if (visible.has(k)) continue;
+        quad(revealed.has(k) ? explored : unseen, c, r);
+      }
+    }
+    const addMesh = (pts: number[], opacity: number) => {
+      if (!pts.length) return;
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
+      const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x030610, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide }));
+      this.fogGroup.add(mesh);
+    };
+    addMesh(unseen, 0.92);
+    addMesh(explored, 0.55);
   }
 
   private buildGround(scene: VttScene): void {
@@ -278,12 +317,14 @@ export class ThreeVttView {
     return tex;
   }
 
-  private buildTokens(scene: VttScene): void {
+  private buildTokens(scene: VttScene, visible: Set<string> | null = null): void {
     this.tokenGroup.clear();
     const s = scene.data.grid.size;
     if (!scene.data.layers.tokens) return;
     for (const t of scene.data.tokens) {
       if (t.visible === false) continue;
+      // Fog parity: tokens outside current vision are hidden (2D fog paints over them).
+      if (visible && !visible.has(cellKey(Math.floor(t.x / s), Math.floor(t.y / s)))) continue;
       const size = (t.size || 1) * s;
       const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.tokenTexture(t), transparent: true }));
       spr.scale.set(size, size * (300 / 256), 1);
