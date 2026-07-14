@@ -209,6 +209,49 @@ export const PARADIGMS: Paradigm[] = [
   { id: "warfare", name: "Warfare", group: "Tactical Combat", weapons: ["Hybrid", "Exotic", "Kinetic"], domains: ["Neutral", "Kinetic"] },
 ];
 
+// ── Data-driven registry (Codex pull) ────────────────────────────────────────
+// The hardcoded arrays above are the BASE data. Pulled Codex pages overlay them
+// at runtime via registerCodexGameData (lib/gameData): same-id entries override
+// the base, new ids append. The arrays are mutated IN PLACE so every consumer
+// (creator, sheet, VTT) keeps reading synchronously; base data is always the
+// fallback and a re-register resets to base first (idempotent).
+const BASE_SPECIES: Species[] = SPECIES.slice();
+const BASE_PARADIGMS: Paradigm[] = PARADIGMS.slice();
+
+export interface CodexGameData {
+  species?: Species[];
+  paradigms?: Paradigm[];
+  /** speciesId → size key, for page-defined species. */
+  sizes?: Record<string, string>;
+  /** domain → genus abilities from pulled pages (append/override by name). */
+  genus?: Record<string, GenusAbility[]>;
+  /** paradigmId → ciphers from pulled pages (append/override by name). */
+  ciphers?: Record<string, CipherAbility[]>;
+}
+
+let pageGenus: Record<string, GenusAbility[]> = {};
+let pageCiphers: Record<string, CipherAbility[]> = {};
+
+export function registerCodexGameData(data: CodexGameData): void {
+  SPECIES.length = 0;
+  SPECIES.push(...BASE_SPECIES);
+  for (const s of data.species ?? []) {
+    const i = SPECIES.findIndex((x) => x.id === s.id);
+    if (i >= 0) SPECIES[i] = s;
+    else SPECIES.push(s);
+  }
+  PARADIGMS.length = 0;
+  PARADIGMS.push(...BASE_PARADIGMS);
+  for (const p of data.paradigms ?? []) {
+    const i = PARADIGMS.findIndex((x) => x.id === p.id);
+    if (i >= 0) PARADIGMS[i] = p;
+    else PARADIGMS.push(p);
+  }
+  for (const [id, size] of Object.entries(data.sizes ?? {})) SPECIES_SIZE[id] = size;
+  pageGenus = data.genus ?? {};
+  pageCiphers = data.ciphers ?? {};
+}
+
 export function zeroAttributes(): Attributes {
   return { phy: 0, dex: 0, end: 0, ap: 0, wis: 0, cha: 0, int: 0 };
 }
@@ -363,17 +406,26 @@ export interface CipherAbility {
 const GENUS_DATA = genusData as Record<string, GenusAbility[]>;
 const CIPHER_DATA = cipherData as Record<string, CipherAbility[]>;
 
-/** Genus abilities available to a paradigm, grouped by its accessible energy domains. */
+/** Merge baked abilities with pulled-page ones (page entries override by name). */
+function mergeAbilities<T extends { name: string }>(base: T[], page: T[]): T[] {
+  if (!page.length) return base;
+  const out = base.filter((b) => !page.some((p) => p.name.toLowerCase() === b.name.toLowerCase()));
+  return [...out, ...page];
+}
+
+/** Genus abilities available to a paradigm, grouped by its accessible energy domains.
+ *  Baked data + pulled Codex genus pages (keyed by domain). */
 export function genusForParadigm(paradigmId?: string): { domain: string; abilities: GenusAbility[] }[] {
   const p = getParadigm(paradigmId);
   if (!p) return [];
   return p.domains
-    .map((d) => ({ domain: d, abilities: GENUS_DATA[d] || [] }))
+    .map((d) => ({ domain: d, abilities: mergeAbilities(GENUS_DATA[d] || [], pageGenus[d] || []) }))
     .filter((g) => g.abilities.length > 0);
 }
-/** Ciphers for a paradigm, in page order (each carries its tier: offline/online/special). */
+/** Ciphers for a paradigm, in page order (each carries its tier: offline/online/special).
+ *  Baked data + pulled Codex cipher pages (keyed by paradigm id). */
 export function ciphersForParadigm(paradigmId?: string): CipherAbility[] {
-  return CIPHER_DATA[paradigmId || ""] || [];
+  return mergeAbilities(CIPHER_DATA[paradigmId || ""] || [], pageCiphers[paradigmId || ""] || []);
 }
 export const CIPHER_TIERS = ["offline", "online", "special"] as const;
 

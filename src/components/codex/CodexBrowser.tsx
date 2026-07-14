@@ -163,8 +163,12 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
   const publishAvail = firebasePublishConfigured();
   const [publishedStems, setPublishedStems] = useState<Set<string>>(new Set());
 
+  // Tell the data-driven loader (App) that pages or pull flags changed.
+  const notifyPagesChanged = () => window.dispatchEvent(new Event("wte-pages-changed"));
+
   function togglePull(stem: string) {
     setPageMetaMap(savePageMeta(stem, { pulled: !getPageMeta(stem, pageMetaMap).pulled }));
+    notifyPagesChanged();
   }
   function toggleVisibility(stem: string) {
     const cur = getPageMeta(stem, pageMetaMap).visibility;
@@ -197,6 +201,7 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
       linkMap.current = null;
       setScanState("idle");
       setEditor(null);
+      notifyPagesChanged();
       setUploadNote(`Saved “${draft.title}” to the ${draft.label} section.`);
       window.setTimeout(() => setUploadNote(""), 5000);
     } catch (e) {
@@ -258,6 +263,7 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
       typeMap.current = null;
       linkMap.current = null;
       setScanState("idle");
+      notifyPagesChanged();
       setUploadNote(`Synced ${pages.length} official page${pages.length === 1 ? "" : "s"} into your Codex.`);
     } catch (e) {
       setUploadNote("Sync failed: " + (e instanceof Error ? e.message : String(e)));
@@ -284,6 +290,7 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
     typeMap.current = null; // force a re-scan so new records classify
     linkMap.current = null;
     setScanState("idle");
+    notifyPagesChanged();
     setUploadNote(`${ok} page${ok === 1 ? "" : "s"} uploaded into the Codex.`);
     window.setTimeout(() => setUploadNote(""), 5000);
   }

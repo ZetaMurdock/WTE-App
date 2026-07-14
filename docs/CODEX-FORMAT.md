@@ -247,3 +247,54 @@ Corporate security cleaners who work the CAS underlevels.
 ```
 Doxa → facade **40**, collapse WIL×8 + ⌊INT/4⌋×12 = **148** (flagged *facade collapses on crit / shock / Null*).
 Nyvilum → **900** CHP, size 6, flagged *colossal* + *regional Tech Level −2.0*. Fractures just need PHY + END.
+
+---
+
+## Species pages  (data-driven pull, v0.7.24+)
+
+A page whose spec block has `TYPE | Species` becomes a **playable species** in the
+character creator/sheet when the page is *pulled* (the Engineer pull flag). Same
+`Id`/name as a built-in species **overrides** it; a new name **adds** a species.
+
+```
+# Verdant Kin
+| Field | Value |
+|---|---|
+| TYPE | Species |
+| FAMILY | Omenity |
+| BONUSES | END +2, WIS +2 |
+| SIZE | large |
+| INNATE | Barkskin, Photosynthesis, Root Network, Verdant Regrowth |
+| NOTE | Plantfolk of the canopy worlds. |
+
+## Variants
+### Canopy Strider
+Long-limbed climbers.
+- **Sure Footing** — ignore difficult terrain from foliage.
+### Deep Root
+- **Anchored** — advantage vs forced movement while stationary.
+```
+
+`FAMILY` is Humanity / Omenity / Asternem. `BONUSES` accepts `PHY +2` or `+2 PHY`
+pairs. `SIZE` is a size-class key (tiny/small/moderate/large/huge/colossal).
+Variants are optional: each `###` heading is a variant; `- **Ability** — effect`
+bullets are its abilities; other text becomes its note.
+
+## Paradigm pages
+
+`TYPE | Paradigm` pages become selectable paradigms. Genus abilities follow
+automatically from the listed DOMAINS; cipher pages (TYPE | Cipher) whose
+`PARADIGM` names this paradigm feed its cipher list.
+
+```
+# Resonance
+| Field | Value |
+|---|---|
+| TYPE | Paradigm |
+| GROUP | Esoteric & Survival |
+| WEAPONS | Energy, Exotic |
+| DOMAINS | Elemental, Null |
+```
+
+**Pull flags:** only pages marked *pulled* (default on; Engineers toggle per page)
+feed the creator, sheet catalogs (weapons/equipment/genus/ciphers), and VTT.

@@ -30,11 +30,19 @@ export function addToArmory(entry: Weapon | Equipment): void {
     /* ignore */
   }
 }
+// ── Codex-pulled catalog: weapon/gear records from PULLED pages, loaded at boot
+// by lib/gameData. Overlaid between the baked catalogs and the custom armory. ──
+let codexWeapons: Weapon[] = [];
+let codexGear: Equipment[] = [];
+export function setCodexCatalog(weapons: Weapon[], gear: Equipment[]): void {
+  codexWeapons = weapons;
+  codexGear = gear;
+}
 export function listWeapons(): Weapon[] {
-  return [...WEAPONS, ...customList<Weapon>("wte-armory-weapons")];
+  return [...WEAPONS, ...codexWeapons, ...customList<Weapon>("wte-armory-weapons")];
 }
 export function listEquipment(): Equipment[] {
-  return [...GEAR, ...customList<Equipment>("wte-armory-gear")];
+  return [...GEAR, ...codexGear, ...customList<Equipment>("wte-armory-gear")];
 }
 export function getWeapon(name: string): Weapon | undefined {
   const n = name.toLowerCase();

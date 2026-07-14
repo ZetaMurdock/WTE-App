@@ -9,6 +9,7 @@ import { CodexBrowser } from "./components/codex/CodexBrowser";
 import { VttScreen } from "./vtt/VttScreen";
 import { Boundary } from "./components/ui/Boundary";
 import { countCharacters } from "./lib/characters";
+import { loadCodexGameData } from "./lib/gameData";
 import {
   getVersion,
   checkUpdate,
@@ -122,6 +123,17 @@ export default function App() {
     getVersion().then(setVersion);
     checkUpdate().then(setUpdate);
     restoreAuth((u) => setAccountLabel(accountLabelFor(u)));
+  }, []);
+
+  // Data-driven Codex pull: overlay species/paradigms/catalogs from pulled pages
+  // at boot, and re-load whenever the Codex changes pages or pull flags. The
+  // tick re-renders the tree so open tools re-read the (mutated-in-place) data.
+  const [, setDataTick] = useState(0);
+  useEffect(() => {
+    const reload = () => void loadCodexGameData().then(() => setDataTick((t) => t + 1)).catch(() => {});
+    reload();
+    window.addEventListener("wte-pages-changed", reload);
+    return () => window.removeEventListener("wte-pages-changed", reload);
   }, []);
 
   // keep the Dashboard character count in sync with the active campaign
