@@ -2,7 +2,7 @@
 // drag always pans; wheel zooms at the cursor.
 import type { PixiVttApp } from "./PixiVttApp";
 
-type DragMode = "none" | "pan" | "token" | "measure" | "wall";
+type DragMode = "none" | "pan" | "token" | "measure" | "wall" | "rotate" | "scale";
 
 export class InputController {
   private canvas: HTMLCanvasElement | null = null;
@@ -79,6 +79,15 @@ export class InputController {
       v.measure.show(w.x, w.y, w.x, w.y, v.scene.data.grid.size);
       return;
     }
+    // transform handles on the already-selected token take priority
+    if (v.selection?.kind === "token") {
+      const h = v.tokens.pickHandle(v.scene, v.selection.id, w.x, w.y, v.camera.zoom);
+      if (h) {
+        this.mode = h;
+        this.dragTokenId = v.selection.id;
+        return;
+      }
+    }
     // select — tokens first, then lights, then walls
     const hit = v.tokens.pick(v.scene, w.x, w.y);
     if (hit) {
@@ -124,6 +133,19 @@ export class InputController {
       this.vel = { x: 0.75 * this.vel.x + 0.25 * dx, y: 0.75 * this.vel.y + 0.25 * dy };
     }
     else if (this.mode === "token" && this.dragTokenId) v.moveToken(this.dragTokenId, w.x, w.y, false);
+    else if ((this.mode === "rotate" || this.mode === "scale") && this.dragTokenId) {
+      const t = v.scene.data.tokens.find((x) => x.id === this.dragTokenId);
+      if (t) {
+        if (this.mode === "rotate") {
+          const deg = (Math.atan2(w.y - t.y, w.x - t.x) * 180) / Math.PI + 90;
+          t.rotation = Math.round(((deg % 360) + 360) % 360);
+        } else {
+          const dist = Math.hypot(w.x - t.x, w.y - t.y);
+          t.size = Math.max(1, Math.min(6, Math.round((dist * 2) / v.scene.data.grid.size)));
+        }
+        v.redraw();
+      }
+    }
     else if (this.mode === "measure") v.measure.show(this.start.x, this.start.y, w.x, w.y, v.scene.data.grid.size);
     else if (this.mode === "wall") {
       const p = v.snapVertex(w.x, w.y);
@@ -139,6 +161,10 @@ export class InputController {
         v.moveToken(this.dragTokenId, t.x, t.y, true); // snap on drop
         v.onChanged();
       }
+    }
+    if ((this.mode === "rotate" || this.mode === "scale") && this.dragTokenId && this.moved) {
+      const t = v.scene?.data.tokens.find((x) => x.id === this.dragTokenId);
+      if (t) v.updateToken(t.id, this.mode === "rotate" ? { rotation: t.rotation } : { size: t.size }); // one op + persist on release
     }
     if (this.mode === "pan" && this.moved) {
       // fling: keep gliding if the pointer was moving on release (persist on stop)

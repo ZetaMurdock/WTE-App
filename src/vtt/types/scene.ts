@@ -25,6 +25,8 @@ export interface VttToken {
   img?: string | null;
   /** 3D model (GLB asset uri) — rendered instead of the billboard in the 3D view. */
   model?: string | null;
+  /** Facing, degrees clockwise from up — set by the on-canvas rotate handle. */
+  rotation?: number;
   hp?: number;
   hpMax?: number;
   /** Linked character or actor (Codex creature / party member). */

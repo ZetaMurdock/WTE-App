@@ -846,6 +846,7 @@ export class ThreeVttView {
           if (!template || gen !== this.buildGen) return; // failed, or a newer build replaced us
           const obj = this.instantiateModel(template, size);
           obj.position.set(t.x, elev, t.y);
+          obj.rotation.y = -(((t.rotation || 0) % 360) * Math.PI) / 180; // facing from the 2D rotate handle
           obj.userData.tokenId = tid;
           obj.userData.yOff = 0;
           // remove this token's placeholder billboard, then add the model
