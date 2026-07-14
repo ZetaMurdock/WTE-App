@@ -296,6 +296,7 @@ export class ThreeVttView {
         );
         ring.rotation.x = -Math.PI / 2;
         ring.position.set(t.x, 2, t.y);
+        ring.userData.ringFor = t.id;
         this.tokenGroup.add(ring);
       }
       this.tokenGroup.add(spr);
@@ -334,7 +335,15 @@ export class ThreeVttView {
     if (!this.moved) return;
     this.setPointer(e);
     const p = this.groundPoint();
-    if (p) this.hooks.onMove(this.dragId, p.x, p.z, false);
+    if (!p) return;
+    this.hooks.onMove(this.dragId, p.x, p.z, false);
+    // Move the sprite (and its selection ring) immediately — mid-drag engine
+    // updates don't tick a re-sync (by design), so this is the live feedback.
+    for (const ch of this.tokenGroup.children) {
+      if (ch.userData.tokenId === this.dragId || ch.userData.ringFor === this.dragId) {
+        ch.position.set(p.x, ch.position.y, p.z);
+      }
+    }
   };
   private onUp = (e: PointerEvent): void => {
     if (this.dragId) {
