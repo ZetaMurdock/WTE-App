@@ -156,7 +156,6 @@ export class ThreeVttView {
     this.ground.scale.set(w, h, 1);
     this.ground.position.set(w / 2, 0, h / 2);
     const mat = this.ground.material as THREE.MeshStandardMaterial;
-    mat.color.set(background.color || "#0c1220");
     const src = background.src || "";
     if (src !== this.groundTexSrc) {
       this.groundTexSrc = src;
@@ -175,6 +174,9 @@ export class ThreeVttView {
         });
       }
     }
+    // The dark scene colour only tints an UNtextured ground: with a map texture
+    // the tint must stay white, or every re-sync multiplies the map toward black.
+    mat.color.set(mat.map ? 0xffffff : background.color || "#0c1220");
     // grid lines
     if (this.gridLines) {
       this.scene3.remove(this.gridLines);
