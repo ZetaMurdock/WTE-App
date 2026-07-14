@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { VisualBlockEditor } from "./VisualBlockEditor";
+import { CodeArea } from "./CodeArea";
 
 export interface PageDraft {
   title: string;
@@ -108,12 +109,7 @@ export function PageEditor({ initial, labels, onSave, onCancel }: Props) {
           {mode === "visual" ? (
             <VisualBlockEditor value={content} onChange={setContent} />
           ) : (
-            <textarea
-              className="bg-select full pe-content"
-              value={content}
-              placeholder="# Heading&#10;&#10;Write markdown or HTML…"
-              onChange={(e) => setContent(e.target.value)}
-            />
+            <CodeArea value={content} onChange={setContent} />
           )}
         </div>
 

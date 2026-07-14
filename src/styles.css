@@ -1520,6 +1520,103 @@ body {
   gap: 6px;
   margin-top: 5px;
 }
+/* ── Syntax-highlighted, linting code editor ── */
+.code-area {
+  position: relative;
+  border: 1px solid var(--panel-line);
+  border-radius: 6px;
+  background: #070b16;
+  overflow: hidden;
+}
+/* the <pre> and <textarea> MUST share identical metrics so text aligns */
+.code-hl,
+.code-input {
+  margin: 0;
+  padding: 10px 12px;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+  tab-size: 2;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border: 0;
+}
+.code-hl {
+  min-height: 280px;
+  max-height: 46vh;
+  overflow: auto;
+  color: var(--ink);
+  pointer-events: none;
+}
+.code-input {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+  overflow: auto;
+  resize: none;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--accent);
+}
+.code-input:focus {
+  outline: none;
+}
+/* token colours */
+.tok-txt {
+  color: #c8d2e0;
+}
+.tok-tag {
+  color: #7ecfca;
+}
+.tok-attr {
+  color: #a08a4f;
+}
+.tok-str {
+  color: #6f9a68;
+}
+.tok-var {
+  color: #837aae;
+  font-weight: 600;
+}
+.tok-color {
+  color: #d08b7d;
+}
+.tok-head {
+  color: #7ecfca;
+  font-weight: 700;
+}
+.tok-link {
+  color: #6fa8d6;
+  text-decoration: underline;
+}
+.tok-code {
+  color: #a08a4f;
+}
+.tok-err {
+  text-decoration: underline wavy #d0574a;
+  text-underline-offset: 2px;
+}
+.code-issues {
+  margin-top: 6px;
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+.code-ok {
+  color: #6f9a68;
+}
+.code-issue {
+  color: #d0857a;
+  padding: 2px 0;
+}
+.code-issue-loc {
+  display: inline-block;
+  min-width: 42px;
+  color: var(--muted);
+  margin-right: 8px;
+}
 /* Reader-side rendered blocks */
 .cdx-callout {
   padding: 10px 14px;
