@@ -802,16 +802,16 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
                         onChange={(e) => void uploadPages(e.target.files)}
                       />
                       <button className="chip" onClick={() => setEditor({})} title="Author a new Codex page">
-                        ＋ New page
+                        + New page
                       </button>
                       <button className="chip" onClick={() => pageUploadRef.current?.click()} title="Upload official .md pages into the Codex">
-                        ⬆ Upload
+                        Upload
                       </button>
                     </>
                   )}
                   {publishAvail && (
                     <button className="chip" onClick={() => void syncOfficial()} title="Pull the latest official published pages into your Codex">
-                      ⬇ Sync official
+                      Sync official
                     </button>
                   )}
                 </div>
@@ -859,7 +859,7 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
                         {engineer && (
                           <div className="cdx-page-flags">
                             <button className="cdx-flag" title="Edit this page" onClick={() => void openEditPage(p)}>
-                              ✎
+                              edit
                             </button>
                             {publishAvail && (
                               <button
@@ -867,7 +867,7 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
                                 title={publishedStems.has(p) ? "Published to the shared Codex — click to unpublish" : "Publish to the shared official Codex (everyone can sync it)"}
                                 onClick={() => void togglePublish(p)}
                               >
-                                ⇪
+                                pub
                               </button>
                             )}
                             <button
@@ -875,14 +875,14 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
                               title={m.pulled ? "Pulled into sheet/VTT catalogs — click to stop pulling" : "Not pulled — click to pull into sheet/VTT catalogs"}
                               onClick={() => togglePull(p)}
                             >
-                              ⤵
+                              pull
                             </button>
                             <button
                               className={"cdx-flag" + (m.visibility === "player" ? " on" : "")}
                               title={m.visibility === "player" ? "Player-visible — click to make GM-only" : "GM-only — click to make player-visible"}
                               onClick={() => toggleVisibility(p)}
                             >
-                              {m.visibility === "player" ? "👁" : "🔒"}
+                              {m.visibility === "player" ? "plr" : "gm"}
                             </button>
                           </div>
                         )}
@@ -1029,7 +1029,7 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
                   window.getSelection()?.removeAllRanges();
                 }}
               >
-                ✎ Annotate selection
+                Annotate selection
               </button>
             )}
           </div>

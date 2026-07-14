@@ -155,7 +155,7 @@ export function makeComponent(kind: string): WdNode {
   if (kind === "warning") {
     return {
       id: wdId(), type: "container", style: "callout", color: WD_COLORS[1], children: [
-        { id: wdId(), type: "heading", level: 4, text: "⚠ Warning", color: WD_COLORS[1] },
+        { id: wdId(), type: "heading", level: 4, text: "Warning", color: WD_COLORS[1] },
         { id: wdId(), type: "text", html: "Important caution text." },
       ],
     };
@@ -163,7 +163,7 @@ export function makeComponent(kind: string): WdNode {
   return makeNode(kind);
 }
 
-// ── Semantic labels + icons for the layers tree ──
+// ── Semantic labels for the layers tree ──
 export function nodeLabel(n: WdNode): string {
   switch (n.type) {
     case "container":
@@ -186,29 +186,6 @@ export function nodeLabel(n: WdNode): string {
       return "Table";
   }
 }
-export function nodeIcon(n: WdNode): string {
-  switch (n.type) {
-    case "container":
-      return n.style === "plain" ? "🧩" : "📦";
-    case "columns":
-      return "◫";
-    case "heading":
-      return "📝";
-    case "text":
-      return "📖";
-    case "image":
-      return "🖼";
-    case "divider":
-      return "─";
-    case "spacer":
-      return "⬜";
-    case "spoiler":
-      return "▸";
-    case "table":
-      return "📊";
-  }
-}
-
 // ── Embed / extract the doc in page source ──
 const DOC_RE = /<!--wte-doc (.+?)-->/;
 

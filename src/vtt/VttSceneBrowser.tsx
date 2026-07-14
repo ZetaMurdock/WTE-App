@@ -46,7 +46,7 @@ export function VttSceneBrowser({ scenes, activeId, onSwitch, onCreate, onRename
                 <span className="vtt2-scene-tokens">{s.data.tokens.length}</span>
               </button>
               <button className="icon-btn sm" onClick={() => handleRename(s)} title="Rename scene">
-                ✎
+                Rename
               </button>
               {scenes.length > 1 && (
                 <button className="icon-btn sm" onClick={() => handleDelete(s)} title="Delete scene">

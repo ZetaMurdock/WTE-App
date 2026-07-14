@@ -238,15 +238,15 @@ export function VisualBlockEditor({ value, onChange }: Props) {
   return (
     <div className="vbe">
       <div className="vbe-palette">
-        <button className="chip" onClick={() => add("heading")}>＋ Heading</button>
-        <button className="chip" onClick={() => add("text")}>＋ Text</button>
-        <button className="chip" onClick={() => add("box")}>＋ Box</button>
-        <button className="chip" onClick={() => add("dropdown")}>＋ Dropdown</button>
-        <button className="chip" onClick={() => add("list")}>＋ List</button>
-        <button className="chip" onClick={() => add("table")}>＋ Table</button>
-        <button className="chip" onClick={() => add("image")}>＋ Image</button>
-        <button className="chip" onClick={() => add("divider")}>＋ Divider</button>
-        <button className="chip" onClick={() => add("html")}>＋ HTML</button>
+        <button className="chip" onClick={() => add("heading")}>+ Heading</button>
+        <button className="chip" onClick={() => add("text")}>+ Text</button>
+        <button className="chip" onClick={() => add("box")}>+ Box</button>
+        <button className="chip" onClick={() => add("dropdown")}>+ Dropdown</button>
+        <button className="chip" onClick={() => add("list")}>+ List</button>
+        <button className="chip" onClick={() => add("table")}>+ Table</button>
+        <button className="chip" onClick={() => add("image")}>+ Image</button>
+        <button className="chip" onClick={() => add("divider")}>+ Divider</button>
+        <button className="chip" onClick={() => add("html")}>+ HTML</button>
       </div>
 
       {blocks.length === 0 && <p className="pe-hint">Add blocks above to build the page — no code needed.</p>}
@@ -342,8 +342,8 @@ function TableEditor({ rows, onChange }: { rows: string[][]; onChange: (r: strin
         </tbody>
       </table>
       <div className="vbe-table-btns">
-        <button className="cdx-flag" onClick={addRow}>＋ Row</button>
-        <button className="cdx-flag" onClick={addCol}>＋ Col</button>
+        <button className="cdx-flag" onClick={addRow}>+ Row</button>
+        <button className="cdx-flag" onClick={addCol}>+ Col</button>
       </div>
     </div>
   );

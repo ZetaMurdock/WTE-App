@@ -54,7 +54,7 @@ export function AttributeRoller({ attributes, onSet }: Props) {
     <div className="roller">
       <div className="roller-head">
         <button className="primary-btn" onClick={roll}>
-          {pool ? "Re-roll" : "🎲 Roll 7 scores"}
+          {pool ? "Re-roll" : "Roll 7 scores"}
         </button>
         {pool && (
           <span className="roller-pool" title="Rolled scores — assign each once">

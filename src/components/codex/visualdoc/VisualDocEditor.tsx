@@ -6,7 +6,6 @@ import {
   importLegacy,
   makeComponent,
   makeNode,
-  nodeIcon,
   nodeLabel,
   wdId,
   type WdDoc,
@@ -51,11 +50,11 @@ const PALETTE: { group: string; items: { kind: string; label: string }[] }[] = [
   {
     group: "Components",
     items: [
-      { kind: "infobox", label: "📦 Info Box" },
-      { kind: "speciescard", label: "🧬 Species Card" },
-      { kind: "statpanel", label: "📊 Stat Panel" },
-      { kind: "quote", label: "❝ Quote" },
-      { kind: "warning", label: "⚠ Warning" },
+      { kind: "infobox", label: "Info Box" },
+      { kind: "speciescard", label: "Species Card" },
+      { kind: "statpanel", label: "Stat Panel" },
+      { kind: "quote", label: "Quote" },
+      { kind: "warning", label: "Warning" },
     ],
   },
 ];
@@ -227,7 +226,7 @@ export function VisualDocEditor({ value, onChange }: Props) {
         <div className="wde-layers">
           <div className="wde-pane-title">Layers</div>
           <div className="wde-tree">
-            <LayerRow label="📄 Page" depth={0} selected={selId === null} onSelect={() => setSelId(null)} />
+            <LayerRow label="Page" depth={0} selected={selId === null} onSelect={() => setSelId(null)} />
             {doc.children.map((n) => (
               <LayerTree key={n.id} node={n} depth={1} selId={selId} onSelect={setSelId} />
             ))}
@@ -261,9 +260,9 @@ export function VisualDocEditor({ value, onChange }: Props) {
           {WD_COLORS.slice(0, 4).map((c) => (
             <button key={c} className="wde-fmt-sw" style={{ background: c }} onClick={() => fmt("foreColor", c)} title="Text colour" />
           ))}
-          <button onClick={() => fmt("hiliteColor", "rgba(126,207,202,0.25)")} title="Highlight">▩</button>
-          <button onClick={() => fmtGlow("#7ecfca")} title="Glow">✦</button>
-          <button onClick={() => fmt("removeFormat")} title="Clear formatting">⌫</button>
+          <button className="wde-fmt-txt" onClick={() => fmt("hiliteColor", "rgba(126,207,202,0.25)")} title="Highlight">HL</button>
+          <button className="wde-fmt-txt" onClick={() => fmtGlow("#7ecfca")} title="Glow">GLOW</button>
+          <button className="wde-fmt-txt" onClick={() => fmt("removeFormat")} title="Clear formatting">CLR</button>
         </div>
       )}
     </div>
@@ -281,13 +280,13 @@ function LayerRow({ label, depth, selected, onSelect }: { label: string; depth: 
 function LayerTree({ node, depth, selId, onSelect }: { node: WdNode; depth: number; selId: string | null; onSelect: (id: string) => void }) {
   return (
     <>
-      <LayerRow label={`${nodeIcon(node)} ${nodeLabel(node)}`} depth={depth} selected={selId === node.id} onSelect={() => onSelect(node.id)} />
+      <LayerRow label={nodeLabel(node)} depth={depth} selected={selId === node.id} onSelect={() => onSelect(node.id)} />
       {(node.type === "container" || node.type === "spoiler") &&
         node.children.map((c) => <LayerTree key={c.id} node={c} depth={depth + 1} selId={selId} onSelect={onSelect} />)}
       {node.type === "columns" &&
         node.cols.map((col, i) => (
           <span key={i}>
-            <LayerRow label={`▥ Column ${i + 1}`} depth={depth + 1} selected={false} onSelect={() => onSelect(node.id)} />
+            <LayerRow label={`Column ${i + 1}`} depth={depth + 1} selected={false} onSelect={() => onSelect(node.id)} />
             {col.map((c) => (
               <LayerTree key={c.id} node={c} depth={depth + 2} selId={selId} onSelect={onSelect} />
             ))}
@@ -372,7 +371,7 @@ function CanvasNode({ node, selId, onSelect, onPatch }: CanvasProps) {
         <img className={"wde-node" + ring} src={node.src} alt={node.alt || ""} style={{ display: "block", margin: m, width: `${node.width ?? 100}%`, borderRadius: 6 }} onClick={stop} />
       ) : (
         <div className={"wde-node wde-imgph" + ring} onClick={stop}>
-          🖼 Image — set a URL or upload in Properties
+          Image — set a URL or upload in Properties
         </div>
       );
     }
@@ -432,7 +431,7 @@ function PropsPanel({ node, onPatch, onMove, onRemove }: { node: WdNode; onPatch
   return (
     <div className="wde-props-body">
       <div className="wde-props-head">
-        <span>{nodeIcon(node)} {nodeLabel(node)}</span>
+        <span>{nodeLabel(node)}</span>
       </div>
 
       {"color" in node && (
@@ -512,10 +511,10 @@ function PropsPanel({ node, onPatch, onMove, onRemove }: { node: WdNode; onPatch
       {node.type === "table" && (
         <div className="lobby-field mt"><span>Grid</span>
           <div className="vbe-table-btns" style={{ marginTop: 4 }}>
-            <button className="cdx-flag" onClick={() => onPatch({ rows: [...node.rows, node.rows[0].map(() => "")] })}>＋ Row</button>
-            <button className="cdx-flag" onClick={() => onPatch({ rows: node.rows.map((r) => [...r, ""]) })}>＋ Col</button>
-            <button className="cdx-flag" onClick={() => node.rows.length > 1 && onPatch({ rows: node.rows.slice(0, -1) })}>− Row</button>
-            <button className="cdx-flag" onClick={() => node.rows[0].length > 1 && onPatch({ rows: node.rows.map((r) => r.slice(0, -1)) })}>− Col</button>
+            <button className="cdx-flag" onClick={() => onPatch({ rows: [...node.rows, node.rows[0].map(() => "")] })}>+ Row</button>
+            <button className="cdx-flag" onClick={() => onPatch({ rows: node.rows.map((r) => [...r, ""]) })}>+ Col</button>
+            <button className="cdx-flag" onClick={() => node.rows.length > 1 && onPatch({ rows: node.rows.slice(0, -1) })}>- Row</button>
+            <button className="cdx-flag" onClick={() => node.rows[0].length > 1 && onPatch({ rows: node.rows.map((r) => r.slice(0, -1)) })}>- Col</button>
           </div>
         </div>
       )}
@@ -536,7 +535,7 @@ function AlignRow({ value, onPatch }: { value?: string; onPatch: (p: Record<stri
       <div className="chip-row" style={{ marginTop: 4 }}>
         {(["left", "center", "right"] as const).map((a) => (
           <button key={a} className={"chip" + ((value || "left") === a ? " active" : "")} onClick={() => onPatch({ align: a })}>
-            {a === "left" ? "⬅" : a === "center" ? "↔" : "➡"}
+            {a === "left" ? "Left" : a === "center" ? "Center" : "Right"}
           </button>
         ))}
       </div>
@@ -567,7 +566,7 @@ function UploadBtn({ onDone }: { onDone: (url: string) => void }) {
           if (url) onDone(url);
         }}
       />
-      <button className="chip" style={{ marginTop: 6 }} onClick={() => ref.current?.click()}>⬆ Upload PNG</button>
+      <button className="chip" style={{ marginTop: 6 }} onClick={() => ref.current?.click()}>Upload PNG</button>
     </>
   );
 }

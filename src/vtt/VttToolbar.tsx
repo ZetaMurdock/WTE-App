@@ -102,7 +102,7 @@ export function VttToolbar({
       <span className="rank-spacer" />
       {syncOn && (
         <span className="vtt2-sync" title={`Live sync — ${syncPeers} peer${syncPeers === 1 ? "" : "s"} in the room`}>
-          ⇄ Live · {syncPeers}
+          Live · {syncPeers}
         </span>
       )}
       <input

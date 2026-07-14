@@ -90,7 +90,7 @@ export function VttAssetPanel({
         </div>
         <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
         <button className="vtt2-asset-upload" onClick={() => fileRef.current?.click()} disabled={busy}>
-          {busy ? "Importing…" : `⬆ Upload ${kind === "token" ? "token art" : "background"} (PNG)`}
+          {busy ? "Importing…" : `Upload ${kind === "token" ? "token art" : "background"} (PNG)`}
         </button>
         <div className="vtt2-asset-add-row">
           <input className="bg-select" style={{ flex: 1 }} placeholder="…or paste an image URL" value={uri} onChange={(e) => setUri(e.target.value)} />

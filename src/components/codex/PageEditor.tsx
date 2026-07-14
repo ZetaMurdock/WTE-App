@@ -73,7 +73,7 @@ export function PageEditor({ initial, labels, onSave, onCancel }: Props) {
                 onChange={(e) => setNewLabel(e.target.value)}
               />
               <button className="chip" onClick={() => setCreatingLabel(false)} title="Pick an existing label instead">
-                ↩
+                Back
               </button>
             </div>
           ) : (
@@ -86,7 +86,7 @@ export function PageEditor({ initial, labels, onSave, onCancel }: Props) {
                 ))}
               </select>
               <button className="chip" onClick={() => setCreatingLabel(true)} title="Create a new section label">
-                ＋ New
+                + New
               </button>
             </div>
           )}

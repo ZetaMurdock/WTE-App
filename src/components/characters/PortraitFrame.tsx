@@ -26,7 +26,7 @@ export function PortraitFrame({ src, onChange, size = "md" }: Props) {
   return (
     <div className={"portrait-frame portrait-" + size}>
       <div className="portrait-body">
-        {src ? <img className="portrait-img" src={src} alt="portrait" /> : <span className="portrait-glyph">⛧</span>}
+        {src ? <img className="portrait-img" src={src} alt="portrait" /> : <span className="portrait-glyph">+</span>}
         {editable && (
           <div className="portrait-tools">
             <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
