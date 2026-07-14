@@ -1,104 +1,75 @@
-import { VTT_TOOLS, type VttTool } from "./types/tool";
-
 interface Props {
-  tool: VttTool;
-  onTool: (t: VttTool) => void;
   sceneName: string;
   onRename: (name: string) => void;
   tokenCount: number;
   campaignReady: boolean;
-  fogOn: boolean;
-  onToggleFog: () => void;
   scenesOpen: boolean;
   actorsOpen: boolean;
   encounterOpen: boolean;
   assetsOpen: boolean;
   rollsOpen: boolean;
+  gridOpen: boolean;
   /** Undefined disables these (no campaign → no persisted scenes / vault). */
   onToggleScenes?: () => void;
   onToggleActors?: () => void;
   onToggleEncounter?: () => void;
   onToggleAssets?: () => void;
   onToggleRolls?: () => void;
+  /** Undefined hides Grid & Map (netplay players don't get Curator controls). */
+  onToggleGrid?: () => void;
   syncOn: boolean;
   syncPeers: number;
 }
 
+// The slim top bar: panel toggles + scene identity. Map TOOLS live in the
+// floating action bar (VttActionBar) so this stays uncluttered.
 export function VttToolbar({
-  tool,
-  onTool,
   sceneName,
   onRename,
   tokenCount,
   campaignReady,
-  fogOn,
-  onToggleFog,
   scenesOpen,
   actorsOpen,
   encounterOpen,
   assetsOpen,
   rollsOpen,
+  gridOpen,
   onToggleScenes,
   onToggleActors,
   onToggleEncounter,
   onToggleAssets,
   onToggleRolls,
+  onToggleGrid,
   syncOn,
   syncPeers,
 }: Props) {
-  const hint = VTT_TOOLS.find((t) => t.id === tool)?.hint ?? "";
   return (
     <div className="vtt2-toolbar">
       <span className="vtt2-brand">VTT v2</span>
-      <button
-        className={"chip" + (scenesOpen ? " active" : "")}
-        onClick={onToggleScenes}
-        disabled={!onToggleScenes}
-        title="Scene browser — list, create, rename, and switch scenes"
-      >
+      <span className="vtt2-group-label">Panels</span>
+      <button className={"chip" + (scenesOpen ? " active" : "")} onClick={onToggleScenes} disabled={!onToggleScenes} title="Scene browser — list, create, rename, and switch scenes">
         Scenes
       </button>
-      <button
-        className={"chip" + (actorsOpen ? " active" : "")}
-        onClick={onToggleActors}
-        disabled={!onToggleActors}
-        title="Actors — spawn linked vault characters as tokens"
-      >
+      <button className={"chip" + (actorsOpen ? " active" : "")} onClick={onToggleActors} disabled={!onToggleActors} title="Actors — spawn linked vault characters as tokens">
         Actors
       </button>
-      <button
-        className={"chip" + (encounterOpen ? " active" : "")}
-        onClick={onToggleEncounter}
-        disabled={!onToggleEncounter}
-        title="Encounter — initiative, turn order, round counter, HP/status"
-      >
+      <button className={"chip" + (encounterOpen ? " active" : "")} onClick={onToggleEncounter} disabled={!onToggleEncounter} title="Encounter — initiative, turn order, round counter, HP/status">
         Encounter
       </button>
-      <button
-        className={"chip" + (assetsOpen ? " active" : "")}
-        onClick={onToggleAssets}
-        disabled={!onToggleAssets}
-        title="Assets — map backgrounds + token art"
-      >
+      <button className={"chip" + (assetsOpen ? " active" : "")} onClick={onToggleAssets} disabled={!onToggleAssets} title="Assets — map backgrounds + token art">
         Assets
       </button>
-      <button
-        className={"chip" + (rollsOpen ? " active" : "")}
-        onClick={onToggleRolls}
-        disabled={!onToggleRolls}
-        title="Roll feed — recent + live dice rolls"
-      >
+      <button className={"chip" + (rollsOpen ? " active" : "")} onClick={onToggleRolls} disabled={!onToggleRolls} title="Roll feed — recent + live dice rolls">
         Rolls
       </button>
-      {VTT_TOOLS.map((t) => (
-        <button key={t.id} className={"chip" + (tool === t.id ? " active" : "")} onClick={() => onTool(t.id)} title={t.hint}>
-          {t.label}
-        </button>
-      ))}
-      <button className={"chip" + (fogOn ? " active" : "")} onClick={onToggleFog} title="Fog of war — vision from tokens + lights, blocked by walls">
-        Fog
-      </button>
-      <span className="vtt2-hint">{hint}</span>
+      {onToggleGrid && (
+        <>
+          <span className="vtt2-group-label">Scene</span>
+          <button className={"chip" + (gridOpen ? " active" : "")} onClick={onToggleGrid} title="Grid & Map — resize the grid, fit the background">
+            Grid &amp; Map
+          </button>
+        </>
+      )}
       <span className="rank-spacer" />
       {syncOn && (
         <span className="vtt2-sync" title={`Live sync — ${syncPeers} peer${syncPeers === 1 ? "" : "s"} in the room`}>

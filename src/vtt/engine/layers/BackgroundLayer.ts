@@ -47,7 +47,15 @@ export class BackgroundLayer {
   private place(scene: VttScene): void {
     if (!this.sprite) return;
     const b = scene.data.background;
-    this.sprite.position.set(b.x, b.y);
-    this.sprite.scale.set(b.scale || 1);
+    if ((b.fit ?? "grid") === "grid") {
+      // Stretch the map image to cover the whole playable grid.
+      const { grid } = scene.data;
+      this.sprite.position.set(0, 0);
+      this.sprite.width = grid.cols * grid.size;
+      this.sprite.height = grid.rows * grid.size;
+    } else {
+      this.sprite.scale.set(b.scale || 1);
+      this.sprite.position.set(b.x, b.y);
+    }
   }
 }

@@ -6,7 +6,10 @@ import { listScenes, saveScene, getScene, setActiveScene, deleteScene } from "./
 import { newScene, type VttScene } from "./types/scene";
 import type { VttTool } from "./types/tool";
 import { VttToolbar } from "./VttToolbar";
+import { VttActionBar } from "./VttActionBar";
+import { VttGridPanel } from "./VttGridPanel";
 import { VttInspector } from "./VttInspector";
+import { useNet } from "../net/NetContext";
 import { VttSceneBrowser } from "./VttSceneBrowser";
 import { VttActorsPanel } from "./VttActorsPanel";
 import { VttEncounterPanel } from "./VttEncounterPanel";
@@ -28,6 +31,11 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
   // The left dock shows at most one panel at a time.
   const [leftPanel, setLeftPanel] = useState<"scenes" | "actors" | "encounter" | "assets" | null>(null);
   const [rollsOpen, setRollsOpen] = useState(false);
+  const [gridOpen, setGridOpen] = useState(false);
+  // Per-campaign Curator claim: only joining someone else's netplay room as a
+  // player demotes you — hide Curator-only scene controls there.
+  const net = useNet();
+  const isNetPlayer = net.status === "connected" && net.role === "player";
   const [characters, setCharacters] = useState<CharacterRecord[]>([]);
   const [charsLoading, setCharsLoading] = useState(false);
   const [assets, setAssets] = useState<VttAsset[]>([]);
@@ -283,28 +291,36 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
   return (
     <div className="vtt2">
       <VttToolbar
-        tool={tool}
-        onTool={pickTool}
         sceneName={scene?.name ?? ""}
         onRename={renameScene}
         tokenCount={tokenCount}
         campaignReady={!!campaign}
-        fogOn={fogOn}
-        onToggleFog={() => engine?.toggleFog()}
         scenesOpen={leftPanel === "scenes"}
         actorsOpen={leftPanel === "actors"}
         encounterOpen={leftPanel === "encounter"}
         assetsOpen={leftPanel === "assets"}
         rollsOpen={rollsOpen}
+        gridOpen={gridOpen}
         onToggleScenes={campaign ? () => setLeftPanel((p) => (p === "scenes" ? null : "scenes")) : undefined}
         onToggleActors={campaign ? () => setLeftPanel((p) => (p === "actors" ? null : "actors")) : undefined}
         onToggleEncounter={campaign ? () => setLeftPanel((p) => (p === "encounter" ? null : "encounter")) : undefined}
         onToggleAssets={campaign ? () => setLeftPanel((p) => (p === "assets" ? null : "assets")) : undefined}
         onToggleRolls={campaign ? () => setRollsOpen((v) => !v) : undefined}
+        onToggleGrid={!isNetPlayer ? () => setGridOpen((v) => !v) : undefined}
         syncOn={sync.connected}
         syncPeers={sync.peerCount}
       />
       <div className="vtt2-stage" ref={hostRef} />
+      <VttActionBar tool={tool} onTool={pickTool} fogOn={fogOn} onToggleFog={() => engine?.toggleFog()} />
+      {gridOpen && !isNetPlayer && live && (
+        <VttGridPanel
+          grid={live.data.grid}
+          background={live.data.background}
+          onGrid={(patch) => engine?.setGrid(patch)}
+          onBackground={(patch) => engine?.setBackgroundProps(patch)}
+          onClose={() => setGridOpen(false)}
+        />
+      )}
       {campaign && leftPanel === "scenes" && (
         <VttSceneBrowser
           scenes={browserScenes}

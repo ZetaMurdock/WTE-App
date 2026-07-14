@@ -2,7 +2,7 @@
 // small op (never a full-scene resend); peers apply it to their own scene. Late
 // joiners get a full `snapshot` instead. Ops ride the reserved `vtt-patch` net
 // message (scope = scene id) so the protocol envelope stays stable.
-import type { VttEffect, VttEffectData, VttLight, VttSceneData, VttToken, VttWall } from "../types/scene";
+import type { VttBackground, VttEffect, VttEffectData, VttGrid, VttLight, VttSceneData, VttToken, VttWall } from "../types/scene";
 
 export type VttOp =
   | { op: "token.add"; token: VttToken }
@@ -17,7 +17,8 @@ export type VttOp =
   | { op: "light.remove"; id: string }
   | { op: "fog.set"; enabled: boolean }
   | { op: "fog.reveal"; cells: string[] }
-  | { op: "bg.set"; src: string | null }
+  | { op: "bg.set"; src?: string | null; patch?: Partial<VttBackground> }
+  | { op: "grid.set"; patch: Partial<VttGrid> }
   | { op: "effect.add"; effect: VttEffect }
   | { op: "effect.update"; id: string; patch: Partial<VttEffectData> }
   | { op: "effect.remove"; id: string }
@@ -92,8 +93,11 @@ export function applyOp(d: VttSceneData, op: VttOp): boolean {
       return added;
     }
     case "bg.set":
-      if (d.background.src === (op.src || undefined)) return false;
-      d.background.src = op.src || undefined;
+      if (op.patch) Object.assign(d.background, op.patch);
+      else d.background.src = op.src || undefined; // legacy src-only form
+      return true;
+    case "grid.set":
+      Object.assign(d.grid, op.patch);
       return true;
     case "effect.add":
       if (d.effects.some((e) => e.id === op.effect.id)) return false;

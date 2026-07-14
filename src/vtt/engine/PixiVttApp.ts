@@ -20,8 +20,10 @@ import { EncounterSystem } from "./systems/EncounterSystem";
 import {
   newId,
   TOKEN_COLORS,
+  type VttBackground,
   type VttEffectData,
   type VttEffectKind,
+  type VttGrid,
   type VttLight,
   type VttScene,
   type VttToken,
@@ -284,11 +286,23 @@ export class PixiVttApp {
   }
   /** Set (or clear) the scene's map-background image. */
   setBackground(src: string | null): void {
+    this.setBackgroundProps({ src: src || undefined });
+  }
+  /** Patch background properties (src / fit / scale / position). */
+  setBackgroundProps(patch: Partial<VttBackground>): void {
     if (!this.scene) return;
-    this.scene.data.background.src = src || undefined;
+    Object.assign(this.scene.data.background, patch);
     this.redraw();
     this.onChanged();
-    this.onOp({ op: "bg.set", src: src || null });
+    this.onOp({ op: "bg.set", patch });
+  }
+  /** Patch the grid (cell size / cols / rows / visibility) — Curator resize. */
+  setGrid(patch: Partial<VttGrid>): void {
+    if (!this.scene) return;
+    Object.assign(this.scene.data.grid, patch);
+    this.redraw();
+    this.onChanged();
+    this.onOp({ op: "grid.set", patch });
   }
   moveToken(id: string, wx: number, wy: number, snap: boolean): void {
     const t = this.scene?.data.tokens.find((x) => x.id === id);

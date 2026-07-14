@@ -109,6 +109,8 @@ export interface VttTimelineState {
 export interface VttBackground {
   color: string;
   src?: string; // image url / asset path
+  /** "grid" stretches the image to cover the whole grid (default); "manual" uses scale/x/y. */
+  fit?: "grid" | "manual";
   scale: number;
   x: number;
   y: number;
@@ -149,7 +151,7 @@ export function defaultSceneData(): VttSceneData {
   return {
     grid: { type: "square", size: 70, cols: 40, rows: 26, color: "#1a2233", visible: true },
     camera: { x: 0, y: 0, zoom: 0.6 },
-    background: { color: "#0c1220", scale: 1, x: 0, y: 0 },
+    background: { color: "#0c1220", fit: "grid", scale: 1, x: 0, y: 0 },
     tokens: [],
     walls: [],
     lights: [],

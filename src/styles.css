@@ -3885,6 +3885,70 @@ body {
   margin-right: 8px;
   white-space: nowrap;
 }
+.vtt2-group-label {
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 2px 0 10px;
+}
+/* Floating action bar (bottom-centre, Owlbear-style) — the map tools */
+.vtt2-actionbar {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(10, 17, 34, 0.92);
+  border: 1px solid var(--panel-line);
+  border-radius: 10px;
+  padding: 6px 8px;
+  z-index: 8;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+}
+.vtt2-action {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--muted);
+  font-family: Georgia, serif;
+  font-size: 12px;
+  padding: 6px 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.vtt2-action:hover {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.05);
+}
+.vtt2-action.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(126, 207, 202, 0.1);
+}
+.vtt2-action-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--panel-line);
+  margin: 0 4px;
+}
+/* Curator Grid & Map panel (right side, clear of the inspector) */
+.vtt2-gridpanel {
+  position: absolute;
+  top: 54px;
+  right: 254px;
+  width: 240px;
+  background: rgba(12, 18, 32, 0.96);
+  border: 1px solid var(--panel-line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  z-index: 10;
+}
+.vtt2-gridpanel input[type="range"] {
+  width: 100%;
+}
 .vtt2-stage {
   flex: 1;
   position: relative;
