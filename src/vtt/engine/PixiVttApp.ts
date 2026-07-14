@@ -24,6 +24,7 @@ import {
   type VttEffectData,
   type VttEffectKind,
   type VttGrid,
+  type VttTerrain,
   type VttLight,
   type VttScene,
   type VttToken,
@@ -303,6 +304,13 @@ export class PixiVttApp {
     this.redraw();
     this.onChanged();
     this.onOp({ op: "grid.set", patch });
+  }
+  /** Set (or clear) the terrain heightmap (renders in the 3D view). */
+  setTerrain(terrain: VttTerrain | null): void {
+    if (!this.scene) return;
+    this.scene.data.terrain = terrain;
+    this.onChanged();
+    this.onOp({ op: "terrain.set", terrain });
   }
   moveToken(id: string, wx: number, wy: number, snap: boolean): void {
     const t = this.scene?.data.tokens.find((x) => x.id === id);

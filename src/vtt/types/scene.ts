@@ -106,6 +106,14 @@ export interface VttTimelineState {
   round: number;
   turn: number;
 }
+/** Terrain elevation for the 3D view: one normalised height (0..1) per grid
+ *  cell (row-major, cols×rows), scaled by maxCells×gridSize in world units.
+ *  Sampled from a grayscale heightmap image in the Grid & Map panel. */
+export interface VttTerrain {
+  heights: number[];
+  /** World height of a full-white cell, in grid cells. */
+  maxCells: number;
+}
 export interface VttBackground {
   color: string;
   src?: string; // image url / asset path
@@ -127,6 +135,7 @@ export interface VttSceneData {
   fog: VttFogState;
   layers: VttLayerState;
   timeline: VttTimelineState;
+  terrain?: VttTerrain | null;
   encounterId?: string | null;
 }
 
@@ -159,6 +168,7 @@ export function defaultSceneData(): VttSceneData {
     fog: { enabled: false, revealed: [] },
     layers: { grid: true, tokens: true, walls: true, lights: true, fog: true, effects: true },
     timeline: { round: 0, turn: 0 },
+    terrain: null,
     encounterId: null,
   };
 }

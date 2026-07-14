@@ -161,7 +161,8 @@ export class ThreeVttView {
     const unseen: number[] = [];
     const explored: number[] = [];
     const quad = (arr: number[], c: number, r: number) => {
-      const x0 = c * s, x1 = x0 + s, z0 = r * s, z1 = z0 + s, y = 3;
+      const x0 = c * s, x1 = x0 + s, z0 = r * s, z1 = z0 + s;
+      const y = this.heightAt(scene, (c + 0.5) * s, (r + 0.5) * s) + 3; // fog follows the terrain
       arr.push(x0, y, z0, x0, y, z1, x1, y, z1, x0, y, z0, x1, y, z1, x1, y, z0);
     };
     for (let c = 0; c < grid.cols; c++) {
@@ -182,6 +183,49 @@ export class ThreeVttView {
     addMesh(explored, 0.55);
   }
 
+  /** Terrain elevation (world units) at a 2D map point; 0 on flat scenes. */
+  private heightAt(scene: VttScene, x: number, y: number): number {
+    const t = scene.data.terrain;
+    if (!t) return 0;
+    const g = scene.data.grid;
+    const c = Math.max(0, Math.min(g.cols - 1, Math.floor(x / g.size)));
+    const r = Math.max(0, Math.min(g.rows - 1, Math.floor(y / g.size)));
+    return (t.heights[r * g.cols + c] ?? 0) * t.maxCells * g.size;
+  }
+
+  /** Swap the ground geometry between flat and terrain-displaced (per-vertex
+   *  heights from the cell heightmap; local Z = world up after the -90° tilt,
+   *  unaffected by the (w,h,1) scale so heights stay in world units). */
+  private groundGeoKey = "";
+  private lastTerrainRef: unknown = undefined;
+  private applyTerrain(scene: VttScene): void {
+    if (!this.ground) return;
+    const { grid } = scene.data;
+    const terrain = scene.data.terrain ?? null;
+    const key = terrain ? `${grid.cols}x${grid.rows}:${grid.size}:${terrain.maxCells}` : "flat";
+    if (key === this.groundGeoKey && this.lastTerrainRef === terrain) return;
+    this.groundGeoKey = key;
+    this.lastTerrainRef = terrain;
+    const old = this.ground.geometry;
+    if (terrain) {
+      const geo = new THREE.PlaneGeometry(1, 1, grid.cols, grid.rows);
+      const pos = geo.attributes.position;
+      // PlaneGeometry vertices are row-major, (cols+1) per row — map each vertex
+      // to its cell by INDEX, never by float uv (float32 uv rounding skips rows).
+      const vertsPerRow = grid.cols + 1;
+      for (let i = 0; i < pos.count; i++) {
+        const col = Math.min(grid.cols - 1, i % vertsPerRow);
+        const row = Math.min(grid.rows - 1, Math.floor(i / vertsPerRow));
+        pos.setZ(i, (terrain.heights[row * grid.cols + col] ?? 0) * terrain.maxCells * grid.size);
+      }
+      geo.computeVertexNormals();
+      this.ground.geometry = geo;
+    } else {
+      this.ground.geometry = new THREE.PlaneGeometry(1, 1);
+    }
+    old.dispose();
+  }
+
   private buildGround(scene: VttScene): void {
     const { grid, background } = scene.data;
     const w = grid.cols * grid.size;
@@ -192,6 +236,7 @@ export class ThreeVttView {
       this.ground.name = "ground";
       this.scene3.add(this.ground);
     }
+    this.applyTerrain(scene);
     this.ground.scale.set(w, h, 1);
     this.ground.position.set(w / 2, 0, h / 2);
     const mat = this.ground.material as THREE.MeshStandardMaterial;
@@ -259,7 +304,7 @@ export class ThreeVttView {
     for (const l of scene.data.lights) {
       const col = new THREE.Color(l.color || "#a08a4f");
       const pt = new THREE.PointLight(col, (l.intensity ?? 0.5) * 3.2, l.radius * s * 2.4, 1.6);
-      pt.position.set(l.x, s * 0.9, l.y);
+      pt.position.set(l.x, this.heightAt(scene, l.x, l.y) + s * 0.9, l.y);
       const marker = new THREE.Mesh(new THREE.SphereGeometry(s * 0.1, 12, 12), new THREE.MeshBasicMaterial({ color: col }));
       marker.position.copy(pt.position);
       this.lightGroup.add(pt, marker);
@@ -326,9 +371,10 @@ export class ThreeVttView {
       // Fog parity: tokens outside current vision are hidden (2D fog paints over them).
       if (visible && !visible.has(cellKey(Math.floor(t.x / s), Math.floor(t.y / s)))) continue;
       const size = (t.size || 1) * s;
+      const elev = this.heightAt(scene, t.x, t.y);
       const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.tokenTexture(t), transparent: true }));
       spr.scale.set(size, size * (300 / 256), 1);
-      spr.position.set(t.x, (size * (300 / 256)) / 2, t.y);
+      spr.position.set(t.x, elev + (size * (300 / 256)) / 2, t.y);
       spr.userData.tokenId = t.id;
       if (this.selection?.kind === "token" && this.selection.id === t.id) {
         const ring = new THREE.Mesh(
@@ -336,7 +382,7 @@ export class ThreeVttView {
           new THREE.MeshBasicMaterial({ color: 0x7ecfca, side: THREE.DoubleSide })
         );
         ring.rotation.x = -Math.PI / 2;
-        ring.position.set(t.x, 2, t.y);
+        ring.position.set(t.x, elev + 2, t.y);
         ring.userData.ringFor = t.id;
         this.tokenGroup.add(ring);
       }
@@ -380,10 +426,10 @@ export class ThreeVttView {
     this.hooks.onMove(this.dragId, p.x, p.z, false);
     // Move the sprite (and its selection ring) immediately — mid-drag engine
     // updates don't tick a re-sync (by design), so this is the live feedback.
+    // p.y is the raycast hit on the (possibly terrain-displaced) ground.
     for (const ch of this.tokenGroup.children) {
-      if (ch.userData.tokenId === this.dragId || ch.userData.ringFor === this.dragId) {
-        ch.position.set(p.x, ch.position.y, p.z);
-      }
+      if (ch.userData.tokenId === this.dragId) ch.position.set(p.x, p.y + ch.scale.y / 2, p.z);
+      else if (ch.userData.ringFor === this.dragId) ch.position.set(p.x, p.y + 2, p.z);
     }
   };
   private onUp = (e: PointerEvent): void => {
