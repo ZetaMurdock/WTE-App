@@ -8,6 +8,7 @@ import type { VttTool } from "./types/tool";
 import { VttToolbar } from "./VttToolbar";
 import { VttActionBar } from "./VttActionBar";
 import { VttGridPanel } from "./VttGridPanel";
+import { VttSceneWheel } from "./VttSceneWheel";
 import { VttInspector } from "./VttInspector";
 import { useNet } from "../net/NetContext";
 import { VttSceneBrowser } from "./VttSceneBrowser";
@@ -312,6 +313,9 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
       />
       <div className="vtt2-stage" ref={hostRef} />
       <VttActionBar tool={tool} onTool={pickTool} fogOn={fogOn} onToggleFog={() => engine?.toggleFog()} />
+      {campaign && !isNetPlayer && (
+        <VttSceneWheel scenes={scenes} activeId={scene?.id ?? null} onSwitch={(id) => void switchScene(id)} />
+      )}
       {gridOpen && !isNetPlayer && live && (
         <VttGridPanel
           grid={live.data.grid}
