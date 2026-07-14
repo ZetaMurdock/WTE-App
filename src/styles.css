@@ -4012,6 +4012,15 @@ body {
   position: absolute;
   inset: 0;
 }
+.vtt2-stage3d {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+}
+.vtt2-stage3d canvas {
+  position: static !important;
+  display: block;
+}
 .vtt2-empty {
   position: absolute;
   inset: 0;

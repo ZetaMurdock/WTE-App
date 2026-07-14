@@ -9,6 +9,7 @@ import { VttToolbar } from "./VttToolbar";
 import { VttActionBar } from "./VttActionBar";
 import { VttGridPanel } from "./VttGridPanel";
 import { VttSceneWheel } from "./VttSceneWheel";
+import { ThreeVttView } from "./engine3d/ThreeVttView";
 import { VttInspector } from "./VttInspector";
 import { useNet } from "../net/NetContext";
 import { VttSceneBrowser } from "./VttSceneBrowser";
@@ -33,10 +34,51 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
   const [leftPanel, setLeftPanel] = useState<"scenes" | "actors" | "encounter" | "assets" | null>(null);
   const [rollsOpen, setRollsOpen] = useState(false);
   const [gridOpen, setGridOpen] = useState(false);
+  // 3D is a VIEW MODE over the same scene: the three.js renderer mirrors the
+  // engine's scene and routes selection/moves back through it (single authority).
+  const [viewMode, setViewMode] = useState<"2d" | "3d">("2d");
+  const host3dRef = useRef<HTMLDivElement>(null);
+  const threeRef = useRef<ThreeVttView | null>(null);
   // Per-campaign Curator claim: only joining someone else's netplay room as a
   // player demotes you — hide Curator-only scene controls there.
   const net = useNet();
   const isNetPlayer = net.status === "connected" && net.role === "player";
+
+  function toggleView() {
+    setViewMode((m) => {
+      const next = m === "2d" ? "3d" : "2d";
+      if (next === "3d" && !threeRef.current && host3dRef.current) {
+        const view = new ThreeVttView({
+          onSelect: (s) => engineRef.current?.select(s),
+          onMove: (id, wx, wy, done) => {
+            const eng = engineRef.current;
+            if (!eng) return;
+            eng.moveToken(id, wx, wy, done);
+            if (done) eng.onChanged(); // mirrors the 2D InputController's drop path
+          },
+        });
+        view.init(host3dRef.current);
+        threeRef.current = view;
+        // Dev-only handle for debugging the 3D view in the preview (stripped in prod).
+        if (import.meta.env.DEV) (window as unknown as { __vttThree?: ThreeVttView }).__vttThree = view;
+      }
+      return next;
+    });
+  }
+
+  // Keep the 3D world mirroring the live scene (engine mutations bump `tick`,
+  // which covers local edits, inspector patches, and remote P2P ops alike).
+  useEffect(() => {
+    const live3 = engineRef.current?.scene ?? scene;
+    if (viewMode === "3d" && threeRef.current && live3) threeRef.current.syncFrom(live3, sel);
+  });
+
+  useEffect(() => {
+    return () => {
+      threeRef.current?.destroy();
+      threeRef.current = null;
+    };
+  }, []);
   const [characters, setCharacters] = useState<CharacterRecord[]>([]);
   const [charsLoading, setCharsLoading] = useState(false);
   const [assets, setAssets] = useState<VttAsset[]>([]);
@@ -311,8 +353,17 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
         syncOn={sync.connected}
         syncPeers={sync.peerCount}
       />
-      <div className="vtt2-stage" ref={hostRef} />
-      <VttActionBar tool={tool} onTool={pickTool} fogOn={fogOn} onToggleFog={() => engine?.toggleFog()} />
+      <div className="vtt2-stage" ref={hostRef}>
+        <div className="vtt2-stage3d" ref={host3dRef} style={{ display: viewMode === "3d" ? "block" : "none" }} />
+      </div>
+      <VttActionBar
+        tool={tool}
+        onTool={pickTool}
+        fogOn={fogOn}
+        onToggleFog={() => engine?.toggleFog()}
+        view3d={viewMode === "3d"}
+        onToggleView={toggleView}
+      />
       {campaign && !isNetPlayer && (
         <VttSceneWheel scenes={scenes} activeId={scene?.id ?? null} onSwitch={(id) => void switchScene(id)} />
       )}

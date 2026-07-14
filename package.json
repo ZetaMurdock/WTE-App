@@ -1,7 +1,7 @@
 {
   "name": "wte-app",
   "private": true,
-  "version": "0.7.27",
+  "version": "0.7.28",
   "type": "module",
   "description": "W.T.E — unified Character Sheet + VTT desktop app",
   "scripts": {
@@ -13,9 +13,11 @@
   },
   "dependencies": {
     "@tauri-apps/plugin-sql": "^2",
+    "@types/three": "^0.185.1",
     "pixi.js": "^8.19.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "three": "^0.185.1"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
