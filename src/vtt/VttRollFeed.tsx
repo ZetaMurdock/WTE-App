@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { recentRolls } from "../lib/rolls";
+import { recentRolls, logRoll } from "../lib/rolls";
 import { useNet } from "../net/NetContext";
 import type { NetMessage } from "../net/protocol";
+
+const DICE = [4, 6, 8, 10, 12, 20, 100];
 
 type RollMsg = Extract<NetMessage, { t: "roll" }>;
 
@@ -42,6 +44,20 @@ export function VttRollFeed({ campaignId, onClose }: Props) {
     void reload();
   }, [reload]);
 
+  // The VTT dice tray: roll a die here, log it, publish to the party, and reset
+  // to ready (stateless — exactly like the character sheet's roll buttons).
+  const rollDie = useCallback(
+    (sides: number) => {
+      const result = 1 + Math.floor(Math.random() * sides);
+      const formula = `1d${sides}`;
+      const label = `d${sides}`;
+      setRows((cur) => [{ id: "me-" + Date.now().toString(36), who: "You", label, formula, result }, ...cur].slice(0, 60));
+      if (campaignId) void logRoll(campaignId, null, { formula, result, detail: { die: sides, roll: result, modifier: 0, label } });
+      if (net.status === "connected") net.publish({ t: "roll", label, formula, result });
+    },
+    [campaignId, net]
+  );
+
   // Live rolls from the room, prepended.
   useEffect(() => {
     const off = net.subscribe("roll", (m, from) => {
@@ -67,6 +83,13 @@ export function VttRollFeed({ campaignId, onClose }: Props) {
             ×
           </button>
         </div>
+      </div>
+      <div className="vtt2-dicetray">
+        {DICE.map((d) => (
+          <button key={d} className="vtt2-die" onClick={() => rollDie(d)} title={`Roll 1d${d}`}>
+            d{d}
+          </button>
+        ))}
       </div>
       {rows.length === 0 ? (
         <p className="list-empty" style={{ margin: "6px 0" }}>

@@ -363,10 +363,9 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
       />
       <div className="vtt2-stage" ref={hostRef}>
         <div className="vtt2-stage3d" ref={host3dRef} style={{ display: viewMode === "3d" ? "block" : "none" }} />
-        {viewMode === "2d" && sel?.kind === "token" && engine && live && (() => {
-          const t = live.data.tokens.find((x) => x.id === sel.id);
-          return t ? <VttRadialMenu engine={engine} token={t} /> : null;
-        })()}
+        {sel?.kind === "token" && engine && !pilotingId && (
+          <VttRadialMenu engine={engine} three={threeRef.current} view3d={viewMode === "3d"} tokenId={sel.id} />
+        )}
       </div>
       <VttActionBar
         tool={tool}

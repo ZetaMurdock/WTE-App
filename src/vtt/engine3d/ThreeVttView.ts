@@ -252,6 +252,25 @@ export class ThreeVttView {
     return this.pilotId;
   }
 
+  /** Project a token to CSS pixels within the host (for DOM overlays like the
+   *  radial menu). Returns null if the token is gone or behind the camera. */
+  projectToken(id: string): { x: number; y: number; r: number } | null {
+    if (!this.vtt || !this.renderer) return null;
+    const t = this.vtt.data.tokens.find((x) => x.id === id);
+    if (!t || t.visible === false) return null;
+    const s = this.vtt.data.grid.size;
+    const size = (t.size || 1) * s;
+    const elev = this.heightAt(this.vtt, t.x, t.y);
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const center = new THREE.Vector3(t.x, elev + size * 0.5, t.y).project(this.camera);
+    if (center.z > 1) return null; // behind the camera
+    const x = (center.x * 0.5 + 0.5) * rect.width;
+    const y = (-center.y * 0.5 + 0.5) * rect.height;
+    const edge = new THREE.Vector3(t.x + size * 0.5, elev + size * 0.5, t.y).project(this.camera);
+    const ex = (edge.x * 0.5 + 0.5) * rect.width;
+    return { x, y, r: Math.abs(ex - x) + 26 };
+  }
+
   private onKeyDown = (e: KeyboardEvent): void => {
     if (!this.pilotId) return;
     if (e.key === "Escape") {

@@ -4436,6 +4436,31 @@ body {
   padding: 10px 12px;
   z-index: 9;
 }
+.vtt2-dicetray {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0 8px;
+}
+.vtt2-die {
+  flex: 1 1 auto;
+  min-width: 34px;
+  background: rgba(126, 207, 202, 0.08);
+  border: 1px solid var(--panel-line);
+  border-radius: 6px;
+  color: var(--accent);
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  padding: 5px 0;
+  cursor: pointer;
+}
+.vtt2-die:hover {
+  background: rgba(126, 207, 202, 0.2);
+  border-color: var(--accent);
+}
+.vtt2-die:active {
+  transform: scale(0.94);
+}
 .vtt2-roll-list {
   list-style: none;
   margin: 4px 0 0;
