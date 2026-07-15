@@ -3,7 +3,7 @@ import { useNet } from "../net/NetContext";
 import { ProfileMenu } from "./ProfileMenu";
 
 export type TabId = "dashboard" | "characters" | "sheet" | "vtt" | "wiki" | "lobby" | "codex" | "vtt2";
-const LEGACY_TABS: TabId[] = ["sheet", "wiki"];
+const LEGACY_TABS: TabId[] = ["sheet", "wiki", "vtt"];
 
 // The React "Sheet" and "Codex" are the primary experiences; the legacy iframes
 // are demoted to the end as fallbacks while the migration finishes. VTT v2 is
@@ -11,10 +11,10 @@ const LEGACY_TABS: TabId[] = ["sheet", "wiki"];
 export const TABS: { id: TabId; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
   { id: "characters", label: "Sheet" },
-  { id: "vtt", label: "VTT" },
-  { id: "vtt2", label: "VTT v2" },
+  { id: "vtt2", label: "VTT" },
   { id: "lobby", label: "Lobby" },
   { id: "codex", label: "Codex" },
+  { id: "vtt", label: "Legacy VTT" },
   { id: "sheet", label: "Legacy Sheet" },
   { id: "wiki", label: "Legacy Codex" },
 ];
@@ -108,24 +108,6 @@ export function TopBar({
           </button>
         </span>
       )}
-      {!isNetPlayer && (
-        <button
-          className={"tab" + (curator ? " active" : "")}
-          onClick={onToggleCurator}
-          title="Curator (GM) mode — reveal GM-only Codex pages & controls"
-        >
-          {curator ? "Curator ✓" : "Curator"}
-        </button>
-      )}
-      {!isNetPlayer && (
-        <button
-          className={"tab" + (engineer ? " active" : "")}
-          onClick={onToggleEngineer}
-          title="Engineer mode — manage which Codex pages are pulled into the sheet/VTT and visible to players"
-        >
-          {engineer ? "Engineer ✓" : "Engineer"}
-        </button>
-      )}
       <ProfileMenu
         theme={theme}
         onToggleTheme={onToggleTheme}
@@ -137,6 +119,11 @@ export function TopBar({
         onToggleDotCursor={onToggleDotCursor}
         accountLabel={accountLabel}
         onAccount={onAccount}
+        curator={curator}
+        onToggleCurator={onToggleCurator}
+        engineer={engineer}
+        onToggleEngineer={onToggleEngineer}
+        rolesHidden={isNetPlayer}
       />
       <span className="ver">{version ? "v" + version : ""}</span>
     </div>

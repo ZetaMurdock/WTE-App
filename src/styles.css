@@ -347,6 +347,26 @@ body.wte-dot-cursor * {
   height: 34px;
   font-size: 16px;
 }
+.profile-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+.profile-avatar-btn {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.profile-avatar-btn:hover {
+  transform: scale(1.08);
+  box-shadow: 0 0 0 2px var(--accent);
+}
 .profile-btn.open .profile-avatar {
   box-shadow: 0 0 0 2px var(--accent);
 }
@@ -355,6 +375,7 @@ body.wte-dot-cursor * {
   top: 34px;
   right: 0;
   width: 244px;
+  user-select: text; /* the tabbar disables selection; the name field needs it */
   background: rgba(12, 18, 32, 0.98);
   border: 1px solid var(--panel-line, #26324a);
   border-radius: 10px;
@@ -467,10 +488,14 @@ body.wte-dot-cursor * {
   inset: 0;
   background: linear-gradient(180deg, rgba(4, 7, 13, 0.35), rgba(4, 7, 13, 0.7));
 }
-.app > .tabbar,
 .app > .views {
   position: relative;
   z-index: 1;
+}
+/* the bar sits ABOVE the views so its dropdowns (profile menu) aren't covered */
+.app > .tabbar {
+  position: relative;
+  z-index: 2;
 }
 
 /* ── Views: dashboard + tool iframes share the same box ── */
