@@ -51,9 +51,77 @@ function mulberry32(seed: number) {
   };
 }
 
+/** Sequence station positions: the first ten sit on the bezel ring; the rest
+ *  spiral outward as far "systems" you pan the camera to. */
+function seqPos(i: number, total: number): { x: number; y: number; deg: number } {
+  if (i < 10) {
+    const deg = i * (360 / Math.min(total, 10)) - 90 + 18;
+    const a = (deg * Math.PI) / 180;
+    return { x: Math.cos(a) * 358, y: Math.sin(a) * 358, deg };
+  }
+  const deg = i * 137.5 + 40; // golden-angle spread for outlying systems
+  const a = (deg * Math.PI) / 180;
+  const r = 520 + (i - 10) * 46;
+  return { x: Math.cos(a) * r, y: Math.sin(a) * r * 0.82, deg };
+}
+
 export function AxisWheel({ pageCount, typeMap, scanning, marks, recents, sequences, onOpenType, onOpenIndex, onOpen, onOpenSeq, onBeginScript }: Props) {
   const [hover, setHover] = useState<string | null>(null);
   const [hoverSeq, setHoverSeq] = useState<string | null>(null);
+
+  // ── Camera: drag to pan, wheel to zoom (at the cursor), double-click to reset.
+  // Transform is written straight to the <g> so panning never re-renders React.
+  const svgRef = useRef<SVGSVGElement>(null);
+  const camG = useRef<SVGGElement>(null);
+  const cam = useRef({ x: 0, y: 0, k: 1 });
+  const pan = useRef<{ px: number; py: number; cx: number; cy: number } | null>(null);
+  function applyCam(smooth = false) {
+    const g = camG.current;
+    if (!g) return;
+    g.style.transition = smooth ? "transform 0.45s cubic-bezier(0.22, 1, 0.36, 1)" : "";
+    g.setAttribute("transform", `translate(${cam.current.x} ${cam.current.y}) scale(${cam.current.k})`);
+  }
+  /** Pointer position in viewBox units (handles the meet letterboxing). */
+  function toView(e: { clientX: number; clientY: number }): { x: number; y: number } {
+    const r = svgRef.current!.getBoundingClientRect();
+    const s = Math.min(r.width / 1240, r.height / 840);
+    return {
+      x: (e.clientX - r.left - (r.width - 1240 * s) / 2) / s - 620,
+      y: (e.clientY - r.top - (r.height - 840 * s) / 2) / s - 420,
+    };
+  }
+  const isInteractive = (t: EventTarget | null) =>
+    !!(t as Element | null)?.closest?.(".axis-node, .axis-core, .axis-seq, .axis-star, .axis-branch");
+  function onPointerDown(e: React.PointerEvent<SVGSVGElement>) {
+    if (e.button !== 0 || isInteractive(e.target)) return;
+    const p = toView(e);
+    pan.current = { px: p.x, py: p.y, cx: cam.current.x, cy: cam.current.y };
+    svgRef.current?.setPointerCapture(e.pointerId);
+  }
+  function onPointerMove(e: React.PointerEvent<SVGSVGElement>) {
+    if (!pan.current) return;
+    const p = toView(e);
+    cam.current.x = pan.current.cx + (p.x - pan.current.px);
+    cam.current.y = pan.current.cy + (p.y - pan.current.py);
+    applyCam();
+  }
+  function onPointerUp() {
+    pan.current = null;
+  }
+  function onWheel(e: React.WheelEvent<SVGSVGElement>) {
+    const p = toView(e);
+    const k0 = cam.current.k;
+    const k1 = Math.max(0.4, Math.min(2.6, k0 * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));
+    // keep the point under the cursor fixed while zooming
+    cam.current.x = p.x - ((p.x - cam.current.x) / k0) * k1;
+    cam.current.y = p.y - ((p.y - cam.current.y) / k0) * k1;
+    cam.current.k = k1;
+    applyCam();
+  }
+  function resetCam() {
+    cam.current = { x: 0, y: 0, k: 1 };
+    applyCam(true);
+  }
   // Grace timer: the branch fan survives the pointer crossing gaps on its way to a node.
   const seqLeave = useRef<number | undefined>(undefined);
   function seqEnter(id: string) {
@@ -124,7 +192,19 @@ export function AxisWheel({ pageCount, typeMap, scanning, marks, recents, sequen
 
   return (
     <div className="axis-wrap">
-      <svg className="axis-svg" viewBox="-620 -420 1240 840" preserveAspectRatio="xMidYMid meet">
+      <svg
+        ref={svgRef}
+        className="axis-svg"
+        viewBox="-620 -420 1240 840"
+        preserveAspectRatio="xMidYMid meet"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerLeave={onPointerUp}
+        onWheel={onWheel}
+        onDoubleClick={(e) => !isInteractive(e.target) && resetCam()}
+      >
+        <g ref={camG}>
         <g className="axis-stars">
           {stars.map((s, i) => (
             <circle key={i} cx={s.x} cy={s.y} r={s.r} opacity={s.o} />
@@ -206,11 +286,8 @@ export function AxisWheel({ pageCount, typeMap, scanning, marks, recents, sequen
             <circle r={344} className="axis-line faint" />
           </g>
         )}
-        {sequences.slice(0, 10).map((s, i) => {
-          const deg = i * (360 / Math.min(sequences.length, 10)) - 90 + 18;
-          const a = (deg * Math.PI) / 180;
-          const x = Math.cos(a) * 358;
-          const y = Math.sin(a) * 358;
+        {sequences.map((s, i) => {
+          const { x, y, deg } = seqPos(i, sequences.length);
           const open = hoverSeq === s.id;
           // branches fan INWARD from the outer station toward the wheel
           const branches: { key: string; label: string; glyph: string; act: () => void }[] = [
@@ -292,7 +369,9 @@ export function AxisWheel({ pageCount, typeMap, scanning, marks, recents, sequen
             </text>
           </g>
         ))}
+        </g>
       </svg>
+      <div className="axis-cam-hint">drag to pan · scroll to zoom · double-click to recentre</div>
 
       {/* hover preview — page summaries for the focused constellation */}
       {hovered && (

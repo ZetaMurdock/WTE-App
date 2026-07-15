@@ -59,6 +59,11 @@ const VTT_CLASS_COLORS: Record<number, string> = {
 const TYPE_CHIPS = ["All", "Creature", "Weapon", "Equipment", "Cipher", "Genus"];
 // Base "pull targets" a page can link to (feed the sheet/VTT); custom labels add to these.
 const BASE_LABELS = ["Creature", "Weapon", "Equipment", "Cipher", "Genus", "Species", "Paradigm"];
+// Filter-dot colours (the circular type points above the index).
+const DOT_COLORS: Record<string, string> = {
+  All: "#7ecfca", Creature: "#a1584a", Weapon: "#a08a4f", Equipment: "#689a96",
+  Cipher: "#837aae", Genus: "#6f9a68", Lore: "#a7aebd",
+};
 
 function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   const w = window as unknown as { __TAURI__?: { core: { invoke: (c: string, a?: Record<string, unknown>) => Promise<T> } } };
@@ -726,15 +731,23 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
             <div className="cdx-home-head">
               <div className="cdx-home-brand">W.T.E CODEX</div>
               <div className="cdx-home-sub">archive of the Wonderland — {pages.length} records sealed</div>
-              <input
-                className="cdx-home-search"
-                placeholder="Search the archive…"
-                value={homeFilter}
-                onChange={(e) => setHomeFilter(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && homeFilter.trim()) go(homeFilter);
-                }}
-              />
+              <div className="cdx-search-pill">
+                <span className="cdx-search-ico" aria-hidden />
+                <input
+                  className="cdx-home-search"
+                  placeholder="Search the archive…"
+                  value={homeFilter}
+                  onChange={(e) => setHomeFilter(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && homeFilter.trim()) go(homeFilter);
+                  }}
+                />
+                {homeFilter && (
+                  <button className="cdx-search-clear" onClick={() => setHomeFilter("")} title="Clear search">
+                    ×
+                  </button>
+                )}
+              </div>
             </div>
             <div className="panel-title">
               Sequences
@@ -836,17 +849,20 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
                     ))}
                   </div>
                 )}
-                <div className="chip-row" style={{ marginBottom: 8 }}>
+                <div className="cdx-dot-row" style={{ marginBottom: 8 }}>
                   {labelChips.map((t) => (
                     <button
                       key={t}
-                      className={"chip" + (typeFilter === t ? " active" : "") + (customLabels.includes(t) ? " cdx-custom-chip" : "")}
+                      className={"cdx-dot" + (typeFilter === t ? " active" : "")}
+                      style={{ "--dotc": DOT_COLORS[t] ?? (customLabels.includes(t) ? "#d8b25a" : "#7ecfca") } as React.CSSProperties}
+                      title={t}
                       onClick={() => {
                         setTypeFilter(t);
                         if (t !== "All" && TYPE_CHIPS.includes(t)) void ensureTypeScan();
                       }}
                     >
-                      {t}
+                      <span className="cdx-dot-pt" aria-hidden />
+                      <span className="cdx-dot-label">{t}</span>
                     </button>
                   ))}
                 </div>
