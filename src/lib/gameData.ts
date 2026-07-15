@@ -12,6 +12,8 @@ import {
   type AttrKey,
   type GenusAbility,
   type CipherAbility,
+  type CodexBackground,
+  type BgMode,
 } from "../game/wte";
 import { parseCodexEntry } from "./codexParse";
 import { setCodexCatalog } from "./codex";
@@ -119,6 +121,15 @@ export function parseParadigmPage(md: string, stem: string): Paradigm | null {
   };
 }
 
+export function parseBackgroundPage(md: string, stem: string): CodexBackground | null {
+  const f = readFields(md);
+  if ((f["type"] || "").toLowerCase() !== "background") return null;
+  const name = f["name"] || titleOf(md, stem);
+  const modeRaw = (f["mode"] || "").toLowerCase();
+  const mode: BgMode | undefined = modeRaw.startsWith("focus") ? "focused" : modeRaw.startsWith("standard") ? "standard" : undefined;
+  return { name, mode, note: f["note"] || undefined };
+}
+
 // ── The loader: read every PULLED page and overlay the game data ──
 async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   const w = window as unknown as { __TAURI__?: { core: { invoke: <R>(c: string, a?: Record<string, unknown>) => Promise<R> } } };
@@ -137,6 +148,7 @@ export async function loadCodexGameData(): Promise<void> {
   const gear: Equipment[] = [];
   const genus: Record<string, GenusAbility[]> = {};
   const ciphers: Record<string, CipherAbility[]> = {};
+  const backgrounds: CodexBackground[] = [];
 
   for (const name of names) {
     if (!getPageMeta(name, meta).pulled) continue; // Engineer said: don't pull this page
@@ -156,6 +168,11 @@ export async function loadCodexGameData(): Promise<void> {
     const pd = parseParadigmPage(md, name);
     if (pd) {
       paradigms.push(pd);
+      continue;
+    }
+    const bg = parseBackgroundPage(md, name);
+    if (bg) {
+      backgrounds.push(bg);
       continue;
     }
     const entry = parseCodexEntry(md, name);
@@ -180,7 +197,7 @@ export async function loadCodexGameData(): Promise<void> {
     }
   }
 
-  registerCodexGameData({ species, paradigms, sizes, genus, ciphers });
+  registerCodexGameData({ species, paradigms, sizes, genus, ciphers, backgrounds });
   setCodexCatalog(weapons, gear);
   window.dispatchEvent(new Event("wte-gamedata-changed"));
 }

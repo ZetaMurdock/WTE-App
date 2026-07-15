@@ -473,6 +473,13 @@ body {
   color: var(--bone);
   margin-bottom: 10px;
 }
+.picker-label {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
 .wizard-nav {
   display: flex;
   justify-content: space-between;

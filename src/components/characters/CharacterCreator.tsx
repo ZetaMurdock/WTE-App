@@ -4,6 +4,7 @@ import {
   SPECIALTIES,
   SPECIES,
   PARADIGMS,
+  BACKGROUNDS,
   SPEC_TOTAL,
   SPEC_MAX,
   ATTR_MIN,
@@ -210,10 +211,30 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
         {step === 2 && (
           <div className="wizard-split">
             <div className="stat-editor">
+              {BACKGROUNDS.length > 0 && (
+                <>
+                  <div className="picker-label">Backgrounds (from the Codex)</div>
+                  <div className="chip-row" style={{ flexWrap: "wrap" }}>
+                    {BACKGROUNDS.map((b) => (
+                      <button
+                        key={b.name}
+                        className={"chip" + (bgName === b.name ? " active" : "")}
+                        title={b.note || undefined}
+                        onClick={() => {
+                          setBgName(b.name);
+                          if (b.mode) setMode(b.mode);
+                        }}
+                      >
+                        {b.name}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
               <input
                 className="picker-input"
                 type="text"
-                placeholder="Background name (optional)…"
+                placeholder={BACKGROUNDS.length ? "…or a custom background name" : "Background name (optional)…"}
                 value={bgName}
                 onChange={(e) => setBgName(e.target.value)}
               />

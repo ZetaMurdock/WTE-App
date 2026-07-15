@@ -227,10 +227,21 @@ export interface CodexGameData {
   genus?: Record<string, GenusAbility[]>;
   /** paradigmId → ciphers from pulled pages (append/override by name). */
   ciphers?: Record<string, CipherAbility[]>;
+  /** Character backgrounds from pulled pages (append/override by name). */
+  backgrounds?: CodexBackground[];
 }
 
 let pageGenus: Record<string, GenusAbility[]> = {};
 let pageCiphers: Record<string, CipherAbility[]> = {};
+
+/** Backgrounds sourced from pulled Codex pages (the base game has none baked —
+ *  background was a free-text field until the Codex pull). */
+export interface CodexBackground {
+  name: string;
+  mode?: BgMode;
+  note?: string;
+}
+export const BACKGROUNDS: CodexBackground[] = [];
 
 export function registerCodexGameData(data: CodexGameData): void {
   SPECIES.length = 0;
@@ -250,6 +261,12 @@ export function registerCodexGameData(data: CodexGameData): void {
   for (const [id, size] of Object.entries(data.sizes ?? {})) SPECIES_SIZE[id] = size;
   pageGenus = data.genus ?? {};
   pageCiphers = data.ciphers ?? {};
+  BACKGROUNDS.length = 0;
+  for (const b of data.backgrounds ?? []) {
+    const i = BACKGROUNDS.findIndex((x) => x.name.toLowerCase() === b.name.toLowerCase());
+    if (i >= 0) BACKGROUNDS[i] = b;
+    else BACKGROUNDS.push(b);
+  }
 }
 
 export function zeroAttributes(): Attributes {

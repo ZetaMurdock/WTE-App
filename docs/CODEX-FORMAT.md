@@ -296,5 +296,22 @@ automatically from the listed DOMAINS; cipher pages (TYPE | Cipher) whose
 | DOMAINS | Elemental, Null |
 ```
 
+## Background pages
+
+`TYPE | Background` pages appear as pickable backgrounds in the character
+creator's Background step. `MODE` is optional (`standard` = +2 +2 +1 +1, or
+`focused` = +4 +2) and pre-selects the point spread when chosen. Every
+background page in a pulled section is offered — so authoring a "Backgrounds"
+section (Inquisitor, Nomad, …) makes all of them selectable at once.
+
+```
+# Inquisitor
+| Field | Value |
+|---|---|
+| TYPE | Background |
+| MODE | focused |
+| NOTE | Trained to root out heresy across the sectors. |
+```
+
 **Pull flags:** only pages marked *pulled* (default on; Engineers toggle per page)
-feed the creator, sheet catalogs (weapons/equipment/genus/ciphers), and VTT.
+feed the creator, sheet catalogs (weapons/equipment/genus/ciphers/backgrounds), and VTT.
