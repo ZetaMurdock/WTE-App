@@ -58,13 +58,31 @@ export async function installUpdate(update: WteUpdate): Promise<void> {
 const DEFAULT_OAUTH_CLIENT_ID =
   "147593598636-a8gn087e5oj75ikglcpvkl65u687gkal.apps.googleusercontent.com";
 
+// The built-in shared-library project, so publishing works out of the box for
+// everyone with no setup. A Firebase web config/apiKey is a PUBLIC client
+// identifier (not a secret); writes are still gated by the RTDB rules
+// (`/published_pages` write requires auth, which the app does anonymously).
+// A user can override this with their own project via the Lobby settings.
+const DEFAULT_FB_CONFIG = {
+  apiKey: "AIzaSyCCYi1dAM8cVw2UrCDJdrazJ7FnKFrohAg",
+  authDomain: "codex-753ac.firebaseapp.com",
+  databaseURL: "https://codex-753ac-default-rtdb.firebaseio.com",
+  projectId: "codex-753ac",
+  storageBucket: "codex-753ac.firebasestorage.app",
+  messagingSenderId: "1014842817225",
+  appId: "1:1014842817225:web:0986dde5740bb5fd4d6b18",
+  measurementId: "G-PLG5GXCERZ",
+};
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getFbConfig(): any | null {
   try {
-    return JSON.parse(localStorage.getItem("wte-fb-config") || "null");
+    const override = JSON.parse(localStorage.getItem("wte-fb-config") || "null");
+    if (override && override.databaseURL) return override;
   } catch {
-    return null;
+    /* fall through to the built-in default */
   }
+  return DEFAULT_FB_CONFIG;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

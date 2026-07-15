@@ -82,14 +82,39 @@ body {
   text-transform: uppercase;
   padding: 7px 16px;
   cursor: pointer;
-  border-bottom: 2px solid transparent;
+  position: relative;
+  border-radius: 6px 6px 0 0;
+  transition: color 0.2s ease, background 0.2s ease, transform 0.15s ease;
+}
+/* smooth sliding underline that grows from the centre */
+.tab::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  right: 50%;
+  bottom: 0;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: left 0.22s cubic-bezier(0.4, 0, 0.2, 1), right 0.22s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease;
+  opacity: 0;
 }
 .tab:hover {
   color: var(--ink);
+  background: rgba(255, 255, 255, 0.04);
+}
+.tab:hover::after {
+  left: 30%;
+  right: 30%;
+  opacity: 0.5;
 }
 .tab.active {
   color: var(--ink);
-  border-bottom-color: var(--accent);
+}
+.tab.active::after {
+  left: 14px;
+  right: 14px;
+  opacity: 1;
 }
 .spacer {
   flex: 1;
@@ -122,6 +147,168 @@ body {
 .upd button:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+/* ── Profile menu (top-right) ── */
+.profile-wrap {
+  position: relative;
+  margin-left: 4px;
+}
+.profile-btn {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 2px;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: transform 0.15s ease;
+}
+.profile-btn:hover {
+  transform: scale(1.06);
+}
+.profile-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #04070d;
+  font-family: Georgia, serif;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+.profile-avatar.lg {
+  width: 34px;
+  height: 34px;
+  font-size: 16px;
+}
+.profile-btn.open .profile-avatar {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.profile-menu {
+  position: absolute;
+  top: 34px;
+  right: 0;
+  width: 244px;
+  background: rgba(12, 18, 32, 0.98);
+  border: 1px solid var(--panel-line, #26324a);
+  border-radius: 10px;
+  padding: 10px;
+  z-index: 40;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  animation: profile-pop 0.16s ease;
+}
+@keyframes profile-pop {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.profile-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 4px 10px;
+  border-bottom: 1px solid var(--panel-line, #26324a);
+}
+.profile-name {
+  flex: 1;
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--panel-line, #26324a);
+  border-radius: 6px;
+  color: var(--ink, #d5dbe6);
+  font-family: Georgia, serif;
+  font-size: 14px;
+  padding: 6px 8px;
+}
+.profile-sec {
+  margin-top: 10px;
+}
+.profile-sec-label {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 4px 4px;
+}
+.profile-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  appearance: none;
+  border: none;
+  background: none;
+  color: var(--ink, #d5dbe6);
+  font-family: Georgia, serif;
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.14s ease;
+}
+.profile-row:hover {
+  background: rgba(126, 207, 202, 0.1);
+}
+.profile-row.sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+.profile-row-hint {
+  font-size: 11px;
+  color: var(--accent);
+  letter-spacing: 0.5px;
+}
+.profile-switch {
+  width: 30px;
+  height: 16px;
+  border-radius: 8px;
+  background: #26324a;
+  position: relative;
+  transition: background 0.16s ease;
+}
+.profile-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #7d8aa0;
+  transition: transform 0.16s ease, background 0.16s ease;
+}
+.profile-row.toggle.on .profile-switch {
+  background: var(--accent);
+}
+.profile-row.toggle.on .profile-switch::after {
+  transform: translateX(14px);
+  background: #04070d;
+}
+
+/* ── App wallpaper (behind everything, dimmed) ── */
+.app-wallpaper {
+  position: fixed;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0.22;
+  pointer-events: none;
+  z-index: 0;
+}
+.app-wallpaper::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(4, 7, 13, 0.35), rgba(4, 7, 13, 0.7));
+}
+.app > .tabbar,
+.app > .views {
+  position: relative;
+  z-index: 1;
 }
 
 /* ── Views: dashboard + tool iframes share the same box ── */

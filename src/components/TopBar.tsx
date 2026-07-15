@@ -1,7 +1,9 @@
 import type { WteUpdate } from "../lib/tauri";
 import { useNet } from "../net/NetContext";
+import { ProfileMenu } from "./ProfileMenu";
 
 export type TabId = "dashboard" | "characters" | "sheet" | "vtt" | "wiki" | "lobby" | "codex" | "vtt2";
+const LEGACY_TABS: TabId[] = ["sheet", "wiki"];
 
 // The React "Sheet" and "Codex" are the primary experiences; the legacy iframes
 // are demoted to the end as fallbacks while the migration finishes. VTT v2 is
@@ -32,6 +34,10 @@ interface TopBarProps {
   onToggleCurator: () => void;
   engineer: boolean;
   onToggleEngineer: () => void;
+  showLegacy: boolean;
+  onToggleLegacy: () => void;
+  wallpaper: string | null;
+  onWallpaper: (uri: string | null) => void;
 }
 
 export function TopBar({
@@ -49,16 +55,22 @@ export function TopBar({
   onToggleCurator,
   engineer,
   onToggleEngineer,
+  showLegacy,
+  onToggleLegacy,
+  wallpaper,
+  onWallpaper,
 }: TopBarProps) {
   const net = useNet();
   // Per-campaign Curator claim: you're the Curator of campaigns you own. The only
   // "player" case is joining someone else's netplay room as a player — hide the
   // GM-mode button there.
   const isNetPlayer = net.status === "connected" && net.role === "player";
+  // Legacy iframes are hidden from the nav unless enabled in the profile menu.
+  const tabs = TABS.filter((t) => showLegacy || !LEGACY_TABS.includes(t.id));
   return (
     <div className="tabbar">
       <span className="brand">W.T.E</span>
-      {TABS.map((t) => (
+      {tabs.map((t) => (
         <button
           key={t.id}
           className={"tab" + (activeTab === t.id ? " active" : "")}
@@ -94,12 +106,16 @@ export function TopBar({
           {engineer ? "Engineer ✓" : "Engineer"}
         </button>
       )}
-      <button className="tab" onClick={onAccount} title="Google account">
-        {accountLabel}
-      </button>
-      <button className="tab" onClick={onToggleTheme} title="Switch Light / Dark theme">
-        {theme === "light" ? "Dark" : "Light"}
-      </button>
+      <ProfileMenu
+        theme={theme}
+        onToggleTheme={onToggleTheme}
+        showLegacy={showLegacy}
+        onToggleLegacy={onToggleLegacy}
+        wallpaper={wallpaper}
+        onWallpaper={onWallpaper}
+        accountLabel={accountLabel}
+        onAccount={onAccount}
+      />
       <span className="ver">{version ? "v" + version : ""}</span>
     </div>
   );

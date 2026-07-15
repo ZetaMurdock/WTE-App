@@ -66,6 +66,40 @@ export default function App() {
       return false;
     }
   });
+  const [showLegacy, setShowLegacy] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("wte-show-legacy") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [wallpaper, setWallpaper] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem("wte-wallpaper");
+    } catch {
+      return null;
+    }
+  });
+  function toggleLegacy() {
+    setShowLegacy((v) => {
+      const next = !v;
+      try {
+        localStorage.setItem("wte-show-legacy", next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
+  function changeWallpaper(uri: string | null) {
+    setWallpaper(uri);
+    try {
+      if (uri) localStorage.setItem("wte-wallpaper", uri);
+      else localStorage.removeItem("wte-wallpaper");
+    } catch {
+      /* ignore */
+    }
+  }
 
   function toggleCurator() {
     setCurator((c) => {
@@ -218,6 +252,7 @@ export default function App() {
   return (
     <NetProvider>
     <div className="app">
+      {wallpaper && <div className="app-wallpaper" style={{ backgroundImage: `url(${wallpaper})` }} />}
       <TopBar
         activeTab={activeTab}
         onTab={setActiveTab}
@@ -233,6 +268,10 @@ export default function App() {
         onToggleCurator={toggleCurator}
         engineer={engineer}
         onToggleEngineer={toggleEngineer}
+        showLegacy={showLegacy}
+        onToggleLegacy={toggleLegacy}
+        wallpaper={wallpaper}
+        onWallpaper={changeWallpaper}
       />
       <div className="views">
         {activeTab === "dashboard" && (
