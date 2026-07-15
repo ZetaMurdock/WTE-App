@@ -69,6 +69,11 @@ export function deleteDeskNote(campaignId: string, id: string): void {
 export function countDeskNotes(campaignId: string): number {
   return read<DeskNote>(notesKey(campaignId)).length;
 }
+/** Replace the whole Unit-kind subset (used to persist netplay-synced party notes). */
+export function setUnitNotesLocal(campaignId: string, unit: DeskNote[]): void {
+  const others = read<DeskNote>(notesKey(campaignId)).filter((n) => n.kind !== "unit");
+  write(notesKey(campaignId), [...unit.map((n) => ({ ...n, kind: "unit" as const })), ...others]);
+}
 
 // ── Calendar ──
 /** All events, chronological: dated events first (by date), then undated. */

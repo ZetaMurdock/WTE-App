@@ -2,6 +2,8 @@
 // WebRTC data channels (LAN via mDNS, internet via the signaling server) today, and
 // could ride any future transport. See docs/NETPLAY.md.
 
+import type { DeskNote } from "../lib/campaignDesk";
+
 export const PROTOCOL_VERSION = 1;
 
 export type Role = "host" | "player";
@@ -24,6 +26,7 @@ export type NetMessage =
   | { t: "chat"; text: string }
   | { t: "party"; charId: string; name: string; summary: Record<string, unknown> }
   | { t: "bp"; value: number } // shared Base Pressure for the table
+  | { t: "unit-note"; op: "upsert" | "delete" | "sync"; note?: DeskNote; id?: string; notes?: DeskNote[] } // shared party notes
   | { t: "sheet-patch"; charId: string; patch: unknown; rev: number } // reserved: sheet sync
   | { t: "vtt-patch"; scope: string; patch: unknown; rev: number } // reserved: VTT sync
   | { t: "snapshot"; state: unknown; rev: number } // reserved: late-joiner catch-up

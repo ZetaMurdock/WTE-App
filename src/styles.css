@@ -888,6 +888,11 @@ body.wte-dot-cursor * {
   border-color: #d8b25a;
   background: rgba(216, 178, 90, 0.1);
 }
+.desk-live {
+  color: #6f9a68;
+  font-size: 9px;
+  vertical-align: middle;
+}
 .desk-note,
 .desk-event {
   background: rgba(255, 255, 255, 0.02);

@@ -8,6 +8,7 @@ import { NetSession } from "./session";
 import { getNetConfig, buildIceServers } from "./netconfig";
 import { advertise, unadvertise, myPeerId, myPeerName } from "./discovery";
 import type { NetMessage, NetMessageType, Peer } from "./protocol";
+import type { DeskNote } from "../lib/campaignDesk";
 
 type Status = "idle" | "connecting" | "connected";
 type Sub = (msg: NetMessage, from: string) => void;
@@ -28,6 +29,12 @@ interface NetApi {
   /** Shared Base Pressure for the table (synced while in a room). */
   bp: number;
   setSharedBp(value: number): void;
+  /** Shared party ("Unit") notes, synced across the room. */
+  unitNotes: DeskNote[];
+  upsertUnitNote(note: DeskNote): void;
+  deleteUnitNote(id: string): void;
+  /** Replace the whole shared set (host seeds it from its local notes). */
+  syncUnitNotes(notes: DeskNote[]): void;
 }
 
 const Ctx = createContext<NetApi | null>(null);
@@ -38,7 +45,7 @@ export function useNet(): NetApi {
 }
 
 // Wire event types re-dispatched to React subscribers.
-const FANOUT: NetMessageType[] = ["roll", "chat", "party", "presence", "sheet-patch", "vtt-patch", "snapshot", "bp"];
+const FANOUT: NetMessageType[] = ["roll", "chat", "party", "presence", "sheet-patch", "vtt-patch", "snapshot", "bp", "unit-note"];
 
 export function NetProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>("idle");
@@ -59,6 +66,48 @@ export function NetProvider({ children }: { children: ReactNode }) {
   const setSharedBp = useCallback((value: number) => {
     setBp(value);
     sessionRef.current?.publish({ t: "bp", value });
+  }, []);
+
+  // Shared party ("Unit") notes: applied by per-note op or a full sync.
+  const [unitNotes, setUnitNotes] = useState<DeskNote[]>([]);
+  useEffect(() => {
+    return subscribe("unit-note", (raw) => {
+      const m = raw as Extract<NetMessage, { t: "unit-note" }>;
+      if (m.op === "sync") setUnitNotes(m.notes ?? []);
+      else if (m.op === "delete") setUnitNotes((cur) => cur.filter((n) => n.id !== m.id));
+      else if (m.op === "upsert" && m.note) {
+        setUnitNotes((cur) => {
+          const i = cur.findIndex((n) => n.id === m.note!.id);
+          if (i >= 0) {
+            const next = cur.slice();
+            next[i] = m.note!;
+            return next;
+          }
+          return [m.note!, ...cur];
+        });
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const upsertUnitNote = useCallback((note: DeskNote) => {
+    setUnitNotes((cur) => {
+      const i = cur.findIndex((n) => n.id === note.id);
+      if (i >= 0) {
+        const next = cur.slice();
+        next[i] = note;
+        return next;
+      }
+      return [note, ...cur];
+    });
+    sessionRef.current?.publish({ t: "unit-note", op: "upsert", note });
+  }, []);
+  const deleteUnitNote = useCallback((id: string) => {
+    setUnitNotes((cur) => cur.filter((n) => n.id !== id));
+    sessionRef.current?.publish({ t: "unit-note", op: "delete", id });
+  }, []);
+  const syncUnitNotes = useCallback((notes: DeskNote[]) => {
+    setUnitNotes(notes);
+    sessionRef.current?.publish({ t: "unit-note", op: "sync", notes });
   }, []);
 
   const emit = (type: string, msg: NetMessage, from: string) => listeners.current.get(type)?.forEach((cb) => cb(msg, from));
@@ -126,12 +175,15 @@ export function NetProvider({ children }: { children: ReactNode }) {
   // late joiners land on the current value instead of the default.
   const bpRef = useRef(bp);
   bpRef.current = bp;
+  const unitNotesRef = useRef(unitNotes);
+  unitNotesRef.current = unitNotes;
   const prevPeerCount = useRef(0);
   useEffect(() => {
     const grew = peers.length > prevPeerCount.current;
     prevPeerCount.current = peers.length;
     if (grew && liveRef.current.role === "host" && liveRef.current.status === "connected") {
       sessionRef.current?.publish({ t: "bp", value: bpRef.current });
+      sessionRef.current?.publish({ t: "unit-note", op: "sync", notes: unitNotesRef.current });
     }
   }, [peers]);
   useEffect(() => {
@@ -171,6 +223,10 @@ export function NetProvider({ children }: { children: ReactNode }) {
     subscribe,
     bp,
     setSharedBp,
+    unitNotes,
+    upsertUnitNote,
+    deleteUnitNote,
+    syncUnitNotes,
   };
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }

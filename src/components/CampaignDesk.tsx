@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   listDeskNotes,
   newDeskNote,
   saveDeskNote,
   deleteDeskNote,
+  setUnitNotesLocal,
   listCalEvents,
   newCalEvent,
   saveCalEvent,
@@ -13,6 +14,12 @@ import {
   type CalEvent,
   type CalKind,
 } from "../lib/campaignDesk";
+import { useNet } from "../net/NetContext";
+
+function uid(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  return "d-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
 
 interface Props {
   campaignId: string;
@@ -30,16 +37,56 @@ const CAL_KINDS: CalKind[] = ["session", "event", "deadline"];
 // The campaign desk: three note ledgers (Inquisitor / Unit / Curator) and a
 // campaign calendar of sessions, in-world events, and deadlines.
 export function CampaignDesk({ campaignId, curator }: Props) {
+  const net = useNet();
+  const connected = net.status === "connected";
   const [tick, setTick] = useState(0);
   const bump = () => setTick((t) => t + 1);
   const [noteTab, setNoteTab] = useState<DeskNoteKind>("inquisitor");
 
   const tabs = NOTE_TABS.filter((t) => t.kind !== "curator" || curator);
   const activeTab = tabs.some((t) => t.kind === noteTab) ? noteTab : "inquisitor";
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const notes = useMemo(() => listDeskNotes(campaignId, activeTab), [campaignId, activeTab, tick]);
+  // Unit notes go live over netplay when connected; other ledgers stay local.
+  const unitShared = connected;
+
+  // Host seeds the shared party notes from its local ones once, on connect.
+  useEffect(() => {
+    if (connected && net.role === "host" && net.unitNotes.length === 0) {
+      const local = listDeskNotes(campaignId, "unit");
+      if (local.length) net.syncUnitNotes(local);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected, net.role]);
+  // Host persists the shared party notes to its campaign so they survive the session.
+  useEffect(() => {
+    if (connected && net.role === "host") setUnitNotesLocal(campaignId, net.unitNotes);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected, net.unitNotes]);
+
+  const notes = useMemo(
+    () => (activeTab === "unit" && unitShared ? net.unitNotes : listDeskNotes(campaignId, activeTab)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [campaignId, activeTab, tick, unitShared, net.unitNotes]
+  );
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const events = useMemo(() => listCalEvents(campaignId), [campaignId, tick]);
+
+  // Save/delete route through netplay for shared Unit notes, else the local store.
+  function saveNote(n: DeskNote) {
+    if (n.kind === "unit" && unitShared) net.upsertUnitNote({ ...n, updatedAt: Date.now() });
+    else saveDeskNote(campaignId, n);
+  }
+  function removeNote(n: DeskNote) {
+    if (n.kind === "unit" && unitShared) net.deleteUnitNote(n.id);
+    else deleteDeskNote(campaignId, n.id);
+    bump();
+  }
+  function addNote() {
+    if (activeTab === "unit" && unitShared) net.upsertUnitNote({ id: uid(), kind: "unit", title: "", body: "", updatedAt: Date.now() });
+    else {
+      newDeskNote(campaignId, activeTab);
+      bump();
+    }
+  }
 
   return (
     <div className="desk-grid">
@@ -49,7 +96,7 @@ export function CampaignDesk({ campaignId, curator }: Props) {
           <span className="panel-title" style={{ margin: 0 }}>
             Notes
           </span>
-          <button className="chip" onClick={() => { newDeskNote(campaignId, activeTab); bump(); }}>
+          <button className="chip" onClick={addNote}>
             + New note
           </button>
         </div>
@@ -62,14 +109,18 @@ export function CampaignDesk({ campaignId, curator }: Props) {
               title={t.blurb}
             >
               {t.label}
+              {t.kind === "unit" && unitShared && <span className="desk-live" title="Live-synced with the party"> ●</span>}
             </button>
           ))}
         </div>
-        <p className="identity-hint" style={{ margin: "0 0 8px" }}>{NOTE_TABS.find((t) => t.kind === activeTab)?.blurb}</p>
+        <p className="identity-hint" style={{ margin: "0 0 8px" }}>
+          {NOTE_TABS.find((t) => t.kind === activeTab)?.blurb}
+          {activeTab === "unit" && unitShared ? " Shared live with the room." : ""}
+        </p>
         {notes.length === 0 ? (
           <p className="list-empty">No {activeTab} notes yet.</p>
         ) : (
-          notes.map((n) => <NoteCard key={n.id} campaignId={campaignId} note={n} onChanged={bump} />)
+          notes.map((n) => <NoteCard key={n.id} note={n} onSave={saveNote} onDelete={removeNote} />)
         )}
       </div>
 
@@ -95,22 +146,42 @@ export function CampaignDesk({ campaignId, curator }: Props) {
   );
 }
 
-function NoteCard({ campaignId, note, onChanged }: { campaignId: string; note: DeskNote; onChanged: () => void }) {
+function NoteCard({ note, onSave, onDelete }: { note: DeskNote; onSave: (n: DeskNote) => void; onDelete: (n: DeskNote) => void }) {
+  // Local edit state, but re-seed if the note changes underneath us (a live
+  // netplay update to this same note) while it isn't focused.
   const [n, setN] = useState(note);
+  const [focused, setFocused] = useState(false);
+  useEffect(() => {
+    if (!focused) setN(note);
+  }, [note, focused]);
   function patch(p: Partial<DeskNote>) {
     const next = { ...n, ...p };
     setN(next);
-    saveDeskNote(campaignId, next);
+    onSave(next);
   }
   return (
     <div className="desk-note">
       <div className="desk-note-head">
-        <input className="desk-note-title" value={n.title} placeholder="Title…" onChange={(e) => patch({ title: e.target.value })} />
-        <button className="cdx-flag" title="Delete note" onClick={() => { deleteDeskNote(campaignId, n.id); onChanged(); }}>
+        <input
+          className="desk-note-title"
+          value={n.title}
+          placeholder="Title…"
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          onChange={(e) => patch({ title: e.target.value })}
+        />
+        <button className="cdx-flag" title="Delete note" onClick={() => onDelete(n)}>
           ×
         </button>
       </div>
-      <textarea className="desk-note-body" value={n.body} placeholder="Write…" onChange={(e) => patch({ body: e.target.value })} />
+      <textarea
+        className="desk-note-body"
+        value={n.body}
+        placeholder="Write…"
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        onChange={(e) => patch({ body: e.target.value })}
+      />
     </div>
   );
 }
