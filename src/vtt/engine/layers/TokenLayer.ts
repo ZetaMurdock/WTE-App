@@ -2,6 +2,7 @@
 // Diffed against the scene; art is (re)loaded only when a token's img changes.
 import { Assets, Container, Graphics, Sprite, Text } from "pixi.js";
 import type { VttScene, VttToken } from "../../types/scene";
+import { cellKey } from "../systems/VisionSystem";
 
 const STATUS_PALETTE = [0xa1584a, 0xa08a4f, 0x689a96, 0x837aae, 0x6f9a68, 0xa7aebd];
 /** Stable colour per status tag, so a given status always reads the same. */
@@ -56,7 +57,7 @@ export class TokenLayer {
     return null;
   }
 
-  sync(scene: VttScene, selectedId: string | null): void {
+  sync(scene: VttScene, selectedId: string | null, visible: Set<string> | null = null): void {
     const { tokens, layers } = scene.data;
     this.view.visible = layers.tokens;
     const live = new Set(tokens.map((t) => t.id));
@@ -87,7 +88,9 @@ export class TokenLayer {
       n.token = t;
       const r = ((t.size || 1) * cell) / 2 - 4;
       n.root.position.set(t.x, t.y);
-      n.root.visible = t.visible !== false;
+      // Player view: a token in an unseen cell is hidden by the fog of war.
+      const inFog = visible !== null && !visible.has(cellKey(Math.floor(t.x / cell), Math.floor(t.y / cell)));
+      n.root.visible = t.visible !== false && !inFog;
       n.body.rotation = (((t.rotation || 0) % 360) * Math.PI) / 180;
       n.disc.clear();
       n.disc.circle(0, 0, r).fill(t.color || "#689a96");

@@ -109,13 +109,28 @@ export class PixiVttApp {
   }
   redraw(): void {
     if (!this.scene || !this.ready) return;
+    const fogOn = this.scene.data.fog.enabled && this.scene.data.layers.fog;
+    // Player perspective: reveal only from the player's own tokens (+ lights).
+    const ownerId = this.playerView && this.selfId ? this.selfId : undefined;
+    const visible = fogOn ? computeVisibleCells(this.scene.data, ownerId) : null;
     this.bg.draw(this.scene);
     this.grid.draw(this.scene);
     this.lights.draw(this.scene, this.selection);
     this.effects.draw(this.scene, this.selection);
-    this.tokens.sync(this.scene, this.selection?.kind === "token" ? this.selection.id : null);
+    this.tokens.sync(this.scene, this.selection?.kind === "token" ? this.selection.id : null, this.playerView ? visible : null);
     this.walls.draw(this.scene, this.selection);
-    this.fog.draw(this.scene, computeVisibleCells(this.scene.data));
+    this.fog.draw(this.scene, visible ?? new Set<string>(), this.playerView);
+  }
+
+  /** Player perspective: fog fully obscures unseen areas and hides tokens in
+   *  them (GMs keep the semi-transparent reveal). Set from the netplay role. */
+  playerView = false;
+  selfId: string | null = null;
+  setPlayerView(v: boolean, selfId: string | null = this.selfId): void {
+    if (this.playerView === v && this.selfId === selfId) return;
+    this.playerView = v;
+    this.selfId = selfId;
+    this.redraw();
   }
 
   setTool(t: VttTool): void {

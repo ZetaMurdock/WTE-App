@@ -19,12 +19,15 @@ interface Props {
   onEffectKind: (kind: VttEffectKind) => void;
   onDelete: () => void;
   onClose: () => void;
+  /** Connected peers for token-ownership assignment (empty when solo). */
+  peers?: { id: string; name: string }[];
+  selfId?: string | null;
 }
 
 const LIGHT_COLORS = ["#a08a4f", "#689a96", "#837aae", "#a1584a", "#a7aebd"];
 const EFFECT_COLORS = ["#837aae", "#a1584a", "#a08a4f", "#689a96", "#6f9a68"];
 
-export function VttInspector({ sel, scene, onToken, onWall, onLight, onEffect, onEffectKind, onDelete, onClose }: Props) {
+export function VttInspector({ sel, scene, onToken, onWall, onLight, onEffect, onEffectKind, onDelete, onClose, peers = [], selfId }: Props) {
   const token = sel.kind === "token" ? scene.data.tokens.find((t) => t.id === sel.id) : null;
   const wall = sel.kind === "wall" ? scene.data.walls.find((w) => w.id === sel.id) : null;
   const light = sel.kind === "light" ? scene.data.lights.find((l) => l.id === sel.id) : null;
@@ -107,6 +110,25 @@ export function VttInspector({ sel, scene, onToken, onWall, onLight, onEffect, o
             <button className="chip" style={{ marginTop: 10 }} onClick={() => onToken({ model: null })} title="Remove the 3D model — the token falls back to its billboard">
               3D model attached — remove
             </button>
+          )}
+          {(peers.length > 0 || selfId) && (
+            <label className="lobby-field mt">
+              <span>Owner (player fog)</span>
+              <select
+                className="bg-select full"
+                value={token.owner ?? ""}
+                onChange={(e) => onToken({ owner: e.target.value || undefined })}
+                title="Which player's vision this token provides — enemy tokens stay hidden in a player's fog"
+              >
+                <option value="">GM / none</option>
+                {selfId && !peers.some((p) => p.id === selfId) && <option value={selfId}>Me</option>}
+                {peers.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.id === selfId ? "Me" : p.name}
+                  </option>
+                ))}
+              </select>
+            </label>
           )}
           <div className="lobby-field mt">
             <span>Statuses</span>

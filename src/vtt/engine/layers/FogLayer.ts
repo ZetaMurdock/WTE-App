@@ -13,7 +13,7 @@ export class FogLayer {
     this.view.filters = [this.blur];
   }
 
-  draw(scene: VttScene, visible: Set<string>): void {
+  draw(scene: VttScene, visible: Set<string>, playerView = false): void {
     const g = this.view;
     g.clear();
     const { fog, grid, layers } = scene.data;
@@ -33,12 +33,15 @@ export class FogLayer {
     }
     if (grew) fog.revealed = [...revealed];
 
+    // Players can't see through unseen fog at all; GMs keep it semi-transparent.
+    const unseenA = playerView ? 1 : 0.9;
+    const exploredA = playerView ? 0.72 : 0.55;
     const s = grid.size;
     for (let c = 0; c < grid.cols; c++) {
       for (let r = 0; r < grid.rows; r++) {
         const k = cellKey(c, r);
         if (visible.has(k)) continue;
-        g.rect(c * s, r * s, s, s).fill({ color: 0x030610, alpha: revealed.has(k) ? 0.55 : 0.9 });
+        g.rect(c * s, r * s, s, s).fill({ color: 0x030610, alpha: revealed.has(k) ? exploredA : unseenA });
       }
     }
   }

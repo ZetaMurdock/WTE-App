@@ -27,6 +27,8 @@ export interface VttToken {
   model?: string | null;
   /** Facing, degrees clockwise from up — set by the on-canvas rotate handle. */
   rotation?: number;
+  /** Owning player (netplay peer id). Player fog reveals only from owned tokens. */
+  owner?: string;
   hp?: number;
   hpMax?: number;
   /** Linked character or actor (Codex creature / party member). */

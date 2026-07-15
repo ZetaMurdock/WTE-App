@@ -150,6 +150,8 @@ export class ThreeVttView {
   private sun!: THREE.DirectionalLight;
   private atmo: VttAtmosphere = defaultAtmosphere();
   private atmoKey = "";
+  private playerView = false;
+  private selfId: string | null = null;
   private mist: THREE.Mesh | null = null;
   private particlePts: THREE.Points | null = null;
   private particleVel: Float32Array | null = null;
@@ -180,6 +182,7 @@ export class ThreeVttView {
     const r = new THREE.WebGLRenderer({ antialias: true });
     r.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     r.setClearColor(0x060a14);
+    r.shadowMap.type = THREE.PCFSoftShadowMap; // soft (PCF) shadow edges, not blocky
     host.appendChild(r.domElement);
     this.renderer = r;
 
@@ -250,6 +253,15 @@ export class ThreeVttView {
   }
   get piloting(): string | null {
     return this.pilotId;
+  }
+
+  /** Player perspective: fog fully obscures unseen areas + hides tokens there. */
+  setPlayerView(v: boolean, selfId: string | null = this.selfId): void {
+    if (this.playerView === v && this.selfId === selfId) return;
+    this.playerView = v;
+    this.selfId = selfId;
+    this.fogKey = ""; // force a fog rebuild with the new opacity
+    if (this.vtt) this.syncFrom(this.vtt, this.selection);
   }
 
   /** Project a token to CSS pixels within the host (for DOM overlays like the
@@ -385,8 +397,9 @@ export class ThreeVttView {
     const firstScene = this.vtt?.id !== scene.id;
     this.vtt = scene;
     this.selection = selection;
-    // Vision parity with the 2D fog: null = fog off (everything visible).
-    const visible = scene.data.fog.enabled && scene.data.layers.fog ? computeVisibleCells(scene.data) : null;
+    // Vision parity with the 2D fog: null = fog off; player view reveals from own tokens.
+    const ownerId = this.playerView && this.selfId ? this.selfId : undefined;
+    const visible = scene.data.fog.enabled && scene.data.layers.fog ? computeVisibleCells(scene.data, ownerId) : null;
     this.applyAtmosphere(scene);
     this.buildGround(scene);
     this.buildWalls(scene);
@@ -396,39 +409,85 @@ export class ThreeVttView {
     if (firstScene) this.frame(scene);
   }
 
-  /** Fog of war in 3D: dark quads over non-visible cells (deep for unseen, dim
-   *  for explored), floating just above the ground. Tokens outside vision are
-   *  hidden in buildTokens — matching how the 2D fog paints over them. */
+  private fogMesh: THREE.Mesh | null = null;
+  private fogTex: THREE.CanvasTexture | null = null;
+  private fogKey = "";
+
+  /** Fog of war in 3D: a smooth blurred alpha texture draped over the terrain
+   *  (bilinear + blur → no blocky cells). Deep for unseen, dim for explored;
+   *  players get fully-opaque unseen. Tokens outside vision hide in buildTokens. */
   private buildFog(scene: VttScene, visible: Set<string> | null): void {
-    for (const ch of this.fogGroup.children) (ch as THREE.Mesh).geometry?.dispose();
-    this.fogGroup.clear();
-    if (!visible) return;
     const { grid, fog } = scene.data;
+    if (!visible) {
+      if (this.fogMesh) this.fogMesh.visible = false;
+      this.fogKey = "";
+      return;
+    }
     const revealed = new Set(fog.revealed);
-    const s = grid.size;
-    const unseen: number[] = [];
-    const explored: number[] = [];
-    const quad = (arr: number[], c: number, r: number) => {
-      const x0 = c * s, x1 = x0 + s, z0 = r * s, z1 = z0 + s;
-      const y = this.heightAt(scene, (c + 0.5) * s, (r + 0.5) * s) + 3; // fog follows the terrain
-      arr.push(x0, y, z0, x0, y, z1, x1, y, z1, x0, y, z0, x1, y, z1, x1, y, z0);
-    };
+    const unseenA = this.playerView ? 1 : 0.9;
+    const exploredA = this.playerView ? 0.72 : 0.5;
+    const key = `${this.playerView}|${grid.cols}x${grid.rows}x${grid.size}|${this.groundGeoKey}|${[...visible].sort().join(",")}|${fog.revealed.length}`;
+    if (key === this.fogKey && this.fogMesh) {
+      this.fogMesh.visible = true;
+      return;
+    }
+    this.fogKey = key;
+
+    // 1) low-res alpha grid → blurred upscaled canvas (smooth falloff)
+    const small = document.createElement("canvas");
+    small.width = grid.cols;
+    small.height = grid.rows;
+    const sx = small.getContext("2d")!;
+    const img = sx.createImageData(grid.cols, grid.rows);
     for (let c = 0; c < grid.cols; c++) {
       for (let r = 0; r < grid.rows; r++) {
         const k = cellKey(c, r);
-        if (visible.has(k)) continue;
-        quad(revealed.has(k) ? explored : unseen, c, r);
+        const a = visible.has(k) ? 0 : revealed.has(k) ? exploredA : unseenA;
+        const i = (r * grid.cols + c) * 4;
+        img.data[i] = 3;
+        img.data[i + 1] = 6;
+        img.data[i + 2] = 16;
+        img.data[i + 3] = Math.round(a * 255);
       }
     }
-    const addMesh = (pts: number[], opacity: number) => {
-      if (!pts.length) return;
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
-      const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x030610, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide }));
-      this.fogGroup.add(mesh);
-    };
-    addMesh(unseen, 0.92);
-    addMesh(explored, 0.55);
+    sx.putImageData(img, 0, 0);
+    const step = 10;
+    const big = document.createElement("canvas");
+    big.width = grid.cols * step;
+    big.height = grid.rows * step;
+    const bx = big.getContext("2d")!;
+    bx.imageSmoothingEnabled = true;
+    bx.filter = `blur(${step * 0.9}px)`;
+    bx.drawImage(small, 0, 0, big.width, big.height);
+    this.fogTex?.dispose();
+    this.fogTex = new THREE.CanvasTexture(big);
+    this.fogTex.minFilter = THREE.LinearFilter;
+    this.fogTex.magFilter = THREE.LinearFilter;
+
+    // 2) plane draped on the terrain (same vertex mapping as the ground)
+    const w = grid.cols * grid.size;
+    const h = grid.rows * grid.size;
+    if (this.fogMesh) {
+      this.fogMesh.geometry.dispose();
+      (this.fogMesh.material as THREE.Material).dispose();
+      this.fogGroup.remove(this.fogMesh);
+    }
+    const geo = new THREE.PlaneGeometry(w, h, grid.cols, grid.rows);
+    if (scene.data.terrain) {
+      const pos = geo.attributes.position;
+      const vpr = grid.cols + 1;
+      const t = scene.data.terrain;
+      for (let i = 0; i < pos.count; i++) {
+        const col = Math.min(grid.cols - 1, i % vpr);
+        const row = Math.min(grid.rows - 1, Math.floor(i / vpr));
+        pos.setZ(i, (t.heights[row * grid.cols + col] ?? 0) * t.maxCells * grid.size + 4);
+      }
+    }
+    const mat = new THREE.MeshBasicMaterial({ map: this.fogTex, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+    this.fogMesh = new THREE.Mesh(geo, mat);
+    this.fogMesh.rotation.x = -Math.PI / 2;
+    this.fogMesh.position.set(w / 2, scene.data.terrain ? 0 : 4, h / 2);
+    this.fogGroup.add(this.fogMesh);
   }
 
   /** Apply the scene's atmosphere: backdrop, depth fog, mood lighting, ground
@@ -854,8 +913,9 @@ export class ThreeVttView {
     if (!scene.data.layers.tokens) return;
     for (const t of scene.data.tokens) {
       if (t.visible === false) continue;
-      // Fog parity: tokens outside current vision are hidden (2D fog paints over them).
-      if (visible && !visible.has(cellKey(Math.floor(t.x / s), Math.floor(t.y / s)))) continue;
+      // Player perspective: tokens in unseen cells are hidden by the fog (the GM
+      // still sees them through the semi-transparent haze, matching the 2D view).
+      if (this.playerView && visible && !visible.has(cellKey(Math.floor(t.x / s), Math.floor(t.y / s)))) continue;
       const size = (t.size || 1) * s;
       const elev = this.heightAt(scene, t.x, t.y);
       if (t.model) {

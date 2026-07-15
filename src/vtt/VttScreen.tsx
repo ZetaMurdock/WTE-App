@@ -74,6 +74,9 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
   // Keep the 3D world mirroring the live scene (engine mutations bump `tick`,
   // which covers local edits, inspector patches, and remote P2P ops alike).
   useEffect(() => {
+    // Player perspective: fog reveals only from the player's OWN tokens (GM sees all).
+    engineRef.current?.setPlayerView(isNetPlayer, net.selfId);
+    threeRef.current?.setPlayerView(isNetPlayer, net.selfId);
     const live3 = engineRef.current?.scene ?? scene;
     if (viewMode === "3d" && threeRef.current && live3) threeRef.current.syncFrom(live3, sel);
   });
@@ -461,6 +464,8 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
           onEffectKind={(kind) => engine.setEffectKind(sel.id, kind)}
           onDelete={() => engine.deleteSelected()}
           onClose={() => engine.select(null)}
+          peers={net.status === "connected" ? net.peers.map((p) => ({ id: p.id, name: p.name })) : []}
+          selfId={net.selfId}
         />
       )}
     </div>

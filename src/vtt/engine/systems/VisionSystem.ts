@@ -19,14 +19,18 @@ function blocked(sx: number, sy: number, tx: number, ty: number, walls: VttWall[
   return false;
 }
 
-/** Currently-visible cell keys. Empty set when fog is disabled (fog layer hides itself). */
-export function computeVisibleCells(data: VttSceneData): Set<string> {
+/** Currently-visible cell keys. Empty set when fog is disabled (fog layer hides itself).
+ *  `ownerId` (player perspective): vision comes only from tokens that player owns,
+ *  plus all lights — so an enemy token no longer reveals its own cell. Undefined
+ *  (GM / omniscient) uses every token. */
+export function computeVisibleCells(data: VttSceneData, ownerId?: string): Set<string> {
   const vis = new Set<string>();
   if (!data.fog.enabled) return vis;
   const size = data.grid.size;
   const walls = data.walls.filter((w) => w.blocksLight);
+  const visionTokens = ownerId ? data.tokens.filter((t) => t.owner === ownerId) : data.tokens;
   const sources = [
-    ...data.tokens.filter((t) => t.visible !== false).map((t) => ({ x: t.x, y: t.y, r: (t.vision ?? 5) * size })),
+    ...visionTokens.filter((t) => t.visible !== false).map((t) => ({ x: t.x, y: t.y, r: (t.vision ?? 5) * size })),
     ...data.lights.map((l) => ({ x: l.x, y: l.y, r: l.radius * size })),
   ];
   for (const s of sources) {
