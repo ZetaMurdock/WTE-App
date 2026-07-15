@@ -22,6 +22,16 @@ import { listCharacters, type CharacterRecord } from "../lib/characters";
 import { characterToTokenSpec, creatureToTokenSpec, parseSpawnPayload } from "./data/actorSpawn";
 import { listAssets, addAsset, deleteAsset, type AssetKind, type VttAsset } from "./data/assetRepo";
 import { useVttSync } from "./sync/vttSync";
+import { fileToPngDataUrl } from "../lib/image";
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(new Error("read failed"));
+    r.readAsDataURL(file);
+  });
+}
 
 // VTT v2 (slice 1): Pixi renders the map; React owns the chrome. Beside the
 // legacy VTT, not inside it — see the rework spec in docs/ / session notes.
@@ -35,6 +45,50 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
   const [leftPanel, setLeftPanel] = useState<"scenes" | "actors" | "encounter" | "assets" | null>(null);
   const [rollsOpen, setRollsOpen] = useState(false);
   const [gridOpen, setGridOpen] = useState(false);
+  // Scene-wheel right-click actions: the file pickers target a specific scene id,
+  // and every setting is written to THAT scene only (nothing transfers).
+  const sceneBgRef = useRef<HTMLInputElement>(null);
+  const sceneMusicRef = useRef<HTMLInputElement>(null);
+  const menuTarget = useRef<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  /** Patch a scene's data wherever it lives: the live engine scene, or storage. */
+  const patchScene = useCallback(
+    async (id: string, patch: (s: VttScene) => void) => {
+      const eng = engineRef.current;
+      if (eng?.scene?.id === id) {
+        patch(eng.scene);
+        eng.redraw();
+        eng.onChanged();
+      } else {
+        const s = await getScene(id);
+        if (!s) return;
+        patch(s);
+        await saveScene(s);
+      }
+      // refresh the wheel's copies (music badge, names)
+      if (campaign) setScenes(await listScenes(campaign.id).catch(() => []));
+    },
+    [campaign]
+  );
+
+  async function onSceneBgFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    const id = menuTarget.current;
+    if (!f || !id) return;
+    const uri = await fileToPngDataUrl(f).catch(() => null);
+    if (uri) await patchScene(id, (s) => (s.data.background.src = uri));
+  }
+  async function onSceneMusicFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    const id = menuTarget.current;
+    if (!f || !id) return;
+    if (f.size > 12 * 1024 * 1024) return; // keep scene payloads sane
+    const uri = await fileToDataUrl(f).catch(() => null);
+    if (uri) await patchScene(id, (s) => (s.data.audio = { src: uri, volume: 0.5 }));
+  }
   // 3D is a VIEW MODE over the same scene: the three.js renderer mirrors the
   // engine's scene and routes selection/moves back through it (single authority).
   const [viewMode, setViewMode] = useState<"2d" | "3d">("2d");
@@ -87,6 +141,23 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
       threeRef.current = null;
     };
   }, []);
+
+  // Per-scene ambient music: play the ACTIVE scene's track (looped), stop when
+  // it has none. Scene switches swap tracks automatically.
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    const audio = engineRef.current?.scene?.data.audio ?? scene?.data.audio ?? null;
+    if (audio?.src) {
+      if (el.src !== audio.src) el.src = audio.src;
+      el.loop = true;
+      el.volume = audio.volume ?? 0.5;
+      void el.play().catch(() => {});
+    } else {
+      el.pause();
+      el.removeAttribute("src");
+    }
+  });
   const [characters, setCharacters] = useState<CharacterRecord[]>([]);
   const [charsLoading, setCharsLoading] = useState(false);
   const [assets, setAssets] = useState<VttAsset[]>([]);
@@ -379,8 +450,24 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
         onToggleView={toggleView}
       />
       {campaign && !isNetPlayer && (
-        <VttSceneWheel scenes={scenes} activeId={scene?.id ?? null} onSwitch={(id) => void switchScene(id)} />
+        <VttSceneWheel
+          scenes={scenes}
+          activeId={scene?.id ?? null}
+          onSwitch={(id) => void switchScene(id)}
+          onSetBackground={(id) => {
+            menuTarget.current = id;
+            sceneBgRef.current?.click();
+          }}
+          onSetMusic={(id) => {
+            menuTarget.current = id;
+            sceneMusicRef.current?.click();
+          }}
+          onClearMusic={(id) => void patchScene(id, (s) => (s.data.audio = null))}
+        />
       )}
+      <input ref={sceneBgRef} type="file" accept="image/*" hidden onChange={(e) => void onSceneBgFile(e)} />
+      <input ref={sceneMusicRef} type="file" accept="audio/*" hidden onChange={(e) => void onSceneMusicFile(e)} />
+      <audio ref={audioRef} hidden />
       {viewMode === "3d" && (pilotingId || sel?.kind === "token") && (
         <button
           className={"vtt2-pilot-btn" + (pilotingId ? " on" : "")}

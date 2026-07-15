@@ -161,6 +161,8 @@ export interface VttSceneData {
   timeline: VttTimelineState;
   terrain?: VttTerrain | null;
   atmosphere?: VttAtmosphere | null;
+  /** Per-scene ambient music (audio data URL) — plays while the scene is active. */
+  audio?: { src: string; volume: number } | null;
   encounterId?: string | null;
 }
 
@@ -194,6 +196,7 @@ export function defaultSceneData(): VttSceneData {
     layers: { grid: true, tokens: true, walls: true, lights: true, fog: true, effects: true },
     timeline: { round: 0, turn: 0 },
     terrain: null,
+    audio: null,
     encounterId: null,
   };
 }

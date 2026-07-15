@@ -392,20 +392,71 @@ export class ThreeVttView {
     this.controls?.update();
   }
 
+  // Rebuild gating: syncFrom runs on every React render, so each group only
+  // rebuilds when its cheap string key changes (GPU churn was the map lag).
+  private visKeySrc = "";
+  private visCache: Set<string> | null = null;
+  private visSerial = 0;
+  private wallsKey = "";
+  private lightsKey = "";
+  private tokensKey = "";
+
   /** Rebuild/refresh the 3D world from scene data (called on every engine change). */
   syncFrom(scene: VttScene, selection: VttSelection): void {
     const firstScene = this.vtt?.id !== scene.id;
     this.vtt = scene;
     this.selection = selection;
-    // Vision parity with the 2D fog: null = fog off; player view reveals from own tokens.
-    const ownerId = this.playerView && this.selfId ? this.selfId : undefined;
-    const visible = scene.data.fog.enabled && scene.data.layers.fog ? computeVisibleCells(scene.data, ownerId) : null;
+    const d = scene.data;
+    // Vision parity with the 2D fog: null = fog off; player view reveals from own
+    // tokens. Cached — recomputed only when a source crosses a cell.
+    let visible: Set<string> | null = null;
+    if (d.fog.enabled && d.layers.fog) {
+      const s = d.grid.size;
+      const ownerId = this.playerView && this.selfId ? this.selfId : undefined;
+      const key =
+        (ownerId ?? "gm") +
+        "|" +
+        d.tokens.map((t) => `${Math.floor(t.x / s)},${Math.floor(t.y / s)},${t.vision ?? 5},${t.visible === false ? 0 : 1},${t.owner ?? ""}`).join(";") +
+        "|" +
+        d.lights.map((l) => `${Math.round(l.x)},${Math.round(l.y)},${l.radius}`).join(";") +
+        `|${d.walls.length}|${s},${d.grid.cols},${d.grid.rows}`;
+      if (key !== this.visKeySrc || !this.visCache) {
+        this.visKeySrc = key;
+        this.visCache = computeVisibleCells(d, ownerId);
+        this.visSerial++;
+      }
+      visible = this.visCache;
+    } else {
+      if (this.visCache) this.visSerial++;
+      this.visKeySrc = "";
+      this.visCache = null;
+    }
+
     this.applyAtmosphere(scene);
     this.buildGround(scene);
-    this.buildWalls(scene);
-    this.buildLights(scene);
-    this.buildTokens(scene, visible);
-    this.buildFog(scene, visible);
+
+    const selId = this.selection?.id ?? "";
+    const wk = d.walls.map((w) => `${w.id},${w.x1},${w.y1},${w.x2},${w.y2}`).join(";") + `|${selId}|${this.atmo.shadows}|${d.grid.size}|${d.layers.walls}`;
+    if (wk !== this.wallsKey) {
+      this.wallsKey = wk;
+      this.buildWalls(scene);
+    }
+    const lk =
+      d.lights.map((l) => `${l.id},${Math.round(l.x)},${Math.round(l.y)},${l.color ?? ""},${l.intensity ?? 0.5},${l.radius}`).join(";") +
+      `|${d.layers.lights}|${this.atmo.shadows}|${this.groundGeoKey}`;
+    if (lk !== this.lightsKey) {
+      this.lightsKey = lk;
+      this.buildLights(scene);
+    }
+    const tk =
+      d.tokens
+        .map((t) => `${t.id},${t.x},${t.y},${t.size ?? 1},${t.rotation ?? 0},${t.img ? 1 : 0},${t.model ?? ""},${t.color ?? ""},${t.name},${t.visible === false ? 0 : 1}`)
+        .join(";") + `|${selId}|${d.layers.tokens}|${this.groundGeoKey}|${this.playerView}|${this.visSerial}`;
+    if (tk !== this.tokensKey) {
+      this.tokensKey = tk;
+      this.buildTokens(scene, visible);
+    }
+    this.buildFog(scene, visible); // internally keyed
     if (firstScene) this.frame(scene);
   }
 
@@ -426,7 +477,7 @@ export class ThreeVttView {
     const revealed = new Set(fog.revealed);
     const unseenA = this.playerView ? 1 : 0.9;
     const exploredA = this.playerView ? 0.72 : 0.5;
-    const key = `${this.playerView}|${grid.cols}x${grid.rows}x${grid.size}|${this.groundGeoKey}|${[...visible].sort().join(",")}|${fog.revealed.length}`;
+    const key = `${this.playerView}|${grid.cols}x${grid.rows}x${grid.size}|${this.groundGeoKey}|${this.visSerial}|${fog.revealed.length}`;
     if (key === this.fogKey && this.fogMesh) {
       this.fogMesh.visible = true;
       return;
@@ -514,7 +565,9 @@ export class ThreeVttView {
 
     // depth fog + clear colour (edges melt into the haze)
     this.renderer?.setClearColor(mood.fog);
-    this.scene3.fog = atmo.fog > 0 ? new THREE.Fog(mood.fog, span * 0.55, span * (2.6 - atmo.fog * 1.7)) : null;
+    // even at 100% the far plane stays past the map edge, so the fog thickens
+    // the air without drowning the table (near also eases in, never on top of you)
+    this.scene3.fog = atmo.fog > 0 ? new THREE.Fog(mood.fog, span * (0.8 - atmo.fog * 0.35), span * (2.6 - atmo.fog * 1.25)) : null;
 
     // shadows
     const sh = atmo.shadows;
@@ -576,10 +629,11 @@ export class ThreeVttView {
     if (atmo.mist) {
       const tex = mistTexture().clone();
       tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-      tex.repeat.set(4, 3);
+      // blob size stays cell-relative so big maps don't get giant washed-out clouds
+      tex.repeat.set(Math.max(3, grid.cols / 8), Math.max(2, grid.rows / 8));
       this.mist = new THREE.Mesh(
         new THREE.PlaneGeometry(grid.cols * grid.size * 1.15, grid.rows * grid.size * 1.15),
-        new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.55, depthWrite: false })
+        new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.3, depthWrite: false })
       );
       this.mist.rotation.x = -Math.PI / 2;
       this.mist.position.set(cx, grid.size * 0.18, cz);

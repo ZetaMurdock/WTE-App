@@ -110,12 +110,38 @@ export class PixiVttApp {
     this.camera.set(scene.data.camera);
     this.redraw();
   }
+  // Vision is O(sources × cells × walls) — cache it and recompute only when a
+  // source crosses a cell (not on every drag-frame redraw).
+  private visionKey = "";
+  private visionCache: Set<string> | null = null;
+  private visionOf(): Set<string> | null {
+    const d = this.scene!.data;
+    if (!(d.fog.enabled && d.layers.fog)) {
+      this.visionKey = "";
+      this.visionCache = null;
+      return null;
+    }
+    const s = d.grid.size;
+    const ownerId = this.playerView && this.selfId ? this.selfId : undefined;
+    const key =
+      (ownerId ?? "gm") +
+      "|" +
+      d.tokens
+        .map((t) => `${Math.floor(t.x / s)},${Math.floor(t.y / s)},${t.vision ?? 5},${t.visible === false ? 0 : 1},${t.owner ?? ""}`)
+        .join(";") +
+      "|" +
+      d.lights.map((l) => `${Math.round(l.x)},${Math.round(l.y)},${l.radius}`).join(";") +
+      `|${d.walls.length}|${s},${d.grid.cols},${d.grid.rows}`;
+    if (key !== this.visionKey || !this.visionCache) {
+      this.visionKey = key;
+      this.visionCache = computeVisibleCells(d, ownerId);
+    }
+    return this.visionCache;
+  }
+
   redraw(): void {
     if (!this.scene || !this.ready) return;
-    const fogOn = this.scene.data.fog.enabled && this.scene.data.layers.fog;
-    // Player perspective: reveal only from the player's own tokens (+ lights).
-    const ownerId = this.playerView && this.selfId ? this.selfId : undefined;
-    const visible = fogOn ? computeVisibleCells(this.scene.data, ownerId) : null;
+    const visible = this.visionOf();
     this.bg.draw(this.scene);
     this.grid.draw(this.scene);
     this.lights.draw(this.scene, this.selection);

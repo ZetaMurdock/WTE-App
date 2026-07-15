@@ -4574,6 +4574,47 @@ body.wte-dot-cursor * {
   border-color: var(--accent);
   box-shadow: 0 0 10px rgba(126, 207, 202, 0.35);
 }
+.vtt2-wheel-dot.has-audio::before {
+  content: "";
+  position: absolute;
+  right: -1px;
+  top: -1px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #d8b25a;
+  border: 1px solid #04070d;
+}
+.vtt2-scene-menu {
+  position: fixed;
+  right: 54px;
+  width: 210px;
+  background: rgba(12, 18, 32, 0.98);
+  border: 1px solid var(--panel-line);
+  border-radius: 10px;
+  padding: 8px;
+  z-index: 30;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  animation: profile-pop 0.14s ease;
+}
+.vtt2-scene-menu-head {
+  font-family: Georgia, serif;
+  font-size: 12px;
+  color: var(--bone);
+  padding: 4px 10px 8px;
+  border-bottom: 1px solid var(--panel-line);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vtt2-scene-menu-foot {
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 6px 10px 2px;
+}
 .vtt2-wheel-dot:hover::after {
   content: attr(data-name);
   position: absolute;
