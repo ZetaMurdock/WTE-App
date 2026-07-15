@@ -166,7 +166,7 @@ export function VttGridPanel({ grid, background, terrain, atmosphere, onGrid, on
       </p>
 
       <div className="panel-title" style={{ marginTop: 14 }}>
-        Atmosphere (3D)
+        Atmosphere (2D + 3D)
       </div>
       <div className="vtt2-hp-row">
         <label className="lobby-field">

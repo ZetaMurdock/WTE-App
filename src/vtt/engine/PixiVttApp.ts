@@ -12,6 +12,7 @@ import { LightingLayer } from "./layers/LightingLayer";
 import { FogLayer } from "./layers/FogLayer";
 import { MeasurementLayer } from "./layers/MeasurementLayer";
 import { EffectLayer } from "./layers/EffectLayer";
+import { AtmosphereLayer } from "./layers/AtmosphereLayer";
 import { computeVisibleCells } from "./systems/VisionSystem";
 import { EffectSystem } from "./systems/EffectSystem";
 import { TimelineSystem } from "./systems/TimelineSystem";
@@ -48,6 +49,7 @@ export class PixiVttApp {
   readonly fog = new FogLayer();
   readonly measure = new MeasurementLayer();
   readonly effects = new EffectLayer();
+  readonly atmosphere = new AtmosphereLayer();
 
   // Engine systems (slice 12). Encounter round advance runs timeline + sim.
   readonly effectSystem = new EffectSystem();
@@ -88,14 +90,15 @@ export class PixiVttApp {
       this.fog.view,
       this.measure.view
     );
-    this.app.stage.addChild(this.world);
+    this.app.stage.addChild(this.world, this.atmosphere.view); // atmosphere is screen-space, over the map
     this.input = new InputController(this);
     this.input.attach(this.app.canvas);
-    // camera momentum: glide after a fling, persist once it settles
+    // camera momentum + atmosphere animation each frame
     this.app.ticker.add(() => {
       const was = this.camera.flinging;
       const moving = this.camera.tick(this.app.ticker.deltaTime);
       if (was && !moving) this.persistCamera();
+      if (this.scene) this.atmosphere.animate(this.app.ticker.deltaMS / 1000, this.app.screen.width, this.app.screen.height);
     });
     this.ready = true;
     if (this.scene) this.setScene(this.scene);
@@ -120,6 +123,7 @@ export class PixiVttApp {
     this.tokens.sync(this.scene, this.selection?.kind === "token" ? this.selection.id : null, this.playerView ? visible : null);
     this.walls.draw(this.scene, this.selection);
     this.fog.draw(this.scene, visible ?? new Set<string>(), this.playerView);
+    this.atmosphere.draw(this.scene, this.app.screen.width, this.app.screen.height);
   }
 
   /** Player perspective: fog fully obscures unseen areas and hides tokens in
@@ -338,6 +342,7 @@ export class PixiVttApp {
   setAtmosphere(atmo: VttAtmosphere): void {
     if (!this.scene) return;
     this.scene.data.atmosphere = atmo;
+    this.redraw();
     this.onChanged();
     this.onOp({ op: "atmo.set", atmo });
   }
