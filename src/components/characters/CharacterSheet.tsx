@@ -13,6 +13,7 @@ import {
   aggregateEquip,
   mergeMods,
   computeDerived,
+  bgSpecBonuses,
   sizeOf,
   bgBonuses,
   rollMod,
@@ -122,6 +123,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
     speciesId: sheet.speciesId,
     rank,
     bgBonuses: bgBonuses(sheet.background),
+    bgSpec: bgSpecBonuses(sheet.background),
     equip,
     sizeMove: sizeOf(sheet.sizeId, sheet.speciesId).move,
   });
@@ -130,6 +132,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
     speciesId: sheet.speciesId,
     rank,
     bgBonuses: bgBonuses(sheet.background),
+    bgSpec: bgSpecBonuses(sheet.background),
     sizeMove: sizeOf(sheet.sizeId, sheet.speciesId).move,
   });
   const maxSS = derived.ss;

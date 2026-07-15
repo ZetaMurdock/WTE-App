@@ -3,6 +3,7 @@ import {
   CORE_DERIVED,
   computeDerived,
   bgBonuses,
+  bgSpecBonuses,
   aggregateEquip,
   sizeOf,
   signedMod,
@@ -35,6 +36,7 @@ export function DerivedPreview({ attributes, specialties, speciesId, rank, backg
     speciesId,
     rank,
     bgBonuses: bgBonuses(background),
+    bgSpec: bgSpecBonuses(background),
     equip: aggregateEquip(equipment),
     sizeMove: sizeOf(sizeId, speciesId).move,
   });

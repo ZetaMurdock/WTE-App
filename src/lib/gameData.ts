@@ -14,6 +14,7 @@ import {
   type CipherAbility,
   type CodexBackground,
   type BgMode,
+  type SpecKey,
 } from "../game/wte";
 import { parseCodexEntry } from "./codexParse";
 import { setCodexCatalog } from "./codex";
@@ -121,13 +122,84 @@ export function parseParadigmPage(md: string, stem: string): Paradigm | null {
   };
 }
 
+// Stat NAME → key (attributes and specialties), with the common synonyms seen in
+// authored background pages ("Strength", "Adaption", "Willpower", …).
+const ATTR_NAMES: Record<string, AttrKey> = {
+  physical: "phy", physique: "phy", strength: "phy", str: "phy", phy: "phy",
+  dexterity: "dex", agility: "dex", dex: "dex",
+  endurance: "end", stamina: "end", end: "end",
+  "action priority": "ap", "action points": "ap", ap: "ap",
+  wisdom: "wis", willpower: "wis", wis: "wis",
+  charisma: "cha", cha: "cha",
+  intelligence: "int", int: "int",
+};
+const SPEC_NAMES: Record<string, SpecKey> = {
+  inspiration: "ins", versatility: "ver", balance: "bal", weight: "wt", precision: "pre",
+  control: "ctrl", priority: "pri", "weapon mastery": "wm", "mental fortitude": "mf",
+  perception: "per", adaptation: "adp", adaption: "adp", cunning: "cun",
+};
+
+/** Parse a "PASSIVE BONUSES" list ("+2 Wisdom, +2 Mental Fortitude, +1 Control")
+ *  into fixed attribute + specialty maps. Freeform entries ("+2 to any three …")
+ *  and unknown names are skipped (the player assigns those manually). */
+function parseBonusList(text: string): { attr: Partial<Record<AttrKey, number>>; spec: Partial<Record<SpecKey, number>> } {
+  const attr: Partial<Record<AttrKey, number>> = {};
+  const spec: Partial<Record<SpecKey, number>> = {};
+  for (const part of strip(text).split(/[,;]/)) {
+    const m = part.match(/^\s*\+?(-?\d+)\s+(.+?)\s*$/);
+    if (!m) continue;
+    const n = parseInt(m[1], 10);
+    const name = m[2].toLowerCase().replace(/\s+/g, " ").trim();
+    if (ATTR_NAMES[name]) attr[ATTR_NAMES[name]] = (attr[ATTR_NAMES[name]] || 0) + n;
+    else if (SPEC_NAMES[name]) spec[SPEC_NAMES[name]] = (spec[SPEC_NAMES[name]] || 0) + n;
+  }
+  return { attr, spec };
+}
+/** Infer the point-spread mode from the parsed amounts (2/2/1/1 vs 4/2). */
+function inferMode(attr: Partial<Record<AttrKey, number>>, spec: Partial<Record<SpecKey, number>>): BgMode | undefined {
+  const amts = [...Object.values(attr), ...Object.values(spec)].sort((a, b) => b - a).join(",");
+  if (amts === "2,2,1,1") return "standard";
+  if (amts === "4,2") return "focused";
+  return undefined;
+}
+
 export function parseBackgroundPage(md: string, stem: string): CodexBackground | null {
   const f = readFields(md);
   if ((f["type"] || "").toLowerCase() !== "background") return null;
   const name = f["name"] || titleOf(md, stem);
   const modeRaw = (f["mode"] || "").toLowerCase();
-  const mode: BgMode | undefined = modeRaw.startsWith("focus") ? "focused" : modeRaw.startsWith("standard") ? "standard" : undefined;
-  return { name, mode, note: f["note"] || undefined };
+  let mode: BgMode | undefined = modeRaw.startsWith("focus") ? "focused" : modeRaw.startsWith("standard") ? "standard" : undefined;
+  const bg: CodexBackground = { name, mode, note: f["note"] || undefined };
+  const bonusText = f["bonuses"] || f["passive bonuses"];
+  if (bonusText) {
+    const { attr, spec } = parseBonusList(bonusText);
+    if (Object.keys(attr).length) bg.attrBonus = attr;
+    if (Object.keys(spec).length) bg.specBonus = spec;
+    if (!mode) mode = inferMode(attr, spec);
+    bg.mode = mode;
+  }
+  return bg;
+}
+
+/** Parse a "background directory" page — one page listing many backgrounds as
+ *  cards (a bold name span + a "PASSIVE BONUSES" list each). Returns every
+ *  background found, so an authored directory page populates the creator. */
+export function parseBackgroundsDirectory(md: string): CodexBackground[] {
+  if (!/passive bonuses/i.test(md)) return [];
+  const names = [...md.matchAll(/<span[^>]*font-size:\s*16px[^>]*>([^<]+)<\/span>/gi)].map((m) => strip(m[1]));
+  const bonuses = [...md.matchAll(/PASSIVE BONUSES<\/strong>\s*([^<]+)/gi)].map((m) => m[1]);
+  const out: CodexBackground[] = [];
+  const n = Math.min(names.length, bonuses.length);
+  for (let i = 0; i < n; i++) {
+    const name = names[i];
+    if (!name) continue;
+    const { attr, spec } = parseBonusList(bonuses[i]);
+    const bg: CodexBackground = { name, mode: inferMode(attr, spec) };
+    if (Object.keys(attr).length) bg.attrBonus = attr;
+    if (Object.keys(spec).length) bg.specBonus = spec;
+    out.push(bg);
+  }
+  return out;
 }
 
 // ── The loader: read every PULLED page and overlay the game data ──
@@ -173,6 +245,12 @@ export async function loadCodexGameData(): Promise<void> {
     const bg = parseBackgroundPage(md, name);
     if (bg) {
       backgrounds.push(bg);
+      continue;
+    }
+    // A directory page (many backgrounds as cards) — pull them all.
+    const dir = parseBackgroundsDirectory(md);
+    if (dir.length) {
+      backgrounds.push(...dir);
       continue;
     }
     const entry = parseCodexEntry(md, name);

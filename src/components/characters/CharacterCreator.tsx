@@ -27,6 +27,7 @@ import {
   type Specialties,
   type BgMode,
   type Background,
+  type CodexBackground,
 } from "../../game/wte";
 import type { CharacterSheet } from "../../models/character";
 import { createCharacter } from "../../lib/characters";
@@ -47,6 +48,20 @@ function intOf(v: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** Fixed background bonuses as display rows (attribute short + specialty labels). */
+function statBonusRows(b: CodexBackground): { label: string; amount: number }[] {
+  const rows: { label: string; amount: number }[] = [];
+  for (const a of ATTRIBUTES) {
+    const v = b.attrBonus?.[a.key];
+    if (v) rows.push({ label: a.short, amount: v });
+  }
+  for (const s of SPECIALTIES) {
+    const v = b.specBonus?.[s.key];
+    if (v) rows.push({ label: s.label, amount: v });
+  }
+  return rows;
+}
+
 export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
@@ -59,11 +74,16 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
   const [bgName, setBgName] = useState("");
   const [bgMode, setBgMode] = useState<BgMode>("standard");
   const [bgAssign, setBgAssign] = useState<(AttrKey | null)[]>([null, null, null, null]);
+  const [selectedBg, setSelectedBg] = useState<CodexBackground | null>(null);
   const [attrMode, setAttrMode] = useState<"manual" | "roll">("manual");
   const [portrait, setPortrait] = useState<string | undefined>();
   const [saving, setSaving] = useState(false);
 
-  const background: Background = { name: bgName.trim() || undefined, mode: bgMode, assign: bgAssign };
+  // A Codex background with fixed bonuses overrides the manual mode/assign spread.
+  const bgFixed = !!(selectedBg && (selectedBg.attrBonus || selectedBg.specBonus));
+  const background: Background = bgFixed
+    ? { name: bgName.trim() || selectedBg!.name, mode: selectedBg!.mode ?? bgMode, assign: [], attrBonus: selectedBg!.attrBonus, specBonus: selectedBg!.specBonus }
+    : { name: bgName.trim() || undefined, mode: bgMode, assign: bgAssign };
   const remaining = specialtyRemaining(specialties);
   const validation = validateSheet(attributes, specialties);
   const species = getSpecies(speciesId);
@@ -218,9 +238,10 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
                     {BACKGROUNDS.map((b) => (
                       <button
                         key={b.name}
-                        className={"chip" + (bgName === b.name ? " active" : "")}
+                        className={"chip" + (selectedBg?.name === b.name ? " active" : "")}
                         title={b.note || undefined}
                         onClick={() => {
+                          setSelectedBg(b);
                           setBgName(b.name);
                           if (b.mode) setMode(b.mode);
                         }}
@@ -236,35 +257,53 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
                 type="text"
                 placeholder={BACKGROUNDS.length ? "…or a custom background name" : "Background name (optional)…"}
                 value={bgName}
-                onChange={(e) => setBgName(e.target.value)}
+                onChange={(e) => {
+                  setSelectedBg(null); // typing a custom name reverts to manual assignment
+                  setBgName(e.target.value);
+                }}
               />
-              <div className="chip-row">
-                <button className={"chip" + (bgMode === "standard" ? " active" : "")} onClick={() => setMode("standard")}>
-                  Standard · +2 +2 +1 +1
-                </button>
-                <button className={"chip" + (bgMode === "focused" ? " active" : "")} onClick={() => setMode("focused")}>
-                  Focused · +4 +2
-                </button>
-              </div>
-              {bgAmounts(bgMode).map((amt, i) => (
-                <div className="stat-row" key={i}>
-                  <div className="stat-info">
-                    <span className="stat-short">+{amt} to</span>
-                  </div>
-                  <select
-                    className="bg-select"
-                    value={bgAssign[i] ?? ""}
-                    onChange={(e) => setAssign(i, (e.target.value || null) as AttrKey | null)}
-                  >
-                    <option value="">—</option>
-                    {ATTRIBUTES.map((a) => (
-                      <option key={a.key} value={a.key}>
-                        {a.short}
-                      </option>
+              {bgFixed ? (
+                <div className="bg-fixed">
+                  <div className="picker-label">Fixed bonuses (from this background)</div>
+                  <ul className="bg-fixed-list">
+                    {statBonusRows(selectedBg!).map((r) => (
+                      <li key={r.label}>
+                        <span className="bg-fixed-amt">+{r.amount}</span> {r.label}
+                      </li>
                     ))}
-                  </select>
+                  </ul>
                 </div>
-              ))}
+              ) : (
+                <>
+                  <div className="chip-row">
+                    <button className={"chip" + (bgMode === "standard" ? " active" : "")} onClick={() => setMode("standard")}>
+                      Standard · +2 +2 +1 +1
+                    </button>
+                    <button className={"chip" + (bgMode === "focused" ? " active" : "")} onClick={() => setMode("focused")}>
+                      Focused · +4 +2
+                    </button>
+                  </div>
+                  {bgAmounts(bgMode).map((amt, i) => (
+                    <div className="stat-row" key={i}>
+                      <div className="stat-info">
+                        <span className="stat-short">+{amt} to</span>
+                      </div>
+                      <select
+                        className="bg-select"
+                        value={bgAssign[i] ?? ""}
+                        onChange={(e) => setAssign(i, (e.target.value || null) as AttrKey | null)}
+                      >
+                        <option value="">—</option>
+                        {ATTRIBUTES.map((a) => (
+                          <option key={a.key} value={a.key}>
+                            {a.short}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
             <div className="wizard-aside">
               <div className="aside-title">Derived preview</div>

@@ -480,6 +480,31 @@ body {
   color: var(--muted);
   margin-bottom: 6px;
 }
+.bg-fixed {
+  margin-top: 10px;
+}
+.bg-fixed-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.bg-fixed-list li {
+  background: rgba(126, 207, 202, 0.06);
+  border: 1px solid var(--panel-line, #26324a);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 13px;
+  color: var(--ink, #d5dbe6);
+}
+.bg-fixed-amt {
+  color: var(--accent);
+  font-family: Consolas, monospace;
+  font-weight: 700;
+  margin-right: 6px;
+}
 .wizard-nav {
   display: flex;
   justify-content: space-between;

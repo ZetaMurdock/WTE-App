@@ -275,6 +275,14 @@ Long-limbed climbers.
 - **Anchored** — advantage vs forced movement while stationary.
 ```
 
+**Background directory pages** are also supported: one page listing many
+backgrounds as cards (a bold name + a "PASSIVE BONUSES" list per card, e.g.
+`+2 Wisdom, +2 Mental Fortitude, +1 Control, +1 Inspiration`) populates the
+creator with all of them at once. Bonus names may be attributes **or**
+specialties (Wisdom, Mental Fortitude, Control, Adaptation, …), applied as fixed
+bonuses; freeform lines ("+2 to any three physical stats") are shown but left for
+manual assignment.
+
 `FAMILY` is Humanity / Omenity / Asternem. `BONUSES` accepts `PHY +2` or `+2 PHY`
 pairs. `SIZE` is a size-class key (tiny/small/moderate/large/huge/colossal).
 Variants are optional: each `###` heading is a variant; `- **Ability** — effect`

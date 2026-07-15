@@ -95,18 +95,31 @@ export interface Background {
   mode: BgMode;
   /** One attribute (or null) per addition in the chosen mode's amount list. */
   assign: (AttrKey | null)[];
+  /** Fixed bonuses from a Codex background page (override mode/assign when present). */
+  attrBonus?: Partial<Record<AttrKey, number>>;
+  specBonus?: Partial<Record<SpecKey, number>>;
 }
 export function bgAmounts(mode: BgMode): number[] {
   return mode === "focused" ? BG_FOCUSED : BG_STANDARD;
 }
+/** Attribute additions from a background — the page's fixed set if present, else the assigned mode spread. */
 export function bgBonuses(bg?: Background): Partial<Record<AttrKey, number>> {
+  if (!bg) return {};
+  if (bg.attrBonus && Object.keys(bg.attrBonus).length) return { ...bg.attrBonus };
   const out: Partial<Record<AttrKey, number>> = {};
-  if (!bg) return out;
   const amts = bgAmounts(bg.mode);
   bg.assign.forEach((k, i) => {
     if (k && amts[i] != null) out[k] = (out[k] || 0) + amts[i];
   });
   return out;
+}
+/** Specialty additions from a Codex background (empty for the manual assign mode). */
+export function bgSpecBonuses(bg?: Background): Partial<Record<SpecKey, number>> {
+  return bg?.specBonus ? { ...bg.specBonus } : {};
+}
+/** True when a background carries fixed page-defined bonuses (attrs and/or specs). */
+export function bgHasFixed(bg?: Background): boolean {
+  return !!(bg && ((bg.attrBonus && Object.keys(bg.attrBonus).length) || (bg.specBonus && Object.keys(bg.specBonus).length)));
 }
 
 export const ATTR_KEYS: AttrKey[] = ATTRIBUTES.map((a) => a.key);
@@ -240,6 +253,9 @@ export interface CodexBackground {
   name: string;
   mode?: BgMode;
   note?: string;
+  /** Fixed bonuses parsed from the page's "PASSIVE BONUSES" list. */
+  attrBonus?: Partial<Record<AttrKey, number>>;
+  specBonus?: Partial<Record<SpecKey, number>>;
 }
 export const BACKGROUNDS: CodexBackground[] = [];
 
@@ -532,6 +548,8 @@ export interface DerivedOpts {
   speciesId?: string;
   rank?: number;
   bgBonuses?: Partial<Record<AttrKey, number>>;
+  /** Background specialty additions (from a Codex background). */
+  bgSpec?: Partial<Record<SpecKey, number>>;
   equip?: EquipMods;
   /** Movement is floored at the size class's base move. */
   sizeMove?: number;
@@ -543,7 +561,7 @@ export function computeDerived(
 ): Derived & { hpMax: number; raw: Derived } {
   const a = effectiveAttributes(attrsIn, opts.speciesId, opts.bgBonuses, opts.equip?.attr);
   const s = { ...specsIn };
-  for (const k of SPEC_KEYS) s[k] = Math.min(SPEC_MAX, (s[k] || 0) + (opts.equip?.spec?.[k] || 0));
+  for (const k of SPEC_KEYS) s[k] = Math.min(SPEC_MAX, (s[k] || 0) + (opts.equip?.spec?.[k] || 0) + (opts.bgSpec?.[k] || 0));
   const rank = opts.rank ?? 0;
 
   const red = (pts: number) => Math.floor(pts / RED_DIV);
