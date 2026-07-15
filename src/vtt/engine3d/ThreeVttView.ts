@@ -10,7 +10,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { defaultAtmosphere, type VttAtmosphere, type VttScene, type VttToken } from "../types/scene";
+import { defaultAtmosphere, defaultShader, type VttAtmosphere, type VttScene, type VttShader, type VttToken } from "../types/scene";
 import type { VttSelection } from "../engine/PixiVttApp";
 import { cellKey, computeVisibleCells } from "../engine/systems/VisionSystem";
 
@@ -114,6 +114,8 @@ interface Hooks {
   onLive?: (id: string, wx: number, wy: number) => void;
   /** Pilot mode started (token id) / ended (null). */
   onPilotChange?: (id: string | null) => void;
+  /** A custom shader failed to compile (with the error) — the UI surfaces it. */
+  onShaderError?: (error: string) => void;
 }
 
 /** Distance from point to segment < r (circle-vs-wall collision). */
@@ -150,6 +152,9 @@ export class ThreeVttView {
   private sun!: THREE.DirectionalLight;
   private atmo: VttAtmosphere = defaultAtmosphere();
   private atmoKey = "";
+  private shaderKey = "";
+  private shaderBad = false;
+  shaderError = "";
   private playerView = false;
   private selfId: string | null = null;
   private mist: THREE.Mesh | null = null;
@@ -183,6 +188,14 @@ export class ThreeVttView {
     r.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     r.setClearColor(0x060a14);
     r.shadowMap.type = THREE.PCFSoftShadowMap; // soft (PCF) shadow edges, not blocky
+    // Custom-shader compile failures (bad GLSL) revert to the safe material.
+    r.debug.onShaderError = (gl, _prog, _vs, fs) => {
+      const log = gl.getShaderInfoLog(fs) || "shader compile error";
+      this.shaderError = log.split("\n").find((l) => /error/i.test(l))?.trim() || "Custom shader failed to compile.";
+      this.hooks.onShaderError?.(this.shaderError);
+      this.shaderBad = true; // next sync drops the custom GLSL
+      this.shaderKey = "";
+    };
     host.appendChild(r.domElement);
     this.renderer = r;
 
@@ -440,6 +453,7 @@ export class ThreeVttView {
     if (wk !== this.wallsKey) {
       this.wallsKey = wk;
       this.buildWalls(scene);
+      this.shaderKey = ""; // fresh wall materials need the height-fog re-applied
     }
     const lk =
       d.lights.map((l) => `${l.id},${Math.round(l.x)},${Math.round(l.y)},${l.color ?? ""},${l.intensity ?? 0.5},${l.radius}`).join(";") +
@@ -457,6 +471,7 @@ export class ThreeVttView {
       this.buildTokens(scene, visible);
     }
     this.buildFog(scene, visible); // internally keyed
+    this.syncShader(scene); // height-fog / custom GLSL on ground + walls (keyed)
     if (firstScene) this.frame(scene);
   }
 
@@ -539,6 +554,68 @@ export class ThreeVttView {
     this.fogMesh.rotation.x = -Math.PI / 2;
     this.fogMesh.position.set(w / 2, scene.data.terrain ? 0 : 4, h / 2);
     this.fogGroup.add(this.fogMesh);
+  }
+
+  /** The built-in height-fog fragment body (used when no custom GLSL is given). */
+  private static readonly HEIGHT_FOG_BODY = `
+    float _hf = uFogDensity * exp(-(vWorldPos.y - uFogOffset) * uFogHeightFalloff);
+    float _ff = clamp(1.0 - exp(-length(vWorldPos - cameraPosition) * _hf), 0.0, 1.0);
+    gl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, _ff);
+  `;
+
+  /** Inject (or clear) the height-fog shader on a material via onBeforeCompile.
+   *  Custom GLSL replaces the fog body; a compile failure reverts (onShaderError). */
+  private applyShaderTo(mat: THREE.MeshStandardMaterial, sh: VttShader | undefined): void {
+    const on = !!sh?.heightFog && !this.shaderBad;
+    if (!on) {
+      if (mat.userData.hf) {
+        mat.onBeforeCompile = () => {};
+        mat.customProgramCacheKey = () => "off";
+        mat.userData.hf = false;
+        mat.needsUpdate = true;
+      }
+      return;
+    }
+    const col = new THREE.Color(sh!.color || "#0c1220");
+    const body = sh!.glsl && sh!.glsl.trim() ? sh!.glsl : ThreeVttView.HEIGHT_FOG_BODY;
+    mat.onBeforeCompile = (shader) => {
+      shader.uniforms.uFogColor = { value: col };
+      shader.uniforms.uFogDensity = { value: sh!.density };
+      shader.uniforms.uFogHeightFalloff = { value: sh!.falloff };
+      shader.uniforms.uFogOffset = { value: sh!.offset };
+      shader.vertexShader = shader.vertexShader
+        .replace("#include <common>", "#include <common>\nvarying vec3 vWorldPos;")
+        .replace("#include <begin_vertex>", "#include <begin_vertex>\nvWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;");
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          "#include <common>",
+          "#include <common>\nvarying vec3 vWorldPos;\nuniform vec3 uFogColor;\nuniform float uFogDensity;\nuniform float uFogHeightFalloff;\nuniform float uFogOffset;"
+        )
+        .replace("#include <dithering_fragment>", "#include <dithering_fragment>\n" + body);
+    };
+    // onBeforeCompile isn't part of three's program cache key — without this,
+    // editing the GLSL/params reuses the stale program (and never recompiles the
+    // broken one so onShaderError can catch it). Key on the full shader config.
+    mat.customProgramCacheKey = () => "hf|" + body + "|" + col.getHexString() + "|" + sh!.density + "|" + sh!.falloff + "|" + sh!.offset;
+    mat.userData.hf = true;
+    mat.needsUpdate = true;
+  }
+
+  private lastGlsl = " ";
+  /** Re-apply the height-fog shader to ground + walls when the shader config changes. */
+  private syncShader(scene: VttScene): void {
+    const sh = scene.data.atmosphere?.shader ?? defaultShader();
+    // A changed GLSL body is a fresh attempt — clear the previous compile error.
+    if ((sh.glsl ?? "") !== this.lastGlsl) {
+      this.lastGlsl = sh.glsl ?? "";
+      this.shaderBad = false;
+      this.shaderError = "";
+    }
+    const key = JSON.stringify(sh) + "|" + this.shaderBad;
+    if (key === this.shaderKey) return;
+    this.shaderKey = key;
+    if (this.ground) this.applyShaderTo(this.ground.material as THREE.MeshStandardMaterial, sh);
+    for (const w of this.wallGroup.children) this.applyShaderTo((w as THREE.Mesh).material as THREE.MeshStandardMaterial, sh);
   }
 
   /** Apply the scene's atmosphere: backdrop, depth fog, mood lighting, ground

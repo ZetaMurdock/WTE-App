@@ -1,15 +1,21 @@
-import { useRef } from "react";
-import { defaultAtmosphere, type VttAtmosphere, type VttBackground, type VttGrid, type VttTerrain } from "./types/scene";
+import { useRef, useState } from "react";
+import { defaultAtmosphere, defaultShader, type VttAtmosphere, type VttBackground, type VttGrid, type VttShader, type VttTerrain } from "./types/scene";
+import { listShaderPresets, saveShaderPreset, type ShaderPreset } from "../lib/shaderPresets";
 
 interface Props {
   grid: VttGrid;
   background: VttBackground;
   terrain: VttTerrain | null;
   atmosphere: VttAtmosphere | null;
+  audio: { src: string; volume: number } | null;
+  shaderError: string;
   onGrid: (patch: Partial<VttGrid>) => void;
   onBackground: (patch: Partial<VttBackground>) => void;
   onTerrain: (terrain: VttTerrain | null) => void;
   onAtmosphere: (atmo: VttAtmosphere) => void;
+  onSetMusic: () => void;
+  onClearMusic: () => void;
+  onMusicVolume: (v: number) => void;
   onClose: () => void;
 }
 
@@ -42,11 +48,31 @@ async function heightsFromImage(file: File, cols: number, rows: number): Promise
 
 // Curator grid & map controls: resize the grid (cell size / cols / rows),
 // control how the background image fits, and set the 3D terrain heightmap.
-export function VttGridPanel({ grid, background, terrain, atmosphere, onGrid, onBackground, onTerrain, onAtmosphere, onClose }: Props) {
+export function VttGridPanel({
+  grid,
+  background,
+  terrain,
+  atmosphere,
+  audio,
+  shaderError,
+  onGrid,
+  onBackground,
+  onTerrain,
+  onAtmosphere,
+  onSetMusic,
+  onClearMusic,
+  onMusicVolume,
+  onClose,
+}: Props) {
   const fit = background.fit ?? "grid";
   const terrainFileRef = useRef<HTMLInputElement>(null);
   const atmo = atmosphere ?? defaultAtmosphere();
   const patchAtmo = (p: Partial<VttAtmosphere>) => onAtmosphere({ ...atmo, ...p });
+  const shader = atmo.shader ?? defaultShader();
+  const patchShader = (p: Partial<VttShader>) => patchAtmo({ shader: { ...shader, ...p } });
+  const [presets, setPresets] = useState<ShaderPreset[]>(() => listShaderPresets());
+  const [showGlsl, setShowGlsl] = useState(false);
+  const [presetName, setPresetName] = useState("");
 
   async function onHeightmapFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -216,6 +242,106 @@ export function VttGridPanel({ grid, background, terrain, atmosphere, onGrid, on
           </div>
         </div>
       </div>
+
+      {/* ── Custom shader: height-based volumetric fog + presets + raw GLSL ── */}
+      <div className="panel-title" style={{ marginTop: 14 }}>
+        Shaders — Height Fog (3D)
+      </div>
+      <div className="chip-row" style={{ marginBottom: 6 }}>
+        <button className={"chip" + (shader.heightFog ? " active" : "")} onClick={() => patchShader({ heightFog: !shader.heightFog })} title="Volumetric fog that's thick low and thins as you climb">
+          {shader.heightFog ? "Height fog on" : "Height fog off"}
+        </button>
+      </div>
+      {shader.heightFog && (
+        <>
+          <div className="vtt2-hp-row">
+            <label className="lobby-field">
+              <span>Density · {shader.density.toFixed(2)}</span>
+              <input type="range" min={0} max={3} step={0.05} value={shader.density} onChange={(e) => patchShader({ density: parseFloat(e.target.value) })} />
+            </label>
+            <label className="lobby-field">
+              <span>Falloff · {shader.falloff.toFixed(3)}</span>
+              <input type="range" min={0.002} max={0.06} step={0.001} value={shader.falloff} onChange={(e) => patchShader({ falloff: parseFloat(e.target.value) })} />
+            </label>
+          </div>
+          <div className="vtt2-hp-row" style={{ marginTop: 4 }}>
+            <label className="lobby-field">
+              <span>Colour</span>
+              <input className="bg-select full" type="color" value={shader.color} onChange={(e) => patchShader({ color: e.target.value })} />
+            </label>
+            <label className="lobby-field">
+              <span>Floor height · {shader.offset}</span>
+              <input className="bg-select full" type="number" step={10} value={shader.offset} onChange={(e) => patchShader({ offset: parseInt(e.target.value, 10) || 0 })} />
+            </label>
+          </div>
+
+          <label className="lobby-field mt">
+            <span>Preset</span>
+            <select
+              className="bg-select full"
+              value=""
+              onChange={(e) => {
+                const p = presets.find((x) => x.name === e.target.value);
+                if (p) patchShader({ ...p.shader, heightFog: true });
+              }}
+            >
+              <option value="">Apply a preset…</option>
+              {presets.map((p) => (
+                <option key={p.name} value={p.name}>{p.name}</option>
+              ))}
+            </select>
+          </label>
+          <div className="vtt2-asset-add-row" style={{ marginTop: 6 }}>
+            <input className="bg-select" style={{ flex: 1 }} placeholder="Save as preset…" value={presetName} onChange={(e) => setPresetName(e.target.value)} />
+            <button
+              className="chip"
+              disabled={!presetName.trim()}
+              onClick={() => {
+                saveShaderPreset(presetName.trim(), shader);
+                setPresets(listShaderPresets());
+                setPresetName("");
+              }}
+            >
+              Save
+            </button>
+          </div>
+
+          <button className="chip" style={{ marginTop: 8 }} onClick={() => setShowGlsl((v) => !v)}>
+            {showGlsl ? "Hide raw GLSL" : "Advanced — edit GLSL"}
+          </button>
+          {showGlsl && (
+            <>
+              <p className="vtt2-actor-hint" style={{ marginTop: 6 }}>
+                Fragment body. Available: <code>vWorldPos</code>, <code>cameraPosition</code>, <code>uFogColor/uFogDensity/uFogHeightFalloff/uFogOffset</code>, <code>gl_FragColor</code>. Empty = the slider-driven height fog.
+              </p>
+              <textarea
+                className="sheet-notes"
+                style={{ minHeight: 130, fontFamily: "Consolas, monospace", fontSize: 11 }}
+                placeholder={"float _hf = uFogDensity * exp(-(vWorldPos.y - uFogOffset) * uFogHeightFalloff);\nfloat _ff = clamp(1.0 - exp(-length(vWorldPos - cameraPosition) * _hf), 0.0, 1.0);\ngl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, _ff);"}
+                value={shader.glsl ?? ""}
+                onChange={(e) => patchShader({ glsl: e.target.value })}
+                spellCheck={false}
+              />
+              {shaderError && <p className="cdx-off-tag" style={{ display: "block", marginTop: 4 }}>Shader error: {shaderError}</p>}
+            </>
+          )}
+        </>
+      )}
+
+      {/* ── Ambient music (reliable, persistent controls) ── */}
+      <div className="panel-title" style={{ marginTop: 14 }}>
+        Ambient music
+      </div>
+      <div className="chip-row">
+        <button className="chip" onClick={onSetMusic}>{audio ? "Replace track…" : "Add track…"}</button>
+        {audio && <button className="chip" onClick={onClearMusic}>Remove</button>}
+      </div>
+      {audio && (
+        <label className="lobby-field mt">
+          <span>Volume · {Math.round((audio.volume ?? 0.5) * 100)}%</span>
+          <input type="range" min={0} max={1} step={0.05} value={audio.volume ?? 0.5} onChange={(e) => onMusicVolume(parseFloat(e.target.value))} />
+        </label>
+      )}
     </div>
   );
 }

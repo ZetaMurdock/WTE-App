@@ -95,6 +95,7 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
   // engine's scene and routes selection/moves back through it (single authority).
   const [viewMode, setViewMode] = useState<"2d" | "3d">("2d");
   const [pilotingId, setPilotingId] = useState<string | null>(null);
+  const [shaderError, setShaderError] = useState("");
   const host3dRef = useRef<HTMLDivElement>(null);
   const threeRef = useRef<ThreeVttView | null>(null);
   // Per-campaign Curator claim: only joining someone else's netplay room as a
@@ -117,6 +118,7 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
           // Throttled raw-position broadcast while piloting, so peers see the flight.
           onLive: (id, wx, wy) => engineRef.current?.onOp({ op: "token.move", id, x: wx, y: wy }),
           onPilotChange: (id) => setPilotingId(id),
+          onShaderError: (err) => setShaderError(err),
         });
         view.init(host3dRef.current);
         threeRef.current = view;
@@ -499,6 +501,7 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
             sceneMusicRef.current?.click();
           }}
           onClearMusic={(id) => void patchScene(id, (s) => (s.data.audio = null))}
+          onOpenSettings={() => setGridOpen(true)}
         />
       )}
       <input ref={sceneBgRef} type="file" accept="image/*" hidden onChange={(e) => void onSceneBgFile(e)} />
@@ -519,10 +522,20 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
           background={live.data.background}
           terrain={live.data.terrain ?? null}
           atmosphere={live.data.atmosphere ?? null}
+          audio={live.data.audio ?? null}
+          shaderError={shaderError}
           onGrid={(patch) => engine?.setGrid(patch)}
           onBackground={(patch) => engine?.setBackgroundProps(patch)}
           onTerrain={(t) => engine?.setTerrain(t)}
-          onAtmosphere={(a) => engine?.setAtmosphere(a)}
+          onAtmosphere={(a) => { setShaderError(""); engine?.setAtmosphere(a); }}
+          onSetMusic={() => {
+            if (live) {
+              menuTarget.current = live.id;
+              sceneMusicRef.current?.click();
+            }
+          }}
+          onClearMusic={() => engine?.scene && void patchScene(engine.scene.id, (s) => (s.data.audio = null))}
+          onMusicVolume={(v) => engine?.scene && void patchScene(engine.scene.id, (s) => { if (s.data.audio) s.data.audio.volume = v; })}
           onClose={() => setGridOpen(false)}
         />
       )}

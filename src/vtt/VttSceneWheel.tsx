@@ -9,6 +9,8 @@ interface Props {
   onSetBackground: (id: string) => void;
   onSetMusic: (id: string) => void;
   onClearMusic: (id: string) => void;
+  /** Open the full scene settings panel (background / music / atmosphere / shaders). */
+  onOpenSettings: () => void;
 }
 
 /** Short initials for a scene dot — the significant part after any "·" separator. */
@@ -22,7 +24,7 @@ function initials(name: string): string {
 // The Scene Wheel (right edge, Curator-only): one dot per scene; click to
 // traverse, RIGHT-CLICK for that scene's environment menu — background, ambient
 // music — each setting stored on that scene alone.
-export function VttSceneWheel({ scenes, activeId, onSwitch, onSetBackground, onSetMusic, onClearMusic }: Props) {
+export function VttSceneWheel({ scenes, activeId, onSwitch, onSetBackground, onSetMusic, onClearMusic, onOpenSettings }: Props) {
   const [menu, setMenu] = useState<{ id: string; y: number } | null>(null);
 
   useEffect(() => {
@@ -75,6 +77,16 @@ export function VttSceneWheel({ scenes, activeId, onSwitch, onSetBackground, onS
               <span>Remove music</span>
             </button>
           )}
+          <button
+            className="profile-row"
+            onClick={() => {
+              if (menu.id !== activeId) onSwitch(menu.id);
+              onOpenSettings();
+              setMenu(null);
+            }}
+          >
+            <span>Scene settings · atmosphere &amp; shaders…</span>
+          </button>
           <div className="vtt2-scene-menu-foot">settings stay with this scene</div>
         </div>
       )}

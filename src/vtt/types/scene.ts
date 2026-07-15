@@ -120,23 +120,40 @@ export interface VttTerrain {
   /** World height of a full-white cell, in grid cells. */
   maxCells: number;
 }
-/** 3D atmosphere: environmental backdrop, depth fog, mist, particles, mood
- *  lighting and shadows. Curator-set per scene; synced like everything else. */
+// 3D atmosphere: environmental backdrop, depth fog, mist, particles, mood
+// lighting, shadows, and a custom height-fog shader. Curator-set per scene.
+
+/** Height-based volumetric fog via a custom shader (Roblox-style altitude falloff).
+ *  Applied to the 3D ground + walls; params drive the injected GLSL, or the raw
+ *  `glsl` chunk overrides the body entirely for deep custom effects. */
+export interface VttShader {
+  heightFog: boolean;
+  /** Base fog density at y = offset. */
+  density: number;
+  /** How fast the fog thins as you climb (larger = thinner up high). */
+  falloff: number;
+  /** Fog colour (hex). */
+  color: string;
+  /** World-height where the fog is thickest. */
+  offset: number;
+  /** Advanced: a raw GLSL fragment chunk operating on gl_FragColor. Empty = the
+   *  built-in height-fog body from the params above. */
+  glsl?: string;
+}
+export function defaultShader(): VttShader {
+  return { heightFog: false, density: 0.6, falloff: 0.012, color: "#0c1220", offset: 0, glsl: "" };
+}
 export interface VttAtmosphere {
-  /** Environmental backdrop surrounding the map. */
   env: "void" | "space" | "cavern" | "wireframe";
-  /** Mood preset tinting ambient light, sun, and fog colour. */
   mood: "neutral" | "moonlight" | "hellfire" | "toxic" | "dusk";
-  /** Depth-fog amount 0..1 (0 = off) — map edges melt into the haze. */
   fog: number;
-  /** Crawling ground-mist layer just above the floor. */
   mist: boolean;
   particles: "none" | "embers" | "spores" | "rain" | "snow";
-  /** Lights and the sun cast real shadows (costs GPU). */
   shadows: boolean;
+  shader?: VttShader;
 }
 export function defaultAtmosphere(): VttAtmosphere {
-  return { env: "space", mood: "neutral", fog: 0.35, mist: false, particles: "none", shadows: false };
+  return { env: "space", mood: "neutral", fog: 0.35, mist: false, particles: "none", shadows: false, shader: defaultShader() };
 }
 export interface VttBackground {
   color: string;
