@@ -121,6 +121,19 @@ export function NetProvider({ children }: { children: ReactNode }) {
   // window.parent.wteNet to ride the P2P room for map/token sync.
   const liveRef = useRef({ status, role, room, selfId });
   liveRef.current = { status, role, room, selfId };
+
+  // When a peer joins, the host resyncs the shared Base Pressure to the room so
+  // late joiners land on the current value instead of the default.
+  const bpRef = useRef(bp);
+  bpRef.current = bp;
+  const prevPeerCount = useRef(0);
+  useEffect(() => {
+    const grew = peers.length > prevPeerCount.current;
+    prevPeerCount.current = peers.length;
+    if (grew && liveRef.current.role === "host" && liveRef.current.status === "connected") {
+      sessionRef.current?.publish({ t: "bp", value: bpRef.current });
+    }
+  }, [peers]);
   useEffect(() => {
     const w = window as unknown as { wteNet?: unknown };
     w.wteNet = {
