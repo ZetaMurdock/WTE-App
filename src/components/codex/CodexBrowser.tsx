@@ -157,6 +157,34 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
   const typeMap = useRef<Map<string, string> | null>(null);
   const linkMap = useRef<Map<string, string[]> | null>(null);
   const [lens, setLens] = useState<string | null>(null);
+  // Collapsed record sections + expanded "book" sequences (persisted).
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem("wte-cdx-collapsed") || "[]"));
+    } catch {
+      return new Set();
+    }
+  });
+  function toggleSection(name: string) {
+    setCollapsed((prev) => {
+      const n = new Set(prev);
+      n.has(name) ? n.delete(name) : n.add(name);
+      try {
+        localStorage.setItem("wte-cdx-collapsed", JSON.stringify([...n]));
+      } catch {
+        /* ignore */
+      }
+      return n;
+    });
+  }
+  const [openSeqs, setOpenSeqs] = useState<Set<string>>(new Set());
+  function toggleSeq(id: string) {
+    setOpenSeqs((prev) => {
+      const n = new Set(prev);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+  }
   const [packIn, setPackIn] = useState<string | null>(null); // null = closed, "" = open
   const [armoryNote, setArmoryNote] = useState("");
   const [uploadNote, setUploadNote] = useState("");
@@ -607,6 +635,66 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pages, homeFilter, typeFilter, scanState, privileged, pageMetaMap]);
 
+  // Group records by their section label (chapter-like collapsible sections).
+  const groupedPages = useMemo(() => {
+    const groups = new Map<string, string[]>();
+    for (const p of filteredPages) {
+      const label = getPageMeta(p, pageMetaMap).label || "Unsorted";
+      if (!groups.has(label)) groups.set(label, []);
+      groups.get(label)!.push(p);
+    }
+    return [...groups.entries()].sort((a, b) => {
+      if (a[0] === "Unsorted") return 1; // Unsorted sinks to the bottom
+      if (b[0] === "Unsorted") return -1;
+      return a[0].localeCompare(b[0]);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredPages, pageMetaMap]);
+
+  // One record row (title + Engineer flags) — shared by grouped sections & books.
+  function pageRow(p: string) {
+    const m = getPageMeta(p, pageMetaMap);
+    return (
+      <div key={p} className="cdx-page-row">
+        <button className="cdx-item" onClick={() => navigate(`wte://page/${encodeURIComponent(p)}`)}>
+          {p.replace(/_/g, " ")}
+          {privileged && m.visibility === "gm" && <span className="cdx-gm-tag">GM</span>}
+          {privileged && !m.pulled && <span className="cdx-off-tag">not pulled</span>}
+        </button>
+        {engineer && (
+          <div className="cdx-page-flags">
+            <button className="cdx-flag" title="Edit this page" onClick={() => void openEditPage(p)}>
+              edit
+            </button>
+            {publishAvail && (
+              <button
+                className={"cdx-flag" + (publishedStems.has(p) ? " on" : "")}
+                title={publishedStems.has(p) ? "Published to the shared Codex — click to unpublish" : "Publish to the shared official Codex (everyone can sync it)"}
+                onClick={() => void togglePublish(p)}
+              >
+                pub
+              </button>
+            )}
+            <button
+              className={"cdx-flag" + (m.pulled ? " on" : "")}
+              title={m.pulled ? "Pulled into sheet/VTT catalogs — click to stop pulling" : "Not pulled — click to pull into sheet/VTT catalogs"}
+              onClick={() => togglePull(p)}
+            >
+              pull
+            </button>
+            <button
+              className={"cdx-flag" + (m.visibility === "player" ? " on" : "")}
+              title={m.visibility === "player" ? "Player-visible — click to make GM-only" : "GM-only — click to make player-visible"}
+              onClick={() => toggleVisibility(p)}
+            >
+              {m.visibility === "player" ? "plr" : "gm"}
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="cdx">
       <div className="cdx-tabstrip">
@@ -787,23 +875,65 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
                 ))}
               </div>
             )}
-            <div className="seq-row">
+            <div className="seq-books">
               {seqs
                 .filter((s) => seqVarFilter === "All" || s.variables.includes(seqVarFilter))
-                .map((s) => (
-                  <button key={s.id} className="seq-card" onClick={() => navigate(`wte://sequence/${s.id}`)}>
-                    <span className="seq-card-glyph" style={{ color: s.color, borderColor: s.color }}>
-                      {s.icon}
-                    </span>
-                    <span className="seq-card-main">
-                      <span className="seq-card-title">{s.title}</span>
-                      <span className="seq-card-meta">
-                        {s.recordIds.length} records · {s.scripts.length} scripts
-                        {s.visibility === "gm" ? " · GM" : ""}
-                      </span>
-                    </span>
-                  </button>
-                ))}
+                .map((s) => {
+                  const open = openSeqs.has(s.id);
+                  return (
+                    <div key={s.id} className={"seq-book" + (open ? " open" : "")} style={{ borderColor: open ? s.color : undefined }}>
+                      <button className="seq-book-head" onClick={() => toggleSeq(s.id)}>
+                        <span className="seq-book-chev" aria-hidden>
+                          ›
+                        </span>
+                        <span className="seq-card-glyph" style={{ color: s.color, borderColor: s.color }}>
+                          {s.icon}
+                        </span>
+                        <span className="seq-card-main">
+                          <span className="seq-card-title">{s.title}</span>
+                          <span className="seq-card-meta">
+                            {s.recordIds.length} records · {s.scripts.length} scripts
+                            {s.visibility === "gm" ? " · GM" : ""}
+                          </span>
+                        </span>
+                      </button>
+                      {open && (
+                        <div className="seq-book-body">
+                          {s.recordIds.length > 0 && (
+                            <>
+                              <div className="seq-book-sub">Records</div>
+                              {s.recordIds.map((p) => (
+                                <button key={p} className="seq-book-item" onClick={() => navigate(`wte://page/${encodeURIComponent(p)}`)}>
+                                  {p.replace(/_/g, " ")}
+                                </button>
+                              ))}
+                            </>
+                          )}
+                          {s.scripts.length > 0 && (
+                            <>
+                              <div className="seq-book-sub">Scripts</div>
+                              {s.scripts.map((sc) => (
+                                <button
+                                  key={sc.id}
+                                  className="seq-book-item script"
+                                  onClick={() => (sc.steps.length ? beginRun(s, sc) : navigate(`wte://sequence/${s.id}`))}
+                                >
+                                  {sc.title}
+                                </button>
+                              ))}
+                            </>
+                          )}
+                          {s.recordIds.length === 0 && s.scripts.length === 0 && (
+                            <p className="list-empty" style={{ margin: "4px 0" }}>Empty sequence.</p>
+                          )}
+                          <button className="chip" style={{ marginTop: 8, borderColor: s.color }} onClick={() => navigate(`wte://sequence/${s.id}`)}>
+                            Open full sequence
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               {seqs.length === 0 && <p className="list-empty">Knowledge paths through the archive — session prep, onboarding, investigations.</p>}
             </div>
 
@@ -870,48 +1000,25 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
                   <p className="list-empty">Calibrating the archive index…</p>
                 )}
                 <div className="cdx-list">
-                  {(lens ? (seqs.find((s) => s.id === lens)?.recordIds ?? []) : filteredPages).map((p) => {
-                    const m = getPageMeta(p, pageMetaMap);
-                    return (
-                      <div key={p} className="cdx-page-row">
-                        <button className="cdx-item" onClick={() => navigate(`wte://page/${encodeURIComponent(p)}`)}>
-                          {p.replace(/_/g, " ")}
-                          {privileged && m.visibility === "gm" && <span className="cdx-gm-tag">GM</span>}
-                          {privileged && !m.pulled && <span className="cdx-off-tag">not pulled</span>}
-                        </button>
-                        {engineer && (
-                          <div className="cdx-page-flags">
-                            <button className="cdx-flag" title="Edit this page" onClick={() => void openEditPage(p)}>
-                              edit
+                  {/* Lens: a sequence's curated records (flat). Otherwise the archive
+                      grouped into collapsible chapter sections by label. */}
+                  {lens
+                    ? (seqs.find((s) => s.id === lens)?.recordIds ?? []).map((p) => pageRow(p))
+                    : groupedPages.map(([label, items]) => {
+                        const shut = collapsed.has(label);
+                        return (
+                          <div key={label} className={"cdx-section" + (shut ? " shut" : "")}>
+                            <button className="cdx-section-head" onClick={() => toggleSection(label)}>
+                              <span className="cdx-section-chev" aria-hidden>
+                                ›
+                              </span>
+                              <span className="cdx-section-name">{label}</span>
+                              <span className="cdx-section-count">{items.length}</span>
                             </button>
-                            {publishAvail && (
-                              <button
-                                className={"cdx-flag" + (publishedStems.has(p) ? " on" : "")}
-                                title={publishedStems.has(p) ? "Published to the shared Codex — click to unpublish" : "Publish to the shared official Codex (everyone can sync it)"}
-                                onClick={() => void togglePublish(p)}
-                              >
-                                pub
-                              </button>
-                            )}
-                            <button
-                              className={"cdx-flag" + (m.pulled ? " on" : "")}
-                              title={m.pulled ? "Pulled into sheet/VTT catalogs — click to stop pulling" : "Not pulled — click to pull into sheet/VTT catalogs"}
-                              onClick={() => togglePull(p)}
-                            >
-                              pull
-                            </button>
-                            <button
-                              className={"cdx-flag" + (m.visibility === "player" ? " on" : "")}
-                              title={m.visibility === "player" ? "Player-visible — click to make GM-only" : "GM-only — click to make player-visible"}
-                              onClick={() => toggleVisibility(p)}
-                            >
-                              {m.visibility === "player" ? "plr" : "gm"}
-                            </button>
+                            {!shut && <div className="cdx-section-body">{items.map((p) => pageRow(p))}</div>}
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                        );
+                      })}
                   {lens && (seqs.find((s) => s.id === lens)?.recordIds.length ?? 0) === 0 && (
                     <p className="list-empty">This sequence has no records yet.</p>
                   )}

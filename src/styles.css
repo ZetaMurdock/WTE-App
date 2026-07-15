@@ -3823,6 +3823,135 @@ body.wte-dot-cursor * {
   gap: 10px;
   margin-bottom: 30px;
 }
+/* Sequences as collapsible "books": a header row that unfolds records + scripts */
+.seq-books {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+  margin-bottom: 30px;
+  align-items: start;
+}
+.seq-book {
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+}
+.seq-book.open {
+  grid-column: 1 / -1; /* an opened book spans the row like a chapter list */
+}
+.seq-book-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 10px 13px;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+.seq-book-head:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+.seq-book-chev {
+  color: var(--muted);
+  font-size: 15px;
+  transition: transform 0.2s ease;
+  flex: 0 0 auto;
+}
+.seq-book.open .seq-book-chev {
+  transform: rotate(90deg);
+  color: var(--accent);
+}
+.seq-book-body {
+  padding: 4px 13px 12px 40px;
+  border-top: 1px solid var(--panel-line);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: cdx-unfold 0.22s ease;
+}
+@keyframes cdx-unfold {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.seq-book-sub {
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 8px 0 3px;
+}
+.seq-book-item {
+  background: none;
+  border: none;
+  border-left: 1px solid var(--panel-line);
+  color: var(--ink);
+  font-family: Georgia, serif;
+  font-size: 13px;
+  padding: 5px 0 5px 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, padding 0.15s ease;
+}
+.seq-book-item:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  padding-left: 16px;
+}
+.seq-book-item.script {
+  font-style: italic;
+}
+
+/* Collapsible record sections (chapters) in the index */
+.cdx-section {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.cdx-section-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 8px 4px;
+  cursor: pointer;
+  text-align: left;
+}
+.cdx-section-head:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+.cdx-section-chev {
+  color: var(--muted);
+  font-size: 14px;
+  transition: transform 0.2s ease;
+}
+.cdx-section:not(.shut) .cdx-section-chev {
+  transform: rotate(90deg);
+  color: var(--accent);
+}
+.cdx-section-name {
+  flex: 1;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--bone);
+}
+.cdx-section-count {
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  padding: 1px 8px;
+}
+.cdx-section-body {
+  padding: 2px 0 8px 14px;
+  animation: cdx-unfold 0.2s ease;
+}
 .seq-card {
   display: flex;
   align-items: center;
