@@ -9,10 +9,14 @@ interface Props {
   creaturesLoading: boolean;
   /** Curator-only: spawn Codex creatures as linked tokens. */
   canSpawnCreatures: boolean;
+  /** Characters other players have shared live into the room (netplay). */
+  remoteChars: { id: string; name: string; owner: string }[];
   onSpawn: (rec: CharacterRecord) => void;
   onSpawnCreature: (c: Creature) => void;
-  /** Open a character's full sheet as an overlay (view/roll/edit your own). */
+  /** Open a local vault character's full sheet as an overlay. */
   onOpenSheet: (rec: CharacterRecord) => void;
+  /** Open a shared (remote) character's sheet by id — synced live over netplay. */
+  onOpenSheetId: (id: string) => void;
   onRefresh: () => void;
   onClose: () => void;
 }
@@ -29,9 +33,11 @@ export function VttActorsPanel({
   creatures,
   creaturesLoading,
   canSpawnCreatures,
+  remoteChars,
   onSpawn,
   onSpawnCreature,
   onOpenSheet,
+  onOpenSheetId,
   onRefresh,
   onClose,
 }: Props) {
@@ -69,7 +75,27 @@ export function VttActorsPanel({
       </div>
 
       {tab === "party" ? (
-        loading ? (
+        <>
+          {remoteChars.length > 0 && (
+            <>
+              <div className="vtt2-actor-group">Players (live)</div>
+              <ul className="vtt2-actor-list">
+                {remoteChars.map((c) => (
+                  <li key={c.id} className="vtt2-actor-row">
+                    <span className="vtt2-actor-label">
+                      {c.name}
+                      <span className="vtt2-actor-sub">shared by {c.owner}</span>
+                    </span>
+                    <button className="chip" onClick={() => onOpenSheetId(c.id)} title="Open this player's sheet — edits sync live to them">
+                      Open
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <div className="vtt2-actor-group">Vault</div>
+            </>
+          )}
+          {loading ? (
           <p className="list-empty" style={{ margin: "6px 0 10px" }}>Loading vault…</p>
         ) : characters.length === 0 ? (
           <p className="list-empty" style={{ margin: "6px 0 10px" }}>No characters in this campaign's vault yet.</p>
@@ -89,7 +115,8 @@ export function VttActorsPanel({
               </li>
             ))}
           </ul>
-        )
+        )}
+        </>
       ) : (
         <>
           <input

@@ -148,3 +148,22 @@ export async function deleteCharacter(id: string): Promise<void> {
   const db = await getDb();
   await db.execute("DELETE FROM characters WHERE id = $1", [id]);
 }
+
+/** Insert-or-replace a full record by id — used to apply a character pushed over
+ *  netplay (the Curator importing a player's sheet, or either side receiving a
+ *  live edit). The record keeps its OWNER's campaignId, so it never shows up in
+ *  the receiver's own campaign character list. */
+export async function upsertCharacter(rec: CharacterRecord): Promise<void> {
+  if (!sqlAvailable()) return;
+  const db = await getDb();
+  const now = Date.now();
+  await db.execute(
+    `INSERT INTO characters (id, campaign_id, name, data, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       ON CONFLICT(id) DO UPDATE SET
+         name = excluded.name,
+         data = excluded.data,
+         updated_at = excluded.updated_at`,
+    [rec.id, rec.campaignId, rec.name || "Unnamed Inquisitor", JSON.stringify(rec.sheet), rec.createdAt || now, rec.updatedAt || now]
+  );
+}

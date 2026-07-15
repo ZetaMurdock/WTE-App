@@ -5565,6 +5565,13 @@ body.wte-dot-cursor * {
   padding: 12px 14px;
   z-index: 10;
 }
+.vtt2-actor-group {
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted, #7f8ba0);
+  margin: 8px 2px 2px;
+}
 .vtt2-actor-list {
   list-style: none;
   margin: 4px 0 8px;

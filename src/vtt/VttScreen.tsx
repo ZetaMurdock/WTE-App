@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { Campaign } from "../models/campaign";
 import { isTauri } from "../lib/tauri";
 import { PixiVttApp, type VttSelection } from "./engine/PixiVttApp";
@@ -23,7 +23,14 @@ import { VttEncounterPanel } from "./VttEncounterPanel";
 import { VttRollFeed } from "./VttRollFeed";
 import { VttAssetPanel } from "./VttAssetPanel";
 import { CharacterSheet } from "../components/characters/CharacterSheet";
-import { listCharacters, type CharacterRecord } from "../lib/characters";
+import { listCharacters, getCharacter, upsertCharacter, type CharacterRecord } from "../lib/characters";
+import {
+  applyRemoteSheet,
+  getPartySheets,
+  pruneOwners,
+  shouldBroadcastSheet,
+  subscribePartySheets,
+} from "./sync/partySheets";
 import { characterToTokenSpec, creatureToTokenSpec, parseSpawnPayload } from "./data/actorSpawn";
 import { listCreatures, computeCreature } from "../lib/codex";
 import type { Creature } from "../models/codex";
@@ -53,8 +60,14 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
   const [rollsOpen, setRollsOpen] = useState(false);
   const [gridOpen, setGridOpen] = useState(false);
   // A character sheet opened as an overlay from the Actors panel (players view
-  // their own character in the VTT; the Curator can open any).
+  // their own character in the VTT; the Curator can open any). sheetSyncTick
+  // remounts the overlay when a live edit arrives for the open character.
   const [sheetCharId, setSheetCharId] = useState<string | null>(null);
+  const [sheetSyncTick, setSheetSyncTick] = useState(0);
+  const sheetCharIdRef = useRef<string | null>(null);
+  sheetCharIdRef.current = sheetCharId;
+  // Live registry of sheets other players have shared into the room.
+  const partySheets = useSyncExternalStore(subscribePartySheets, getPartySheets);
   // Scene-wheel right-click actions: the file pickers target a specific scene id,
   // and every setting is written to THAT scene only (nothing transfers).
   const sceneBgRef = useRef<HTMLInputElement>(null);
@@ -133,6 +146,49 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
       });
     });
   }, [campaign, net.subscribe, net.selfId]);
+
+  // --- Live character-sheet sync (Curator control over player sheets) --------
+  // Players push their full record; the Curator (and the owner) apply incoming
+  // records to the local DB and can open/edit them, edits flowing back the same
+  // way. Runs at this always-mounted level so a sheet arrives even before its
+  // overlay is opened. Bumping sheetSyncTick remounts an open sheet to reload.
+  useEffect(() => {
+    if (!campaign) return;
+    return net.subscribe("sheet-patch", (m, from) => {
+      const pm = m as Extract<NetMessage, { t: "sheet-patch" }>;
+      const rec = pm.patch as CharacterRecord | undefined;
+      if (!rec || !rec.id || !rec.sheet) return;
+      applyRemoteSheet(rec, from);
+      void upsertCharacter(rec);
+      // Only reload the open overlay when THIS character changed, so an unrelated
+      // party member's edit never interrupts the sheet you are looking at.
+      if (rec.id === sheetCharIdRef.current) setSheetSyncTick((t) => t + 1);
+    });
+  }, [campaign, net.subscribe]);
+
+  // Forget a peer's shared sheets when they leave the room.
+  useEffect(() => {
+    pruneOwners(new Set(net.peers.map((p) => p.id)), net.selfId);
+  }, [net.peers, net.selfId]);
+
+  // Broadcast a locally-saved sheet to the room, skipping echoes of what we just
+  // sent/received (content-hash guarded in the store).
+  const broadcastSheet = useCallback(
+    async (charId: string) => {
+      if (net.status !== "connected") return;
+      const rec = await getCharacter(charId).catch(() => undefined);
+      if (rec && shouldBroadcastSheet(rec, net.selfId)) {
+        net.publish({ t: "sheet-patch", charId, patch: rec, rev: Date.now() });
+      }
+    },
+    [net]
+  );
+
+  // Share the sheet to the room when its overlay opens (initial hand-off), then
+  // on every save (via the overlay's onChanged).
+  useEffect(() => {
+    if (sheetCharId) void broadcastSheet(sheetCharId);
+  }, [sheetCharId, broadcastSheet]);
 
   // Per-scene ambient music: play the ACTIVE scene's track (looped), stop when
   // it has none. Scene switches swap tracks automatically.
@@ -543,9 +599,17 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
           creatures={creatures}
           creaturesLoading={creaturesLoading}
           canSpawnCreatures={!isNetPlayer}
+          remoteChars={
+            isNetPlayer
+              ? [] // only the Curator gets live control over other players' sheets
+              : partySheets
+                  .filter((e) => e.ownerId !== net.selfId)
+                  .map((e) => ({ id: e.record.id, name: e.record.name, owner: net.peers.find((p) => p.id === e.ownerId)?.name || "player" }))
+          }
           onSpawn={spawnCharacter}
           onSpawnCreature={spawnCreature}
           onOpenSheet={(rec) => setSheetCharId(rec.id)}
+          onOpenSheetId={(id) => setSheetCharId(id)}
           onRefresh={() => {
             void loadCharacters();
             void loadCreatures();
@@ -586,11 +650,15 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
         <div className="vtt2-sheet-overlay" onMouseDown={() => setSheetCharId(null)}>
           <div className="vtt2-sheet-modal" onMouseDown={(e) => e.stopPropagation()}>
             <CharacterSheet
+              key={sheetCharId + ":" + sheetSyncTick}
               characterId={sheetCharId}
               campaignId={campaign.id}
               curator={!isNetPlayer}
               onBack={() => setSheetCharId(null)}
-              onChanged={() => void loadCharacters()}
+              onChanged={() => {
+                void loadCharacters();
+                void broadcastSheet(sheetCharId);
+              }}
             />
           </div>
         </div>
