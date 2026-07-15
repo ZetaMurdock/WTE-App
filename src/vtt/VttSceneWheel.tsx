@@ -11,6 +11,10 @@ interface Props {
   onClearMusic: (id: string) => void;
   /** Open the full scene settings panel (background / music / atmosphere / shaders). */
   onOpenSettings: () => void;
+  /** Push this scene to every connected player as the active shared view. */
+  onSetActiveForEveryone: (id: string) => void;
+  /** Number of connected players (0 when solo) — shows/labels the broadcast action. */
+  playerCount: number;
 }
 
 /** Short initials for a scene dot — the significant part after any "·" separator. */
@@ -24,7 +28,7 @@ function initials(name: string): string {
 // The Scene Wheel (right edge, Curator-only): one dot per scene; click to
 // traverse, RIGHT-CLICK for that scene's environment menu — background, ambient
 // music — each setting stored on that scene alone.
-export function VttSceneWheel({ scenes, activeId, onSwitch, onSetBackground, onSetMusic, onClearMusic, onOpenSettings }: Props) {
+export function VttSceneWheel({ scenes, activeId, onSwitch, onSetBackground, onSetMusic, onClearMusic, onOpenSettings, onSetActiveForEveryone, playerCount }: Props) {
   const [menu, setMenu] = useState<{ id: string; y: number } | null>(null);
 
   useEffect(() => {
@@ -61,6 +65,16 @@ export function VttSceneWheel({ scenes, activeId, onSwitch, onSetBackground, onS
       {menu && menuScene && (
         <div className="vtt2-scene-menu" style={{ top: Math.max(60, menu.y - 40) }} onMouseDown={(e) => e.stopPropagation()}>
           <div className="vtt2-scene-menu-head">{menuScene.name}</div>
+          <button
+            className="profile-row strong"
+            onClick={() => { onSetActiveForEveryone(menu.id); setMenu(null); }}
+            title="Make this the active scene for the whole table — every connected player jumps to it"
+          >
+            <span>
+              {menu.id === activeId ? "Re-sync everyone to this scene" : "Set active for everyone"}
+              {playerCount > 0 ? ` · ${playerCount} player${playerCount === 1 ? "" : "s"}` : ""}
+            </span>
+          </button>
           {menu.id !== activeId && (
             <button className="profile-row" onClick={() => { onSwitch(menu.id); setMenu(null); }}>
               <span>Open scene</span>

@@ -22,7 +22,7 @@ export type NetMessage =
   | { t: "peer-join"; peer: Peer }
   | { t: "peer-leave"; peerId: string }
   | { t: "presence"; status: string }
-  | { t: "roll"; label: string; formula: string; result: number; detail?: unknown }
+  | { t: "roll"; label: string; formula: string; result: number; detail?: unknown; id?: string }
   | { t: "chat"; text: string }
   | { t: "party"; charId: string; name: string; summary: Record<string, unknown> }
   | { t: "bp"; value: number } // shared Base Pressure for the table

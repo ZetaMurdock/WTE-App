@@ -15,6 +15,8 @@ import { VttRadialMenu } from "./VttRadialMenu";
 // class file is kept on disk but is no longer instantiated from the screen.
 import { VttInspector } from "./VttInspector";
 import { useNet } from "../net/NetContext";
+import type { NetMessage } from "../net/protocol";
+import { addSessionRoll } from "./sync/rollSession";
 import { VttSceneBrowser } from "./VttSceneBrowser";
 import { VttActorsPanel } from "./VttActorsPanel";
 import { VttEncounterPanel } from "./VttEncounterPanel";
@@ -105,6 +107,28 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
   useEffect(() => {
     engineRef.current?.setPlayerView(isNetPlayer, net.selfId);
   });
+
+  // Capture EVERY party roll into the durable session store at this always-mounted
+  // level — even while the roll tray is closed — so opening the tray never loses
+  // the shared history. (The tray used to hold the only `roll` listener and dropped
+  // it on close, which is why the dice roller appeared to reset over a session.)
+  const peersRef = useRef(net.peers);
+  peersRef.current = net.peers;
+  useEffect(() => {
+    if (!campaign) return;
+    return net.subscribe("roll", (m, from) => {
+      const r = m as Extract<NetMessage, { t: "roll" }>;
+      const who = from === net.selfId ? "You" : peersRef.current.find((p) => p.id === from)?.name || from.slice(0, 6);
+      addSessionRoll(campaign.id, {
+        id: r.id || "live-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        who,
+        label: r.label,
+        formula: r.formula,
+        result: r.result,
+        at: Date.now(),
+      });
+    });
+  }, [campaign, net.subscribe, net.selfId]);
 
   // Per-scene ambient music: play the ACTIVE scene's track (looped), stop when
   // it has none. Scene switches swap tracks automatically.
@@ -243,6 +267,14 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
     await flush();
     const target = await getScene(id).catch(() => null);
     if (target) await adopt(target);
+  }
+
+  // Curator pushes a scene to the whole table: switch to it (which broadcasts a
+  // snapshot to every player), and force a re-push when it is already active so
+  // this doubles as a "pull drifted players back to my scene" re-sync.
+  async function setActiveForEveryone(id: string) {
+    if (id !== scene?.id) await switchScene(id);
+    else sync.broadcastSnapshot();
   }
 
   async function createScene() {
@@ -459,6 +491,8 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
           }}
           onClearMusic={(id) => void patchScene(id, (s) => (s.data.audio = null))}
           onOpenSettings={() => setGridOpen(true)}
+          onSetActiveForEveryone={(id) => void setActiveForEveryone(id)}
+          playerCount={net.status === "connected" ? net.peers.length : 0}
         />
       )}
       <input ref={sceneBgRef} type="file" accept="image/*" hidden onChange={(e) => void onSceneBgFile(e)} />

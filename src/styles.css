@@ -440,6 +440,15 @@ body.wte-dot-cursor * {
   font-size: 12px;
   color: var(--muted);
 }
+.profile-row.strong {
+  color: var(--bone, #e7e0d0);
+  background: rgba(126, 207, 202, 0.12);
+  border: 1px solid rgba(126, 207, 202, 0.28);
+  margin-bottom: 4px;
+}
+.profile-row.strong:hover {
+  background: rgba(126, 207, 202, 0.2);
+}
 .profile-row-hint {
   font-size: 11px;
   color: var(--accent);

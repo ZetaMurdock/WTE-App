@@ -1,42 +1,37 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { recentRolls, logRoll } from "../lib/rolls";
 import { useNet } from "../net/NetContext";
-import type { NetMessage } from "../net/protocol";
+import { addSessionRoll, getSessionRolls, hydrateSessionRolls, subscribeSessionRolls } from "./sync/rollSession";
 
 const DICE = [4, 6, 8, 10, 12, 20, 100];
-
-type RollMsg = Extract<NetMessage, { t: "roll" }>;
-
-interface Row {
-  id: string;
-  who: string;
-  label: string;
-  formula: string;
-  result: number;
-}
+// Stable reference for the "no campaign" snapshot (useSyncExternalStore needs it).
+const EMPTY_ROWS: readonly { id: string; who: string; label: string; formula: string; result: number; at: number }[] = [];
 
 interface Props {
   campaignId: string | null;
   onClose: () => void;
 }
 
-// VTT v2 (slice 9): shared roll feed. History comes from the SQLite `rolls` table;
-// live rolls arrive over the netplay `roll` message while in a room.
+function newRollId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  return "r-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+}
+
+// VTT v2 (slice 9): shared roll feed. The rows live in the durable per-campaign
+// session store (see rollSession.ts) so the tray never loses history when it is
+// closed/reopened. History hydrates from the SQLite `rolls` table once; live
+// rolls arrive over the netplay `roll` message (captured at the VttScreen level).
 export function VttRollFeed({ campaignId, onClose }: Props) {
   const net = useNet();
-  const [rows, setRows] = useState<Row[]>([]);
-  const peersRef = useRef(net.peers);
-  peersRef.current = net.peers;
-  const nameOf = useCallback(
-    (id: string) => (id === net.selfId ? "You" : peersRef.current.find((p) => p.id === id)?.name || id.slice(0, 6)),
-    [net.selfId]
-  );
+  const rows = useSyncExternalStore(subscribeSessionRolls, () => (campaignId ? getSessionRolls(campaignId) : EMPTY_ROWS));
 
+  // Seed the session store from SQLite history the first time this campaign opens.
   const reload = useCallback(async () => {
     if (!campaignId) return;
     const recent = await recentRolls(campaignId, 30).catch(() => []);
-    setRows(
-      recent.map((r) => ({ id: r.id, who: "log", label: r.label, formula: r.formula, result: r.result }))
+    hydrateSessionRolls(
+      campaignId,
+      recent.map((r) => ({ id: r.id, who: "", label: r.label, formula: r.formula, result: r.result, at: r.at }))
     );
   }, [campaignId]);
 
@@ -44,30 +39,20 @@ export function VttRollFeed({ campaignId, onClose }: Props) {
     void reload();
   }, [reload]);
 
-  // The VTT dice tray: roll a die here, log it, publish to the party, and reset
-  // to ready (stateless — exactly like the character sheet's roll buttons).
+  // The VTT dice tray: roll a die here, record it in the durable store, persist
+  // it, and publish to the party (with a stable id so peers/self don't double-log).
   const rollDie = useCallback(
     (sides: number) => {
       const result = 1 + Math.floor(Math.random() * sides);
       const formula = `1d${sides}`;
       const label = `d${sides}`;
-      setRows((cur) => [{ id: "me-" + Date.now().toString(36), who: "You", label, formula, result }, ...cur].slice(0, 60));
+      const id = newRollId();
+      if (campaignId) addSessionRoll(campaignId, { id, who: "You", label, formula, result, at: Date.now() });
       if (campaignId) void logRoll(campaignId, null, { formula, result, detail: { die: sides, roll: result, modifier: 0, label } });
-      if (net.status === "connected") net.publish({ t: "roll", label, formula, result });
+      if (net.status === "connected") net.publish({ t: "roll", label, formula, result, id });
     },
     [campaignId, net]
   );
-
-  // Live rolls from the room, prepended.
-  useEffect(() => {
-    const off = net.subscribe("roll", (m, from) => {
-      const r = m as RollMsg;
-      setRows((cur) =>
-        [{ id: "live-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), who: nameOf(from), label: r.label, formula: r.formula, result: r.result }, ...cur].slice(0, 60)
-      );
-    });
-    return off;
-  }, [net.subscribe, nameOf]);
 
   return (
     <div className="vtt2-rollfeed">
