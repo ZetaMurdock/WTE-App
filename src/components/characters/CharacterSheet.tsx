@@ -30,6 +30,8 @@ import {
   moralityState,
   moralityMods,
   eminenceState,
+  PE_MAX,
+  PE_DEFAULT,
   usableGenus,
   usableCiphers,
   usableRacial,
@@ -49,6 +51,7 @@ import { SpeciesVariantsBody } from "./SpeciesVariantsPanel";
 import { WeaponsBody, InventoryBody } from "./EquipmentPanel";
 import { AbilitiesBody } from "./AbilitiesPanel";
 import { ActionsTable } from "./ActionsTable";
+import { PressureEngine } from "./PressureEngine";
 import { getWeapon, loadoutMods, loadoutNC, weaponSlotsUsed, WEAPON_SLOTS } from "../../lib/codex";
 import type { Weapon } from "../../models/codex";
 import { useNet } from "../../net/NetContext";
@@ -62,10 +65,11 @@ interface Props {
   onChanged: () => void;
 }
 
-type SheetTab = "stats" | "actions" | "inventory" | "loadout" | "bio";
+type SheetTab = "stats" | "actions" | "pressure" | "inventory" | "loadout" | "bio";
 const SHEET_TABS: { id: SheetTab; label: string }[] = [
   { id: "stats", label: "Stats" },
   { id: "actions", label: "Actions" },
+  { id: "pressure", label: "Pressure" },
   { id: "inventory", label: "Inventory" },
   { id: "loadout", label: "Loadout" },
   { id: "bio", label: "Bio" },
@@ -127,6 +131,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   const eff = effectiveAttributes(sheet.attributes, sheet.speciesId, bgPlusSoul, equip.attr);
   const specPlusSoul = { ...equip.spec };
   for (const [k, v] of Object.entries(soulMods.spec)) specPlusSoul[k as SpecKey] = (specPlusSoul[k as SpecKey] || 0) + (v || 0);
+  for (const [k, v] of Object.entries(bgSpecBonuses(sheet.background))) specPlusSoul[k as SpecKey] = (specPlusSoul[k as SpecKey] || 0) + (v || 0);
   const effSpec = effectiveSpecialties(sheet.specialties, specPlusSoul);
   const remaining = specialtyRemaining(sheet.specialties);
   const derived = computeDerived(sheet.attributes, sheet.specialties, {
@@ -197,6 +202,9 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   }
   function setEminence(v: number) {
     persist({ ...rec!, sheet: { ...sheet, eminence: Math.max(-20, Math.min(20, v)) } });
+  }
+  function setPressure(v: number) {
+    persist({ ...rec!, sheet: { ...sheet, pressure: Math.max(0, Math.min(PE_MAX, v)) } });
   }
   function setEquipment(items: EquipmentItem[]) {
     persist({ ...rec!, sheet: { ...sheet, equipment: items } });
@@ -467,6 +475,18 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                 onRoll={doRoll}
                 onSpend={spendSS}
                 onManage={() => setTab("loadout")}
+              />
+            )}
+
+            {tab === "pressure" && (
+              <PressureEngine
+                attrs={eff}
+                specs={effSpec}
+                rank={rank}
+                morality={sheet.morality}
+                pressure={sheet.pressure ?? PE_DEFAULT}
+                onPressure={setPressure}
+                onRoll={doRoll}
               />
             )}
 

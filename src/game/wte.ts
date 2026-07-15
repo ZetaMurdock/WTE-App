@@ -333,6 +333,46 @@ export function moralityMods(m?: number): {
   return { attr: {}, spec: {}, influenceZero: false, note: null };
 }
 
+// ── Pressure Engine (ported verbatim from the legacy sheet's PE section) ──
+export const PE_MAX = 200;
+export const PE_DEFAULT = 50;
+export function pressureState(v: number): { label: string; key: "calm" | "tense" | "critical" | "catastrophic" } {
+  if (v >= 110) return { label: "CATASTROPHIC", key: "catastrophic" };
+  if (v >= 80) return { label: "CRITICAL", key: "critical" };
+  if (v >= 45) return { label: "TENSE", key: "tense" };
+  return { label: "CALM", key: "calm" };
+}
+/** Tax Burden: every specialty EXCEPT Inspiration contributes ⌊pts/10⌋. */
+export function pressureTax(specs: Specialties): number {
+  let tax = 0;
+  for (const k of SPEC_KEYS) if (k !== "ins") tax += Math.floor((specs[k] || 0) / 10);
+  return tax;
+}
+/** Final Complexity = Inspiration − Tax, shaped by the Polarized Soul:
+ *  Process (≤30) cannot use Inspiration or Complexity at all (Hollow Signature);
+ *  Resonance (≥70) doubles raw Inspiration for the Complexity calculation. */
+export function pressureComplexity(specs: Specialties, morality?: number): number {
+  const m = morality ?? 50;
+  if (m <= 30) return 0;
+  const insp = Math.min(SPEC_MAX, specs.ins || 0) * (m >= 70 ? 2 : 1);
+  return insp - pressureTax(specs);
+}
+export interface PeBand {
+  name: string;
+  change: number;
+  range: string;
+}
+/** Outcome band for AAV − PE (suggested pressure change; negative resolves). */
+export function peBand(diff: number): PeBand {
+  if (diff >= 6) return { name: "CRITICAL SUCCESS", change: -8, range: "−6 to −10" };
+  if (diff >= 4) return { name: "SUCCESS", change: -4, range: "−4" };
+  if (diff >= 2) return { name: "SIMPLE SUCCESS", change: -2, range: "−2" };
+  if (diff >= -1) return { name: "PARTIAL / STALEMATE", change: 0, range: "0" };
+  if (diff >= -3) return { name: "FUMBLE", change: 2, range: "+1 to +2" };
+  if (diff >= -5) return { name: "FAILURE", change: 4, range: "+3 to +5" };
+  return { name: "CRITICAL FAILURE", change: 8, range: "+5 to +10" };
+}
+
 /** Eminence — the System Alignment Index (−20 liability … +20 asset, start 0).
  *  Curator-adjusted; shapes HOW advancement manifests, never EXP speed. */
 export function eminenceState(e: number): string {

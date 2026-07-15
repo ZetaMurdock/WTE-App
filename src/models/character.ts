@@ -34,6 +34,8 @@ export interface CharacterSheet {
   morality?: number;
   /** Eminence — System Alignment Index, −20 (liability) … +20 (asset). Default 0. */
   eminence?: number;
+  /** Pressure Engine — current PE/BP 0..200 (default 50). */
+  pressure?: number;
   equipment?: EquipmentItem[];
   /** Selected genus / cipher ability names (loadout, capped by rank slots). */
   genusLoadout?: string[];

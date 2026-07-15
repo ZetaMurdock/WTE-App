@@ -829,6 +829,88 @@ body.wte-dot-cursor * {
   letter-spacing: 1px;
 }
 
+/* ── Pressure Engine (ported from the legacy sheet) ── */
+.pe-wrap {
+  max-width: 640px;
+}
+.pe-head {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.pe-state {
+  font-family: Consolas, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid;
+}
+.pe-state.calm { color: #689a96; border-color: #689a96; }
+.pe-state.tense { color: #d8b25a; border-color: #d8b25a; }
+.pe-state.critical { color: #c07030; border-color: #c07030; animation: pe-pulse 1.6s ease-in-out infinite; }
+.pe-state.catastrophic { color: #c25b4a; border-color: #c25b4a; animation: pe-pulse 0.8s ease-in-out infinite; }
+@keyframes pe-pulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(194, 91, 74, 0); }
+  50% { box-shadow: 0 0 12px rgba(194, 91, 74, 0.5); }
+}
+.pe-meta {
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pe-row {
+  display: grid;
+  grid-template-columns: 20px 1fr 130px 130px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.pe-row-n {
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+}
+.pe-row-out {
+  font-family: Consolas, monospace;
+  font-size: 12px;
+  color: var(--accent);
+  text-align: right;
+}
+.pe-result {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  background: rgba(126, 207, 202, 0.05);
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  padding: 12px 16px;
+  animation: cdx-unfold 0.2s ease;
+}
+.pe-res-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pe-res-cell span {
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pe-res-cell b {
+  font-family: Consolas, monospace;
+  font-size: 15px;
+  color: var(--ink);
+}
+
 /* Modern New-Character button with a hover flyout */
 .vault-new-wrap {
   position: relative;
