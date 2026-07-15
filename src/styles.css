@@ -2458,6 +2458,14 @@ body.wte-dot-cursor * {
   border-radius: 0 6px 6px 0;
   margin: 12px 0;
 }
+/* Default dark callout when a page doesn't carry inline box styling */
+.cdx-content .cdx-callout:not([style]) {
+  background: rgba(126, 207, 202, 0.06);
+  border-left: 3px solid var(--accent);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.6;
+}
 .cdx-drop {
   margin: 12px 0;
   border: 1px solid var(--panel-line);
