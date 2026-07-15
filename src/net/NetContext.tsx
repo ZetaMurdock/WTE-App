@@ -25,6 +25,9 @@ interface NetApi {
   leave(): void;
   publish(msg: NetMessage, to?: string): void;
   subscribe(type: NetMessageType, cb: Sub): () => void;
+  /** Shared Base Pressure for the table (synced while in a room). */
+  bp: number;
+  setSharedBp(value: number): void;
 }
 
 const Ctx = createContext<NetApi | null>(null);
@@ -35,7 +38,7 @@ export function useNet(): NetApi {
 }
 
 // Wire event types re-dispatched to React subscribers.
-const FANOUT: NetMessageType[] = ["roll", "chat", "party", "presence", "sheet-patch", "vtt-patch", "snapshot"];
+const FANOUT: NetMessageType[] = ["roll", "chat", "party", "presence", "sheet-patch", "vtt-patch", "snapshot", "bp"];
 
 export function NetProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>("idle");
@@ -43,9 +46,20 @@ export function NetProvider({ children }: { children: ReactNode }) {
   const [room, setRoom] = useState("");
   const [peers, setPeers] = useState<Peer[]>([]);
   const [error, setError] = useState("");
+  const [bp, setBp] = useState(50);
   const sessionRef = useRef<NetSession | null>(null);
   const listeners = useRef(new Map<string, Set<Sub>>());
   const selfId = myPeerId();
+
+  // Keep the shared Base Pressure in sync with the room (host relays it to all).
+  useEffect(() => {
+    return subscribe("bp", (m) => setBp((m as Extract<NetMessage, { t: "bp" }>).value));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const setSharedBp = useCallback((value: number) => {
+    setBp(value);
+    sessionRef.current?.publish({ t: "bp", value });
+  }, []);
 
   const emit = (type: string, msg: NetMessage, from: string) => listeners.current.get(type)?.forEach((cb) => cb(msg, from));
 
@@ -142,6 +156,8 @@ export function NetProvider({ children }: { children: ReactNode }) {
     leave,
     publish,
     subscribe,
+    bp,
+    setSharedBp,
   };
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }

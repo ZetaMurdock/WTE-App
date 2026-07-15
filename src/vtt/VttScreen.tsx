@@ -20,6 +20,8 @@ import { VttRollFeed } from "./VttRollFeed";
 import { VttAssetPanel } from "./VttAssetPanel";
 import { listCharacters, type CharacterRecord } from "../lib/characters";
 import { characterToTokenSpec, creatureToTokenSpec, parseSpawnPayload } from "./data/actorSpawn";
+import { listCreatures, computeCreature } from "../lib/codex";
+import type { Creature } from "../models/codex";
 import { listAssets, addAsset, deleteAsset, type AssetKind, type VttAsset } from "./data/assetRepo";
 import { useVttSync } from "./sync/vttSync";
 import { fileToPngDataUrl } from "../lib/image";
@@ -326,12 +328,46 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
     setCharsLoading(false);
   }, [campaign]);
 
+  // Codex creatures the Curator can spawn as linked tokens (sheets pulled from the Codex).
+  const [creatures, setCreatures] = useState<Creature[]>([]);
+  const [creaturesLoading, setCreaturesLoading] = useState(false);
+  const loadCreatures = useCallback(async () => {
+    if (!isTauri()) {
+      setCreatures([]);
+      return;
+    }
+    setCreaturesLoading(true);
+    setCreatures(await listCreatures().catch(() => [] as Creature[]));
+    setCreaturesLoading(false);
+  }, []);
+
   useEffect(() => {
     void loadCharacters();
   }, [loadCharacters]);
+  useEffect(() => {
+    if (leftPanel === "actors") void loadCreatures();
+  }, [leftPanel, loadCreatures]);
 
   function spawnCharacter(rec: CharacterRecord) {
     engineRef.current?.spawnToken(characterToTokenSpec(rec));
+  }
+  /** Spawn a Codex creature as a linked token — HP/DR/size/flags derived from its sheet. */
+  function spawnCreature(c: Creature) {
+    const d = computeCreature(c);
+    engineRef.current?.spawnToken(
+      creatureToTokenSpec({
+        name: c.name,
+        cls: c.cls,
+        hp: d.hp,
+        dr: d.dr,
+        size: d.size,
+        flags: d.flags,
+        stats: c.stats,
+        traits: c.traits,
+        desc: c.lore,
+        ts: Date.now(),
+      })
+    );
   }
 
   // Load the campaign's asset library for the Assets panel.
@@ -505,8 +541,15 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
         <VttActorsPanel
           characters={characters}
           loading={charsLoading}
+          creatures={creatures}
+          creaturesLoading={creaturesLoading}
+          canSpawnCreatures={!isNetPlayer}
           onSpawn={spawnCharacter}
-          onRefresh={() => void loadCharacters()}
+          onSpawnCreature={spawnCreature}
+          onRefresh={() => {
+            void loadCharacters();
+            void loadCreatures();
+          }}
           onClose={() => setLeftPanel(null)}
         />
       )}

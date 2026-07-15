@@ -60,7 +60,9 @@ export function TopBar({
   // Per-campaign Curator claim: you're the Curator of campaigns you own. The only
   // "player" case is joining someone else's netplay room as a player — hide the
   // GM-mode button there.
-  const isNetPlayer = net.status === "connected" && net.role === "player";
+  // Once you're in a live campaign session (connected to a room), Curator/Engineer
+  // are fixed by your seat at the table — hide the self-toggles for everyone.
+  const inSession = net.status === "connected";
   // Legacy iframes are hidden from the nav unless enabled in the profile menu.
   // The Dashboard is the circular orb itself; the rest unfurl from it on hover.
   const tabs = TABS.filter((t) => t.id !== "dashboard");
@@ -113,7 +115,7 @@ export function TopBar({
         onToggleCurator={onToggleCurator}
         engineer={engineer}
         onToggleEngineer={onToggleEngineer}
-        rolesHidden={isNetPlayer}
+        rolesHidden={inSession}
       />
       <span className="ver">{version ? "v" + version : ""}</span>
     </div>

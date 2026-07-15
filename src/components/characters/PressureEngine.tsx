@@ -39,6 +39,8 @@ interface Props {
   pressure: number;
   onPressure: (v: number) => void;
   onRoll: (roll: RollResult) => void;
+  /** True when the PE value is the party's shared Base Pressure (netplay). */
+  shared?: boolean;
 }
 
 // The Pressure Engine, moved up from the legacy sheet: situation resolution,
@@ -46,7 +48,7 @@ interface Props {
 // (1d40 + specialty pts + attribute mod + Complexity) × rank mult. AAV is the
 // rounded average plus the multi-skill bonus (3 → +1, 4 → +2); AAV − PE lands
 // in an outcome band that suggests the pressure change.
-export function PressureEngine({ attrs, specs, rank, morality, pressure, onPressure, onRoll }: Props) {
+export function PressureEngine({ attrs, specs, rank, morality, pressure, onPressure, onRoll, shared }: Props) {
   const [rows, setRows] = useState<Row[]>(Array.from({ length: 4 }, () => ({ spec: "", attr: "", out: "—" })));
   const [result, setResult] = useState<Result | null>(null);
 
@@ -103,7 +105,7 @@ export function PressureEngine({ attrs, specs, rank, morality, pressure, onPress
     <div className="pe-wrap">
       <div className="pe-head">
         <label className="lobby-field" style={{ margin: 0 }}>
-          <span>Current PE / BP</span>
+          <span>Current PE / BP{shared ? " · shared" : ""}</span>
           <input
             className="sheet-stat-num"
             style={{ width: 64 }}

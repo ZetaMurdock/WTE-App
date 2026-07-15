@@ -23,6 +23,7 @@ export type NetMessage =
   | { t: "roll"; label: string; formula: string; result: number; detail?: unknown }
   | { t: "chat"; text: string }
   | { t: "party"; charId: string; name: string; summary: Record<string, unknown> }
+  | { t: "bp"; value: number } // shared Base Pressure for the table
   | { t: "sheet-patch"; charId: string; patch: unknown; rev: number } // reserved: sheet sync
   | { t: "vtt-patch"; scope: string; patch: unknown; rev: number } // reserved: VTT sync
   | { t: "snapshot"; state: unknown; rev: number } // reserved: late-joiner catch-up

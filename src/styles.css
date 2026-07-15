@@ -829,6 +829,14 @@ body.wte-dot-cursor * {
   letter-spacing: 1px;
 }
 
+.vtt2-actor-sub {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  margin-top: 1px;
+}
+
 /* ── Campaign desk (dashboard notes + calendar) ── */
 .dash-desk {
   margin-top: 26px;

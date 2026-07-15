@@ -484,8 +484,9 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                 specs={effSpec}
                 rank={rank}
                 morality={sheet.morality}
-                pressure={sheet.pressure ?? PE_DEFAULT}
-                onPressure={setPressure}
+                pressure={net.status === "connected" ? net.bp : sheet.pressure ?? PE_DEFAULT}
+                onPressure={net.status === "connected" ? net.setSharedBp : setPressure}
+                shared={net.status === "connected"}
                 onRoll={doRoll}
               />
             )}
