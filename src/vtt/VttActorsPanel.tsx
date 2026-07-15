@@ -11,6 +11,8 @@ interface Props {
   canSpawnCreatures: boolean;
   onSpawn: (rec: CharacterRecord) => void;
   onSpawnCreature: (c: Creature) => void;
+  /** Open a character's full sheet as an overlay (view/roll/edit your own). */
+  onOpenSheet: (rec: CharacterRecord) => void;
   onRefresh: () => void;
   onClose: () => void;
 }
@@ -29,6 +31,7 @@ export function VttActorsPanel({
   canSpawnCreatures,
   onSpawn,
   onSpawnCreature,
+  onOpenSheet,
   onRefresh,
   onClose,
 }: Props) {
@@ -75,9 +78,14 @@ export function VttActorsPanel({
             {characters.map((c) => (
               <li key={c.id} className="vtt2-actor-row">
                 <span className="vtt2-actor-label">{c.name}</span>
-                <button className="chip" onClick={() => onSpawn(c)} title="Spawn a linked token at the view centre">
-                  Spawn
-                </button>
+                <span style={{ display: "flex", gap: 4 }}>
+                  <button className="chip" onClick={() => onOpenSheet(c)} title="Open this character's full sheet — view stats, roll, and edit">
+                    Open
+                  </button>
+                  <button className="chip" onClick={() => onSpawn(c)} title="Spawn a linked token at the view centre">
+                    Spawn
+                  </button>
+                </span>
               </li>
             ))}
           </ul>

@@ -22,6 +22,7 @@ import { VttActorsPanel } from "./VttActorsPanel";
 import { VttEncounterPanel } from "./VttEncounterPanel";
 import { VttRollFeed } from "./VttRollFeed";
 import { VttAssetPanel } from "./VttAssetPanel";
+import { CharacterSheet } from "../components/characters/CharacterSheet";
 import { listCharacters, type CharacterRecord } from "../lib/characters";
 import { characterToTokenSpec, creatureToTokenSpec, parseSpawnPayload } from "./data/actorSpawn";
 import { listCreatures, computeCreature } from "../lib/codex";
@@ -51,6 +52,9 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
   const [leftPanel, setLeftPanel] = useState<"scenes" | "actors" | "encounter" | "assets" | null>(null);
   const [rollsOpen, setRollsOpen] = useState(false);
   const [gridOpen, setGridOpen] = useState(false);
+  // A character sheet opened as an overlay from the Actors panel (players view
+  // their own character in the VTT; the Curator can open any).
+  const [sheetCharId, setSheetCharId] = useState<string | null>(null);
   // Scene-wheel right-click actions: the file pickers target a specific scene id,
   // and every setting is written to THAT scene only (nothing transfers).
   const sceneBgRef = useRef<HTMLInputElement>(null);
@@ -541,6 +545,7 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
           canSpawnCreatures={!isNetPlayer}
           onSpawn={spawnCharacter}
           onSpawnCreature={spawnCreature}
+          onOpenSheet={(rec) => setSheetCharId(rec.id)}
           onRefresh={() => {
             void loadCharacters();
             void loadCreatures();
@@ -577,6 +582,19 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
         />
       )}
       {campaign && rollsOpen && <VttRollFeed campaignId={campaign.id} onClose={() => setRollsOpen(false)} />}
+      {campaign && sheetCharId && (
+        <div className="vtt2-sheet-overlay" onMouseDown={() => setSheetCharId(null)}>
+          <div className="vtt2-sheet-modal" onMouseDown={(e) => e.stopPropagation()}>
+            <CharacterSheet
+              characterId={sheetCharId}
+              campaignId={campaign.id}
+              curator={!isNetPlayer}
+              onBack={() => setSheetCharId(null)}
+              onChanged={() => void loadCharacters()}
+            />
+          </div>
+        </div>
+      )}
       {!campaign && <div className="vtt2-sandbox-note">Sandbox table — pick a campaign on the Dashboard to persist scenes.</div>}
       {sel && engine && live && (
         <VttInspector

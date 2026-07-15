@@ -5333,6 +5333,28 @@ body.wte-dot-cursor * {
   background: #d8b25a;
   border: 1px solid #04070d;
 }
+/* Character sheet opened as an overlay from inside the VTT (player/curator). */
+.vtt2-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(2, 4, 8, 0.62);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 24px;
+  overflow: auto;
+}
+.vtt2-sheet-modal {
+  width: min(960px, 96vw);
+  margin: auto;
+  background: var(--panel, #0d1220);
+  border: 1px solid var(--panel-line, #21304a);
+  border-radius: 12px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
 .vtt2-scene-menu {
   position: fixed;
   right: 54px;
