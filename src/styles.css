@@ -790,31 +790,224 @@ body.wte-dot-cursor * {
   border-left: 1px solid var(--panel-line);
 }
 
+/* Modern New-Character button with a hover flyout */
+.vault-new-wrap {
+  position: relative;
+}
+.vault-new {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  background: linear-gradient(135deg, var(--accent), #5aa39d);
+  border: none;
+  border-radius: 999px;
+  color: #04070d;
+  font-family: Georgia, serif;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  padding: 11px 20px;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(126, 207, 202, 0.25);
+  transition: transform 0.18s cubic-bezier(0.34, 1.4, 0.6, 1), box-shadow 0.2s ease;
+}
+.vault-new:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 22px rgba(126, 207, 202, 0.4);
+}
+.vault-new-plus {
+  font-size: 18px;
+  line-height: 1;
+}
+.vault-new-caret {
+  opacity: 0.7;
+  transition: transform 0.2s ease;
+}
+.vault-new-wrap:hover .vault-new-caret {
+  transform: rotate(90deg);
+}
+.vault-new-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 240px;
+  background: rgba(12, 18, 32, 0.98);
+  border: 1px solid var(--panel-line);
+  border-radius: 10px;
+  padding: 6px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transform: translateY(-6px) scale(0.98);
+  transform-origin: top right;
+  pointer-events: none;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+  z-index: 20;
+}
+.vault-new-wrap:hover .vault-new-menu {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+.vault-new-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  background: none;
+  border: none;
+  border-radius: 7px;
+  color: var(--ink);
+  font-family: Georgia, serif;
+  font-size: 13px;
+  padding: 9px 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+.vault-new-menu button:hover {
+  background: rgba(126, 207, 202, 0.14);
+  color: var(--accent);
+}
+.vault-menu-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--panel-line);
+  color: var(--accent);
+  font-size: 13px;
+  flex: 0 0 auto;
+}
+
 /* ── Creation wizard ── */
+/* Clickable step nav — numbered pills with an active underline (D&D-Beyond feel) */
 .wizard-steps {
   list-style: none;
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 2px;
   margin-bottom: 22px;
+  border-bottom: 1px solid var(--panel-line);
+  padding-bottom: 2px;
 }
 .wizard-step {
-  font-size: 10px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
   color: var(--muted);
-  padding: 5px 12px;
-  border: 1px solid var(--panel-line);
-  border-radius: 20px;
+  font-family: Georgia, serif;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: color 0.18s ease, border-color 0.18s ease;
 }
-.wizard-step.active {
-  color: #fff;
-  background: var(--accent);
-  border-color: var(--accent);
+.wizard-step:hover {
+  color: var(--ink);
+}
+.wizard-step-n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  font-family: Consolas, monospace;
+  font-size: 9px;
 }
 .wizard-step.done {
   color: var(--ink);
+}
+.wizard-step.done .wizard-step-n {
+  background: rgba(126, 207, 202, 0.18);
   border-color: var(--accent);
+  color: var(--accent);
+}
+.wizard-step.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.wizard-step.active .wizard-step-n {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #04070d;
+}
+
+/* Edge navigators — a line that unfurls an orb → arrow on hover */
+.edge-nav {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 56px;
+  height: 120px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.edge-nav.left {
+  left: 0;
+}
+.edge-nav.right {
+  right: 0;
+}
+.edge-nav.off {
+  opacity: 0.25;
+  pointer-events: none;
+}
+.edge-line {
+  position: absolute;
+  width: 2px;
+  height: 54px;
+  background: var(--panel-line);
+  transition: height 0.3s ease, background 0.3s ease;
+}
+.edge-nav:hover .edge-line {
+  height: 96px;
+  background: var(--accent);
+}
+.edge-orb {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--glow-t);
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+.edge-nav:hover .edge-orb {
+  opacity: 0;
+  transform: scale(0.3);
+}
+.edge-arrow {
+  position: absolute;
+  color: var(--accent);
+  font-size: 34px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.24s ease 0.06s, transform 0.24s ease 0.06s;
+}
+.edge-nav.left .edge-arrow {
+  transform: translateX(10px);
+}
+.edge-nav.right .edge-arrow {
+  transform: translateX(-10px);
+}
+.edge-nav.finish .edge-arrow {
+  font-size: 26px;
+}
+.edge-nav:hover .edge-arrow {
+  opacity: 1;
+  transform: translateX(0);
 }
 .wizard-body {
   min-height: 320px;

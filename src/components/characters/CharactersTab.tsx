@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Campaign } from "../../models/campaign";
-import { listCharacters, type CharacterRecord } from "../../lib/characters";
+import { listCharacters, createCharacter, type CharacterRecord } from "../../lib/characters";
+import { randomCharacter } from "../../lib/randomChar";
 import { isTauri } from "../../lib/tauri";
 import { CharacterVault } from "./CharacterVault";
 import { CharacterCreator } from "./CharacterCreator";
@@ -87,6 +88,12 @@ export function CharactersTab({ campaign, curator, onCharactersChanged }: Props)
       characters={characters}
       loading={loading}
       onNew={() => setView({ mode: "creator" })}
+      onRandomize={async () => {
+        const { name, sheet } = randomCharacter();
+        const rec = await createCharacter(campaign.id, name, sheet);
+        await reload();
+        setView({ mode: "sheet", id: rec.id });
+      }}
       onOpen={(id) => setView({ mode: "sheet", id })}
       onChanged={reload}
     />

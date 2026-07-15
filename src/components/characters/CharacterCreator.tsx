@@ -123,6 +123,15 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
 
   const canNext = step === 0 ? name.trim().length > 0 : true;
   const isLast = step === STEPS.length - 1;
+  // Jump to any step by clicking its tab — the only gate is a name on Identity.
+  function goStep(i: number) {
+    if (i === step) return;
+    if (name.trim().length === 0 && i > 0) {
+      setStep(0);
+      return;
+    }
+    setStep(i);
+  }
 
   return (
     <div className="dashboard">
@@ -136,13 +145,18 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
         </button>
       </div>
 
-      <ol className="wizard-steps">
+      <nav className="wizard-steps">
         {STEPS.map((s, i) => (
-          <li key={s} className={"wizard-step" + (i === step ? " active" : "") + (i < step ? " done" : "")}>
-            {s}
-          </li>
+          <button
+            key={s}
+            className={"wizard-step" + (i === step ? " active" : "") + (i < step ? " done" : "")}
+            onClick={() => goStep(i)}
+          >
+            <span className="wizard-step-n">{i + 1}</span>
+            <span className="wizard-step-label">{s}</span>
+          </button>
         ))}
-      </ol>
+      </nav>
 
       <div className="wizard-body">
         {step === 0 && (
@@ -429,24 +443,44 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
               </ul>
             )}
             <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} background={background} />
+            <button className="primary-btn full mt" disabled={saving || !validation.ok} onClick={finish}>
+              {saving ? "Creating…" : "Create character"}
+            </button>
           </div>
         )}
       </div>
 
-      <div className="wizard-nav">
-        <button className="ghost-btn" disabled={step === 0} onClick={() => setStep((s) => s - 1)}>
-          Back
+      {/* Side navigators: an orb that morphs into an arrow on hover. */}
+      {step > 0 && (
+        <button className="edge-nav left" title="Back" onClick={() => setStep((s) => s - 1)}>
+          <span className="edge-line" aria-hidden />
+          <span className="edge-orb" aria-hidden />
+          <span className="edge-arrow" aria-hidden>
+            ‹
+          </span>
         </button>
-        {isLast ? (
-          <button className="primary-btn" disabled={saving || !validation.ok} onClick={finish}>
-            {saving ? "Creating…" : "Create character"}
-          </button>
-        ) : (
-          <button className="primary-btn" disabled={!canNext} onClick={() => setStep((s) => s + 1)}>
-            Next
-          </button>
-        )}
-      </div>
+      )}
+      {isLast ? (
+        <button
+          className={"edge-nav right finish" + (saving || !validation.ok ? " off" : "")}
+          title={validation.ok ? "Create character" : "Finish the required steps first"}
+          onClick={() => !saving && validation.ok && finish()}
+        >
+          <span className="edge-line" aria-hidden />
+          <span className="edge-orb" aria-hidden />
+          <span className="edge-arrow" aria-hidden>
+            {saving ? "…" : "✦"}
+          </span>
+        </button>
+      ) : (
+        <button className={"edge-nav right" + (canNext ? "" : " off")} title="Next" onClick={() => canNext && setStep((s) => s + 1)}>
+          <span className="edge-line" aria-hidden />
+          <span className="edge-orb" aria-hidden />
+          <span className="edge-arrow" aria-hidden>
+            ›
+          </span>
+        </button>
+      )}
     </div>
   );
 }

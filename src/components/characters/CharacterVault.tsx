@@ -10,11 +10,12 @@ interface Props {
   characters: CharacterRecord[];
   loading: boolean;
   onNew: () => void;
+  onRandomize: () => void;
   onOpen: (id: string) => void;
   onChanged: () => void;
 }
 
-export function CharacterVault({ campaign, characters, loading, onNew, onOpen, onChanged }: Props) {
+export function CharacterVault({ campaign, characters, loading, onNew, onRandomize, onOpen, onChanged }: Props) {
   async function handleRename(c: CharacterRecord) {
     const next = prompt("Rename character", c.name);
     if (next && next.trim()) {
@@ -40,9 +41,31 @@ export function CharacterVault({ campaign, characters, loading, onNew, onOpen, o
           <div className="dash-eyebrow">{campaign.name}</div>
           <h1 className="dash-title">Character Vault</h1>
         </div>
-        <button className="primary-btn vault-new" onClick={onNew}>
-          New character
-        </button>
+        <div className="vault-new-wrap">
+          <button className="vault-new" onClick={onNew}>
+            <span className="vault-new-plus" aria-hidden>
+              +
+            </span>
+            New Character
+            <span className="vault-new-caret" aria-hidden>
+              ›
+            </span>
+          </button>
+          <div className="vault-new-menu">
+            <button onClick={onNew}>
+              <span className="vault-menu-ico" aria-hidden>
+                +
+              </span>
+              Build from scratch
+            </button>
+            <button onClick={onRandomize}>
+              <span className="vault-menu-ico" aria-hidden>
+                ⟳
+              </span>
+              Randomize an Inquisitor
+            </button>
+          </div>
+        </div>
       </div>
 
       {loading ? (
@@ -61,6 +84,9 @@ export function CharacterVault({ campaign, characters, loading, onNew, onOpen, o
                 </div>
               </button>
               <div className="char-actions">
+                <button className="icon-btn" onClick={() => onOpen(c.id)} title="Open & edit this character">
+                  Edit
+                </button>
                 <button className="icon-btn" onClick={() => handleRename(c)}>
                   Rename
                 </button>
