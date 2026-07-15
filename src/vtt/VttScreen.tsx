@@ -10,7 +10,9 @@ import { VttActionBar } from "./VttActionBar";
 import { VttGridPanel } from "./VttGridPanel";
 import { VttSceneWheel } from "./VttSceneWheel";
 import { VttRadialMenu } from "./VttRadialMenu";
-import { ThreeVttView } from "./engine3d/ThreeVttView";
+// NOTE: The 3D view (engine3d/ThreeVttView) is VAULTED — the 2D top-down
+// perspective is the standard and all scene modifications render there. The
+// class file is kept on disk but is no longer instantiated from the screen.
 import { VttInspector } from "./VttInspector";
 import { useNet } from "../net/NetContext";
 import { VttSceneBrowser } from "./VttSceneBrowser";
@@ -91,60 +93,18 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
     const uri = await fileToDataUrl(f).catch(() => null);
     if (uri) await patchScene(id, (s) => (s.data.audio = { src: uri, volume: 0.5 }));
   }
-  // 3D is a VIEW MODE over the same scene: the three.js renderer mirrors the
-  // engine's scene and routes selection/moves back through it (single authority).
-  const [viewMode, setViewMode] = useState<"2d" | "3d">("2d");
-  const [pilotingId, setPilotingId] = useState<string | null>(null);
+  // Shader-compile feedback surfaced by the Grid panel's atmosphere controls.
   const [shaderError, setShaderError] = useState("");
-  const host3dRef = useRef<HTMLDivElement>(null);
-  const threeRef = useRef<ThreeVttView | null>(null);
   // Per-campaign Curator claim: only joining someone else's netplay room as a
   // player demotes you — hide Curator-only scene controls there.
   const net = useNet();
   const isNetPlayer = net.status === "connected" && net.role === "player";
 
-  function toggleView() {
-    setViewMode((m) => {
-      const next = m === "2d" ? "3d" : "2d";
-      if (next === "3d" && !threeRef.current && host3dRef.current) {
-        const view = new ThreeVttView({
-          onSelect: (s) => engineRef.current?.select(s),
-          onMove: (id, wx, wy, done) => {
-            const eng = engineRef.current;
-            if (!eng) return;
-            eng.moveToken(id, wx, wy, done);
-            if (done) eng.onChanged(); // mirrors the 2D InputController's drop path
-          },
-          // Throttled raw-position broadcast while piloting, so peers see the flight.
-          onLive: (id, wx, wy) => engineRef.current?.onOp({ op: "token.move", id, x: wx, y: wy }),
-          onPilotChange: (id) => setPilotingId(id),
-          onShaderError: (err) => setShaderError(err),
-        });
-        view.init(host3dRef.current);
-        threeRef.current = view;
-        // Dev-only handle for debugging the 3D view in the preview (stripped in prod).
-        if (import.meta.env.DEV) (window as unknown as { __vttThree?: ThreeVttView }).__vttThree = view;
-      }
-      return next;
-    });
-  }
-
-  // Keep the 3D world mirroring the live scene (engine mutations bump `tick`,
-  // which covers local edits, inspector patches, and remote P2P ops alike).
+  // Player perspective: fog reveals only from the player's OWN tokens (GM sees
+  // all). Runs every render so it tracks role/selection changes in the 2D view.
   useEffect(() => {
-    // Player perspective: fog reveals only from the player's OWN tokens (GM sees all).
     engineRef.current?.setPlayerView(isNetPlayer, net.selfId);
-    threeRef.current?.setPlayerView(isNetPlayer, net.selfId);
-    const live3 = engineRef.current?.scene ?? scene;
-    if (viewMode === "3d" && threeRef.current && live3) threeRef.current.syncFrom(live3, sel);
   });
-
-  useEffect(() => {
-    return () => {
-      threeRef.current?.destroy();
-      threeRef.current = null;
-    };
-  }, []);
 
   // Per-scene ambient music: play the ACTIVE scene's track (looped), stop when
   // it has none. Scene switches swap tracks automatically.
@@ -474,9 +434,8 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
         syncPeers={sync.peerCount}
       />
       <div className="vtt2-stage" ref={hostRef}>
-        <div className="vtt2-stage3d" ref={host3dRef} style={{ display: viewMode === "3d" ? "block" : "none" }} />
-        {sel?.kind === "token" && engine && !pilotingId && (
-          <VttRadialMenu engine={engine} three={threeRef.current} view3d={viewMode === "3d"} tokenId={sel.id} />
+        {sel?.kind === "token" && engine && (
+          <VttRadialMenu engine={engine} three={null} view3d={false} tokenId={sel.id} />
         )}
       </div>
       <VttActionBar
@@ -484,8 +443,6 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
         onTool={pickTool}
         fogOn={fogOn}
         onToggleFog={() => engine?.toggleFog()}
-        view3d={viewMode === "3d"}
-        onToggleView={toggleView}
       />
       {campaign && !isNetPlayer && (
         <VttSceneWheel
@@ -507,15 +464,6 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
       <input ref={sceneBgRef} type="file" accept="image/*" hidden onChange={(e) => void onSceneBgFile(e)} />
       <input ref={sceneMusicRef} type="file" accept="audio/*" hidden onChange={(e) => void onSceneMusicFile(e)} />
       <audio ref={audioRef} hidden />
-      {viewMode === "3d" && (pilotingId || sel?.kind === "token") && (
-        <button
-          className={"vtt2-pilot-btn" + (pilotingId ? " on" : "")}
-          onClick={() => (pilotingId ? threeRef.current?.stopPilot() : sel && threeRef.current?.startPilot(sel.id))}
-          title={pilotingId ? "Stop piloting (Esc)" : "Pilot this token — arrow keys move it, walls block, Esc stops"}
-        >
-          {pilotingId ? "Stop piloting · Esc" : "Pilot token · arrow keys"}
-        </button>
-      )}
       {gridOpen && !isNetPlayer && live && (
         <VttGridPanel
           grid={live.data.grid}

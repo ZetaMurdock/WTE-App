@@ -5,13 +5,12 @@ interface Props {
   onTool: (t: VttTool) => void;
   fogOn: boolean;
   onToggleFog: () => void;
-  view3d: boolean;
-  onToggleView: () => void;
 }
 
 // The floating action bar (bottom-centre, Owlbear-style): the map tools live
 // here so the top toolbar stays uncluttered. Tool hints ride the tooltips.
-export function VttActionBar({ tool, onTool, fogOn, onToggleFog, view3d, onToggleView }: Props) {
+// (The 3D view is vaulted — the 2D top-down perspective is the standard.)
+export function VttActionBar({ tool, onTool, fogOn, onToggleFog }: Props) {
   return (
     <div className="vtt2-actionbar">
       {VTT_TOOLS.map((t) => (
@@ -31,13 +30,6 @@ export function VttActionBar({ tool, onTool, fogOn, onToggleFog, view3d, onToggl
         title="Fog of war — vision from tokens + lights, blocked by walls"
       >
         Fog
-      </button>
-      <button
-        className={"vtt2-action" + (view3d ? " active" : "")}
-        onClick={onToggleView}
-        title="3D view — orbit the same scene in three dimensions (drag tokens, wheel zooms, right-drag pans)"
-      >
-        3D
       </button>
     </div>
   );

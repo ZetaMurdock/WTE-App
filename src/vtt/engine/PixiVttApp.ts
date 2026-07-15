@@ -90,7 +90,9 @@ export class PixiVttApp {
       this.fog.view,
       this.measure.view
     );
-    this.app.stage.addChild(this.world, this.atmosphere.view); // atmosphere is screen-space, over the map
+    // Backdrop sits BEHIND the map; the atmosphere overlay sits ON TOP. Both are
+    // screen-space (fixed while the world pans/zooms).
+    this.app.stage.addChild(this.atmosphere.backdrop, this.world, this.atmosphere.view);
     this.input = new InputController(this);
     this.input.attach(this.app.canvas);
     // camera momentum + atmosphere animation each frame
