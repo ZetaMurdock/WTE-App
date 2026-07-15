@@ -80,19 +80,21 @@ export class PixiVttApp {
     }
     host.appendChild(this.app.canvas);
     this.world.addChild(
+      this.atmosphere.backdrop, // world void BEHIND the map (pans/zooms with it)
       this.bg.view,
       this.grid.view,
       this.lights.view,
       this.effects.view,
       this.tokens.view,
+      this.atmosphere.worldFx, // weather (mist + particles) OVER the map, in world space
       this.walls.view,
       this.walls.previewG,
       this.fog.view,
       this.measure.view
     );
-    // Backdrop sits BEHIND the map; the atmosphere overlay sits ON TOP. Both are
-    // screen-space (fixed while the world pans/zooms).
-    this.app.stage.addChild(this.atmosphere.backdrop, this.world, this.atmosphere.view);
+    // Only the uniform post-grades (mood tint, vignette, height-fog, shadows) are
+    // screen-space; the structured effects live in the world above.
+    this.app.stage.addChild(this.world, this.atmosphere.view);
     this.input = new InputController(this);
     this.input.attach(this.app.canvas);
     // camera momentum + atmosphere animation each frame
