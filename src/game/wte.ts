@@ -334,7 +334,7 @@ export function moralityMods(m?: number): {
 }
 
 // ── Pressure Engine (ported verbatim from the legacy sheet's PE section) ──
-export const PE_MAX = 200;
+export const PE_MAX = 600;
 export const PE_DEFAULT = 50;
 export function pressureState(v: number): { label: string; key: "calm" | "tense" | "critical" | "catastrophic" } {
   if (v >= 110) return { label: "CATASTROPHIC", key: "catastrophic" };
