@@ -5104,21 +5104,178 @@ body.wte-dot-cursor * {
   background: rgba(126, 207, 202, 0.16);
   color: var(--ink);
 }
-/* Curator Grid & Map panel (right side, clear of the inspector) */
-.vtt2-gridpanel {
+/* ── Scene Studio: full-height tabbed scene/atmosphere/shader editor ── */
+.scene-studio {
   position: absolute;
   top: 54px;
-  right: 254px;
-  width: 240px;
-  background: rgba(12, 18, 32, 0.96);
+  right: 14px;
+  bottom: 14px;
+  width: 328px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(10, 15, 27, 0.97);
   border: 1px solid var(--panel-line);
-  border-radius: 10px;
-  padding: 12px 14px;
-  z-index: 10;
+  border-radius: 12px;
+  z-index: 12;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
 }
-.vtt2-gridpanel input[type="range"] {
+.scene-studio input[type="range"] {
   width: 100%;
 }
+.scene-studio-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 8px;
+}
+.scene-studio-title {
+  font-family: Georgia, serif;
+  font-size: 15px;
+  letter-spacing: 1px;
+  color: var(--bone);
+}
+.scene-studio-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--panel-line);
+}
+.scene-studio-tab {
+  flex: 1;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-family: Georgia, serif;
+  font-size: 12px;
+  padding: 7px 2px;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.scene-studio-tab:hover { color: var(--ink); }
+.scene-studio-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.scene-studio-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px 16px;
+}
+.scene-studio-sub {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 16px 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* shader preset cards */
+.shader-preset-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.shader-preset-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--panel-line);
+  border-radius: 7px;
+  padding: 7px 9px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.shader-preset-card:hover {
+  border-color: var(--accent);
+  background: rgba(126, 207, 202, 0.07);
+}
+.shader-preset-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(0, 0, 0, 0.4);
+}
+.shader-preset-name {
+  font-size: 11px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shader-preset-tag {
+  font-family: Consolas, monospace;
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: #d8b25a;
+  margin-left: auto;
+}
+.shader-preset-del {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.shader-preset-card:hover .shader-preset-del { opacity: 1; }
+.shader-preset-del:hover { color: #c25b4a; }
+
+/* GLSL code editor */
+.shader-badge {
+  font-family: Consolas, monospace;
+  font-size: 8px;
+  letter-spacing: 1px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--muted);
+  color: var(--muted);
+}
+.shader-badge.custom {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.shader-editor {
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #06090f;
+}
+.shader-editor.error { border-color: #c25b4a; }
+.shader-code {
+  width: 100%;
+  min-height: 150px;
+  resize: vertical;
+  background: transparent;
+  border: none;
+  color: #cfe3df;
+  font-family: Consolas, "SF Mono", monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 10px 12px;
+  tab-size: 2;
+}
+.shader-code:focus { outline: none; }
+.shader-status {
+  font-family: Consolas, monospace;
+  font-size: 9.5px;
+  padding: 5px 12px;
+  border-top: 1px solid var(--panel-line);
+}
+.shader-status.ok { color: var(--muted); }
+.shader-status.err { color: #e08a7c; background: rgba(194, 91, 74, 0.12); }
 /* Scene Wheel — right-edge quick scene switcher (Curator) */
 .vtt2-scenewheel {
   position: absolute;
