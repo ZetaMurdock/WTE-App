@@ -26,6 +26,8 @@ import {
   validateSheet,
   getSpecies,
   getParadigm,
+  getSector,
+  moralityState,
   usableGenus,
   usableCiphers,
   usableRacial,
@@ -180,6 +182,9 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   function setSize(sizeId: string) {
     persist({ ...rec!, sheet: { ...sheet, sizeId } });
   }
+  function setMorality(v: number) {
+    persist({ ...rec!, sheet: { ...sheet, morality: Math.max(0, Math.min(100, v)) } });
+  }
   function setEquipment(items: EquipmentItem[]) {
     persist({ ...rec!, sheet: { ...sheet, equipment: items } });
   }
@@ -224,6 +229,19 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
             {[species?.name, sheet.variantName, paradigm?.name].filter(Boolean).join(" · ") || "Inquisitor"}
           </div>
           <h1 className="dash-title">{rec.name}</h1>
+          <div className="sheet-soul-line">
+            {getSector(sheet.sector) && <span>{getSector(sheet.sector)!.name} · {getSector(sheet.sector)!.epithet}</span>}
+            <span className="sheet-soul" title="Polarized Soul position — 0 Process, 100 Resonance. Shifts in play.">
+              Soul {sheet.morality ?? 50} · {moralityState(sheet.morality ?? 50).label}
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={sheet.morality ?? 50}
+                onChange={(e) => setMorality(parseInt(e.target.value, 10))}
+              />
+            </span>
+          </div>
         </div>
         <div className="sheet-banner-actions">
           {net.status === "connected" && (

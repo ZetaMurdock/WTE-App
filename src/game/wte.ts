@@ -285,6 +285,39 @@ export function registerCodexGameData(data: CodexGameData): void {
   }
 }
 
+// ── The 16 Sectors (ECP Territorial Atlas) + the Polarized Soul morality scale ──
+export const SECTORS: { id: string; name: string; epithet: string }[] = [
+  { id: "azimuth", name: "Azimuth", epithet: "The Center" },
+  { id: "boren", name: "Boren", epithet: "The North" },
+  { id: "nne", name: "NNE", epithet: "The Botanical Foundry" },
+  { id: "ne", name: "NE", epithet: "The Moss-Iron Plains" },
+  { id: "ene", name: "ENE", epithet: "The Ore-Grove Monoliths" },
+  { id: "orentn", name: "Orentn", epithet: "The East" },
+  { id: "ese", name: "ESE", epithet: "The Ash-Grime Foundries" },
+  { id: "se", name: "SE", epithet: "The Rust-Trench Border" },
+  { id: "sse", name: "SSE", epithet: "The Shrapnel Canyons" },
+  { id: "austn", name: "Austn", epithet: "The South" },
+  { id: "ssw", name: "SSW", epithet: "The Trench-Frontier" },
+  { id: "sw", name: "SW", epithet: "The Dust-Choked Trenches" },
+  { id: "wsw", name: "WSW", epithet: "The Frontier Rail" },
+  { id: "oksdn", name: "Oksdn", epithet: "The West" },
+  { id: "wnw", name: "WNW", epithet: "The Solar Homesteads" },
+  { id: "nw", name: "NW", epithet: "The Green-Glass Dome" },
+  { id: "nnw", name: "NNW", epithet: "The Canopy Laboratories" },
+];
+export function getSector(id?: string): { id: string; name: string; epithet: string } | undefined {
+  return SECTORS.find((s) => s.id === id);
+}
+
+/** Polarized Soul state for a 0..100 morality position (see the built-in page). */
+export function moralityState(m: number): { label: string; exp: number } {
+  if (m <= 15) return { label: "Pure Process", exp: 1.7 };
+  if (m <= 35) return { label: "Leaning Process", exp: 1.3 };
+  if (m <= 64) return { label: "Existential Drift", exp: 1.0 };
+  if (m <= 84) return { label: "Leaning Resonance", exp: 1.3 };
+  return { label: "Apex Resonance", exp: 1.7 };
+}
+
 export function zeroAttributes(): Attributes {
   return { phy: 0, dex: 0, end: 0, ap: 0, wis: 0, cha: 0, int: 0 };
 }

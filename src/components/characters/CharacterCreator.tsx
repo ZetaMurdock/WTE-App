@@ -25,6 +25,11 @@ import {
   type SpecKey,
   type Attributes,
   type Specialties,
+  SECTORS,
+  getSector,
+  moralityState,
+  SIZE_CLASSES,
+  sizeOf,
   type BgMode,
   type Background,
   type CodexBackground,
@@ -35,7 +40,7 @@ import { DerivedPreview } from "./DerivedPreview";
 import { AttributeRoller } from "./AttributeRoller";
 import { PortraitFrame } from "./PortraitFrame";
 
-const STEPS = ["Identity", "Species", "Background", "Paradigm", "Attributes", "Specialties", "Review"];
+const STEPS = ["Identity", "Species", "Origin", "Paradigm", "Attributes", "Specialties", "Review"];
 
 interface Props {
   campaignId: string;
@@ -75,6 +80,10 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
   const [bgMode, setBgMode] = useState<BgMode>("standard");
   const [bgAssign, setBgAssign] = useState<(AttrKey | null)[]>([null, null, null, null]);
   const [selectedBg, setSelectedBg] = useState<CodexBackground | null>(null);
+  const [backstory, setBackstory] = useState("");
+  const [sector, setSector] = useState<string | undefined>();
+  const [morality, setMorality] = useState(50);
+  const [sizeId, setSizeId] = useState("auto");
   const [attrMode, setAttrMode] = useState<"manual" | "roll">("manual");
   const [portrait, setPortrait] = useState<string | undefined>();
   const [saving, setSaving] = useState(false);
@@ -111,7 +120,7 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
 
   async function finish() {
     setSaving(true);
-    const sheet: CharacterSheet = { attributes, specialties, speciesId, variantName, variantOption, paradigmId, rank: 0, portrait, background, notes: "" };
+    const sheet: CharacterSheet = { attributes, specialties, speciesId, variantName, variantOption, paradigmId, rank: 0, portrait, background, sizeId, sector, morality, notes: backstory };
     try {
       const rec = await createCharacter(campaignId, name, sheet);
       onDone(rec.id);
@@ -160,19 +169,104 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
 
       <div className="wizard-body">
         {step === 0 && (
-          <div className="wizard-pane identity-pane">
-            <PortraitFrame src={portrait} onChange={(u) => setPortrait(u ?? undefined)} size="lg" />
-            <div className="identity-fields">
-              <label className="field-label">Character name</label>
+          <div>
+            <div className="wizard-pane identity-pane">
+              <PortraitFrame src={portrait} onChange={(u) => setPortrait(u ?? undefined)} size="lg" />
+              <div className="identity-fields">
+                <label className="field-label">Character name</label>
+                <input
+                  className="picker-input"
+                  type="text"
+                  placeholder="Name your Inquisitor…"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  autoFocus
+                />
+                <p className="identity-hint">Upload a portrait (PNG) — hover the frame. You can change it later on the sheet.</p>
+              </div>
+            </div>
+
+            {/* Background + backstory live here — the personal story is one section. */}
+            <div className="wizard-pane" style={{ marginTop: 22 }}>
+              <label className="field-label">Background</label>
+              {BACKGROUNDS.length > 0 && (
+                <div className="chip-row" style={{ flexWrap: "wrap", marginBottom: 8 }}>
+                  {BACKGROUNDS.map((b) => (
+                    <button
+                      key={b.name}
+                      className={"chip" + (selectedBg?.name === b.name ? " active" : "")}
+                      title={b.note || undefined}
+                      onClick={() => {
+                        setSelectedBg(b);
+                        setBgName(b.name);
+                        if (b.mode) setMode(b.mode);
+                      }}
+                    >
+                      {b.name}
+                    </button>
+                  ))}
+                </div>
+              )}
               <input
                 className="picker-input"
                 type="text"
-                placeholder="Name your Inquisitor…"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                autoFocus
+                placeholder={BACKGROUNDS.length ? "…or a custom background name" : "Background name (optional)…"}
+                value={bgName}
+                onChange={(e) => {
+                  setSelectedBg(null); // typing a custom name reverts to manual assignment
+                  setBgName(e.target.value);
+                }}
               />
-              <p className="identity-hint">Upload a portrait (PNG) — hover the frame. You can change it later on the sheet.</p>
+              {bgFixed ? (
+                <div className="bg-fixed">
+                  <div className="picker-label">Fixed bonuses (from this background)</div>
+                  <ul className="bg-fixed-list">
+                    {statBonusRows(selectedBg!).map((r) => (
+                      <li key={r.label}>
+                        <span className="bg-fixed-amt">+{r.amount}</span> {r.label}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <>
+                  <div className="chip-row">
+                    <button className={"chip" + (bgMode === "standard" ? " active" : "")} onClick={() => setMode("standard")}>
+                      Standard · +2 +2 +1 +1
+                    </button>
+                    <button className={"chip" + (bgMode === "focused" ? " active" : "")} onClick={() => setMode("focused")}>
+                      Focused · +4 +2
+                    </button>
+                  </div>
+                  {bgAmounts(bgMode).map((amt, i) => (
+                    <div className="stat-row" key={i}>
+                      <div className="stat-info">
+                        <span className="stat-short">+{amt} to</span>
+                      </div>
+                      <select
+                        className="bg-select"
+                        value={bgAssign[i] ?? ""}
+                        onChange={(e) => setAssign(i, (e.target.value || null) as AttrKey | null)}
+                      >
+                        <option value="">—</option>
+                        {ATTRIBUTES.map((a) => (
+                          <option key={a.key} value={a.key}>
+                            {a.short}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </>
+              )}
+              <label className="field-label" style={{ marginTop: 16 }}>Backstory & personal notes</label>
+              <textarea
+                className="sheet-notes"
+                style={{ minHeight: 100 }}
+                placeholder="Who are they? Where did they come from? Hooks, scars, debts…"
+                value={backstory}
+                onChange={(e) => setBackstory(e.target.value)}
+              />
             </div>
           </div>
         )}
@@ -245,83 +339,65 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
         {step === 2 && (
           <div className="wizard-split">
             <div className="stat-editor">
-              {BACKGROUNDS.length > 0 && (
-                <>
-                  <div className="picker-label">Backgrounds (from the Codex)</div>
-                  <div className="chip-row" style={{ flexWrap: "wrap" }}>
-                    {BACKGROUNDS.map((b) => (
-                      <button
-                        key={b.name}
-                        className={"chip" + (selectedBg?.name === b.name ? " active" : "")}
-                        title={b.note || undefined}
-                        onClick={() => {
-                          setSelectedBg(b);
-                          setBgName(b.name);
-                          if (b.mode) setMode(b.mode);
-                        }}
-                      >
-                        {b.name}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
+              <label className="field-label">Sector — where you joined your Paradigm</label>
+              <div className="chip-row" style={{ flexWrap: "wrap" }}>
+                {SECTORS.map((s) => (
+                  <button
+                    key={s.id}
+                    className={"chip" + (sector === s.id ? " active" : "")}
+                    title={s.epithet}
+                    onClick={() => setSector(sector === s.id ? undefined : s.id)}
+                  >
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+              {sector && <p className="identity-hint">{getSector(sector)?.epithet} — see “The 16 Sectors” in the Codex.</p>}
+
+              <label className="field-label" style={{ marginTop: 18 }}>
+                Morality — the Polarized Soul · {morality} ({moralityState(morality).label})
+              </label>
+              <div className="chip-row">
+                {[
+                  { label: "Pure Process", v: 10 },
+                  { label: "Leaning Process", v: 30 },
+                  { label: "Neutral", v: 50 },
+                  { label: "Leaning Resonance", v: 70 },
+                  { label: "Apex Resonance", v: 90 },
+                ].map((p) => (
+                  <button key={p.label} className={"chip" + (morality === p.v ? " active" : "")} onClick={() => setMorality(p.v)}>
+                    {p.label}
+                  </button>
+                ))}
+              </div>
               <input
-                className="picker-input"
-                type="text"
-                placeholder={BACKGROUNDS.length ? "…or a custom background name" : "Background name (optional)…"}
-                value={bgName}
-                onChange={(e) => {
-                  setSelectedBg(null); // typing a custom name reverts to manual assignment
-                  setBgName(e.target.value);
-                }}
+                type="range"
+                min={0}
+                max={100}
+                value={morality}
+                onChange={(e) => setMorality(parseInt(e.target.value, 10))}
+                style={{ width: "100%", marginTop: 8 }}
               />
-              {bgFixed ? (
-                <div className="bg-fixed">
-                  <div className="picker-label">Fixed bonuses (from this background)</div>
-                  <ul className="bg-fixed-list">
-                    {statBonusRows(selectedBg!).map((r) => (
-                      <li key={r.label}>
-                        <span className="bg-fixed-amt">+{r.amount}</span> {r.label}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : (
-                <>
-                  <div className="chip-row">
-                    <button className={"chip" + (bgMode === "standard" ? " active" : "")} onClick={() => setMode("standard")}>
-                      Standard · +2 +2 +1 +1
-                    </button>
-                    <button className={"chip" + (bgMode === "focused" ? " active" : "")} onClick={() => setMode("focused")}>
-                      Focused · +4 +2
-                    </button>
-                  </div>
-                  {bgAmounts(bgMode).map((amt, i) => (
-                    <div className="stat-row" key={i}>
-                      <div className="stat-info">
-                        <span className="stat-short">+{amt} to</span>
-                      </div>
-                      <select
-                        className="bg-select"
-                        value={bgAssign[i] ?? ""}
-                        onChange={(e) => setAssign(i, (e.target.value || null) as AttrKey | null)}
-                      >
-                        <option value="">—</option>
-                        {ATTRIBUTES.map((a) => (
-                          <option key={a.key} value={a.key}>
-                            {a.short}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  ))}
-                </>
-              )}
+              <p className="identity-hint">
+                0 = Process (the Numb) · 100 = Resonance (the Volatile). EXP multiplier at this state: ×{moralityState(morality).exp}
+              </p>
+
+              <label className="field-label" style={{ marginTop: 18 }}>Size</label>
+              <div className="chip-row" style={{ flexWrap: "wrap" }}>
+                <button className={"chip" + (sizeId === "auto" ? " active" : "")} onClick={() => setSizeId("auto")}>
+                  Auto · {sizeOf("auto", speciesId).label} (species)
+                </button>
+                {SIZE_CLASSES.map((s) => (
+                  <button key={s.key} className={"chip" + (sizeId === s.key ? " active" : "")} title={s.note} onClick={() => setSizeId(s.key)}>
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+              <p className="identity-hint">{sizeOf(sizeId, speciesId).note}</p>
             </div>
             <div className="wizard-aside">
               <div className="aside-title">Derived preview</div>
-              <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} background={background} />
+              <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} background={background} sizeId={sizeId} />
             </div>
           </div>
         )}
@@ -434,6 +510,9 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
             <div className="review-row"><span>Species</span><b>{species?.name || "—"}{variantName ? ` · ${variantName}` : ""}</b></div>
             <div className="review-row"><span>Background</span><b>{bgName.trim() || "—"} ({bgMode})</b></div>
             <div className="review-row"><span>Paradigm</span><b>{paradigm?.name || "—"}</b></div>
+            <div className="review-row"><span>Sector</span><b>{getSector(sector) ? `${getSector(sector)!.name} · ${getSector(sector)!.epithet}` : "—"}</b></div>
+            <div className="review-row"><span>Morality</span><b>{morality} · {moralityState(morality).label} (×{moralityState(morality).exp} EXP)</b></div>
+            <div className="review-row"><span>Size</span><b>{sizeOf(sizeId, speciesId).label}{sizeId === "auto" ? " (species)" : ""}</b></div>
             <div className="review-row"><span>Specialty points</span><b>{SPEC_TOTAL - remaining} / {SPEC_TOTAL}</b></div>
             {!validation.ok && (
               <ul className="validation-list">

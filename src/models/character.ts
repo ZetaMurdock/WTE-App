@@ -28,6 +28,10 @@ export interface CharacterSheet {
   background?: Background;
   /** Size class key, or "auto" (default per species). */
   sizeId?: string;
+  /** The Sector in which the Inquisitor joined their Paradigm (see The 16 Sectors). */
+  sector?: string;
+  /** Polarized Soul position 0..100 (0 = Process, 100 = Resonance). Default 50. */
+  morality?: number;
   equipment?: EquipmentItem[];
   /** Selected genus / cipher ability names (loadout, capped by rank slots). */
   genusLoadout?: string[];

@@ -790,6 +790,29 @@ body.wte-dot-cursor * {
   border-left: 1px solid var(--panel-line);
 }
 
+/* Sector + Polarized Soul line under the sheet title */
+.sheet-soul-line {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.sheet-soul {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--accent);
+}
+.sheet-soul input[type="range"] {
+  width: 110px;
+  accent-color: var(--accent);
+}
+
 /* Modern New-Character button with a hover flyout */
 .vault-new-wrap {
   position: relative;

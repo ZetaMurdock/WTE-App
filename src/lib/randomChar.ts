@@ -5,6 +5,7 @@ import {
   SPECIES,
   PARADIGMS,
   BACKGROUNDS,
+  SECTORS,
   ATTR_KEYS,
   SPEC_KEYS,
   ATTR_MAX,
@@ -71,6 +72,8 @@ export function randomCharacter(): { name: string; sheet: CharacterSheet } {
       paradigmId: paradigm.id,
       rank: 0,
       background,
+      sector: rand(SECTORS).id,
+      morality: rand([10, 30, 50, 70, 90]),
       notes: "",
     },
   };
