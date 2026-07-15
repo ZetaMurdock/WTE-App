@@ -217,6 +217,34 @@ export function firebasePublishConfigured(): boolean {
   return !!(cfg && cfg.databaseURL && cfg.projectId);
 }
 
+/** Raw stored Firebase config text (for the settings editor). */
+export function getFirebaseConfigRaw(): string {
+  return localStorage.getItem("wte-fb-config") || "";
+}
+/** Save the Firebase config from pasted JSON (or a `const firebaseConfig = {…}`
+ *  snippet). Returns an error string on invalid JSON, or null on success. */
+export function saveFirebaseConfig(text: string): string | null {
+  const t = text.trim();
+  if (!t) {
+    localStorage.removeItem("wte-fb-config");
+    return null;
+  }
+  // tolerate a pasted `const firebaseConfig = { … };` block
+  const m = t.match(/\{[\s\S]*\}/);
+  const jsonish = m ? m[0] : t;
+  try {
+    // allow unquoted keys / trailing commas from console snippets
+    // eslint-disable-next-line no-new-func
+    const obj = Function(`"use strict";return (${jsonish})`)();
+    if (!obj || typeof obj !== "object") return "That doesn't look like a config object.";
+    if (!obj.databaseURL) return "Missing databaseURL — enable the Realtime Database and copy its config.";
+    localStorage.setItem("wte-fb-config", JSON.stringify(obj));
+    return null;
+  } catch {
+    return "Couldn't parse that — paste the whole firebaseConfig object.";
+  }
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let __wteFbDb: Promise<any> | null = null;
 /** Load Firebase app+auth+database and return the database() handle. Throws with a

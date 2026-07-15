@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isTauri } from "../lib/tauri";
+import { isTauri, getFirebaseConfigRaw, saveFirebaseConfig, firebasePublishConfigured } from "../lib/tauri";
 import { discovered, myPeerName, setPeerName, type DiscoveredHost } from "../net/discovery";
 import { getNetConfig, setNetConfig, type NetConfig } from "../net/netconfig";
 import { useNet } from "../net/NetContext";
@@ -21,6 +21,14 @@ export function LobbyView() {
   const [scanning, setScanning] = useState(false);
   const [hosts, setHosts] = useState<DiscoveredHost[]>([]);
   const scanTimer = useRef<number | undefined>(undefined);
+  const [fbText, setFbText] = useState(getFirebaseConfigRaw());
+  const [fbNote, setFbNote] = useState("");
+  const [fbOk, setFbOk] = useState(firebasePublishConfigured());
+  function saveFb() {
+    const err = saveFirebaseConfig(fbText);
+    setFbNote(err ?? "Saved — published Codex pages are now shared. Reopen the app to connect.");
+    setFbOk(firebasePublishConfigured());
+  }
 
   const peersRef = useRef(net.peers);
   peersRef.current = net.peers;
@@ -180,6 +188,22 @@ export function LobbyView() {
             <span>TURN secret (optional)</span>
             <input className="bg-select full" type="password" value={cfg.turnSecret} onChange={(e) => saveCfg({ turnSecret: e.target.value })} placeholder="coturn static-auth-secret" />
           </label>
+        </div>
+
+        <div className="lobby-card">
+          <div className="panel-title">Shared library {fbOk ? "· connected" : "· not set"}</div>
+          <p className="vtt2-actor-hint" style={{ margin: "0 0 6px" }}>
+            Paste your Firebase config (free Spark plan → Realtime Database) so Codex pages you publish are visible to everyone. See docs/PUBLISH-SETUP.md.
+          </p>
+          <textarea
+            className="bg-select full"
+            style={{ minHeight: 96, fontFamily: "Consolas, monospace", fontSize: 11 }}
+            value={fbText}
+            onChange={(e) => setFbText(e.target.value)}
+            placeholder={'{ "apiKey": "…", "projectId": "…", "databaseURL": "https://…firebasedatabase.app" }'}
+          />
+          <button className="primary-btn full mt" onClick={saveFb}>Save shared-library config</button>
+          {fbNote && <p className="vtt2-actor-hint" style={{ marginTop: 6 }}>{fbNote}</p>}
         </div>
       </div>
 
