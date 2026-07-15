@@ -8,6 +8,8 @@ interface Props {
   onToggleLegacy: () => void;
   wallpaper: string | null;
   onWallpaper: (uri: string | null) => void;
+  dotCursor: boolean;
+  onToggleDotCursor: () => void;
   accountLabel: string;
   onAccount: () => void;
 }
@@ -23,7 +25,7 @@ function fileToDataUrl(file: File): Promise<string> {
 
 // Top-right profile menu: consolidates identity + app settings (name, theme,
 // wallpaper, account, and the Legacy-tools toggle) so the top nav stays clean.
-export function ProfileMenu({ theme, onToggleTheme, showLegacy, onToggleLegacy, wallpaper, onWallpaper, accountLabel, onAccount }: Props) {
+export function ProfileMenu({ theme, onToggleTheme, showLegacy, onToggleLegacy, wallpaper, onWallpaper, dotCursor, onToggleDotCursor, accountLabel, onAccount }: Props) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(myPeerName());
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -92,6 +94,10 @@ export function ProfileMenu({ theme, onToggleTheme, showLegacy, onToggleLegacy, 
                 <span>Clear wallpaper</span>
               </button>
             )}
+            <button className={"profile-row toggle" + (dotCursor ? " on" : "")} onClick={onToggleDotCursor}>
+              <span>Dot cursor</span>
+              <span className="profile-switch" aria-hidden />
+            </button>
           </div>
 
           <div className="profile-sec">

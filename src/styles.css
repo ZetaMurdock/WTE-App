@@ -149,6 +149,152 @@ body {
   cursor: default;
 }
 
+/* ── Dot cursor ── */
+body.wte-dot-cursor,
+body.wte-dot-cursor * {
+  cursor: none !important;
+}
+.cursor-dot {
+  position: fixed;
+  left: -4px;
+  top: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  pointer-events: none;
+  z-index: 9999;
+  transition: width 0.14s ease, height 0.14s ease, background 0.14s ease, border-radius 0.14s ease, margin 0.14s ease, opacity 0.14s ease;
+}
+.cursor-dot.hover {
+  width: 14px;
+  height: 14px;
+  margin: -3px 0 0 -3px;
+  background: var(--accent);
+}
+.cursor-dot.danger {
+  width: 14px;
+  height: 14px;
+  margin: -3px 0 0 -3px;
+  background: #c25b4a;
+}
+.cursor-dot.text {
+  width: 3px;
+  height: 18px;
+  margin: -5px 0 0 2px;
+  border-radius: 2px;
+  background: #d8b25a;
+}
+.cursor-dot.off,
+.cursor-ring.off {
+  opacity: 0;
+}
+.cursor-ring {
+  position: fixed;
+  left: -14px;
+  top: -14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid rgba(126, 207, 202, 0.45);
+  pointer-events: none;
+  z-index: 9998;
+  transition: opacity 0.2s ease;
+}
+.cursor-ring.pulse {
+  animation: cursor-pulse 0.4s ease;
+}
+@keyframes cursor-pulse {
+  0% { scale: 0.6; border-color: rgba(126, 207, 202, 0.9); }
+  100% { scale: 1; border-color: rgba(126, 207, 202, 0.45); }
+}
+
+/* ── Nav orbit: circular Dashboard orb that unfurls the tabs on hover ── */
+.nav-orbit {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.nav-orb {
+  appearance: none;
+  border: 1px solid var(--accent);
+  background: radial-gradient(circle at 35% 35%, rgba(126, 207, 202, 0.35), rgba(126, 207, 202, 0.06) 70%);
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  margin: 0 8px 0 4px;
+  cursor: pointer;
+  position: relative;
+  flex: 0 0 auto;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+  animation: orb-idle 4s ease-in-out infinite;
+}
+@keyframes orb-idle {
+  0%, 100% { box-shadow: 0 0 6px rgba(126, 207, 202, 0.25); }
+  50% { box-shadow: 0 0 14px rgba(126, 207, 202, 0.55); }
+}
+.nav-orbit:hover .nav-orb {
+  transform: scale(1.18) rotate(90deg);
+  animation: none;
+  box-shadow: 0 0 16px rgba(126, 207, 202, 0.6);
+}
+.nav-orb.active {
+  background: radial-gradient(circle at 35% 35%, rgba(126, 207, 202, 0.85), rgba(126, 207, 202, 0.25) 75%);
+}
+.nav-orb-core {
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.85;
+  transition: inset 0.25s ease;
+}
+.nav-orbit:hover .nav-orb-core {
+  inset: 10px;
+}
+/* tabs slide out of the orb, staggered; collapse when the pointer leaves */
+.nav-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-width 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.28s ease;
+}
+.nav-orbit:hover .nav-tabs,
+.nav-tabs:hover {
+  max-width: 900px;
+  opacity: 1;
+}
+.nav-tabs .tab {
+  transform: translateX(-14px);
+  opacity: 0;
+  transition: transform 0.3s cubic-bezier(0.34, 1.3, 0.64, 1), opacity 0.24s ease, color 0.2s ease, background 0.2s ease;
+  white-space: nowrap;
+}
+.nav-orbit:hover .nav-tabs .tab {
+  transform: translateX(0);
+  opacity: 1;
+}
+/* collapsed state shows where you are */
+.nav-current {
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--bone);
+  white-space: nowrap;
+  opacity: 1;
+  transition: opacity 0.2s ease 0.15s, max-width 0.3s ease;
+  max-width: 200px;
+  overflow: hidden;
+}
+.nav-orbit:hover .nav-current {
+  opacity: 0;
+  max-width: 0;
+  transition-delay: 0s;
+}
+
 /* ── Profile menu (top-right) ── */
 .profile-wrap {
   position: relative;

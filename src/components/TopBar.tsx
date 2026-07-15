@@ -38,6 +38,8 @@ interface TopBarProps {
   onToggleLegacy: () => void;
   wallpaper: string | null;
   onWallpaper: (uri: string | null) => void;
+  dotCursor: boolean;
+  onToggleDotCursor: () => void;
 }
 
 export function TopBar({
@@ -59,6 +61,8 @@ export function TopBar({
   onToggleLegacy,
   wallpaper,
   onWallpaper,
+  dotCursor,
+  onToggleDotCursor,
 }: TopBarProps) {
   const net = useNet();
   // Per-campaign Curator claim: you're the Curator of campaigns you own. The only
@@ -66,19 +70,35 @@ export function TopBar({
   // GM-mode button there.
   const isNetPlayer = net.status === "connected" && net.role === "player";
   // Legacy iframes are hidden from the nav unless enabled in the profile menu.
-  const tabs = TABS.filter((t) => showLegacy || !LEGACY_TABS.includes(t.id));
+  // The Dashboard is the circular orb itself; the rest unfurl from it on hover.
+  const tabs = TABS.filter((t) => t.id !== "dashboard" && (showLegacy || !LEGACY_TABS.includes(t.id)));
+  const activeLabel = TABS.find((t) => t.id === activeTab)?.label ?? "";
   return (
     <div className="tabbar">
-      <span className="brand">W.T.E</span>
-      {tabs.map((t) => (
+      <div className="nav-orbit">
         <button
-          key={t.id}
-          className={"tab" + (activeTab === t.id ? " active" : "")}
-          onClick={() => onTab(t.id)}
+          className={"nav-orb" + (activeTab === "dashboard" ? " active" : "")}
+          onClick={() => onTab("dashboard")}
+          title="Dashboard"
         >
-          {t.label}
+          <span className="nav-orb-core" />
         </button>
-      ))}
+        <div className="nav-tabs">
+          {tabs.map((t, i) => (
+            <button
+              key={t.id}
+              className={"tab" + (activeTab === t.id ? " active" : "")}
+              style={{ transitionDelay: `${i * 28}ms` }}
+              onClick={() => onTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <span className="nav-current" aria-hidden>
+          {activeTab === "dashboard" ? "W.T.E" : activeLabel}
+        </span>
+      </div>
       <span className="spacer" />
       {update && (
         <span className="upd">
@@ -113,6 +133,8 @@ export function TopBar({
         onToggleLegacy={onToggleLegacy}
         wallpaper={wallpaper}
         onWallpaper={onWallpaper}
+        dotCursor={dotCursor}
+        onToggleDotCursor={onToggleDotCursor}
         accountLabel={accountLabel}
         onAccount={onAccount}
       />

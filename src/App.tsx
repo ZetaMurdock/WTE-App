@@ -8,6 +8,7 @@ import { NetProvider } from "./net/NetContext";
 import { CodexBrowser } from "./components/codex/CodexBrowser";
 import { VttScreen } from "./vtt/VttScreen";
 import { Boundary } from "./components/ui/Boundary";
+import { CursorDot } from "./components/CursorDot";
 import { countCharacters } from "./lib/characters";
 import { loadCodexGameData } from "./lib/gameData";
 import {
@@ -80,6 +81,24 @@ export default function App() {
       return null;
     }
   });
+  const [dotCursor, setDotCursor] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("wte-dot-cursor") !== "0"; // on by default
+    } catch {
+      return true;
+    }
+  });
+  function toggleDotCursor() {
+    setDotCursor((v) => {
+      const next = !v;
+      try {
+        localStorage.setItem("wte-dot-cursor", next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
   function toggleLegacy() {
     setShowLegacy((v) => {
       const next = !v;
@@ -253,6 +272,7 @@ export default function App() {
     <NetProvider>
     <div className="app">
       {wallpaper && <div className="app-wallpaper" style={{ backgroundImage: `url(${wallpaper})` }} />}
+      <CursorDot enabled={dotCursor} />
       <TopBar
         activeTab={activeTab}
         onTab={setActiveTab}
@@ -272,6 +292,8 @@ export default function App() {
         onToggleLegacy={toggleLegacy}
         wallpaper={wallpaper}
         onWallpaper={changeWallpaper}
+        dotCursor={dotCursor}
+        onToggleDotCursor={toggleDotCursor}
       />
       <div className="views">
         {activeTab === "dashboard" && (
