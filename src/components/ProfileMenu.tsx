@@ -4,8 +4,6 @@ import { myPeerName, setPeerName } from "../net/discovery";
 interface Props {
   theme: "dark" | "light";
   onToggleTheme: () => void;
-  showLegacy: boolean;
-  onToggleLegacy: () => void;
   wallpaper: string | null;
   onWallpaper: (uri: string | null) => void;
   dotCursor: boolean;
@@ -30,12 +28,10 @@ function fileToDataUrl(file: File): Promise<string> {
 }
 
 // Top-right profile menu: consolidates identity + app settings (name, theme,
-// wallpaper, account, and the Legacy-tools toggle) so the top nav stays clean.
+// picture, wallpaper, roles, account) so the top nav stays clean.
 export function ProfileMenu({
   theme,
   onToggleTheme,
-  showLegacy,
-  onToggleLegacy,
   wallpaper,
   onWallpaper,
   dotCursor,
@@ -195,13 +191,6 @@ export function ProfileMenu({
               </button>
             </div>
           )}
-          <div className="profile-sec">
-            <span className="profile-sec-label">Tools</span>
-            <button className={"profile-row toggle" + (showLegacy ? " on" : "")} onClick={onToggleLegacy}>
-              <span>Legacy tools</span>
-              <span className="profile-switch" aria-hidden />
-            </button>
-          </div>
         </div>
       )}
     </div>

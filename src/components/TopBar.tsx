@@ -2,21 +2,17 @@ import type { WteUpdate } from "../lib/tauri";
 import { useNet } from "../net/NetContext";
 import { ProfileMenu } from "./ProfileMenu";
 
+// Legacy iframe tabs (sheet/vtt/wiki) are retired from the nav — the React Sheet,
+// VTT, and Codex are the app now. The TabId union keeps the ids so old deep links
+// / persisted state don't break, but they never render in the bar.
 export type TabId = "dashboard" | "characters" | "sheet" | "vtt" | "wiki" | "lobby" | "codex" | "vtt2";
-const LEGACY_TABS: TabId[] = ["sheet", "wiki", "vtt"];
 
-// The React "Sheet" and "Codex" are the primary experiences; the legacy iframes
-// are demoted to the end as fallbacks while the migration finishes. VTT v2 is
-// built beside the legacy VTT until it reaches parity.
 export const TABS: { id: TabId; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
   { id: "characters", label: "Sheet" },
   { id: "vtt2", label: "VTT" },
   { id: "lobby", label: "Lobby" },
   { id: "codex", label: "Codex" },
-  { id: "vtt", label: "Legacy VTT" },
-  { id: "sheet", label: "Legacy Sheet" },
-  { id: "wiki", label: "Legacy Codex" },
 ];
 
 interface TopBarProps {
@@ -34,8 +30,6 @@ interface TopBarProps {
   onToggleCurator: () => void;
   engineer: boolean;
   onToggleEngineer: () => void;
-  showLegacy: boolean;
-  onToggleLegacy: () => void;
   wallpaper: string | null;
   onWallpaper: (uri: string | null) => void;
   dotCursor: boolean;
@@ -57,8 +51,6 @@ export function TopBar({
   onToggleCurator,
   engineer,
   onToggleEngineer,
-  showLegacy,
-  onToggleLegacy,
   wallpaper,
   onWallpaper,
   dotCursor,
@@ -71,7 +63,7 @@ export function TopBar({
   const isNetPlayer = net.status === "connected" && net.role === "player";
   // Legacy iframes are hidden from the nav unless enabled in the profile menu.
   // The Dashboard is the circular orb itself; the rest unfurl from it on hover.
-  const tabs = TABS.filter((t) => t.id !== "dashboard" && (showLegacy || !LEGACY_TABS.includes(t.id)));
+  const tabs = TABS.filter((t) => t.id !== "dashboard");
   const activeLabel = TABS.find((t) => t.id === activeTab)?.label ?? "";
   return (
     <div className="tabbar">
@@ -111,8 +103,6 @@ export function TopBar({
       <ProfileMenu
         theme={theme}
         onToggleTheme={onToggleTheme}
-        showLegacy={showLegacy}
-        onToggleLegacy={onToggleLegacy}
         wallpaper={wallpaper}
         onWallpaper={onWallpaper}
         dotCursor={dotCursor}
