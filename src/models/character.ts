@@ -32,6 +32,8 @@ export interface CharacterSheet {
   sector?: string;
   /** Polarized Soul position 0..100 (0 = Process, 100 = Resonance). Default 50. */
   morality?: number;
+  /** Eminence — System Alignment Index, −20 (liability) … +20 (asset). Default 0. */
+  eminence?: number;
   equipment?: EquipmentItem[];
   /** Selected genus / cipher ability names (loadout, capped by rank slots). */
   genusLoadout?: string[];

@@ -28,6 +28,7 @@ import {
   SECTORS,
   getSector,
   moralityState,
+  moralityMods,
   SIZE_CLASSES,
   sizeOf,
   type BgMode,
@@ -379,7 +380,7 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
                 style={{ width: "100%", marginTop: 8 }}
               />
               <p className="identity-hint">
-                0 = Process (the Numb) · 100 = Resonance (the Volatile). EXP multiplier at this state: ×{moralityState(morality).exp}
+                0 = Process (the Numb) · 100 = Resonance (the Volatile).{moralityMods(morality).note ? ` Wired: ${moralityMods(morality).note}` : ""} Advancement shape is governed by Eminence — see the built-in page.
               </p>
 
               <label className="field-label" style={{ marginTop: 18 }}>Size</label>
@@ -397,7 +398,7 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
             </div>
             <div className="wizard-aside">
               <div className="aside-title">Derived preview</div>
-              <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} background={background} sizeId={sizeId} />
+              <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} background={background} sizeId={sizeId} morality={morality} />
             </div>
           </div>
         )}
@@ -458,7 +459,7 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
             </div>
             <div className="wizard-aside">
               <div className="aside-title">Derived preview</div>
-              <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} background={background} />
+              <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} background={background} morality={morality} />
             </div>
           </div>
         )}
@@ -490,7 +491,7 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
             </div>
             <div className="wizard-aside">
               <div className="aside-title">Derived preview</div>
-              <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} background={background} />
+              <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} background={background} morality={morality} />
             </div>
           </div>
         )}
@@ -511,7 +512,7 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
             <div className="review-row"><span>Background</span><b>{bgName.trim() || "—"} ({bgMode})</b></div>
             <div className="review-row"><span>Paradigm</span><b>{paradigm?.name || "—"}</b></div>
             <div className="review-row"><span>Sector</span><b>{getSector(sector) ? `${getSector(sector)!.name} · ${getSector(sector)!.epithet}` : "—"}</b></div>
-            <div className="review-row"><span>Morality</span><b>{morality} · {moralityState(morality).label} (×{moralityState(morality).exp} EXP)</b></div>
+            <div className="review-row"><span>Morality</span><b>{morality} · {moralityState(morality).label}</b></div>
             <div className="review-row"><span>Size</span><b>{sizeOf(sizeId, speciesId).label}{sizeId === "auto" ? " (species)" : ""}</b></div>
             <div className="review-row"><span>Specialty points</span><b>{SPEC_TOTAL - remaining} / {SPEC_TOTAL}</b></div>
             {!validation.ok && (
@@ -521,7 +522,7 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
                 ))}
               </ul>
             )}
-            <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} background={background} />
+            <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} background={background} morality={morality} />
             <button className="primary-btn full mt" disabled={saving || !validation.ok} onClick={finish}>
               {saving ? "Creating…" : "Create character"}
             </button>

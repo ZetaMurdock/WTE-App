@@ -22,6 +22,8 @@ interface Props {
   background?: Background;
   equipment?: EquipmentItem[];
   sizeId?: string;
+  /** Polarized Soul position — wires Process/Resonance mechanics into the preview. */
+  morality?: number;
   /** Derived keys to omit (e.g. the vitals, shown separately on the sheet). */
   exclude?: DerivedKey[];
   /** Show the Max Health cell (default true). */
@@ -31,7 +33,7 @@ interface Props {
 // Live grid of the derived stats + max HP. Core stats (SS / NC / MV) are totals
 // (raw × rank); everything else is a MODIFIER from its raw pool. Negative values
 // (over-specialized builds) are highlighted as liabilities — no clamp.
-export function DerivedPreview({ attributes, specialties, speciesId, rank, background, equipment, sizeId, exclude, showHp = true }: Props) {
+export function DerivedPreview({ attributes, specialties, speciesId, rank, background, equipment, sizeId, morality, exclude, showHp = true }: Props) {
   const d = computeDerived(attributes, specialties, {
     speciesId,
     rank,
@@ -39,6 +41,7 @@ export function DerivedPreview({ attributes, specialties, speciesId, rank, backg
     bgSpec: bgSpecBonuses(background),
     equip: aggregateEquip(equipment),
     sizeMove: sizeOf(sizeId, speciesId).move,
+    morality,
   });
   const skip = new Set(exclude ?? []);
   return (

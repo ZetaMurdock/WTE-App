@@ -310,12 +310,37 @@ export function getSector(id?: string): { id: string; name: string; epithet: str
 }
 
 /** Polarized Soul state for a 0..100 morality position (see the built-in page). */
-export function moralityState(m: number): { label: string; exp: number } {
-  if (m <= 15) return { label: "Pure Process", exp: 1.7 };
-  if (m <= 35) return { label: "Leaning Process", exp: 1.3 };
-  if (m <= 64) return { label: "Existential Drift", exp: 1.0 };
-  if (m <= 84) return { label: "Leaning Resonance", exp: 1.3 };
-  return { label: "Apex Resonance", exp: 1.7 };
+export function moralityState(m: number): { label: string } {
+  if (m <= 15) return { label: "Pure Process" };
+  if (m <= 35) return { label: "Leaning Process" };
+  if (m <= 64) return { label: "Existential Drift" };
+  if (m <= 84) return { label: "Leaning Resonance" };
+  return { label: "Apex Resonance" };
+}
+
+/** The Soul's WIRED mechanics (built-in page): Process (≤30) gains +3 INT and
+ *  +3 Control but Influence collapses to 0; Resonance (≥70) effects that map to
+ *  static sheet math don't exist — its note reminds the table of the rest. */
+export function moralityMods(m?: number): {
+  attr: Partial<Record<AttrKey, number>>;
+  spec: Partial<Record<SpecKey, number>>;
+  influenceZero: boolean;
+  note: string | null;
+} {
+  const v = m ?? 50;
+  if (v <= 30) return { attr: { int: 3 }, spec: { ctrl: 3 }, influenceZero: true, note: "Process — +3 INT · +3 Control · Influence 0 · immune to Unsettled/Fear" };
+  if (v >= 70) return { attr: {}, spec: {}, influenceZero: false, note: "Resonance — Inspiration ×2 for Complexity · double Psychic/Eldritch damage" };
+  return { attr: {}, spec: {}, influenceZero: false, note: null };
+}
+
+/** Eminence — the System Alignment Index (−20 liability … +20 asset, start 0).
+ *  Curator-adjusted; shapes HOW advancement manifests, never EXP speed. */
+export function eminenceState(e: number): string {
+  if (e >= 15) return "System Asset";
+  if (e >= 6) return "Favored Instrument";
+  if (e > -6) return "Unresolved Variable";
+  if (e > -15) return "Flagged";
+  return "System Liability";
 }
 
 export function zeroAttributes(): Attributes {
@@ -586,15 +611,20 @@ export interface DerivedOpts {
   equip?: EquipMods;
   /** Movement is floored at the size class's base move. */
   sizeMove?: number;
+  /** Polarized Soul position — wires the Process/Resonance mechanics in. */
+  morality?: number;
 }
 export function computeDerived(
   attrsIn: Attributes,
   specsIn: Specialties,
   opts: DerivedOpts = {}
 ): Derived & { hpMax: number; raw: Derived } {
-  const a = effectiveAttributes(attrsIn, opts.speciesId, opts.bgBonuses, opts.equip?.attr);
+  const mm = moralityMods(opts.morality);
+  const bgb: Partial<Record<AttrKey, number>> = { ...(opts.bgBonuses ?? {}) };
+  for (const k of ATTR_KEYS) if (mm.attr[k]) bgb[k] = (bgb[k] || 0) + mm.attr[k]!;
+  const a = effectiveAttributes(attrsIn, opts.speciesId, bgb, opts.equip?.attr);
   const s = { ...specsIn };
-  for (const k of SPEC_KEYS) s[k] = Math.min(SPEC_MAX, (s[k] || 0) + (opts.equip?.spec?.[k] || 0) + (opts.bgSpec?.[k] || 0));
+  for (const k of SPEC_KEYS) s[k] = Math.min(SPEC_MAX, (s[k] || 0) + (opts.equip?.spec?.[k] || 0) + (opts.bgSpec?.[k] || 0) + (mm.spec[k] || 0));
   const rank = opts.rank ?? 0;
 
   const red = (pts: number) => Math.floor(pts / RED_DIV);
@@ -627,6 +657,11 @@ export function computeDerived(
       : derivedMod(raw[stat.key], rank);
   }
   if (opts.sizeMove != null) d.mv = Math.max(d.mv, opts.sizeMove);
+  // Process morality: Influence Collapse — the stat is permanently 0.
+  if (mm.influenceZero) {
+    d.inf = 0;
+    raw.inf = 0;
+  }
   const hpMax = Math.max(0, Math.floor((raw.dhp / 2) * rankMult(rank)) + attrMod(a.end));
   return { ...d, hpMax, raw };
 }

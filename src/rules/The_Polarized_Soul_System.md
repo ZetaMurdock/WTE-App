@@ -47,19 +47,19 @@ Clinging to free will, empathy, and chaotic mortal emotion. You choose to feel e
 
 ---
 
-## 2 · The EXP Multiplier — Moral Consistency
+## 2 · Moral Consistency & Advancement
 
-Ideological commitment fuels progression. Hypocrisy splits focus and stalls the Eminence Multiplier.
+The Soul names your **states of being**; advancement itself is governed by **Eminence — the System Alignment Index** (see its own page). Eminence never modifies EXP or raw speed: it shapes *how* advancement manifests — clean sanctioned promotions at high standing, corrupted Talents and invasive failsafes at low.
 
-| Morality State | Range | Consistency | EXP |
-|---|---|---|---|
-| Pure Process | 0 – 15 | Consistently unfeeling, systemic, clinical | **1.7×** |
-| Leaning Process | 16 – 35 | Mostly detached, occasional slippage | 1.3× |
-| **Existential Drift** | 36 – 64 | Contradictory, hypocritical, undecided | **1.0× (slowdown)** |
-| Leaning Resonance | 65 – 84 | Mostly emotional, occasional clinical | 1.3× |
-| Apex Resonance | 85 – 100 | Consistently empathetic, rebellious, raw | **1.7×** |
+| Morality State | Range | Consistency |
+|---|---|---|
+| Pure Process | 0 – 15 | Consistently unfeeling, systemic, clinical |
+| Leaning Process | 16 – 35 | Mostly detached, occasional slippage |
+| **Existential Drift** | 36 – 64 | Contradictory, hypocritical, undecided |
+| Leaning Resonance | 65 – 84 | Mostly emotional, occasional clinical |
+| Apex Resonance | 85 – 100 | Consistently empathetic, rebellious, raw |
 
-<div class="cdx-callout"><strong>Curator Guidance:</strong> Players cannot exploit alignment benefits without matching behaviour. An Inquisitor who claims liberty but massacres unclassified civs immediately triggers the cognitive fracture of <strong>Existential Drift</strong>, cutting EXP to baseline.</div>
+<div class="cdx-callout"><strong>Curator Guidance:</strong> Players cannot exploit alignment benefits without matching behaviour. An Inquisitor who claims liberty but massacres unclassified civs sits in <strong>Existential Drift</strong> — and the system reads that ambiguity as an unresolved variable, eroding <strong>Eminence</strong>.</div>
 
 ---
 

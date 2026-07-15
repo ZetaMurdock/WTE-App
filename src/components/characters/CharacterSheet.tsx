@@ -28,6 +28,8 @@ import {
   getParadigm,
   getSector,
   moralityState,
+  moralityMods,
+  eminenceState,
   usableGenus,
   usableCiphers,
   usableRacial,
@@ -118,8 +120,14 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   const genusLoadout = sheet.genusLoadout ?? [];
   const cipherLoadout = sheet.cipherLoadout ?? [];
   const equip = mergeMods(aggregateEquip(sheet.equipment), loadoutMods(weaponLoadout, gearLoadout));
-  const eff = effectiveAttributes(sheet.attributes, sheet.speciesId, bgBonuses(sheet.background), equip.attr);
-  const effSpec = effectiveSpecialties(sheet.specialties, equip.spec);
+  // Soul mechanics fold into the shown effective values (Process: +3 INT / +3 Control).
+  const soulMods = moralityMods(sheet.morality);
+  const bgPlusSoul = { ...bgBonuses(sheet.background) };
+  for (const [k, v] of Object.entries(soulMods.attr)) bgPlusSoul[k as AttrKey] = (bgPlusSoul[k as AttrKey] || 0) + (v || 0);
+  const eff = effectiveAttributes(sheet.attributes, sheet.speciesId, bgPlusSoul, equip.attr);
+  const specPlusSoul = { ...equip.spec };
+  for (const [k, v] of Object.entries(soulMods.spec)) specPlusSoul[k as SpecKey] = (specPlusSoul[k as SpecKey] || 0) + (v || 0);
+  const effSpec = effectiveSpecialties(sheet.specialties, specPlusSoul);
   const remaining = specialtyRemaining(sheet.specialties);
   const derived = computeDerived(sheet.attributes, sheet.specialties, {
     speciesId: sheet.speciesId,
@@ -128,6 +136,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
     bgSpec: bgSpecBonuses(sheet.background),
     equip,
     sizeMove: sizeOf(sheet.sizeId, sheet.speciesId).move,
+    morality: sheet.morality,
   });
   // Same, minus equipment/loadout — so vitals can show the gear contribution.
   const derivedBase = computeDerived(sheet.attributes, sheet.specialties, {
@@ -136,6 +145,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
     bgBonuses: bgBonuses(sheet.background),
     bgSpec: bgSpecBonuses(sheet.background),
     sizeMove: sizeOf(sheet.sizeId, sheet.speciesId).move,
+    morality: sheet.morality,
   });
   const maxSS = derived.ss;
   const ssSpent = sheet.ssSpent ?? 0;
@@ -185,6 +195,9 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   function setMorality(v: number) {
     persist({ ...rec!, sheet: { ...sheet, morality: Math.max(0, Math.min(100, v)) } });
   }
+  function setEminence(v: number) {
+    persist({ ...rec!, sheet: { ...sheet, eminence: Math.max(-20, Math.min(20, v)) } });
+  }
   function setEquipment(items: EquipmentItem[]) {
     persist({ ...rec!, sheet: { ...sheet, equipment: items } });
   }
@@ -231,16 +244,40 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
           <h1 className="dash-title">{rec.name}</h1>
           <div className="sheet-soul-line">
             {getSector(sheet.sector) && <span>{getSector(sheet.sector)!.name} · {getSector(sheet.sector)!.epithet}</span>}
-            <span className="sheet-soul" title="Polarized Soul position — 0 Process, 100 Resonance. Shifts in play.">
-              Soul {sheet.morality ?? 50} · {moralityState(sheet.morality ?? 50).label}
+            <span
+              className="sheet-soul"
+              title={
+                "Polarized Soul — 0 Process · 100 Resonance. Shifts in play." +
+                (moralityMods(sheet.morality).note ? `\nActive: ${moralityMods(sheet.morality).note}` : "")
+              }
+            >
+              Soul
               <input
-                type="range"
+                className="sheet-stat-num"
+                type="number"
                 min={0}
                 max={100}
                 value={sheet.morality ?? 50}
-                onChange={(e) => setMorality(parseInt(e.target.value, 10))}
+                onChange={(e) => setMorality(parseInt(e.target.value, 10) || 0)}
               />
+              · {moralityState(sheet.morality ?? 50).label}
             </span>
+            <span
+              className="sheet-soul"
+              title="Eminence — System Alignment Index (−20 liability … +20 asset, start 0). Curator-adjusted by impact, not intent; shapes HOW advancement manifests. See the built-in Eminence page."
+            >
+              Eminence
+              <input
+                className="sheet-stat-num"
+                type="number"
+                min={-20}
+                max={20}
+                value={sheet.eminence ?? 0}
+                onChange={(e) => setEminence(parseInt(e.target.value, 10) || 0)}
+              />
+              · {eminenceState(sheet.eminence ?? 0)}
+            </span>
+            {moralityMods(sheet.morality).note && <span className="sheet-soul-note">{moralityMods(sheet.morality).note}</span>}
           </div>
         </div>
         <div className="sheet-banner-actions">

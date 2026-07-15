@@ -808,9 +808,25 @@ body.wte-dot-cursor * {
   gap: 10px;
   color: var(--accent);
 }
-.sheet-soul input[type="range"] {
-  width: 110px;
-  accent-color: var(--accent);
+.sheet-stat-num {
+  width: 52px;
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-radius: 5px;
+  color: var(--ink);
+  font-family: Consolas, monospace;
+  font-size: 12px;
+  padding: 2px 4px;
+  text-align: center;
+}
+.sheet-stat-num:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.sheet-soul-note {
+  color: var(--bone);
+  font-size: 10px;
+  letter-spacing: 1px;
 }
 
 /* Modern New-Character button with a hover flyout */
