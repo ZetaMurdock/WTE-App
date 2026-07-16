@@ -24,6 +24,9 @@ import { VttRollFeed } from "./VttRollFeed";
 import { VttAssetPanel } from "./VttAssetPanel";
 import { VttSoundboard } from "./VttSoundboard";
 import { VttAbilitiesPanel } from "./VttAbilitiesPanel";
+import { VttAoePrompt, type AoePlacement } from "./VttAoePrompt";
+import { hasAoe } from "./data/effectMeta";
+import type { VttAbility } from "./data/characterAbilities";
 import { logRoll } from "../lib/rolls";
 import type { RollResult } from "../game/wte";
 import { CharacterSheet } from "../components/characters/CharacterSheet";
@@ -62,6 +65,7 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
   // The left dock shows at most one panel at a time.
   const [leftPanel, setLeftPanel] = useState<"scenes" | "actors" | "encounter" | "assets" | "abilities" | null>(null);
   const [abilityCharId, setAbilityCharId] = useState<string | null>(null);
+  const [pendingAoe, setPendingAoe] = useState<VttAbility | null>(null);
   const [rollsOpen, setRollsOpen] = useState(false);
   const [gridOpen, setGridOpen] = useState(false);
   const [soundboardOpen, setSoundboardOpen] = useState(false);
@@ -527,6 +531,25 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
   const selTokenCharId = sel?.kind === "token" ? live?.data.tokens.find((t) => t.id === sel.id)?.characterId ?? null : null;
   const abilityChar = characters.find((c) => c.id === (abilityCharId ?? selTokenCharId ?? characters[0]?.id)) ?? null;
 
+  // Place an ability's area template at the chosen anchor (caster token / selected
+  // token / view centre). placeAoeAt leaves it selected so it can be nudged/resized.
+  const placeAoe = (_ability: VttAbility, p: AoePlacement) => {
+    const eng = engineRef.current;
+    if (!eng) return;
+    const tokens = eng.scene?.data.tokens ?? [];
+    let pos: { x: number; y: number };
+    if (p.mode === "self") {
+      const caster = abilityChar ? tokens.find((t) => t.characterId === abilityChar.id) : null;
+      pos = caster ? { x: caster.x, y: caster.y } : eng.viewCenterWorld();
+    } else if (p.mode === "selected") {
+      const t = sel?.kind === "token" ? tokens.find((x) => x.id === sel.id) : null;
+      pos = t ? { x: t.x, y: t.y } : eng.viewCenterWorld();
+    } else {
+      pos = eng.viewCenterWorld();
+    }
+    eng.placeAoeAt(p.kind, pos.x, pos.y, { cells: p.cells, rounds: p.rounds });
+  };
+
   return (
     <div className="vtt2">
       <VttToolbar
@@ -678,10 +701,24 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
           characters={characters.map((c) => ({ id: c.id, name: c.name }))}
           onPickCharacter={(id) => setAbilityCharId(id)}
           onRoll={emitRoll}
-          onUseAbility={() => {
-            /* stage 2: prompt an editable AoE hitbox from the parsed effect meta */
+          onUseAbility={(ability) => {
+            // The roll already fired; if the ability implies an area, prompt to
+            // place an editable hitbox.
+            if (hasAoe(ability.meta)) setPendingAoe(ability);
           }}
           onClose={() => setLeftPanel(null)}
+        />
+      )}
+      {pendingAoe && (
+        <VttAoePrompt
+          ability={pendingAoe}
+          casterName={abilityChar?.name ?? null}
+          hasSelectedToken={sel?.kind === "token"}
+          onCancel={() => setPendingAoe(null)}
+          onPlace={(p) => {
+            placeAoe(pendingAoe, p);
+            setPendingAoe(null);
+          }}
         />
       )}
       {campaign && rollsOpen && <VttRollFeed campaignId={campaign.id} onClose={() => setRollsOpen(false)} />}

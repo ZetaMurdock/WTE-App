@@ -276,6 +276,28 @@ export class PixiVttApp {
     this.onChanged();
     this.onOp({ op: "effect.add", effect: e });
   }
+  /** World coords at the centre of the current viewport (fallback AoE drop point). */
+  viewCenterWorld(): { x: number; y: number } {
+    const cw = this.app.canvas.clientWidth || this.app.renderer.width;
+    const ch = this.app.canvas.clientHeight || this.app.renderer.height;
+    return this.camera.screenToWorld(cw / 2, ch / 2);
+  }
+  /** Place an ability's area template and size it in one step, leaving it SELECTED
+   *  so the caster can nudge/resize it on the fly. Size is in grid cells. */
+  placeAoeAt(kind: VttEffectKind, wx: number, wy: number, opts: { cells?: number; rounds?: number; color?: string }): void {
+    this.addEffectAt(kind, wx, wy);
+    const sel = this.selection;
+    if (sel?.kind !== "effect") return;
+    const patch: Partial<VttEffectData> = {};
+    if (opts.cells != null) {
+      patch.radius = opts.cells;
+      patch.w = opts.cells;
+      patch.h = opts.cells;
+    }
+    if (opts.rounds != null) patch.rounds = opts.rounds;
+    if (opts.color) patch.color = opts.color;
+    if (Object.keys(patch).length) this.updateEffect(sel.id, patch);
+  }
   updateEffect(id: string, patch: Partial<VttEffectData>): void {
     const e = this.scene?.data.effects.find((x) => x.id === id);
     if (!e) return;
