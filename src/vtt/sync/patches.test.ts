@@ -40,6 +40,17 @@ describe("applyOp", () => {
     expect(applyOp(d, { op: "fog.reset" })).toBe(false); // already clear
   });
 
+  it("applies fog level config and clears decay memory on reset", () => {
+    const d = fresh();
+    expect(applyOp(d, { op: "fog.config", patch: { mode: "realistic", decaySeconds: 45 } })).toBe(true);
+    expect(d.fog).toMatchObject({ mode: "realistic", decaySeconds: 45 });
+    d.fog.seen = { "1,1": 123 };
+    d.fog.revealed = ["1,1"];
+    applyOp(d, { op: "fog.reset" });
+    expect(d.fog.seen).toBeUndefined();
+    expect(d.fog.revealed).toEqual([]);
+  });
+
   it("sets background via patch and legacy src-only forms", () => {
     const d = fresh();
     applyOp(d, { op: "bg.set", patch: { src: "img.png", scale: 2 } });

@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { defaultAtmosphere, defaultShader, type VttAtmosphere, type VttBackground, type VttGrid, type VttShader, type VttTerrain } from "./types/scene";
+import { defaultAtmosphere, defaultShader, type VttAtmosphere, type VttBackground, type VttFogMode, type VttFogState, type VttGrid, type VttShader, type VttTerrain } from "./types/scene";
 import { listShaderPresets, saveShaderPreset, deleteShaderPreset, isBuiltinPreset, type ShaderPreset } from "../lib/shaderPresets";
 
 interface Props {
@@ -13,19 +13,28 @@ interface Props {
   onBackground: (patch: Partial<VttBackground>) => void;
   onTerrain: (terrain: VttTerrain | null) => void;
   onAtmosphere: (atmo: VttAtmosphere) => void;
+  fog: VttFogState;
+  onFog: (patch: { mode?: VttFogMode; decaySeconds?: number }) => void;
   onSetMusic: () => void;
   onClearMusic: () => void;
   onMusicVolume: (v: number) => void;
   onClose: () => void;
 }
 
-type StudioTab = "grid" | "terrain" | "atmosphere" | "shaders" | "music";
+type StudioTab = "grid" | "terrain" | "atmosphere" | "fog" | "shaders" | "music";
 const STUDIO_TABS: { id: StudioTab; label: string }[] = [
   { id: "grid", label: "Grid" },
   { id: "terrain", label: "Terrain" },
   { id: "atmosphere", label: "Atmosphere" },
+  { id: "fog", label: "Fog" },
   { id: "shaders", label: "Shaders" },
   { id: "music", label: "Music" },
+];
+
+const FOG_MODES: { id: VttFogMode; label: string; desc: string }[] = [
+  { id: "pitch", label: "Pitch black", desc: "No memory — the moment you leave an area it goes fully black again." },
+  { id: "remembered", label: "Remembered", desc: "Explored areas stay dimly visible (the classic). Default." },
+  { id: "realistic", label: "Hyper-realistic", desc: "Memory DECAYS — areas you leave slowly sink back to pitch black. Creepy." },
 ];
 
 /** Sample a grayscale heightmap image to one normalised height per grid cell. */
@@ -68,6 +77,8 @@ export function VttGridPanel({
   onBackground,
   onTerrain,
   onAtmosphere,
+  fog,
+  onFog,
   onSetMusic,
   onClearMusic,
   onMusicVolume,
@@ -232,6 +243,40 @@ export function VttGridPanel({
                 </div>
               </div>
             </div>
+          </>
+        )}
+
+        {tab === "fog" && (
+          <>
+            <div className="scene-studio-sub">Darkness level</div>
+            <div className="fog-mode-list">
+              {FOG_MODES.map((m) => (
+                <button
+                  key={m.id}
+                  className={"fog-mode-card" + ((fog.mode ?? "remembered") === m.id ? " active" : "")}
+                  onClick={() => onFog({ mode: m.id })}
+                >
+                  <span className="fog-mode-name">{m.label}</span>
+                  <span className="fog-mode-desc">{m.desc}</span>
+                </button>
+              ))}
+            </div>
+            {(fog.mode ?? "remembered") === "realistic" && (
+              <label className="lobby-field mt">
+                <span>Fade-out time · seconds until a left area is fully black</span>
+                <input
+                  className="bg-select full"
+                  type="number"
+                  min={5}
+                  max={3600}
+                  value={fog.decaySeconds ?? 90}
+                  onChange={(e) => onFog({ decaySeconds: Math.max(5, Math.min(3600, parseInt(e.target.value, 10) || 90)) })}
+                />
+              </label>
+            )}
+            <p className="size-note" style={{ marginTop: 10 }}>
+              Fog on/off lives on the action bar; "Reset fog" there wipes exploration progress. The level applies to this scene and syncs to everyone.
+            </p>
           </>
         )}
 

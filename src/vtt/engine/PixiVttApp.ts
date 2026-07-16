@@ -23,6 +23,7 @@ import {
   TOKEN_COLORS,
   type VttAtmosphere,
   type VttBackground,
+  type VttFogMode,
   type VttEffectData,
   type VttEffectKind,
   type VttGrid,
@@ -98,11 +99,22 @@ export class PixiVttApp {
     this.input = new InputController(this);
     this.input.attach(this.app.canvas);
     // camera momentum + atmosphere animation each frame
+    let fogTickAt = 0;
     this.app.ticker.add(() => {
       const was = this.camera.flinging;
       const moving = this.camera.tick(this.app.ticker.deltaTime);
       if (was && !moving) this.persistCamera();
       if (this.scene) this.atmosphere.animate(this.app.ticker.deltaMS / 1000, this.app.screen.width, this.app.screen.height);
+      // Realistic fog decays with TIME, not just mutations — repaint the fog
+      // twice a second so left areas visibly sink back into the dark.
+      const fog = this.scene?.data.fog;
+      if (fog?.enabled && fog.mode === "realistic") {
+        const now = Date.now();
+        if (now - fogTickAt >= 500) {
+          fogTickAt = now;
+          this.fog.draw(this.scene!, this.visionOf() ?? new Set<string>(), this.playerView);
+        }
+      }
     });
     this.ready = true;
     if (this.scene) this.setScene(this.scene);
@@ -375,11 +387,22 @@ export class PixiVttApp {
   }
   /** Wipe exploration progress — every visited area goes back to unexplored dark. */
   resetFog(): void {
-    if (!this.scene || this.scene.data.fog.revealed.length === 0) return;
-    this.scene.data.fog.revealed = [];
+    if (!this.scene) return;
+    const f = this.scene.data.fog;
+    if (f.revealed.length === 0 && !f.seen) return;
+    f.revealed = [];
+    f.seen = undefined;
     this.redraw();
     this.onChanged();
     this.onOp({ op: "fog.reset" });
+  }
+  /** Change the fog darkness level / decay speed (Curator, synced). */
+  setFogConfig(patch: { mode?: VttFogMode; decaySeconds?: number }): void {
+    if (!this.scene) return;
+    Object.assign(this.scene.data.fog, patch);
+    this.redraw();
+    this.onChanged();
+    this.onOp({ op: "fog.config", patch });
   }
   /** Set (or clear) the scene's map-background image. */
   setBackground(src: string | null): void {

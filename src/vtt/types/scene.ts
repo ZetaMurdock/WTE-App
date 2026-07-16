@@ -95,8 +95,19 @@ export interface VttEffect {
   y: number;
   data: VttEffectData;
 }
+/** Darkness levels: pitch = no memory (left areas go fully black); remembered =
+ *  explored stays dimly visible (the classic); realistic = explored memory
+ *  DECAYS back to pitch black over time (creepy). */
+export type VttFogMode = "pitch" | "remembered" | "realistic";
 export interface VttFogState {
   enabled: boolean;
+  /** Darkness level — defaults to "remembered" (pre-mode behavior). */
+  mode?: VttFogMode;
+  /** realistic: cell -> last-seen epoch ms (drives the decay fade). Aesthetic —
+   *  refreshed locally from each client's own vision; approximate is fine. */
+  seen?: Record<string, number>;
+  /** realistic: seconds for a left cell to fade fully back to black (default 90). */
+  decaySeconds?: number;
   /** Revealed cells as "col,row" keys. */
   revealed: string[];
 }

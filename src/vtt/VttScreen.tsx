@@ -717,6 +717,8 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
           }}
           onClearMusic={() => engine?.scene && void patchScene(engine.scene.id, (s) => (s.data.audio = null))}
           onMusicVolume={(v) => engine?.scene && void patchScene(engine.scene.id, (s) => { if (s.data.audio) s.data.audio.volume = v; })}
+          fog={live.data.fog}
+          onFog={(p) => engine?.setFogConfig(p)}
           onClose={() => setGridOpen(false)}
         />
       )}

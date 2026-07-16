@@ -1,9 +1,14 @@
-// Fog of war: unseen cells are near-black; explored-but-not-visible cells are dim.
-// Visible cells come from the VisionSystem; explored cells accumulate on the scene.
-// A blur filter melts the hard cell edges into soft shadow falloff.
+// Fog of war with three darkness levels (scene.data.fog.mode):
+//   pitch      — no memory: anything you're not looking at is fully black
+//   remembered — explored cells stay dimly visible (the classic default)
+//   realistic  — explored memory DECAYS back to pitch black over decaySeconds
+// Visible cells come from the VisionSystem; explored cells accumulate on the
+// scene; realistic mode refreshes per-cell last-seen timestamps each draw. A
+// blur filter melts the hard cell edges into soft shadow falloff.
 import { BlurFilter, Graphics } from "pixi.js";
 import type { VttScene } from "../../types/scene";
 import { cellKey } from "../systems/VisionSystem";
+import { fogCellAlpha, DEFAULT_DECAY_SECONDS } from "../systems/fogShade";
 
 export class FogLayer {
   readonly view = new Graphics();
@@ -20,9 +25,14 @@ export class FogLayer {
     const g = this.view;
     const { fog, grid, layers } = scene.data;
     const on = fog.enabled && layers.fog;
+    const mode = fog.mode ?? "remembered";
+    const now = Date.now();
     // engine caches the visible set — same reference + same reveal count means
-    // nothing changed, so skip repainting a rect per cell on every drag frame
-    const key = `${scene.id}|${on}|${playerView}|${grid.size},${grid.cols},${grid.rows}`;
+    // nothing changed, so skip repainting a rect per cell on every drag frame.
+    // Realistic mode folds a half-second time bucket into the key so the decay
+    // fade repaints as time passes (the engine ticker re-calls draw for this).
+    const bucket = mode === "realistic" ? Math.floor(now / 500) : 0;
+    const key = `${scene.id}|${on}|${playerView}|${mode}|${bucket}|${grid.size},${grid.cols},${grid.rows}`;
     if (on && key === this.lastKey && visible === this.lastVis && fog.revealed.length === this.lastRev) return;
     this.lastKey = key;
     this.lastVis = visible;
@@ -47,15 +57,28 @@ export class FogLayer {
     if (grew) fog.revealed = [...revealed];
     this.lastRev = fog.revealed.length; // AFTER accumulation, so the skip key matches next frame
 
-    // Players can't see through unseen fog at all; GMs keep it semi-transparent.
-    const unseenA = playerView ? 1 : 0.9;
-    const exploredA = playerView ? 0.72 : 0.55;
+    // realistic: currently-visible cells stay fresh in the seen map; everything
+    // else ages from its last refresh and fades back toward the dark.
+    if (mode === "realistic") {
+      const seen = fog.seen ?? (fog.seen = {});
+      for (const k of visible) seen[k] = now;
+    }
+
+    const decay = fog.decaySeconds ?? DEFAULT_DECAY_SECONDS;
     const s = grid.size;
     for (let c = 0; c < grid.cols; c++) {
       for (let r = 0; r < grid.rows; r++) {
         const k = cellKey(c, r);
-        if (visible.has(k)) continue;
-        g.rect(c * s, r * s, s, s).fill({ color: 0x030610, alpha: revealed.has(k) ? exploredA : unseenA });
+        const alpha = fogCellAlpha({
+          mode,
+          visible: visible.has(k),
+          explored: revealed.has(k),
+          seenAt: fog.seen?.[k],
+          now,
+          decaySeconds: decay,
+          playerView,
+        });
+        if (alpha > 0.01) g.rect(c * s, r * s, s, s).fill({ color: 0x030610, alpha });
       }
     }
   }
