@@ -5574,6 +5574,82 @@ body.wte-dot-cursor * {
   padding: 12px 14px;
   z-index: 10;
 }
+/* Abilities panel — left dock, same frame as Actors. */
+.vtt2-abilities {
+  position: absolute;
+  top: 54px;
+  left: 12px;
+  width: 264px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  background: rgba(12, 18, 32, 0.96);
+  border: 1px solid var(--panel-line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  z-index: 10;
+}
+.vtt2-abil-baserolls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0 8px;
+}
+.vtt2-abil-list {
+  list-style: none;
+  margin: 2px 0 6px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.vtt2-abil-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  padding: 7px 8px;
+  background: rgba(126, 207, 202, 0.03);
+}
+.vtt2-abil-main {
+  flex: 1;
+  min-width: 0;
+}
+.vtt2-abil-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: Georgia, serif;
+  font-size: 12.5px;
+  color: var(--ink, #d5dbe6);
+}
+.vtt2-abil-ss {
+  font-size: 9px;
+  color: var(--accent);
+  border: 1px solid rgba(126, 207, 202, 0.4);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+.vtt2-abil-effect {
+  font-size: 10.5px;
+  color: var(--muted);
+  margin-top: 2px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.vtt2-abil-aoe {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #d8b25a;
+  border: 1px solid rgba(216, 178, 90, 0.4);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
 .vtt2-actor-group {
   font-size: 9px;
   letter-spacing: 1.5px;

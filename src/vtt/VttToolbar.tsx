@@ -7,6 +7,7 @@ interface Props {
   actorsOpen: boolean;
   encounterOpen: boolean;
   assetsOpen: boolean;
+  abilitiesOpen: boolean;
   rollsOpen: boolean;
   gridOpen: boolean;
   /** Undefined disables these (no campaign → no persisted scenes / vault). */
@@ -14,6 +15,7 @@ interface Props {
   onToggleActors?: () => void;
   onToggleEncounter?: () => void;
   onToggleAssets?: () => void;
+  onToggleAbilities?: () => void;
   onToggleRolls?: () => void;
   /** Undefined hides Grid & Map (netplay players don't get Curator controls). */
   onToggleGrid?: () => void;
@@ -32,12 +34,14 @@ export function VttToolbar({
   actorsOpen,
   encounterOpen,
   assetsOpen,
+  abilitiesOpen,
   rollsOpen,
   gridOpen,
   onToggleScenes,
   onToggleActors,
   onToggleEncounter,
   onToggleAssets,
+  onToggleAbilities,
   onToggleRolls,
   onToggleGrid,
   syncOn,
@@ -58,6 +62,9 @@ export function VttToolbar({
       </button>
       <button className={"chip" + (assetsOpen ? " active" : "")} onClick={onToggleAssets} disabled={!onToggleAssets} title="Assets — map backgrounds + token art">
         Assets
+      </button>
+      <button className={"chip" + (abilitiesOpen ? " active" : "")} onClick={onToggleAbilities} disabled={!onToggleAbilities} title="Abilities — your character's actions, abilities, and base rolls">
+        Abilities
       </button>
       <button className={"chip" + (rollsOpen ? " active" : "")} onClick={onToggleRolls} disabled={!onToggleRolls} title="Roll feed — recent + live dice rolls">
         Rolls

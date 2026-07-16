@@ -23,6 +23,9 @@ import { VttEncounterPanel } from "./VttEncounterPanel";
 import { VttRollFeed } from "./VttRollFeed";
 import { VttAssetPanel } from "./VttAssetPanel";
 import { VttSoundboard } from "./VttSoundboard";
+import { VttAbilitiesPanel } from "./VttAbilitiesPanel";
+import { logRoll } from "../lib/rolls";
+import type { RollResult } from "../game/wte";
 import { CharacterSheet } from "../components/characters/CharacterSheet";
 import { listCharacters, getCharacter, upsertCharacter, type CharacterRecord } from "../lib/characters";
 import {
@@ -57,7 +60,8 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
   const [scene, setScene] = useState<VttScene | null>(null);
   const [scenes, setScenes] = useState<VttScene[]>([]);
   // The left dock shows at most one panel at a time.
-  const [leftPanel, setLeftPanel] = useState<"scenes" | "actors" | "encounter" | "assets" | null>(null);
+  const [leftPanel, setLeftPanel] = useState<"scenes" | "actors" | "encounter" | "assets" | "abilities" | null>(null);
+  const [abilityCharId, setAbilityCharId] = useState<string | null>(null);
   const [rollsOpen, setRollsOpen] = useState(false);
   const [gridOpen, setGridOpen] = useState(false);
   const [soundboardOpen, setSoundboardOpen] = useState(false);
@@ -148,6 +152,20 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
       });
     });
   }, [campaign, net.subscribe, net.selfId]);
+
+  // Emit a roll from the abilities panel: durable feed + SQLite + broadcast, the
+  // same path the dice tray uses so ability rolls show up everywhere.
+  const emitRoll = useCallback(
+    (roll: RollResult) => {
+      if (!campaign) return;
+      const id = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : "r-" + Date.now().toString(36);
+      const label = roll.detail.label;
+      addSessionRoll(campaign.id, { id, who: "You", label, formula: roll.formula, result: roll.result, at: Date.now() });
+      void logRoll(campaign.id, null, roll);
+      if (net.status === "connected") net.publish({ t: "roll", label, formula: roll.formula, result: roll.result, id });
+    },
+    [campaign, net]
+  );
 
   // --- Live character-sheet sync (Curator control over player sheets) --------
   // Players push their full record; the Curator (and the owner) apply incoming
@@ -504,6 +522,10 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
 
   // Show the live scene's current token count in the browser's active row.
   const browserScenes = live ? scenes.map((s) => (s.id === live.id ? { ...s, data: live.data } : s)) : scenes;
+  // Abilities panel binds to the selected token's linked character, else a chosen
+  // one, else the first vault character.
+  const selTokenCharId = sel?.kind === "token" ? live?.data.tokens.find((t) => t.id === sel.id)?.characterId ?? null : null;
+  const abilityChar = characters.find((c) => c.id === (abilityCharId ?? selTokenCharId ?? characters[0]?.id)) ?? null;
 
   return (
     <div className="vtt2">
@@ -516,12 +538,14 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
         actorsOpen={leftPanel === "actors"}
         encounterOpen={leftPanel === "encounter"}
         assetsOpen={leftPanel === "assets"}
+        abilitiesOpen={leftPanel === "abilities"}
         rollsOpen={rollsOpen}
         gridOpen={gridOpen}
         onToggleScenes={campaign ? () => setLeftPanel((p) => (p === "scenes" ? null : "scenes")) : undefined}
         onToggleActors={campaign ? () => setLeftPanel((p) => (p === "actors" ? null : "actors")) : undefined}
         onToggleEncounter={campaign ? () => setLeftPanel((p) => (p === "encounter" ? null : "encounter")) : undefined}
         onToggleAssets={campaign ? () => setLeftPanel((p) => (p === "assets" ? null : "assets")) : undefined}
+        onToggleAbilities={campaign ? () => setLeftPanel((p) => (p === "abilities" ? null : "abilities")) : undefined}
         onToggleRolls={campaign ? () => setRollsOpen((v) => !v) : undefined}
         onToggleGrid={!isNetPlayer ? () => setGridOpen((v) => !v) : undefined}
         syncOn={sync.connected}
@@ -645,6 +669,18 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
           onApplyToToken={applyTokenArt}
           onApplyModel={applyTokenModel}
           onRefresh={() => void loadAssets()}
+          onClose={() => setLeftPanel(null)}
+        />
+      )}
+      {campaign && leftPanel === "abilities" && (
+        <VttAbilitiesPanel
+          character={abilityChar}
+          characters={characters.map((c) => ({ id: c.id, name: c.name }))}
+          onPickCharacter={(id) => setAbilityCharId(id)}
+          onRoll={emitRoll}
+          onUseAbility={() => {
+            /* stage 2: prompt an editable AoE hitbox from the parsed effect meta */
+          }}
           onClose={() => setLeftPanel(null)}
         />
       )}
