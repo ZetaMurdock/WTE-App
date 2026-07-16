@@ -16,6 +16,8 @@ interface Props {
   onToggleEngineer: () => void;
   /** Hide the role toggles (netplay players don't get GM/Engineer modes). */
   rolesHidden: boolean;
+  /** Open a retired legacy iframe tool (old sheets/VTT/Codex) — kept for data transfer. */
+  onOpenLegacy: (tab: "sheet" | "vtt" | "wiki") => void;
 }
 
 function fileToDataUrl(file: File): Promise<string> {
@@ -43,6 +45,7 @@ export function ProfileMenu({
   engineer,
   onToggleEngineer,
   rolesHidden,
+  onOpenLegacy,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(myPeerName());
@@ -191,6 +194,24 @@ export function ProfileMenu({
               </button>
             </div>
           )}
+
+          <div className="profile-sec">
+            <span className="profile-sec-label">Legacy tools</span>
+            <button
+              className="profile-row"
+              onClick={() => { onOpenLegacy("sheet"); setOpen(false); }}
+              title="Open the old character-sheet tool — use it to copy characters over to the new Sheet"
+            >
+              <span>Character sheets (legacy)</span>
+              <span className="profile-row-hint">transfer</span>
+            </button>
+            <button className="profile-row" onClick={() => { onOpenLegacy("vtt"); setOpen(false); }} title="Open the old VTT">
+              <span>VTT (legacy)</span>
+            </button>
+            <button className="profile-row" onClick={() => { onOpenLegacy("wiki"); setOpen(false); }} title="Open the old Codex/wiki">
+              <span>Codex (legacy)</span>
+            </button>
+          </div>
         </div>
       )}
     </div>

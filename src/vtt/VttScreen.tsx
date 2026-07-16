@@ -22,6 +22,7 @@ import { VttActorsPanel } from "./VttActorsPanel";
 import { VttEncounterPanel } from "./VttEncounterPanel";
 import { VttRollFeed } from "./VttRollFeed";
 import { VttAssetPanel } from "./VttAssetPanel";
+import { VttSoundboard } from "./VttSoundboard";
 import { CharacterSheet } from "../components/characters/CharacterSheet";
 import { listCharacters, getCharacter, upsertCharacter, type CharacterRecord } from "../lib/characters";
 import {
@@ -59,6 +60,7 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
   const [leftPanel, setLeftPanel] = useState<"scenes" | "actors" | "encounter" | "assets" | null>(null);
   const [rollsOpen, setRollsOpen] = useState(false);
   const [gridOpen, setGridOpen] = useState(false);
+  const [soundboardOpen, setSoundboardOpen] = useState(false);
   // A character sheet opened as an overlay from the Actors panel (players view
   // their own character in the VTT; the Curator can open any). sheetSyncTick
   // remounts the overlay when a live edit arrives for the open character.
@@ -551,6 +553,7 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
           }}
           onClearMusic={(id) => void patchScene(id, (s) => (s.data.audio = null))}
           onOpenSettings={() => setGridOpen(true)}
+          onOpenSoundboard={() => setSoundboardOpen(true)}
           onSetActiveForEveryone={(id) => void setActiveForEveryone(id)}
           playerCount={net.status === "connected" ? net.peers.length : 0}
         />
@@ -646,6 +649,9 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
         />
       )}
       {campaign && rollsOpen && <VttRollFeed campaignId={campaign.id} onClose={() => setRollsOpen(false)} />}
+      {campaign && soundboardOpen && (
+        <VttSoundboard campaignId={campaign.id} sceneName={scene?.name ?? "Scene"} onClose={() => setSoundboardOpen(false)} />
+      )}
       {campaign && sheetCharId && (
         <div className="vtt2-sheet-overlay" onMouseDown={() => setSheetCharId(null)}>
           <div className="vtt2-sheet-modal" onMouseDown={(e) => e.stopPropagation()}>

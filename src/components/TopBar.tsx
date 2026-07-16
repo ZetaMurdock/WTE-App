@@ -116,6 +116,7 @@ export function TopBar({
         engineer={engineer}
         onToggleEngineer={onToggleEngineer}
         rolesHidden={inSession}
+        onOpenLegacy={onTab}
       />
       <span className="ver">{version ? "v" + version : ""}</span>
     </div>
