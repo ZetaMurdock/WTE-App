@@ -25,7 +25,7 @@ import { VttAssetPanel } from "./VttAssetPanel";
 import { VttSoundboard } from "./VttSoundboard";
 import { VttAbilitiesPanel } from "./VttAbilitiesPanel";
 import { VttRollToast } from "./VttRollToast";
-import { VttAoePrompt, type AoePlacement } from "./VttAoePrompt";
+import { VttAoePrompt, type AoePlacement, type AoeKind } from "./VttAoePrompt";
 import { hasAoe } from "./data/effectMeta";
 import type { VttAbility } from "./data/characterAbilities";
 import { logRoll } from "../lib/rolls";
@@ -67,6 +67,7 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
   const [leftPanel, setLeftPanel] = useState<"scenes" | "actors" | "encounter" | "assets" | "abilities" | null>(null);
   const [abilityCharId, setAbilityCharId] = useState<string | null>(null);
   const [pendingAoe, setPendingAoe] = useState<VttAbility | null>(null);
+  const [armedAoe, setArmedAoe] = useState<{ kind: AoeKind; cells: number; rounds: number } | null>(null);
   const [rollsOpen, setRollsOpen] = useState(false);
   const [gridOpen, setGridOpen] = useState(false);
   const [soundboardOpen, setSoundboardOpen] = useState(false);
@@ -171,6 +172,14 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
     },
     [campaign, net]
   );
+
+  // Esc cancels an armed click-to-place AoE.
+  useEffect(() => {
+    if (!armedAoe) return;
+    const onEsc = (e: KeyboardEvent) => e.key === "Escape" && setArmedAoe(null);
+    window.addEventListener("keydown", onEsc);
+    return () => window.removeEventListener("keydown", onEsc);
+  }, [armedAoe]);
 
   // --- Live character-sheet sync (Curator control over player sheets) --------
   // Players push their full record; the Curator (and the owner) apply incoming
@@ -717,10 +726,27 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
           hasSelectedToken={sel?.kind === "token"}
           onCancel={() => setPendingAoe(null)}
           onPlace={(p) => {
-            placeAoe(pendingAoe, p);
+            if (p.mode === "click") setArmedAoe({ kind: p.kind, cells: p.cells, rounds: p.rounds });
+            else placeAoe(pendingAoe, p);
             setPendingAoe(null);
           }}
         />
+      )}
+      {armedAoe && (
+        <div
+          className="vtt2-aoe-place"
+          onMouseDown={(e) => {
+            if (e.button !== 0) return; // right/middle keep panning
+            const eng = engineRef.current;
+            if (eng) {
+              const w = eng.clientToWorld(e.clientX, e.clientY);
+              eng.placeAoeAt(armedAoe.kind, w.x, w.y, { cells: armedAoe.cells, rounds: armedAoe.rounds });
+            }
+            setArmedAoe(null);
+          }}
+        >
+          <span className="vtt2-aoe-place-hint">Click to place the area · Esc to cancel</span>
+        </div>
       )}
       {campaign && <VttRollToast campaignId={campaign.id} />}
       {campaign && rollsOpen && <VttRollFeed campaignId={campaign.id} onClose={() => setRollsOpen(false)} />}

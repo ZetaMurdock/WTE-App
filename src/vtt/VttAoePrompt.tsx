@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { VttAbility } from "./data/characterAbilities";
 import { suggestedTemplate } from "./data/effectMeta";
 
-export type AoeMode = "self" | "selected" | "center";
+export type AoeMode = "self" | "selected" | "center" | "click";
 export type AoeKind = "circle" | "cone" | "zone";
 
 export interface AoePlacement {
@@ -51,6 +51,9 @@ export function VttAoePrompt({ ability, casterName, hasSelectedToken, onPlace, o
           </button>
           <button className={"chip" + (mode === "center" ? " active" : "")} onClick={() => setMode("center")}>
             At view centre
+          </button>
+          <button className={"chip" + (mode === "click" ? " active" : "")} onClick={() => setMode("click")} title="Then click anywhere on the map to drop it">
+            Click to place
           </button>
         </div>
 

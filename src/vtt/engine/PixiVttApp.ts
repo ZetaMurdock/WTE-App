@@ -276,6 +276,11 @@ export class PixiVttApp {
     this.onChanged();
     this.onOp({ op: "effect.add", effect: e });
   }
+  /** World coords under a pointer's client (page) position — for click-to-place. */
+  clientToWorld(clientX: number, clientY: number): { x: number; y: number } {
+    const r = this.app.canvas.getBoundingClientRect();
+    return this.camera.screenToWorld(clientX - r.left, clientY - r.top);
+  }
   /** World coords at the centre of the current viewport (fallback AoE drop point). */
   viewCenterWorld(): { x: number; y: number } {
     const cw = this.app.canvas.clientWidth || this.app.renderer.width;

@@ -5649,6 +5649,28 @@ body.wte-dot-cursor * {
   margin-top: 10px;
   text-align: center;
 }
+/* Click-to-place armed overlay: captures one click over the map. */
+.vtt2-aoe-place {
+  position: absolute;
+  inset: 0;
+  z-index: 45;
+  cursor: crosshair;
+  background: rgba(126, 207, 202, 0.04);
+}
+.vtt2-aoe-place-hint {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  background: rgba(10, 15, 28, 0.92);
+  border: 1px solid var(--accent);
+  border-radius: 20px;
+  color: var(--accent);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+}
 /* Abilities panel — left dock, same frame as Actors. */
 .vtt2-abilities {
   position: absolute;
