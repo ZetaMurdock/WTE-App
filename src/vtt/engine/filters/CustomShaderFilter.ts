@@ -8,8 +8,10 @@
 //   uTexture          — the background sampler (re-sample for distortion:
 //                       `color = texture(uTexture, warpedUv);`)
 //
-// Chunks are pre-validated against a raw WebGL2 context so a typo reports a
-// readable compile error instead of crashing the renderer.
+// Chunks are pre-validated against a raw GL context so a typo reports a
+// readable compile error instead of crashing the renderer. NOTE: Pixi compiles
+// filters as GLSL ES 1.00 (compat defines, no #version) — chunks must stick to
+// ES 1.00-compatible syntax (no ES3 array constructors, no bit ops).
 import { Filter, GlProgram, UniformGroup, defaultFilterVert } from "pixi.js";
 
 function buildFragment(body: string): string {
@@ -30,15 +32,22 @@ function buildFragment(body: string): string {
   ].join("\n");
 }
 
-/** Compile-check a FULL fragment source on a throwaway WebGL2 context. Returns
- *  null when it compiles, else a (trimmed) human-readable error. */
+/** Compile-check a FULL fragment source, mirroring EXACTLY how Pixi's GL filter
+ *  pipeline compiles it: as GLSL ES 1.00 with compatibility defines (in→varying,
+ *  texture→texture2D, finalColor→gl_FragColor) and the `out` declaration
+ *  stripped — there is NO #version 300 es. Validating as ES3 (the old way) let
+ *  ES3-only syntax like array constructors pass validation and then fail the
+ *  real compile as a SILENT no-render. Returns null when it compiles, else a
+ *  (trimmed) human-readable error. */
 export function validateFragmentSource(src: string): string | null {
   const canvas = document.createElement("canvas");
-  const gl = canvas.getContext("webgl2");
-  if (!gl) return null; // no WebGL2 to validate with — let the renderer try
+  const gl = canvas.getContext("webgl2") ?? canvas.getContext("webgl");
+  if (!gl) return null; // nothing to validate with — let the renderer try
   const sh = gl.createShader(gl.FRAGMENT_SHADER);
   if (!sh) return null;
-  gl.shaderSource(sh, "#version 300 es\nprecision mediump float;\nprecision highp int;\n" + src);
+  const preamble = ["#define in varying", "#define finalColor gl_FragColor", "#define texture texture2D", "precision mediump float;", ""].join("\n");
+  const body = src.replace(/^\s*out\s+vec4\s+finalColor\s*;\s*$/m, "");
+  gl.shaderSource(sh, preamble + body);
   gl.compileShader(sh);
   const ok = gl.getShaderParameter(sh, gl.COMPILE_STATUS) as boolean;
   const log = ok ? null : gl.getShaderInfoLog(sh);
