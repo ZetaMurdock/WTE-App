@@ -777,6 +777,11 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
             else if (tool === "zone") pickTool("select");
           }}
           onZoneClear={(k) => engine?.clearZone(k)}
+          zoneGlsl={live.data.zoneGlsl ?? {}}
+          onZoneGlsl={(k, body) => {
+            setShaderError("");
+            engine?.setZoneGlsl(k, body);
+          }}
           onClose={() => setGridOpen(false)}
         />
       )}

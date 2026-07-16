@@ -30,20 +30,25 @@ function buildFragment(body: string): string {
   ].join("\n");
 }
 
-/** Compile-check the chunk on a throwaway WebGL2 context. Returns null when it
- *  compiles, else a (trimmed) human-readable error. */
-export function validateShaderBody(body: string): string | null {
+/** Compile-check a FULL fragment source on a throwaway WebGL2 context. Returns
+ *  null when it compiles, else a (trimmed) human-readable error. */
+export function validateFragmentSource(src: string): string | null {
   const canvas = document.createElement("canvas");
   const gl = canvas.getContext("webgl2");
   if (!gl) return null; // no WebGL2 to validate with — let the renderer try
   const sh = gl.createShader(gl.FRAGMENT_SHADER);
   if (!sh) return null;
-  gl.shaderSource(sh, "#version 300 es\nprecision mediump float;\n" + buildFragment(body));
+  gl.shaderSource(sh, "#version 300 es\nprecision mediump float;\nprecision highp int;\n" + src);
   gl.compileShader(sh);
   const ok = gl.getShaderParameter(sh, gl.COMPILE_STATUS) as boolean;
   const log = ok ? null : gl.getShaderInfoLog(sh);
   gl.deleteShader(sh);
   return ok ? null : (log || "Shader failed to compile.").trim().slice(0, 500);
+}
+
+/** Compile-check a background-chunk BODY (the whole-map custom shader). */
+export function validateShaderBody(body: string): string | null {
+  return validateFragmentSource(buildFragment(body));
 }
 
 export class CustomShaderFilter extends Filter {

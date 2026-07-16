@@ -20,6 +20,7 @@ export type VttOp =
   | { op: "fog.reset" }
   | { op: "fog.config"; patch: { mode?: VttFogMode; decaySeconds?: number } }
   | { op: "zone.paint"; kind: VttZoneKind; cells: string[]; erase?: boolean }
+  | { op: "zone.glsl"; kind: VttZoneKind; body: string }
   | { op: "bg.set"; src?: string | null; patch?: Partial<VttBackground> }
   | { op: "grid.set"; patch: Partial<VttGrid> }
   | { op: "terrain.set"; terrain: VttTerrain | null }
@@ -120,6 +121,12 @@ export function applyOp(d: VttSceneData, op: VttOp): boolean {
       }
       if (changed) zones[op.kind] = [...set];
       return changed;
+    }
+    case "zone.glsl": {
+      const zg = (d.zoneGlsl ??= {});
+      if ((zg[op.kind] ?? "") === op.body) return false;
+      zg[op.kind] = op.body;
+      return true;
     }
     case "bg.set":
       if (op.patch) Object.assign(d.background, op.patch);

@@ -80,6 +80,14 @@ describe("applyOp", () => {
     expect(d.zones?.smoke).toEqual(["9,9"]);
   });
 
+  it("sets and clears custom zone GLSL bodies", () => {
+    const d = fresh();
+    expect(applyOp(d, { op: "zone.glsl", kind: "auxa", body: "col = vec3(1.0); alpha = mask;" })).toBe(true);
+    expect(d.zoneGlsl?.auxa).toContain("vec3(1.0)");
+    expect(applyOp(d, { op: "zone.glsl", kind: "auxa", body: "col = vec3(1.0); alpha = mask;" })).toBe(false); // unchanged
+    expect(applyOp(d, { op: "zone.glsl", kind: "auxa", body: "" })).toBe(true); // back to built-in
+  });
+
   it("treats scene.switch as a no-op at this layer", () => {
     const d = fresh();
     expect(applyOp(d, { op: "scene.switch", sceneId: "s2" })).toBe(false);

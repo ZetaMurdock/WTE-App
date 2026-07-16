@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
 import { ZONE_KINDS, defaultAtmosphere, defaultShader, newId, type VttAtmosphere, type VttBackground, type VttFogMode, type VttFogState, type VttGrid, type VttLinkEdge, type VttSceneLink, type VttShader, type VttTerrain, type VttZoneKind } from "./types/scene";
 import { listShaderPresets, saveShaderPreset, deleteShaderPreset, isBuiltinPreset, type ShaderPreset } from "../lib/shaderPresets";
+import { listZonePresets, saveZonePreset } from "../lib/zonePresets";
+import { ZONE_DEFAULT_BODIES } from "./engine/layers/ZoneLayer";
 
 interface Props {
   grid: VttGrid;
@@ -24,6 +26,9 @@ interface Props {
   zoneBrush: { kind: VttZoneKind; erase: boolean } | null;
   onZoneBrush: (brush: { kind: VttZoneKind; erase: boolean } | null) => void;
   onZoneClear: (kind: VttZoneKind) => void;
+  /** Custom GLSL body per zone slot ("" = built-in effect). */
+  zoneGlsl: Partial<Record<VttZoneKind, string>>;
+  onZoneGlsl: (kind: VttZoneKind, body: string) => void;
   onSetMusic: () => void;
   onClearMusic: () => void;
   onMusicVolume: (v: number) => void;
@@ -42,10 +47,73 @@ const STUDIO_TABS: { id: StudioTab; label: string }[] = [
   { id: "music", label: "Music" },
 ];
 
+// Per-slot GLSL editor (remounted per slot via key so drafts don't bleed).
+function ZoneGlslEditor({ kind, current, error, onApply }: { kind: VttZoneKind; current: string; error: string; onApply: (body: string) => void }) {
+  const [draft, setDraft] = useState(current || ZONE_DEFAULT_BODIES[kind]);
+  const [presetName, setPresetName] = useState("");
+  const presets = listZonePresets();
+  return (
+    <div className="zone-editor">
+      <div className="scene-studio-sub">Effect code · {kind}</div>
+      <select
+        className="bg-select full"
+        value=""
+        onChange={(e) => {
+          const p = presets.find((x) => x.name === e.target.value);
+          if (p) setDraft(p.body);
+        }}
+      >
+        <option value="">Load a preset…</option>
+        {presets.map((p) => (
+          <option key={p.name} value={p.name}>{p.name}</option>
+        ))}
+      </select>
+      <div className={"shader-editor" + (error ? " error" : "")} style={{ marginTop: 6 }}>
+        <textarea
+          className="shader-code"
+          spellCheck={false}
+          rows={8}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder={"// set col (vec3) + alpha (float)\n// inputs: mask (0..1), pc (world cells), uTime (s)"}
+        />
+      </div>
+      {error && <div className="equip-warn">{error}</div>}
+      <div className="chip-row" style={{ marginTop: 6 }}>
+        <button className="chip" onClick={() => onApply(draft)}>Apply</button>
+        <button className="chip" onClick={() => { setDraft(ZONE_DEFAULT_BODIES[kind]); onApply(""); }} title="Back to the built-in effect">
+          Reset to built-in
+        </button>
+      </div>
+      <div className="chip-row" style={{ marginTop: 6 }}>
+        <input className="bg-select" style={{ flex: 1 }} placeholder="Preset name…" value={presetName} onChange={(e) => setPresetName(e.target.value)} />
+        <button
+          className="chip"
+          disabled={!presetName.trim()}
+          onClick={() => {
+            saveZonePreset(presetName.trim(), draft);
+            setPresetName("");
+          }}
+        >
+          Save preset
+        </button>
+      </div>
+      <p className="size-note" style={{ marginTop: 6 }}>
+        Contract: set <code>col</code> (vec3) and <code>alpha</code> (float) using <code>mask</code> (feathered 0..1),{" "}
+        <code>pc</code> (world cell coords), <code>uTime</code> (seconds). A bad chunk reports here and the slot falls back
+        to its built-in — on every player's machine too.
+      </p>
+    </div>
+  );
+}
+
 const ZONE_INFO: Record<VttZoneKind, { label: string; desc: string }> = {
   water: { label: "Water", desc: "Wavy green-teal, caustic shimmer" },
   smoke: { label: "Smoke", desc: "Pale drifting wisps" },
   ember: { label: "Embers", desc: "Molten veins, warm pulse" },
+  auxa: { label: "Custom A", desc: "Yours to design — violet haze by default" },
+  auxb: { label: "Custom B", desc: "Yours to design — cyan weave by default" },
+  auxc: { label: "Custom C", desc: "Yours to design — amber motes by default" },
 };
 
 const EDGES: { id: VttLinkEdge; label: string }[] = [
@@ -110,6 +178,8 @@ export function VttGridPanel({
   zoneBrush,
   onZoneBrush,
   onZoneClear,
+  zoneGlsl,
+  onZoneGlsl,
   onSetMusic,
   onClearMusic,
   onMusicVolume,
@@ -372,7 +442,7 @@ export function VttGridPanel({
                   <textarea
                     className="shader-code"
                     spellCheck={false}
-                    placeholder={"// Empty = the slider-driven height fog. Write GLSL to override:\nfloat _hf = uFogDensity * exp(-(vWorldPos.y - uFogOffset) * uFogHeightFalloff);\nfloat _ff = clamp(1.0 - exp(-length(vWorldPos - cameraPosition) * _hf), 0.0, 1.0);\ngl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, _ff);"}
+                    placeholder={"// Runs over the 2D map. Modify `color` (vec4) using `uv`, `uTime`,\n// `uResolution`; re-sample `uTexture` for distortion. Example:\nvec2 w = uv;\nw.x += sin(uv.y * 90.0 + uTime * 1.6) * 0.0018;\ncolor = texture(uTexture, w);"}
                     value={shader.glsl ?? ""}
                     onChange={(e) => patchShader({ glsl: e.target.value })}
                   />
@@ -448,10 +518,19 @@ export function VttGridPanel({
               ))}
             </div>
             {zoneBrush && (
-              <p className="size-note" style={{ marginTop: 10 }}>
-                Brush armed: {ZONE_INFO[zoneBrush.kind].label}
-                {zoneBrush.erase ? " (erasing)" : ""} — paint on the map now.
-              </p>
+              <>
+                <p className="size-note" style={{ marginTop: 10 }}>
+                  Brush armed: {ZONE_INFO[zoneBrush.kind].label}
+                  {zoneBrush.erase ? " (erasing)" : ""} — paint on the map now.
+                </p>
+                <ZoneGlslEditor
+                  key={zoneBrush.kind}
+                  kind={zoneBrush.kind}
+                  current={zoneGlsl[zoneBrush.kind] ?? ""}
+                  error={shaderError.startsWith("Zone " + zoneBrush.kind) ? shaderError : ""}
+                  onApply={(body) => onZoneGlsl(zoneBrush.kind, body)}
+                />
+              </>
             )}
           </>
         )}

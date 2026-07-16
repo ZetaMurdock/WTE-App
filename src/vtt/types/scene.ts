@@ -186,11 +186,12 @@ export interface VttBackground {
   y: number;
 }
 
-/** Painted effect-zone kinds. Exactly three, because the zone mask packs one
- *  kind per RGB channel (canvas uploads premultiply alpha, so A can't carry
- *  data) — water is wavy green-teal, smoke drifts pale wisps, ember glows. */
-export type VttZoneKind = "water" | "smoke" | "ember";
-export const ZONE_KINDS: VttZoneKind[] = ["water", "smoke", "ember"];
+/** Painted effect-zone kinds — SIX slots across two RGB masks (canvas uploads
+ *  premultiply alpha, so A can't carry data; 3 channels per mask). The first
+ *  three ship with built-in effects (water/smoke/ember); auxa/auxb/auxc are
+ *  the Custom A/B/C slots. EVERY slot's GLSL body is editable per scene. */
+export type VttZoneKind = "water" | "smoke" | "ember" | "auxa" | "auxb" | "auxc";
+export const ZONE_KINDS: VttZoneKind[] = ["water", "smoke", "ember", "auxa", "auxb", "auxc"];
 
 /** A portal along a map border: walking a token into that edge carries the
  *  party into the linked scene (arriving at the opposite edge). */
@@ -221,6 +222,10 @@ export interface VttSceneData {
   /** Painted effect zones — cell keys per effect kind (water/smoke/ember),
    *  rendered as animated procedural shader regions over the map. */
   zones?: Partial<Record<VttZoneKind, string[]>>;
+  /** Custom GLSL body per zone slot (empty/undefined = the slot's built-in
+   *  effect). Contract: set `col` (vec3) and `alpha` (float) from `mask`
+   *  (feathered 0..1), `pc` (world cell coords), and `uTime` (seconds). */
+  zoneGlsl?: Partial<Record<VttZoneKind, string>>;
   encounterId?: string | null;
 }
 

@@ -14,8 +14,9 @@ import { MeasurementLayer } from "./layers/MeasurementLayer";
 import { EffectLayer } from "./layers/EffectLayer";
 import { AtmosphereLayer } from "./layers/AtmosphereLayer";
 import { computeVisibleCells, pathBlocked } from "./systems/VisionSystem";
-import { CustomShaderFilter, validateShaderBody } from "./filters/CustomShaderFilter";
-import { ZoneLayer } from "./layers/ZoneLayer";
+import { CustomShaderFilter, validateShaderBody, validateFragmentSource } from "./filters/CustomShaderFilter";
+import { ZoneLayer, ZONE_DEFAULT_BODIES, buildZoneFragment } from "./layers/ZoneLayer";
+import { ZONE_KINDS } from "../types/scene";
 import { EffectSystem } from "./systems/EffectSystem";
 import { TimelineSystem } from "./systems/TimelineSystem";
 import { SimulationSystem } from "./systems/SimulationSystem";
@@ -125,7 +126,7 @@ export class PixiVttApp {
       // Animate the custom 2D shader (uTime drives water/haze/pulse effects).
       if (this.shaderFilter) this.shaderFilter.tick((Date.now() - this.shaderT0) / 1000, this.app.screen.width, this.app.screen.height);
       // Animate painted zones + re-anchor their patterns to the world transform.
-      if (this.zones.view.visible && this.scene) {
+      if (this.zones.active && this.scene) {
         const o = this.world.toGlobal({ x: 0, y: 0 });
         this.zones.tick(performance.now() / 1000, o.x, o.y, this.world.scale.x, this.scene.data.grid.size);
       }
@@ -215,9 +216,35 @@ export class PixiVttApp {
     }
   }
 
+  // Custom zone-brush GLSL: validate each slot's body on THIS client and fall
+  // back to the slot's built-in effect on error — a Curator's typo (or a chunk
+  // this GPU rejects) can never black-hole a player's zones. String-guarded.
+  private zoneGlslKey = "";
+  private zoneValidCache = new Map<string, string | null>();
+  private applyZoneGlsl(): void {
+    const custom = this.scene?.data.zoneGlsl ?? {};
+    const key = ZONE_KINDS.map((k) => custom[k] ?? "").join(" ");
+    if (key === this.zoneGlslKey) return;
+    this.zoneGlslKey = key;
+    const effective = { ...ZONE_DEFAULT_BODIES };
+    for (const k of ZONE_KINDS) {
+      const body = (custom[k] ?? "").trim();
+      if (!body) continue;
+      let err = this.zoneValidCache.get(body);
+      if (err === undefined) {
+        err = validateFragmentSource(buildZoneFragment([body, "", ""]));
+        this.zoneValidCache.set(body, err);
+      }
+      if (err) this.onShaderError(`Zone ${k}: ${err}`);
+      else effective[k] = body;
+    }
+    this.zones.setBodies(effective);
+  }
+
   redraw(): void {
     if (!this.scene || !this.ready) return;
     this.applyShader2D();
+    this.applyZoneGlsl();
     const visible = this.visionOf();
     this.bg.draw(this.scene);
     this.grid.draw(this.scene);
@@ -472,6 +499,17 @@ export class PixiVttApp {
     this.redraw();
     this.onChanged();
     this.onOp({ op: "zone.paint", kind, cells: [key], erase });
+  }
+  /** Set (or clear, with "") a zone slot's custom GLSL body — validated on
+   *  apply on every client, synced, persisted with the scene. */
+  setZoneGlsl(kind: VttZoneKind, body: string): void {
+    if (!this.scene) return;
+    const zg = (this.scene.data.zoneGlsl ??= {});
+    if ((zg[kind] ?? "") === body) return;
+    zg[kind] = body;
+    this.redraw();
+    this.onChanged();
+    this.onOp({ op: "zone.glsl", kind, body });
   }
   /** Clear every cell of one zone kind (synced). */
   clearZone(kind: VttZoneKind): void {

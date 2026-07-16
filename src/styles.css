@@ -5333,6 +5333,17 @@ body.wte-dot-cursor * {
   gap: 8px;
 }
 
+/* zone-brush GLSL editor (Zones tab) */
+.zone-editor {
+  margin-top: 12px;
+  border-top: 1px solid var(--panel-line);
+  padding-top: 4px;
+}
+.zone-editor code {
+  color: var(--accent);
+  font-family: Consolas, monospace;
+  font-size: 10px;
+}
 /* portal rows (Scene Studio) */
 .portal-row {
   display: flex;
