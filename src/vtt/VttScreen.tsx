@@ -535,7 +535,8 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     }
     setAssetsLoading(true);
     const list = await listAssets(campaign.id).catch(() => [] as VttAsset[]);
-    setAssets(list);
+    // "blob" rows are internal scene-image storage — never shown in the browser.
+    setAssets(list.filter((a) => a.kind !== "blob"));
     setAssetsLoading(false);
   }, [campaign]);
 

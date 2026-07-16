@@ -4,7 +4,9 @@
 import { getDb, sqlAvailable } from "../../lib/db";
 import { newId } from "../types/scene";
 
-export type AssetKind = "background" | "token" | "model" | "sound";
+/** "blob" rows are internal scene-image storage (see sceneBlobs.ts) — content-
+ *  addressed, hidden from the asset browser. */
+export type AssetKind = "background" | "token" | "model" | "sound" | "blob";
 
 export interface VttAsset {
   id: string;
@@ -28,7 +30,7 @@ function parse(r: Row): VttAsset {
   return {
     id: r.id,
     campaignId: r.campaign_id,
-    kind: (r.kind === "token" ? "token" : r.kind === "model" ? "model" : r.kind === "sound" ? "sound" : "background") as AssetKind,
+    kind: (r.kind === "token" ? "token" : r.kind === "model" ? "model" : r.kind === "sound" ? "sound" : r.kind === "blob" ? "blob" : "background") as AssetKind,
     name: r.name,
     uri: r.uri,
     createdAt: r.created_at,
