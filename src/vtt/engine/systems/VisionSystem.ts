@@ -19,6 +19,15 @@ function blocked(sx: number, sy: number, tx: number, ty: number, walls: VttWall[
   return false;
 }
 
+/** MOVEMENT collision: does the straight path from (sx,sy) to (tx,ty) cross any
+ *  wall? Every wall is solid to movement (blocksLight only shapes vision). */
+export function pathBlocked(walls: VttWall[], sx: number, sy: number, tx: number, ty: number): boolean {
+  for (const w of walls) {
+    if (segsIntersect(sx, sy, tx, ty, w.x1, w.y1, w.x2, w.y2)) return true;
+  }
+  return false;
+}
+
 /** Currently-visible cell keys. Empty set when fog is disabled (fog layer hides itself).
  *  `ownerId` (player perspective): vision comes only from tokens that player owns,
  *  plus all lights — so an enemy token no longer reveals its own cell. Undefined

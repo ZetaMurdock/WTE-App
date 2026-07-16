@@ -46,7 +46,11 @@ async function inflateAll(scenes: VttScene[]): Promise<VttScene[]> {
 export async function listScenes(campaignId: string): Promise<VttScene[]> {
   if (!sqlAvailable()) return [];
   const db = await getDb();
-  const rows = await db.select<Row[]>("SELECT * FROM scenes WHERE campaign_id = $1 ORDER BY updated_at DESC", [campaignId]);
+  // STABLE creation order. This used to be updated_at DESC — but every autosave
+  // and switch bumps updated_at, so the scene rail RESHUFFLED on every save (the
+  // scene you just left jumped to the top) and clicks/wheel-steps landed on a
+  // list that kept reordering underneath the pointer.
+  const rows = await db.select<Row[]>("SELECT * FROM scenes WHERE campaign_id = $1 ORDER BY created_at ASC", [campaignId]);
   return inflateAll(rows.map(parse));
 }
 

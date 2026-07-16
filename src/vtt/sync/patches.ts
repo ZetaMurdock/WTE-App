@@ -17,6 +17,7 @@ export type VttOp =
   | { op: "light.remove"; id: string }
   | { op: "fog.set"; enabled: boolean }
   | { op: "fog.reveal"; cells: string[] }
+  | { op: "fog.reset" }
   | { op: "bg.set"; src?: string | null; patch?: Partial<VttBackground> }
   | { op: "grid.set"; patch: Partial<VttGrid> }
   | { op: "terrain.set"; terrain: VttTerrain | null }
@@ -93,6 +94,11 @@ export function applyOp(d: VttSceneData, op: VttOp): boolean {
       for (const c of op.cells) if (!set.has(c)) (set.add(c), (added = true));
       if (added) d.fog.revealed = [...set];
       return added;
+    }
+    case "fog.reset": {
+      if (d.fog.revealed.length === 0) return false;
+      d.fog.revealed = [];
+      return true;
     }
     case "bg.set":
       if (op.patch) Object.assign(d.background, op.patch);

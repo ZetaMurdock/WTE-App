@@ -79,14 +79,21 @@ export function useVttSync({ engineRef, sceneId, getScene, onSnapshot }: Opts): 
       // Unowned tokens stay free-for-all, preserving table norms for NPC props.
       if (op.op === "token.move" || op.op === "token.update" || op.op === "token.remove") {
         const tok = engineRef.current?.scene?.data.tokens.find((t) => t.id === op.id);
-        if (tok?.owner && tok.owner !== from && from !== net.selfId) {
-          const hostId = roleRef.current === "host" ? net.selfId : peersRef.current.find((p) => p.role === "host")?.id ?? null;
-          if (hostId == null || from !== hostId) return; // unauthorized — drop the op
+        const hostId = roleRef.current === "host" ? net.selfId : peersRef.current.find((p) => p.role === "host")?.id ?? null;
+        const fromIsHost = hostId != null && from === hostId;
+        if (tok?.owner && tok.owner !== from && from !== net.selfId && !fromIsHost) return; // unauthorized — drop the op
+        // COLLISION defense-in-depth: a player's move whose path crosses a wall is
+        // dropped here too (their client already reverts; this stops wall-hacks).
+        if (op.op === "token.move" && tok && !fromIsHost && from !== net.selfId) {
+          if (engineRef.current?.moveBlocked(tok.x, tok.y, op.x, op.y)) return;
         }
       }
       engineRef.current?.applyRemote(op);
     });
-    const offSnap = net.subscribe("snapshot", (m) => {
+    const offSnap = net.subscribe("snapshot", (m, from) => {
+      // Never adopt our own snapshot: if a transport ever loops broadcasts back,
+      // a stale echo could revert the host's just-switched scene.
+      if (from === net.selfId) return;
       const scene = (m as SnapMsg).state as VttScene;
       if (scene && scene.id && scene.data) onSnapRef.current(scene);
     });

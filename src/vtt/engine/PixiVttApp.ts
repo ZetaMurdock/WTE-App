@@ -13,7 +13,7 @@ import { FogLayer } from "./layers/FogLayer";
 import { MeasurementLayer } from "./layers/MeasurementLayer";
 import { EffectLayer } from "./layers/EffectLayer";
 import { AtmosphereLayer } from "./layers/AtmosphereLayer";
-import { computeVisibleCells } from "./systems/VisionSystem";
+import { computeVisibleCells, pathBlocked } from "./systems/VisionSystem";
 import { EffectSystem } from "./systems/EffectSystem";
 import { TimelineSystem } from "./systems/TimelineSystem";
 import { SimulationSystem } from "./systems/SimulationSystem";
@@ -373,6 +373,14 @@ export class PixiVttApp {
     this.onChanged();
     this.onOp({ op: "fog.set", enabled: this.scene.data.fog.enabled });
   }
+  /** Wipe exploration progress — every visited area goes back to unexplored dark. */
+  resetFog(): void {
+    if (!this.scene || this.scene.data.fog.revealed.length === 0) return;
+    this.scene.data.fog.revealed = [];
+    this.redraw();
+    this.onChanged();
+    this.onOp({ op: "fog.reset" });
+  }
   /** Set (or clear) the scene's map-background image. */
   setBackground(src: string | null): void {
     this.setBackgroundProps({ src: src || undefined });
@@ -407,6 +415,10 @@ export class PixiVttApp {
     this.redraw();
     this.onChanged();
     this.onOp({ op: "atmo.set", atmo });
+  }
+  /** MOVEMENT collision — true when the straight path crosses any wall. */
+  moveBlocked(sx: number, sy: number, tx: number, ty: number): boolean {
+    return this.scene ? pathBlocked(this.scene.data.walls, sx, sy, tx, ty) : false;
   }
   moveToken(id: string, wx: number, wy: number, snap: boolean): void {
     const t = this.scene?.data.tokens.find((x) => x.id === id);

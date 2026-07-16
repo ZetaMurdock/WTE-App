@@ -295,7 +295,11 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
       const tok = eng?.scene?.data.tokens.find((x) => x.id === tokenId);
       if (!eng || !eng.scene || !tok) return;
       const g = eng.scene.data.grid.size;
-      eng.moveToken(tokenId, tok.x + dx * g, tok.y + dy * g, true);
+      const nx = tok.x + dx * g;
+      const ny = tok.y + dy * g;
+      // COLLISION: a step through a wall doesn't happen (walking, not teleporting).
+      if (eng.moveBlocked(tok.x, tok.y, nx, ny)) return;
+      eng.moveToken(tokenId, nx, ny, true);
       eng.onChanged();
     }
     window.addEventListener("keydown", onKey);
@@ -664,6 +668,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
         onTool={pickTool}
         fogOn={fogOn}
         onToggleFog={() => engine?.toggleFog()}
+        onResetFog={!isNetPlayer ? () => engine?.resetFog() : undefined}
         onSpawnActor={campaign && !isNetPlayer ? () => setLeftPanel((p) => (p === "actors" ? null : "actors")) : undefined}
         onAddAsset={campaign && !isNetPlayer ? () => setLeftPanel((p) => (p === "assets" ? null : "assets")) : undefined}
         onOpenAbilities={campaign ? () => setLeftPanel((p) => (p === "abilities" ? null : "abilities")) : undefined}

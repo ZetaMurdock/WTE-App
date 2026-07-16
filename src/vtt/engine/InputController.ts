@@ -8,6 +8,7 @@ export class InputController {
   private canvas: HTMLCanvasElement | null = null;
   private mode: DragMode = "none";
   private dragTokenId: string | null = null;
+  private dragFrom = { x: 0, y: 0 }; // token position at drag start (collision revert)
   private last = { x: 0, y: 0 };
   private start = { x: 0, y: 0 }; // world coords for measure
   private moved = false;
@@ -94,6 +95,7 @@ export class InputController {
       v.select({ kind: "token", id: hit.id });
       this.mode = "token";
       this.dragTokenId = hit.id;
+      this.dragFrom = { x: hit.x, y: hit.y };
       return;
     }
     const light = v.lights.pick(v.scene, w.x, w.y, v.camera.zoom);
@@ -158,7 +160,14 @@ export class InputController {
     if (this.mode === "token" && this.dragTokenId && this.moved) {
       const t = v.scene?.data.tokens.find((x) => x.id === this.dragTokenId);
       if (t) {
-        v.moveToken(this.dragTokenId, t.x, t.y, true); // snap on drop
+        // COLLISION: players can't drag through walls — a drop whose straight
+        // path from the pick-up point crosses a wall reverts to the origin.
+        // The Curator's drag stays free (GM repositioning tool).
+        if (v.playerView && v.moveBlocked(this.dragFrom.x, this.dragFrom.y, t.x, t.y)) {
+          v.moveToken(this.dragTokenId, this.dragFrom.x, this.dragFrom.y, true);
+        } else {
+          v.moveToken(this.dragTokenId, t.x, t.y, true); // snap on drop
+        }
         v.onChanged();
       }
     }

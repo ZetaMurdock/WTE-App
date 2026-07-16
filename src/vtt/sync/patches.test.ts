@@ -35,6 +35,9 @@ describe("applyOp", () => {
     expect(applyOp(d, { op: "fog.reveal", cells: ["1,1", "2,2"] })).toBe(true);
     expect(applyOp(d, { op: "fog.reveal", cells: ["2,2"] })).toBe(false); // already revealed
     expect(d.fog.revealed.sort()).toEqual(["1,1", "2,2"]);
+    expect(applyOp(d, { op: "fog.reset" })).toBe(true); // wipe exploration
+    expect(d.fog.revealed).toEqual([]);
+    expect(applyOp(d, { op: "fog.reset" })).toBe(false); // already clear
   });
 
   it("sets background via patch and legacy src-only forms", () => {
