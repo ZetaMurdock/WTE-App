@@ -1,48 +1,75 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { CharacterRecord } from "../lib/characters";
-import { ATTRIBUTES, SPECIALTIES, rollAttribute, rollSpecialty, rollGeneric, type RollResult } from "../game/wte";
-import { characterAbilities, type VttAbility } from "./data/characterAbilities";
+import { ATTRIBUTES, SPECIALTIES, rollAttribute, rollSpecialty, rollGeneric, rollToHit, signedMod, type RollResult } from "../game/wte";
+import { characterActionSet, type VttAbility } from "./data/characterAbilities";
 import { hasAoe, suggestedTemplate } from "./data/effectMeta";
 
 interface Props {
   character: CharacterRecord | null;
   characters: { id: string; name: string }[];
   onPickCharacter: (id: string) => void;
-  /** Log a roll to the shared feed. */
   onRoll: (roll: RollResult) => void;
-  /** Use an ability: rolls it, then (stage 2) prompts an AoE template to place. */
   onUseAbility: (ability: VttAbility, roll: RollResult) => void;
   onClose: () => void;
 }
-
-const SOURCE_LABEL: Record<VttAbility["source"], string> = { genus: "Genus", cipher: "Cipher", racial: "Racial" };
 
 /** A short "cone · 15 ft" style tag describing the parsed AoE, when there is one. */
 function aoeTag(a: VttAbility): string | null {
   if (!hasAoe(a.meta)) return null;
   const shape = a.meta.pattern || a.meta.area?.shape || "area";
   const size = a.meta.area?.size;
-  const unit = a.meta.area?.unit === "cells" ? "cells" : a.meta.area?.unit;
-  return size ? `${shape} · ${size} ${unit}` : shape;
+  return size ? `${shape} · ${size} ${a.meta.area?.unit}` : shape;
 }
 
-// Left-dock Abilities panel: your character's actions, abilities, and base rolls,
-// so you can act straight from the VTT. Rolling an ability logs to the shared
-// feed; abilities whose text implies an area get an AoE tag and (stage 2) prompt
-// a hitbox to place.
-export function VttAbilitiesPanel({ character, characters, onPickCharacter, onRoll, onUseAbility, onClose }: Props) {
-  const abilities = useMemo(() => (character ? characterAbilities(character) : []), [character]);
-  const grouped = useMemo(() => {
-    const g: Record<string, VttAbility[]> = { genus: [], cipher: [], racial: [] };
-    for (const a of abilities) g[a.source].push(a);
-    return g;
-  }, [abilities]);
+// Roll a weapon attack (1d20 + to-hit) or a plain ability check.
+function rollFor(a: VttAbility): RollResult {
+  return a.source === "action" && a.hit != null ? rollToHit(`${a.name} attack`, a.hit) : rollGeneric(a.name);
+}
 
-  function useAbility(a: VttAbility) {
-    const roll = rollGeneric(a.name);
+// Left-dock Abilities panel: base rolls + specialties, weapon actions, the
+// paradigm's standard genus + cipher sets, and racial abilities in a dropdown.
+// "Use" rolls into the shared feed and, for area abilities, prompts a hitbox.
+export function VttAbilitiesPanel({ character, characters, onPickCharacter, onRoll, onUseAbility, onClose }: Props) {
+  const set = useMemo(
+    () => (character ? characterActionSet(character) : { actions: [], genus: [], cipher: [], racial: [] }),
+    [character]
+  );
+  const [racialIdx, setRacialIdx] = useState(0);
+
+  function use(a: VttAbility) {
+    const roll = rollFor(a);
     onRoll(roll);
     onUseAbility(a, roll);
   }
+
+  function Row({ a }: { a: VttAbility }) {
+    const tag = aoeTag(a);
+    const tmpl = tag ? suggestedTemplate(a.meta) : null;
+    return (
+      <li className="vtt2-abil-row">
+        <div className="vtt2-abil-main">
+          <div className="vtt2-abil-name">
+            {a.name}
+            {a.source === "action" && a.hit != null && <span className="vtt2-abil-hit">{signedMod(a.hit)}</span>}
+            {a.ss > 0 && <span className="vtt2-abil-ss">{a.ss} SS</span>}
+          </div>
+          {(a.effect || a.range || a.damage) && (
+            <div className="vtt2-abil-effect">{a.effect || [a.range, a.damage].filter(Boolean).join(" · ")}</div>
+          )}
+          {tag && (
+            <div className="vtt2-abil-aoe" title={tmpl ? `Suggests a ${tmpl.kind} (~${tmpl.cells} cells) — editable on place` : ""}>
+              {tag}
+            </div>
+          )}
+        </div>
+        <button className="chip" onClick={() => use(a)} title={a.source === "action" ? "Roll to hit" : "Roll this ability"}>
+          Use
+        </button>
+      </li>
+    );
+  }
+
+  const racialSel = set.racial[racialIdx] ?? null;
 
   return (
     <div className="vtt2-abilities">
@@ -97,37 +124,45 @@ export function VttAbilitiesPanel({ character, characters, onPickCharacter, onRo
             ))}
           </div>
 
-          {(["genus", "cipher", "racial"] as const).map((src) =>
-            grouped[src].length === 0 ? null : (
-              <div key={src}>
-                <div className="vtt2-actor-group">{SOURCE_LABEL[src]}</div>
-                <ul className="vtt2-abil-list">
-                  {grouped[src].map((a) => {
-                    const tag = aoeTag(a);
-                    const tmpl = tag ? suggestedTemplate(a.meta) : null;
-                    return (
-                      <li key={a.id} className="vtt2-abil-row">
-                        <div className="vtt2-abil-main">
-                          <div className="vtt2-abil-name">
-                            {a.name}
-                            {a.ss > 0 && <span className="vtt2-abil-ss">{a.ss} SS</span>}
-                          </div>
-                          {(a.effect || a.range) && (
-                            <div className="vtt2-abil-effect">{a.effect || a.range}</div>
-                          )}
-                          {tag && (
-                            <div className="vtt2-abil-aoe" title={tmpl ? `Suggests a ${tmpl.kind} (~${tmpl.cells} cells) — editable on place` : ""}>
-                              {tag}
-                            </div>
-                          )}
-                        </div>
-                        <button className="chip" onClick={() => useAbility(a)} title="Roll this ability">Use</button>
-                      </li>
-                    );
-                  })}
-                </ul>
+          {set.actions.length > 0 && (
+            <>
+              <div className="vtt2-actor-group">Actions · attacks</div>
+              <ul className="vtt2-abil-list">{set.actions.map((a) => <Row key={a.id} a={a} />)}</ul>
+            </>
+          )}
+
+          {set.genus.length > 0 && (
+            <>
+              <div className="vtt2-actor-group">Genus abilities</div>
+              <ul className="vtt2-abil-list">{set.genus.map((a) => <Row key={a.id} a={a} />)}</ul>
+            </>
+          )}
+
+          {set.cipher.length > 0 && (
+            <>
+              <div className="vtt2-actor-group">Cipher abilities</div>
+              <ul className="vtt2-abil-list">{set.cipher.map((a) => <Row key={a.id} a={a} />)}</ul>
+            </>
+          )}
+
+          {set.racial.length > 0 && (
+            <>
+              <div className="vtt2-actor-group">Racial</div>
+              <div className="vtt2-abil-racial">
+                <select className="bg-select full" value={racialIdx} onChange={(e) => setRacialIdx(parseInt(e.target.value, 10))}>
+                  {set.racial.map((a, i) => (
+                    <option key={a.id} value={i}>{a.name}</option>
+                  ))}
+                </select>
+                {racialSel && (
+                  <>
+                    {racialSel.effect && <div className="vtt2-abil-effect" style={{ margin: "6px 2px" }}>{racialSel.effect}</div>}
+                    {aoeTag(racialSel) && <div className="vtt2-abil-aoe">{aoeTag(racialSel)}</div>}
+                    <button className="chip" style={{ marginTop: 6 }} onClick={() => use(racialSel)}>Use {racialSel.name}</button>
+                  </>
+                )}
               </div>
-            )
+            </>
           )}
         </>
       )}

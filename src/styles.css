@@ -5705,6 +5705,21 @@ body.wte-dot-cursor * {
   border-radius: 4px;
   padding: 0 4px;
 }
+.vtt2-abil-hit {
+  font-size: 10px;
+  font-family: Consolas, monospace;
+  color: #d8b25a;
+  border: 1px solid rgba(216, 178, 90, 0.4);
+  border-radius: 4px;
+  padding: 0 5px;
+}
+.vtt2-abil-racial {
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  padding: 8px;
+  background: rgba(126, 207, 202, 0.03);
+  margin-bottom: 6px;
+}
 .vtt2-abil-effect {
   font-size: 10.5px;
   color: var(--muted);
