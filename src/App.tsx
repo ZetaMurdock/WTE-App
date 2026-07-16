@@ -48,6 +48,13 @@ function accountLabelFor(u: AuthUser | null): string {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
+  // Legacy iframe tabs a user has actually opened this session (lazy mount).
+  const [visitedLegacy, setVisitedLegacy] = useState<Set<TabId>>(new Set());
+  useEffect(() => {
+    if (activeTab === "sheet" || activeTab === "vtt" || activeTab === "wiki") {
+      setVisitedLegacy((v) => (v.has(activeTab) ? v : new Set(v).add(activeTab)));
+    }
+  }, [activeTab]);
   const [theme, setTheme] = useState<Theme>(initialTheme);
   const [version, setVersion] = useState<string | null>(null);
   const [update, setUpdate] = useState<WteUpdate | null>(null);
@@ -314,9 +321,11 @@ export default function App() {
             <VttScreen campaign={activeCampaign} active={activeTab === "vtt2"} />
           </Boundary>
         </div>
-        <ToolFrame src="sheet.html" title="Character Sheet" hidden={activeTab !== "sheet"} />
-        <ToolFrame src="vtt.html" title="VTT" hidden={activeTab !== "vtt"} />
-        <ToolFrame src="wiki.html" title="Codex" hidden={activeTab !== "wiki"} />
+        {/* Legacy iframes mount LAZILY on first open (three fewer live documents
+            at boot), then stay mounted so their in-frame state survives switches. */}
+        {visitedLegacy.has("sheet") && <ToolFrame src="sheet.html" title="Character Sheet" hidden={activeTab !== "sheet"} />}
+        {visitedLegacy.has("vtt") && <ToolFrame src="vtt.html" title="VTT" hidden={activeTab !== "vtt"} />}
+        {visitedLegacy.has("wiki") && <ToolFrame src="wiki.html" title="Codex" hidden={activeTab !== "wiki"} />}
       </div>
     </div>
     </NetProvider>

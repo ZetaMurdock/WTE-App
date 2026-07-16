@@ -3,6 +3,7 @@
 import { Graphics } from "pixi.js";
 import type { VttEffect, VttScene } from "../../types/scene";
 import type { VttSelection } from "../PixiVttApp";
+import { effectBodyContains } from "../systems/effectGeometry";
 
 export class EffectLayer {
   readonly view = new Graphics();
@@ -67,7 +68,8 @@ export class EffectLayer {
     }
   }
 
-  /** Topmost effect whose centre handle (or body) contains the point. */
+  /** Topmost effect whose centre handle (or body) contains the point. Body hits
+   *  cover EVERY shape (circle/cone/line/ring/cross/zone) via effectGeometry. */
   pick(scene: VttScene, wx: number, wy: number, zoom: number): string | null {
     const size = scene.data.grid.size;
     const tol = 12 / Math.max(zoom, 0.001);
@@ -75,15 +77,7 @@ export class EffectLayer {
     for (let i = list.length - 1; i >= 0; i--) {
       const e = list[i];
       if ((wx - e.x) ** 2 + (wy - e.y) ** 2 <= tol * tol) return e.id;
-      // body hit for zones (easy to grab)
-      if (e.kind === "zone") {
-        const w = (e.data.w ?? 4) * size;
-        const h = (e.data.h ?? 4) * size;
-        if (wx >= e.x && wx <= e.x + w && wy >= e.y && wy <= e.y + h) return e.id;
-      } else if (e.kind === "circle") {
-        const r = (e.data.radius ?? 3) * size;
-        if ((wx - e.x) ** 2 + (wy - e.y) ** 2 <= r * r) return e.id;
-      }
+      if (effectBodyContains(e, size, wx, wy)) return e.id;
     }
     return null;
   }
