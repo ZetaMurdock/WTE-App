@@ -61,13 +61,29 @@ export function useVttSync({ engineRef, sceneId, getScene, onSnapshot }: Opts): 
     [net]
   );
 
+  // Latest peers/role for authorization checks without resubscribing per change.
+  const peersRef = useRef(net.peers);
+  peersRef.current = net.peers;
+  const roleRef = useRef(net.role);
+  roleRef.current = net.role;
+
   // Receive: apply remote ops (same scene only) and adopt remote snapshots.
   useEffect(() => {
-    const offPatch = net.subscribe("vtt-patch", (m) => {
+    const offPatch = net.subscribe("vtt-patch", (m, from) => {
       const pm = m as PatchMsg;
       const op = pm.patch as VttOp;
       if (!op || typeof op.op !== "string" || op.op === "scene.switch") return; // scene changes come via snapshot
       if (pm.scope && pm.scope !== sceneIdRef.current) return; // op is for a different scene
+      // OWNED-token authorization: when a token declares an owner, only that
+      // owner (or the host/Curator, or ourselves) may move/update/remove it.
+      // Unowned tokens stay free-for-all, preserving table norms for NPC props.
+      if (op.op === "token.move" || op.op === "token.update" || op.op === "token.remove") {
+        const tok = engineRef.current?.scene?.data.tokens.find((t) => t.id === op.id);
+        if (tok?.owner && tok.owner !== from && from !== net.selfId) {
+          const hostId = roleRef.current === "host" ? net.selfId : peersRef.current.find((p) => p.role === "host")?.id ?? null;
+          if (hostId == null || from !== hostId) return; // unauthorized — drop the op
+        }
+      }
       engineRef.current?.applyRemote(op);
     });
     const offSnap = net.subscribe("snapshot", (m) => {

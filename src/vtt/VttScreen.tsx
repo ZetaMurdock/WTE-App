@@ -186,19 +186,38 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
   // records to the local DB and can open/edit them, edits flowing back the same
   // way. Runs at this always-mounted level so a sheet arrives even before its
   // overlay is opened. Bumping sheetSyncTick remounts an open sheet to reload.
+  //
+  // AUTHORIZATION: the host (Curator) may update any sheet; a peer may only
+  // create/update sheets THEY shared (first-writer-wins owner binding in the
+  // partySheets store). A record that already exists in OUR local vault (this
+  // campaign) can only be updated by the host — so a forged "first share" can
+  // never overwrite the Curator's own characters.
+  const hostIdOf = () => (net.role === "host" ? net.selfId : peersRef.current.find((p) => p.role === "host")?.id ?? null);
   useEffect(() => {
     if (!campaign) return;
     return net.subscribe("sheet-patch", (m, from) => {
-      const pm = m as Extract<NetMessage, { t: "sheet-patch" }>;
-      const rec = pm.patch as CharacterRecord | undefined;
-      if (!rec || !rec.id || !rec.sheet) return;
-      applyRemoteSheet(rec, from);
-      void upsertCharacter(rec);
-      // Only reload the open overlay when THIS character changed, so an unrelated
-      // party member's edit never interrupts the sheet you are looking at.
-      if (rec.id === sheetCharIdRef.current) setSheetSyncTick((t) => t + 1);
+      void (async () => {
+        const pm = m as Extract<NetMessage, { t: "sheet-patch" }>;
+        const rec = pm.patch as CharacterRecord | undefined;
+        if (!rec || !rec.id || !rec.sheet) return;
+        const hostId = hostIdOf();
+        const privileged = from === net.selfId || (hostId != null && from === hostId);
+        if (!privileged) {
+          const tracked = getPartySheets().find((e) => e.record.id === rec.id);
+          if (!tracked) {
+            // Unseen record — reject if it collides with a character in OUR vault.
+            const existing = await getCharacter(rec.id).catch(() => undefined);
+            if (existing && existing.campaignId === campaign.id) return;
+          }
+        }
+        if (!applyRemoteSheet(rec, from, { selfId: net.selfId, hostId })) return;
+        void upsertCharacter(rec);
+        // Only reload the open overlay when THIS character changed, so an unrelated
+        // party member's edit never interrupts the sheet you are looking at.
+        if (rec.id === sheetCharIdRef.current) setSheetSyncTick((t) => t + 1);
+      })();
     });
-  }, [campaign, net.subscribe]);
+  }, [campaign, net.subscribe, net.selfId, net.role]);
 
   // Forget a peer's shared sheets when they leave the room.
   useEffect(() => {
@@ -483,7 +502,11 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
   }, [leftPanel, loadCreatures]);
 
   function spawnCharacter(rec: CharacterRecord) {
-    engineRef.current?.spawnToken(characterToTokenSpec(rec));
+    const spec = characterToTokenSpec(rec);
+    // Net players OWN the tokens they spawn: peers won't apply another player's
+    // moves to it, and player fog-vision reveals from it (both key on `owner`).
+    if (isNetPlayer) spec.owner = net.selfId;
+    engineRef.current?.spawnToken(spec);
   }
   /** Spawn a Codex creature as a linked token — HP/DR/size/flags derived from its sheet. */
   function spawnCreature(c: Creature) {

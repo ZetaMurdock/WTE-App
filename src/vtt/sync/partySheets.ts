@@ -41,11 +41,29 @@ export function getPartySheets(): readonly PartySheetEntry[] {
   return snapshot;
 }
 
-/** Apply a record received from a peer. Records the content hash so a later
- *  shouldBroadcast() for the same content returns false (no echo). */
-export function applyRemoteSheet(rec: CharacterRecord, ownerId: string): void {
-  store.set(rec.id, { record: rec, ownerId, hash: hashOf(rec) });
+export interface SheetAuthCtx {
+  selfId: string;
+  /** The room host's peer id (the Curator) — null when unknown. */
+  hostId: string | null;
+}
+
+/** Apply a record received from a peer, enforcing OWNERSHIP:
+ *  - the host (Curator) may update any sheet — full control;
+ *  - a peer may create (first share) or update only records THEY own;
+ *  - our own echo is always allowed;
+ *  - the ownerId binding is first-writer-wins and PRESERVED across host edits
+ *    and echoes (a host edit must not rebind the player's sheet to the host).
+ *  Records the content hash so a later shouldBroadcast() of the same content
+ *  returns false (no echo). Returns false — no mutation — when the sender is
+ *  not allowed to touch this record. */
+export function applyRemoteSheet(rec: CharacterRecord, from: string, ctx: SheetAuthCtx): boolean {
+  const cur = store.get(rec.id);
+  const isHost = ctx.hostId != null && from === ctx.hostId;
+  const isSelf = from === ctx.selfId;
+  if (cur && cur.ownerId !== from && !isHost && !isSelf) return false;
+  store.set(rec.id, { record: rec, ownerId: cur?.ownerId ?? from, hash: hashOf(rec) });
   notify();
+  return true;
 }
 
 /** Decide whether a locally-saved record is new information worth broadcasting.
