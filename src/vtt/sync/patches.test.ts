@@ -68,6 +68,18 @@ describe("applyOp", () => {
     expect(d.effects).toHaveLength(0);
   });
 
+  it("paints and erases effect zones with truthful change reporting", () => {
+    const d = fresh();
+    expect(applyOp(d, { op: "zone.paint", kind: "water", cells: ["2,3", "2,4"] })).toBe(true);
+    expect(d.zones?.water?.sort()).toEqual(["2,3", "2,4"]);
+    expect(applyOp(d, { op: "zone.paint", kind: "water", cells: ["2,3"] })).toBe(false); // already painted
+    expect(applyOp(d, { op: "zone.paint", kind: "smoke", cells: ["9,9"] })).toBe(true); // kinds are independent
+    expect(applyOp(d, { op: "zone.paint", kind: "water", cells: ["2,3"], erase: true })).toBe(true);
+    expect(d.zones?.water).toEqual(["2,4"]);
+    expect(applyOp(d, { op: "zone.paint", kind: "water", cells: ["8,8"], erase: true })).toBe(false); // nothing to erase
+    expect(d.zones?.smoke).toEqual(["9,9"]);
+  });
+
   it("treats scene.switch as a no-op at this layer", () => {
     const d = fresh();
     expect(applyOp(d, { op: "scene.switch", sceneId: "s2" })).toBe(false);

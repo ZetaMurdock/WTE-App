@@ -1,4 +1,4 @@
-export type VttTool = "select" | "pan" | "token" | "wall" | "light" | "measure" | "effect";
+export type VttTool = "select" | "pan" | "token" | "wall" | "light" | "measure" | "effect" | "zone";
 
 export const VTT_TOOLS: { id: VttTool; label: string; hint: string }[] = [
   { id: "select", label: "Select", hint: "Click a token, wall, light, or effect · drag tokens (snaps)" },
@@ -8,4 +8,5 @@ export const VTT_TOOLS: { id: VttTool; label: string; hint: string }[] = [
   { id: "light", label: "Light", hint: "Click to place a light source" },
   { id: "measure", label: "Measure", hint: "Drag to measure distance" },
   { id: "effect", label: "Effect", hint: "Click to place an AoE / zone effect" },
+  { id: "zone", label: "Paint", hint: "Paint effect zones (water / smoke / embers) — pick the brush in Scene Studio · Zones" },
 ];

@@ -3,7 +3,7 @@ import type { Campaign } from "../models/campaign";
 import { isTauri } from "../lib/tauri";
 import { PixiVttApp, type VttSelection } from "./engine/PixiVttApp";
 import { listScenes, saveScene, getScene, setActiveScene, deleteScene } from "./data/sceneRepo";
-import { newScene, type VttScene } from "./types/scene";
+import { newScene, type VttScene, type VttZoneKind } from "./types/scene";
 import type { VttTool } from "./types/tool";
 import { VttToolbar } from "./VttToolbar";
 import { VttActionBar } from "./VttActionBar";
@@ -265,6 +265,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
   const [assets, setAssets] = useState<VttAsset[]>([]);
   const [assetsLoading, setAssetsLoading] = useState(false);
   const [tool, setTool] = useState<VttTool>("select");
+  const [zoneBrush, setZoneBrush] = useState<{ kind: VttZoneKind; erase: boolean } | null>(null);
   const [sel, setSel] = useState<VttSelection>(null);
   const [tick, setTick] = useState(0); // re-render after engine mutations
 
@@ -767,6 +768,15 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
           otherScenes={scenes.filter((s) => s.id !== live.id).map((s) => ({ id: s.id, name: s.name }))}
           links={live.data.links ?? []}
           onLinks={(next) => void patchScene(live.id, (s) => (s.data.links = next))}
+          zones={live.data.zones ?? {}}
+          zoneBrush={zoneBrush}
+          onZoneBrush={(b) => {
+            setZoneBrush(b);
+            if (engine) engine.zoneBrush = b;
+            if (b) pickTool("zone");
+            else if (tool === "zone") pickTool("select");
+          }}
+          onZoneClear={(k) => engine?.clearZone(k)}
           onClose={() => setGridOpen(false)}
         />
       )}

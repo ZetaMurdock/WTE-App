@@ -186,6 +186,12 @@ export interface VttBackground {
   y: number;
 }
 
+/** Painted effect-zone kinds. Exactly three, because the zone mask packs one
+ *  kind per RGB channel (canvas uploads premultiply alpha, so A can't carry
+ *  data) — water is wavy green-teal, smoke drifts pale wisps, ember glows. */
+export type VttZoneKind = "water" | "smoke" | "ember";
+export const ZONE_KINDS: VttZoneKind[] = ["water", "smoke", "ember"];
+
 /** A portal along a map border: walking a token into that edge carries the
  *  party into the linked scene (arriving at the opposite edge). */
 export type VttLinkEdge = "north" | "south" | "east" | "west";
@@ -212,6 +218,9 @@ export interface VttSceneData {
   audio?: { src: string; volume: number } | null;
   /** Border portals into adjacent scenes (multi-map dungeons). */
   links?: VttSceneLink[];
+  /** Painted effect zones — cell keys per effect kind (water/smoke/ember),
+   *  rendered as animated procedural shader regions over the map. */
+  zones?: Partial<Record<VttZoneKind, string[]>>;
   encounterId?: string | null;
 }
 

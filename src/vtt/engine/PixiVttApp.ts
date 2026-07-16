@@ -15,6 +15,7 @@ import { EffectLayer } from "./layers/EffectLayer";
 import { AtmosphereLayer } from "./layers/AtmosphereLayer";
 import { computeVisibleCells, pathBlocked } from "./systems/VisionSystem";
 import { CustomShaderFilter, validateShaderBody } from "./filters/CustomShaderFilter";
+import { ZoneLayer } from "./layers/ZoneLayer";
 import { EffectSystem } from "./systems/EffectSystem";
 import { TimelineSystem } from "./systems/TimelineSystem";
 import { SimulationSystem } from "./systems/SimulationSystem";
@@ -25,6 +26,7 @@ import {
   type VttAtmosphere,
   type VttBackground,
   type VttFogMode,
+  type VttZoneKind,
   type VttEffectData,
   type VttEffectKind,
   type VttGrid,
@@ -52,6 +54,7 @@ export class PixiVttApp {
   readonly measure = new MeasurementLayer();
   readonly effects = new EffectLayer();
   readonly atmosphere = new AtmosphereLayer();
+  readonly zones = new ZoneLayer();
 
   // Engine systems (slice 12). Encounter round advance runs timeline + sim.
   readonly effectSystem = new EffectSystem();
@@ -97,6 +100,7 @@ export class PixiVttApp {
       this.atmosphere.backdrop, // world void BEHIND the map (pans/zooms with it)
       this.bg.view,
       this.grid.view,
+      this.zones.view, // painted effect zones sit on the map, under lights/tokens
       this.lights.view,
       this.effects.view,
       this.tokens.view,
@@ -120,6 +124,11 @@ export class PixiVttApp {
       if (this.scene) this.atmosphere.animate(this.app.ticker.deltaMS / 1000, this.app.screen.width, this.app.screen.height);
       // Animate the custom 2D shader (uTime drives water/haze/pulse effects).
       if (this.shaderFilter) this.shaderFilter.tick((Date.now() - this.shaderT0) / 1000, this.app.screen.width, this.app.screen.height);
+      // Animate painted zones + re-anchor their patterns to the world transform.
+      if (this.zones.view.visible && this.scene) {
+        const o = this.world.toGlobal({ x: 0, y: 0 });
+        this.zones.tick(performance.now() / 1000, o.x, o.y, this.world.scale.x, this.scene.data.grid.size);
+      }
       // Realistic fog decays with TIME, not just mutations — repaint fog AND
       // lights twice a second so left areas sink back into the dark and burning
       // lanterns visibly dim toward nothing.
@@ -212,6 +221,7 @@ export class PixiVttApp {
     const visible = this.visionOf();
     this.bg.draw(this.scene);
     this.grid.draw(this.scene);
+    this.zones.draw(this.scene);
     this.lights.draw(this.scene, this.selection, this.playerView && this.selfId ? this.selfId : undefined);
     this.effects.draw(this.scene, this.selection);
     this.tokens.sync(this.scene, this.selection?.kind === "token" ? this.selection.id : null, this.playerView ? visible : null);
@@ -443,6 +453,37 @@ export class PixiVttApp {
     this.onChanged();
     this.onOp({ op: "fog.set", enabled: this.scene.data.fog.enabled });
   }
+  /** Active zone brush ({kind, erase}) — the "zone" tool paints with it. */
+  zoneBrush: { kind: VttZoneKind; erase: boolean } | null = null;
+  /** Paint (or erase) the zone cell under a world point with the active brush. */
+  paintZoneAt(wx: number, wy: number): void {
+    if (!this.scene || !this.zoneBrush) return;
+    const g = this.scene.data.grid;
+    const c = Math.floor(wx / g.size);
+    const r = Math.floor(wy / g.size);
+    if (c < 0 || r < 0 || c >= g.cols || r >= g.rows) return;
+    const key = `${c},${r}`;
+    const { kind, erase } = this.zoneBrush;
+    const zones = (this.scene.data.zones ??= {});
+    const arr = zones[kind] ?? [];
+    const has = arr.includes(key);
+    if (erase ? !has : has) return; // no-op stroke over the same cell
+    zones[kind] = erase ? arr.filter((k) => k !== key) : [...arr, key];
+    this.redraw();
+    this.onChanged();
+    this.onOp({ op: "zone.paint", kind, cells: [key], erase });
+  }
+  /** Clear every cell of one zone kind (synced). */
+  clearZone(kind: VttZoneKind): void {
+    const zones = this.scene?.data.zones;
+    const cells = zones?.[kind];
+    if (!zones || !cells?.length) return;
+    zones[kind] = [];
+    this.redraw();
+    this.onChanged();
+    this.onOp({ op: "zone.paint", kind, cells, erase: true });
+  }
+
   /** Wipe exploration progress — every visited area goes back to unexplored dark. */
   resetFog(): void {
     if (!this.scene) return;

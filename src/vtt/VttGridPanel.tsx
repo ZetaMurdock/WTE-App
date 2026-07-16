@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { defaultAtmosphere, defaultShader, newId, type VttAtmosphere, type VttBackground, type VttFogMode, type VttFogState, type VttGrid, type VttLinkEdge, type VttSceneLink, type VttShader, type VttTerrain } from "./types/scene";
+import { ZONE_KINDS, defaultAtmosphere, defaultShader, newId, type VttAtmosphere, type VttBackground, type VttFogMode, type VttFogState, type VttGrid, type VttLinkEdge, type VttSceneLink, type VttShader, type VttTerrain, type VttZoneKind } from "./types/scene";
 import { listShaderPresets, saveShaderPreset, deleteShaderPreset, isBuiltinPreset, type ShaderPreset } from "../lib/shaderPresets";
 
 interface Props {
@@ -19,22 +19,34 @@ interface Props {
   otherScenes: { id: string; name: string }[];
   links: VttSceneLink[];
   onLinks: (links: VttSceneLink[]) => void;
+  /** Painted effect zones: cell counts per kind + the armed brush. */
+  zones: Partial<Record<VttZoneKind, string[]>>;
+  zoneBrush: { kind: VttZoneKind; erase: boolean } | null;
+  onZoneBrush: (brush: { kind: VttZoneKind; erase: boolean } | null) => void;
+  onZoneClear: (kind: VttZoneKind) => void;
   onSetMusic: () => void;
   onClearMusic: () => void;
   onMusicVolume: (v: number) => void;
   onClose: () => void;
 }
 
-type StudioTab = "grid" | "terrain" | "atmosphere" | "fog" | "shaders" | "portals" | "music";
+type StudioTab = "grid" | "terrain" | "atmosphere" | "fog" | "shaders" | "zones" | "portals" | "music";
 const STUDIO_TABS: { id: StudioTab; label: string }[] = [
   { id: "grid", label: "Grid" },
   { id: "terrain", label: "Terrain" },
-  { id: "atmosphere", label: "Atmosphere" },
+  { id: "atmosphere", label: "Atmos" },
   { id: "fog", label: "Fog" },
   { id: "shaders", label: "Shaders" },
+  { id: "zones", label: "Zones" },
   { id: "portals", label: "Portals" },
   { id: "music", label: "Music" },
 ];
+
+const ZONE_INFO: Record<VttZoneKind, { label: string; desc: string }> = {
+  water: { label: "Water", desc: "Wavy green-teal, caustic shimmer" },
+  smoke: { label: "Smoke", desc: "Pale drifting wisps" },
+  ember: { label: "Embers", desc: "Molten veins, warm pulse" },
+};
 
 const EDGES: { id: VttLinkEdge; label: string }[] = [
   { id: "north", label: "North edge (top)" },
@@ -94,6 +106,10 @@ export function VttGridPanel({
   otherScenes,
   links,
   onLinks,
+  zones,
+  zoneBrush,
+  onZoneBrush,
+  onZoneClear,
   onSetMusic,
   onClearMusic,
   onMusicVolume,
@@ -386,6 +402,56 @@ export function VttGridPanel({
                   </button>
                 </div>
               </>
+            )}
+          </>
+        )}
+
+        {tab === "zones" && (
+          <>
+            <div className="scene-studio-sub">Effect brushes</div>
+            <p className="size-note">
+              Pick a brush, then click or drag over map tiles with the Paint tool (it arms automatically). Each kind renders as a
+              living shader region — feathered edges, animated, synced to everyone.
+            </p>
+            <div className="fog-mode-list" style={{ marginTop: 8 }}>
+              {ZONE_KINDS.map((k) => {
+                const armed = zoneBrush?.kind === k;
+                const count = zones[k]?.length ?? 0;
+                return (
+                  <button
+                    key={k}
+                    className={"fog-mode-card" + (armed ? " active" : "")}
+                    onClick={() => onZoneBrush(armed ? null : { kind: k, erase: zoneBrush?.erase ?? false })}
+                  >
+                    <span className="fog-mode-name">
+                      {ZONE_INFO[k].label}
+                      {count > 0 ? ` · ${count} tiles` : ""}
+                    </span>
+                    <span className="fog-mode-desc">{ZONE_INFO[k].desc}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="chip-row" style={{ marginTop: 10 }}>
+              <button
+                className={"chip" + (zoneBrush?.erase ? " active" : "")}
+                onClick={() => zoneBrush && onZoneBrush({ ...zoneBrush, erase: !zoneBrush.erase })}
+                disabled={!zoneBrush}
+                title="Erase mode — the brush removes tiles instead of adding them"
+              >
+                Erase
+              </button>
+              {ZONE_KINDS.filter((k) => (zones[k]?.length ?? 0) > 0).map((k) => (
+                <button key={k} className="chip" onClick={() => onZoneClear(k)} title={`Remove every ${ZONE_INFO[k].label} tile`}>
+                  Clear {ZONE_INFO[k].label.toLowerCase()}
+                </button>
+              ))}
+            </div>
+            {zoneBrush && (
+              <p className="size-note" style={{ marginTop: 10 }}>
+                Brush armed: {ZONE_INFO[zoneBrush.kind].label}
+                {zoneBrush.erase ? " (erasing)" : ""} — paint on the map now.
+              </p>
             )}
           </>
         )}

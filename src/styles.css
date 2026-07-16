@@ -5263,10 +5263,10 @@ body.wte-dot-cursor * {
 /* ── Scene Studio: full-height tabbed scene/atmosphere/shader editor ── */
 .scene-studio {
   position: absolute;
-  top: 54px;
+  top: 54px; /* tucked under the VTT toolbar, not a full-height column */
   right: 14px;
-  bottom: 14px;
-  width: 328px;
+  width: 306px;
+  max-height: min(74vh, 640px);
   display: flex;
   flex-direction: column;
   background: rgba(10, 15, 27, 0.97);
@@ -5275,6 +5275,9 @@ body.wte-dot-cursor * {
   z-index: 12;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
   overflow: hidden;
+}
+.scene-studio-tabs {
+  flex-wrap: wrap;
 }
 .scene-studio input[type="range"] {
   width: 100%;

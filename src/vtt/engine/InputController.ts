@@ -3,7 +3,7 @@
 import type { PixiVttApp } from "./PixiVttApp";
 import { lightVisibleTo } from "./systems/VisionSystem";
 
-type DragMode = "none" | "pan" | "token" | "measure" | "wall" | "rotate" | "scale";
+type DragMode = "none" | "pan" | "token" | "measure" | "wall" | "rotate" | "scale" | "zone";
 
 export class InputController {
   private canvas: HTMLCanvasElement | null = null;
@@ -81,6 +81,11 @@ export class InputController {
       v.measure.show(w.x, w.y, w.x, w.y, v.scene.data.grid.size);
       return;
     }
+    if (v.tool === "zone") {
+      this.mode = "zone";
+      v.paintZoneAt(w.x, w.y); // paint the cell under the press; drag keeps painting
+      return;
+    }
     // transform handles on the already-selected token take priority
     if (v.selection?.kind === "token") {
       const h = v.tokens.pickHandle(v.scene, v.selection.id, w.x, w.y, v.camera.zoom);
@@ -156,6 +161,7 @@ export class InputController {
       }
     }
     else if (this.mode === "measure") v.measure.show(this.start.x, this.start.y, w.x, w.y, v.scene.data.grid.size);
+    else if (this.mode === "zone") v.paintZoneAt(w.x, w.y); // brush-drag painting
     else if (this.mode === "wall") {
       const p = v.snapVertex(w.x, w.y);
       v.walls.preview(this.start.x, this.start.y, p.x, p.y);
