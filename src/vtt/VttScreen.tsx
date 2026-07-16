@@ -297,6 +297,9 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
       const g = eng.scene.data.grid.size;
       const nx = tok.x + dx * g;
       const ny = tok.y + dy * g;
+      // FACING follows the step even when blocked — you can turn to face a wall.
+      const facing = Math.atan2(dy, dx);
+      if (tok.facing !== facing) eng.updateToken(tokenId, { facing });
       // COLLISION: a step through a wall doesn't happen (walking, not teleporting).
       if (eng.moveBlocked(tok.x, tok.y, nx, ny)) return;
       eng.moveToken(tokenId, nx, ny, true);

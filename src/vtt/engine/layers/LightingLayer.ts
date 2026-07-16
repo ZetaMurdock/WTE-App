@@ -4,6 +4,8 @@
 import { Container, Graphics, Sprite, Texture } from "pixi.js";
 import type { VttScene } from "../../types/scene";
 import type { VttSelection } from "../PixiVttApp";
+import { lightVisibleTo } from "../systems/VisionSystem";
+import { lightFactor, lightRadiusScale } from "../systems/lightState";
 
 let glowTex: Texture | null = null;
 function glowTexture(): Texture {
@@ -31,26 +33,37 @@ export class LightingLayer {
     this.view.addChild(this.glows, this.handles);
   }
 
-  draw(scene: VttScene, selection: VttSelection): void {
+  draw(scene: VttScene, selection: VttSelection, viewerId?: string): void {
     this.handles.clear();
     for (const ch of this.glows.removeChildren()) ch.destroy();
     this.view.visible = scene.data.layers.lights;
     if (!this.view.visible) return;
     const size = scene.data.grid.size;
+    const realistic = scene.data.fog.enabled && scene.data.fog.mode === "realistic";
+    const now = Date.now();
     for (const l of scene.data.lights) {
-      const spr = new Sprite(glowTexture());
-      spr.anchor.set(0.5);
-      spr.position.set(l.x, l.y);
-      const d = l.radius * size * 2.3; // gradient fades before the edge — overshoot for softness
-      spr.width = d;
-      spr.height = d;
-      spr.tint = l.color || "#a08a4f";
-      spr.alpha = Math.min(1, (l.intensity ?? 0.5) * 0.95);
-      spr.blendMode = "add";
-      this.glows.addChild(spr);
+      // Players don't see a light AT ALL (glow or handle) until they have a
+      // visual on it — no free map knowledge from off-screen torches.
+      if (viewerId && scene.data.fog.enabled && !lightVisibleTo(scene.data, l, viewerId)) continue;
+      const f = lightFactor(l, realistic, now);
+      if (f > 0) {
+        const spr = new Sprite(glowTexture());
+        spr.anchor.set(0.5);
+        spr.position.set(l.x, l.y);
+        // gradient fades before the edge — overshoot for softness; burn-down shrinks it
+        const d = l.radius * size * 2.3 * lightRadiusScale(f);
+        spr.width = d;
+        spr.height = d;
+        spr.tint = l.color || "#a08a4f";
+        spr.alpha = Math.min(1, (l.intensity ?? 0.5) * 0.95) * (realistic ? 0.25 + 0.75 * f : 1);
+        spr.blendMode = "add";
+        this.glows.addChild(spr);
+      }
 
       const sel = selection?.kind === "light" && selection.id === l.id;
-      this.handles.circle(l.x, l.y, 7).fill({ color: l.color || "#a08a4f", alpha: 0.9 });
+      // Unlit lanterns show a cold, dim handle — visibly waiting to be lit.
+      const cold = realistic && f <= 0;
+      this.handles.circle(l.x, l.y, 7).fill({ color: cold ? 0x39424f : l.color || "#a08a4f", alpha: cold ? 0.7 : 0.9 });
       this.handles.circle(l.x, l.y, sel ? 12 : 9).stroke({ width: sel ? 2.5 : 1.5, color: sel ? 0x7ecfca : 0x04070d });
     }
   }

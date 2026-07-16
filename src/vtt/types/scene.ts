@@ -40,6 +40,9 @@ export interface VttToken {
   meta?: VttTokenMeta;
   ownerPeer?: string | null;
   visible: boolean;
+  /** Facing in radians (stamped from movement direction). When set, vision is a
+   *  forward cone + a tight peripheral ring — claustrophobic, not 360. */
+  facing?: number;
   /** Vision radius in cells (fog/vision system). */
   vision?: number;
   /** Condition/status tags (SimulationSystem — rendered as pips). */
@@ -71,6 +74,13 @@ export interface VttLight {
   radius: number; // cells
   color: string;
   intensity: number; // 0..1
+  /** Realistic-fog lantern state: unlit (dark) until someone at the table
+   *  clicks it alight. Ignored outside realistic fog (lights just burn). */
+  lit?: boolean;
+  /** Epoch ms when (re)lit — drives the burn-down dimming. */
+  litAt?: number;
+  /** Curator-set seconds from lit to burned out (unset/0 = never burns out). */
+  burnSeconds?: number;
 }
 export type VttEffectKind = "circle" | "cone" | "zone" | "line" | "ring" | "cross";
 export interface VttEffectData {

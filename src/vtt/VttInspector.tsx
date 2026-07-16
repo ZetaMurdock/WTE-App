@@ -194,6 +194,31 @@ export function VttInspector({ sel, scene, onToken, onWall, onLight, onEffect, o
               ))}
             </div>
           </div>
+          <label className="lobby-field mt" title="Realistic fog only: seconds from lit to burned out. 0 = never burns out. Players click a lantern they can see to (re)light it.">
+            <span>Burn time (s) · realistic fog</span>
+            <input
+              className="bg-select full"
+              type="number"
+              min={0}
+              max={7200}
+              value={light.burnSeconds ?? 0}
+              onChange={(e) => onLight({ burnSeconds: Math.max(0, Math.min(7200, parseInt(e.target.value, 10) || 0)) })}
+            />
+          </label>
+          <div className="vtt2-hp-row mt">
+            <button
+              className={"chip" + (light.lit ? " active" : "")}
+              onClick={() => onLight(light.lit ? { lit: false } : { lit: true, litAt: Date.now() })}
+              title="Realistic fog: unlit lanterns are dark until (re)lit"
+            >
+              {light.lit ? "Lit" : "Unlit"}
+            </button>
+            {light.lit && (
+              <button className="chip" onClick={() => onLight({ lit: true, litAt: Date.now() })} title="Refresh the burn back to full">
+                Relight
+              </button>
+            )}
+          </div>
         </>
       )}
 

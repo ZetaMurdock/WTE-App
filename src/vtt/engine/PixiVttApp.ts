@@ -105,13 +105,15 @@ export class PixiVttApp {
       const moving = this.camera.tick(this.app.ticker.deltaTime);
       if (was && !moving) this.persistCamera();
       if (this.scene) this.atmosphere.animate(this.app.ticker.deltaMS / 1000, this.app.screen.width, this.app.screen.height);
-      // Realistic fog decays with TIME, not just mutations — repaint the fog
-      // twice a second so left areas visibly sink back into the dark.
+      // Realistic fog decays with TIME, not just mutations — repaint fog AND
+      // lights twice a second so left areas sink back into the dark and burning
+      // lanterns visibly dim toward nothing.
       const fog = this.scene?.data.fog;
       if (fog?.enabled && fog.mode === "realistic") {
         const now = Date.now();
         if (now - fogTickAt >= 500) {
           fogTickAt = now;
+          this.lights.draw(this.scene!, this.selection, this.playerView && this.selfId ? this.selfId : undefined);
           this.fog.draw(this.scene!, this.visionOf() ?? new Set<string>(), this.playerView);
         }
       }
@@ -139,15 +141,23 @@ export class PixiVttApp {
     }
     const s = d.grid.size;
     const ownerId = this.playerView && this.selfId ? this.selfId : undefined;
+    // Realistic fog: light burn-down + decay change with TIME — fold a 500ms
+    // bucket into the key so the ticker's periodic redraw recomputes vision.
+    const bucket = d.fog.mode === "realistic" ? Math.floor(Date.now() / 500) : 0;
     const key =
       (ownerId ?? "gm") +
       "|" +
       d.tokens
-        .map((t) => `${Math.floor(t.x / s)},${Math.floor(t.y / s)},${t.vision ?? 5},${t.visible === false ? 0 : 1},${t.owner ?? ""}`)
+        .map(
+          (t) =>
+            `${Math.floor(t.x / s)},${Math.floor(t.y / s)},${t.vision ?? 5},${t.visible === false ? 0 : 1},${t.owner ?? ""},${
+              t.facing == null ? "" : Math.round(t.facing * 100)
+            }`
+        )
         .join(";") +
       "|" +
-      d.lights.map((l) => `${Math.round(l.x)},${Math.round(l.y)},${l.radius}`).join(";") +
-      `|${d.walls.length}|${s},${d.grid.cols},${d.grid.rows}`;
+      d.lights.map((l) => `${Math.round(l.x)},${Math.round(l.y)},${l.radius},${l.lit ? 1 : 0},${l.litAt ?? 0},${l.burnSeconds ?? 0}`).join(";") +
+      `|${d.walls.length}|${s},${d.grid.cols},${d.grid.rows}|${d.fog.mode ?? "remembered"}|${bucket}`;
     if (key !== this.visionKey || !this.visionCache) {
       this.visionKey = key;
       this.visionCache = computeVisibleCells(d, ownerId);
@@ -160,7 +170,7 @@ export class PixiVttApp {
     const visible = this.visionOf();
     this.bg.draw(this.scene);
     this.grid.draw(this.scene);
-    this.lights.draw(this.scene, this.selection);
+    this.lights.draw(this.scene, this.selection, this.playerView && this.selfId ? this.selfId : undefined);
     this.effects.draw(this.scene, this.selection);
     this.tokens.sync(this.scene, this.selection?.kind === "token" ? this.selection.id : null, this.playerView ? visible : null);
     this.walls.draw(this.scene, this.selection);
@@ -362,6 +372,12 @@ export class PixiVttApp {
     this.redraw();
     this.onChanged();
     this.onOp({ op: "light.update", id, patch });
+  }
+  /** (Re)light a lantern — realistic fog only. Clicking an already-burning one
+   *  refreshes it to full ("until it has been relit again"). Synced. */
+  igniteLight(id: string): void {
+    if (this.scene?.data.fog.mode !== "realistic") return;
+    this.updateLight(id, { lit: true, litAt: Date.now() });
   }
   deleteSelected(): void {
     if (!this.scene || !this.selection) return;

@@ -1,6 +1,7 @@
 // Pointer + wheel input → tool behavior. Left-drag acts per tool; middle/right
 // drag always pans; wheel zooms at the cursor.
 import type { PixiVttApp } from "./PixiVttApp";
+import { lightVisibleTo } from "./systems/VisionSystem";
 
 type DragMode = "none" | "pan" | "token" | "measure" | "wall" | "rotate" | "scale";
 
@@ -101,6 +102,12 @@ export class InputController {
     const light = v.lights.pick(v.scene, w.x, w.y, v.camera.zoom);
     if (light) {
       v.select({ kind: "light", id: light });
+      // Realistic fog: a PLAYER clicking a lantern they can see (re)lights it —
+      // lights are started by the players, and relighting resets the burn.
+      if (v.playerView && v.scene.data.fog.mode === "realistic") {
+        const l = v.scene.data.lights.find((x) => x.id === light);
+        if (l && lightVisibleTo(v.scene.data, l, v.selfId ?? undefined)) v.igniteLight(light);
+      }
       this.mode = "none";
       return;
     }
@@ -167,6 +174,10 @@ export class InputController {
           v.moveToken(this.dragTokenId, this.dragFrom.x, this.dragFrom.y, true);
         } else {
           v.moveToken(this.dragTokenId, t.x, t.y, true); // snap on drop
+          // FACING follows movement — directional vision looks where you walked.
+          const fdx = t.x - this.dragFrom.x;
+          const fdy = t.y - this.dragFrom.y;
+          if (Math.hypot(fdx, fdy) > 2) v.updateToken(this.dragTokenId, { facing: Math.atan2(fdy, fdx) });
         }
         v.onChanged();
       }
