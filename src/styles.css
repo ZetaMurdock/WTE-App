@@ -5062,6 +5062,16 @@ body.wte-dot-cursor * {
   background: var(--panel-line);
   margin: 0 4px;
 }
+/* Content-add actions (spawn actor / add asset / abilities) — subtly accented. */
+.vtt2-action.add {
+  color: var(--bone, #e7e0d0);
+  border-color: rgba(126, 207, 202, 0.28);
+  background: rgba(126, 207, 202, 0.06);
+}
+.vtt2-action.add:hover {
+  border-color: var(--accent);
+  background: rgba(126, 207, 202, 0.14);
+}
 /* Radial quick-action menu around the selected token (Owlbear-style glass) */
 .vtt2-radial {
   position: absolute;

@@ -5,12 +5,18 @@ interface Props {
   onTool: (t: VttTool) => void;
   fogOn: boolean;
   onToggleFog: () => void;
+  /** Content-add quick actions (undefined hides each). Add-to-gameplay group. */
+  onSpawnActor?: () => void;
+  onAddAsset?: () => void;
+  onOpenAbilities?: () => void;
 }
 
-// The floating action bar (bottom-centre, Owlbear-style): the map tools live
-// here so the top toolbar stays uncluttered. Tool hints ride the tooltips.
+// The floating action bar (bottom-centre, Owlbear-style): map tools + fog on the
+// left, then a "content" group for quickly ADDING things to the encounter (spawn
+// an actor, load an asset, open your abilities). Tool hints ride the tooltips.
 // (The 3D view is vaulted — the 2D top-down perspective is the standard.)
-export function VttActionBar({ tool, onTool, fogOn, onToggleFog }: Props) {
+export function VttActionBar({ tool, onTool, fogOn, onToggleFog, onSpawnActor, onAddAsset, onOpenAbilities }: Props) {
+  const hasContent = onSpawnActor || onAddAsset || onOpenAbilities;
   return (
     <div className="vtt2-actionbar">
       {VTT_TOOLS.map((t) => (
@@ -31,6 +37,22 @@ export function VttActionBar({ tool, onTool, fogOn, onToggleFog }: Props) {
       >
         Fog
       </button>
+      {hasContent && <span className="vtt2-action-sep" />}
+      {onSpawnActor && (
+        <button className="vtt2-action add" onClick={onSpawnActor} title="Actors — spawn a linked vault character or Codex creature">
+          + Actor
+        </button>
+      )}
+      {onAddAsset && (
+        <button className="vtt2-action add" onClick={onAddAsset} title="Assets — add a map background or token art">
+          + Asset
+        </button>
+      )}
+      {onOpenAbilities && (
+        <button className="vtt2-action add" onClick={onOpenAbilities} title="Abilities — your actions, abilities, and base rolls">
+          Abilities
+        </button>
+      )}
     </div>
   );
 }

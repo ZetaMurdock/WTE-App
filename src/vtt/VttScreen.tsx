@@ -594,6 +594,9 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
         onTool={pickTool}
         fogOn={fogOn}
         onToggleFog={() => engine?.toggleFog()}
+        onSpawnActor={campaign && !isNetPlayer ? () => setLeftPanel((p) => (p === "actors" ? null : "actors")) : undefined}
+        onAddAsset={campaign && !isNetPlayer ? () => setLeftPanel((p) => (p === "assets" ? null : "assets")) : undefined}
+        onOpenAbilities={campaign ? () => setLeftPanel((p) => (p === "abilities" ? null : "abilities")) : undefined}
       />
       {campaign && !isNetPlayer && (
         <VttSceneWheel
