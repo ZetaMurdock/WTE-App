@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { CharacterRecord } from "../lib/characters";
-import { ATTRIBUTES, rollAttribute, rollGeneric, type RollResult } from "../game/wte";
+import { ATTRIBUTES, SPECIALTIES, rollAttribute, rollSpecialty, rollGeneric, type RollResult } from "../game/wte";
 import { characterAbilities, type VttAbility } from "./data/characterAbilities";
 import { hasAoe, suggestedTemplate } from "./data/effectMeta";
 
@@ -69,7 +69,7 @@ export function VttAbilitiesPanel({ character, characters, onPickCharacter, onRo
         <p className="list-empty" style={{ margin: "6px 0" }}>Pick a character to see their abilities.</p>
       ) : (
         <>
-          <div className="vtt2-actor-group">Base rolls</div>
+          <div className="vtt2-actor-group">Base rolls · attributes</div>
           <div className="vtt2-abil-baserolls">
             {ATTRIBUTES.map((attr) => (
               <button
@@ -79,6 +79,20 @@ export function VttAbilitiesPanel({ character, characters, onPickCharacter, onRo
                 onClick={() => onRoll(rollAttribute(attr.short, character.sheet.attributes[attr.key] ?? 0))}
               >
                 {attr.short}
+              </button>
+            ))}
+          </div>
+
+          <div className="vtt2-actor-group">Specialties · 1d40</div>
+          <div className="vtt2-abil-baserolls">
+            {SPECIALTIES.map((spec) => (
+              <button
+                key={spec.key}
+                className="chip"
+                title={`${spec.label} check — 1d40 + mod${(character.sheet.specialties[spec.key] ?? 0) < 25 ? " (−25 under 25 pts)" : ""}`}
+                onClick={() => onRoll(rollSpecialty(spec.label, character.sheet.specialties[spec.key] ?? 0))}
+              >
+                {spec.key.toUpperCase()}
               </button>
             ))}
           </div>

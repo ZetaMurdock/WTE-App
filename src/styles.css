@@ -5931,6 +5931,77 @@ body.wte-dot-cursor * {
   gap: 4px;
 }
 /* Roll feed (bottom-right) */
+/* Active roll toasts — pop up centre-top on any roll, then fade out. */
+.vtt2-roll-toasts {
+  position: absolute;
+  top: 58px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 40;
+  pointer-events: none;
+}
+.vtt2-roll-toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 190px;
+  max-width: 320px;
+  padding: 9px 16px 9px 10px;
+  background: rgba(10, 15, 28, 0.94);
+  border: 1px solid rgba(126, 207, 202, 0.35);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  animation: roll-toast 4.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+.vtt2-rt-die {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: radial-gradient(circle at 50% 35%, rgba(126, 207, 202, 0.22), rgba(10, 15, 28, 0.2));
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-family: Consolas, monospace;
+  font-size: 21px;
+  font-weight: 700;
+  animation: roll-die-pop 0.5s ease;
+}
+.vtt2-rt-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.vtt2-rt-label {
+  font-family: Georgia, serif;
+  font-size: 13px;
+  color: var(--bone, #e7e0d0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vtt2-rt-meta {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 1px;
+}
+@keyframes roll-toast {
+  0% { opacity: 0; transform: translateY(-14px) scale(0.94); }
+  7% { opacity: 1; transform: translateY(0) scale(1); }
+  86% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-8px) scale(0.98); }
+}
+@keyframes roll-die-pop {
+  0% { transform: scale(0.4) rotate(-18deg); }
+  55% { transform: scale(1.18) rotate(6deg); }
+  100% { transform: scale(1) rotate(0); }
+}
 .vtt2-rollfeed {
   position: absolute;
   right: 12px;

@@ -24,6 +24,7 @@ import { VttRollFeed } from "./VttRollFeed";
 import { VttAssetPanel } from "./VttAssetPanel";
 import { VttSoundboard } from "./VttSoundboard";
 import { VttAbilitiesPanel } from "./VttAbilitiesPanel";
+import { VttRollToast } from "./VttRollToast";
 import { VttAoePrompt, type AoePlacement } from "./VttAoePrompt";
 import { hasAoe } from "./data/effectMeta";
 import type { VttAbility } from "./data/characterAbilities";
@@ -721,6 +722,7 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
           }}
         />
       )}
+      {campaign && <VttRollToast campaignId={campaign.id} />}
       {campaign && rollsOpen && <VttRollFeed campaignId={campaign.id} onClose={() => setRollsOpen(false)} />}
       {campaign && soundboardOpen && (
         <VttSoundboard campaignId={campaign.id} sceneName={scene?.name ?? "Scene"} onClose={() => setSoundboardOpen(false)} />
