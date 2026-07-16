@@ -449,6 +449,10 @@ export interface EquipmentItem {
   /** Free-text stat mods, e.g. "DEX +2, DHP +3, Weight -1". */
   mods: string;
   notes?: string;
+  /** How many you carry (stacks); defaults to 1 when unset. */
+  qty?: number;
+  /** Single-use item — the inventory shows a "Use" that decrements qty. */
+  consumable?: boolean;
 }
 
 // Free-text mod name → target ("a:phy" attr, "s:wt" specialty, "d:atk" derived). Longer names win.

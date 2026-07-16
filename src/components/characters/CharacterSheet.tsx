@@ -496,6 +496,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                 speciesId={sheet.speciesId}
                 sizeId={sheet.sizeId}
                 equipment={sheet.equipment}
+                weaponLoadout={weaponLoadout}
                 gearLoadout={gearLoadout}
                 maxNC={maxNC}
                 ncUsed={ncUsed}
