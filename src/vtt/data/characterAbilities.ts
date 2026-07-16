@@ -4,8 +4,8 @@
 import type { CharacterRecord } from "../../lib/characters";
 import {
   usableRacial,
-  genusForParadigm,
-  ciphersForParadigm,
+  usableGenus,
+  usableCiphers,
   computeDerived,
   effectiveAttributes,
   aggregateEquip,
@@ -91,11 +91,10 @@ export function characterActionSet(rec: CharacterRecord): CharacterActionSet {
     .filter((w): w is NonNullable<typeof w> => !!w)
     .map((w, i) => mk("action", w.name, i, { effect: w.effect, range: w.range, hit: atk + (isRangedWeapon(w) ? dexMod : phyMod), damage: w.damage }));
 
-  const genus = genusForParadigm(s.paradigmId)
-    .flatMap((g) => g.abilities)
-    .map((a, i) => mk("genus", a.name, i, { effect: a.effect, range: a.range, target: a.target, ss: a.ss ?? 0 }));
+  // Only what the character has SLOTTED — their loadout — not the full paradigm set.
+  const genus = usableGenus(s.paradigmId, s.genusLoadout ?? []).map((a, i) => mk("genus", a.name, i, { effect: a.effect, range: a.range, target: a.target, ss: a.ss ?? 0 }));
 
-  const cipher = ciphersForParadigm(s.paradigmId).map((a, i) => mk("cipher", a.name, i, { effect: a.effect, ss: a.ss ?? 0 }));
+  const cipher = usableCiphers(s.paradigmId, s.cipherLoadout ?? []).map((a, i) => mk("cipher", a.name, i, { effect: a.effect, ss: a.ss ?? 0 }));
 
   const racial = usableRacial(s.speciesId, s.variantName, s.variantOption).map((a, i) => mk("racial", a.name, i, { effect: a.effect }));
 

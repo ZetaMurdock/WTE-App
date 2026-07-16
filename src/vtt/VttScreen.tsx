@@ -57,7 +57,7 @@ function fileToDataUrl(file: File): Promise<string> {
 
 // VTT v2 (slice 1): Pixi renders the map; React owns the chrome. Beside the
 // legacy VTT, not inside it — see the rework spec in docs/ / session notes.
-export function VttScreen({ campaign }: { campaign: Campaign | null }) {
+export function VttScreen({ campaign, active = true }: { campaign: Campaign | null; active?: boolean }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<PixiVttApp | null>(null);
   const saveTimer = useRef<number | undefined>(undefined);
@@ -252,6 +252,36 @@ export function VttScreen({ campaign }: { campaign: Campaign | null }) {
     window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => void saveScene(s).catch(() => {}), 500);
   }, []);
+
+  // Keyboard token movement: with a token selected, arrow keys / WASD nudge it one
+  // cell — no UI needed. Only while the VTT is the visible tab, and never while
+  // typing in a field. Snaps + syncs like a drag-drop, so peers see the move.
+  useEffect(() => {
+    if (!active || sel?.kind !== "token") return;
+    const tokenId = sel.id;
+    function onKey(e: KeyboardEvent) {
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
+      let dx = 0;
+      let dy = 0;
+      switch (e.key) {
+        case "ArrowUp": case "w": case "W": dy = -1; break;
+        case "ArrowDown": case "s": case "S": dy = 1; break;
+        case "ArrowLeft": case "a": case "A": dx = -1; break;
+        case "ArrowRight": case "d": case "D": dx = 1; break;
+        default: return;
+      }
+      e.preventDefault();
+      const eng = engineRef.current;
+      const tok = eng?.scene?.data.tokens.find((x) => x.id === tokenId);
+      if (!eng || !eng.scene || !tok) return;
+      const g = eng.scene.data.grid.size;
+      eng.moveToken(tokenId, tok.x + dx * g, tok.y + dy * g, true);
+      eng.onChanged();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [active, sel]);
 
   // Flush the debounced autosave immediately — used before switching scenes so
   // in-flight edits aren't lost when the engine's scene object is swapped out.

@@ -311,7 +311,7 @@ export default function App() {
         {/* VTT v2 stays mounted so the Pixi context survives tab switches */}
         <div className={"view-scroll" + (activeTab !== "vtt2" ? " hidden" : "")}>
           <Boundary label="VTT v2">
-            <VttScreen campaign={activeCampaign} />
+            <VttScreen campaign={activeCampaign} active={activeTab === "vtt2"} />
           </Boundary>
         </div>
         <ToolFrame src="sheet.html" title="Character Sheet" hidden={activeTab !== "sheet"} />
