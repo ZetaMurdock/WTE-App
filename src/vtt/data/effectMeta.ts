@@ -116,12 +116,18 @@ export function hasAoe(meta: EffectMeta): boolean {
   return !!(meta.pattern || meta.area);
 }
 
-/** The VTT effect kind (circle | cone | zone) best matching the parsed meta, plus
- *  a suggested radius in CELLS. Line/ring/cross fall back to the nearest built-in
- *  shape until the engine grows those primitives. */
-export function suggestedTemplate(meta: EffectMeta): { kind: "circle" | "cone" | "zone"; cells: number } {
+export type TemplateKind = "circle" | "cone" | "zone" | "line" | "ring" | "cross";
+
+/** The VTT effect kind best matching the parsed meta, plus a suggested size in
+ *  CELLS. Line/ring/cross are now real engine primitives. */
+export function suggestedTemplate(meta: EffectMeta): { kind: TemplateKind; cells: number } {
   const pat = meta.pattern;
-  const kind: "circle" | "cone" | "zone" = pat === "cone" ? "cone" : pat === "line" || pat === "wall" ? "zone" : "circle";
+  const kind: TemplateKind =
+    pat === "cone" ? "cone"
+    : pat === "line" || pat === "wall" ? "line"
+    : pat === "ring" ? "ring"
+    : pat === "cross" ? "cross"
+    : "circle";
   const raw = meta.area?.size || 0;
   const unit = meta.area?.unit || "cells";
   const cells = raw ? (unit === "ft" ? Math.max(1, Math.round(raw / 5)) : unit === "m" ? Math.max(1, Math.round(raw / 1.5)) : raw) : 2;

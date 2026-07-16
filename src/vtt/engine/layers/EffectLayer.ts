@@ -29,6 +29,31 @@ export class EffectLayer {
         g.lineTo(e.x, e.y);
         g.fill({ color, alpha: 0.16 });
         g.stroke({ width: 2, color, alpha: 0.6 });
+      } else if (e.kind === "line") {
+        // A directed beam from (x,y): length = radius, width = w, along dir.
+        const len = (e.data.radius ?? 6) * size;
+        const wid = (e.data.w ?? 1) * size;
+        const dir = e.data.dir ?? 0;
+        const dx = Math.cos(dir), dy = Math.sin(dir);
+        const px = -dy * (wid / 2), py = dx * (wid / 2); // perpendicular half-width
+        const ex = e.x + dx * len, ey = e.y + dy * len;
+        g.poly([e.x + px, e.y + py, ex + px, ey + py, ex - px, ey - py, e.x - px, e.y - py]).fill({ color, alpha: 0.16 });
+        g.poly([e.x + px, e.y + py, ex + px, ey + py, ex - px, ey - py, e.x - px, e.y - py]).stroke({ width: 2, color, alpha: 0.6 });
+      } else if (e.kind === "ring") {
+        // Annulus: a thick stroked circle at the band's mid-radius.
+        const outer = (e.data.radius ?? 4) * size;
+        const band = Math.max(2, (e.data.w ?? 1) * size);
+        const mid = Math.max(band / 2, outer - band / 2);
+        g.circle(e.x, e.y, mid).stroke({ width: band, color, alpha: 0.28 });
+        g.circle(e.x, e.y, outer).stroke({ width: 2, color, alpha: 0.6 });
+      } else if (e.kind === "cross") {
+        // A plus centred on (x,y): arm length = radius each way, thickness = w.
+        const arm = (e.data.radius ?? 4) * size;
+        const t = (e.data.w ?? 1) * size;
+        g.rect(e.x - arm, e.y - t / 2, arm * 2, t).fill({ color, alpha: 0.16 });
+        g.rect(e.x - t / 2, e.y - arm, t, arm * 2).fill({ color, alpha: 0.16 });
+        g.rect(e.x - arm, e.y - t / 2, arm * 2, t).stroke({ width: 2, color, alpha: 0.5 });
+        g.rect(e.x - t / 2, e.y - arm, t, arm * 2).stroke({ width: 2, color, alpha: 0.5 });
       } else {
         // zone rectangle, anchored top-left at (x,y)
         const w = (e.data.w ?? 4) * size;

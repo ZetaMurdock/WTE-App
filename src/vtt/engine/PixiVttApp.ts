@@ -295,9 +295,14 @@ export class PixiVttApp {
     if (sel?.kind !== "effect") return;
     const patch: Partial<VttEffectData> = {};
     if (opts.cells != null) {
-      patch.radius = opts.cells;
-      patch.w = opts.cells;
-      patch.h = opts.cells;
+      // Zones size both dimensions; everything else uses `radius` as its main
+      // size (line length / ring outer / cross arm), keeping default thickness.
+      if (kind === "zone") {
+        patch.w = opts.cells;
+        patch.h = opts.cells;
+      } else {
+        patch.radius = opts.cells;
+      }
     }
     if (opts.rounds != null) patch.rounds = opts.rounds;
     if (opts.color) patch.color = opts.color;

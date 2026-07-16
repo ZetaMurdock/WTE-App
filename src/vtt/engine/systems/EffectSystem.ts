@@ -12,6 +12,16 @@ export class EffectSystem {
       e.data.radius = 4;
       e.data.angle = 60;
       e.data.dir = 0;
+    } else if (kind === "line") {
+      e.data.radius = 6; // length in cells
+      e.data.w = 1; // thickness in cells
+      e.data.dir = 0;
+    } else if (kind === "ring") {
+      e.data.radius = 4; // outer radius in cells
+      e.data.w = 1; // band thickness in cells
+    } else if (kind === "cross") {
+      e.data.radius = 4; // arm length in cells
+      e.data.w = 1; // arm thickness in cells
     } else {
       e.data.w = 4;
       e.data.h = 4;

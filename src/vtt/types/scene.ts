@@ -72,12 +72,12 @@ export interface VttLight {
   color: string;
   intensity: number; // 0..1
 }
-export type VttEffectKind = "circle" | "cone" | "zone";
+export type VttEffectKind = "circle" | "cone" | "zone" | "line" | "ring" | "cross";
 export interface VttEffectData {
-  radius?: number; // cells (circle / cone reach)
-  dir?: number; // cone facing, radians
+  radius?: number; // cells — circle/cone reach; line length; ring outer radius; cross arm length
+  dir?: number; // facing, radians — cone facing; line direction
   angle?: number; // cone spread, degrees
-  w?: number; // zone width, cells
+  w?: number; // zone width; line/cross thickness; ring band thickness (cells)
   h?: number; // zone height, cells
   color?: string;
   /** Lifetime in rounds; 0 / undefined = permanent. */

@@ -204,6 +204,9 @@ export function VttInspector({ sel, scene, onToken, onWall, onLight, onEffect, o
             <select className="bg-select full" value={effect.kind} onChange={(e) => onEffectKind(e.target.value as VttEffectKind)}>
               <option value="circle">Circle (AoE)</option>
               <option value="cone">Cone</option>
+              <option value="line">Line / beam</option>
+              <option value="ring">Ring</option>
+              <option value="cross">Cross</option>
               <option value="zone">Zone (rect)</option>
             </select>
           </label>
@@ -221,13 +224,32 @@ export function VttInspector({ sel, scene, onToken, onWall, onLight, onEffect, o
           ) : (
             <div className="vtt2-hp-row">
               <label className="lobby-field">
-                <span>Radius</span>
-                <input className="bg-select full" type="number" min={1} max={30} value={effect.data.radius ?? 3} onChange={(e) => onEffect({ radius: Math.max(1, parseInt(e.target.value, 10) || 1) })} />
+                <span>{effect.kind === "line" ? "Length" : effect.kind === "ring" ? "Outer R" : effect.kind === "cross" ? "Arm" : "Radius"}</span>
+                <input className="bg-select full" type="number" min={1} max={40} value={effect.data.radius ?? 3} onChange={(e) => onEffect({ radius: Math.max(1, parseInt(e.target.value, 10) || 1) })} />
               </label>
               {effect.kind === "cone" && (
                 <label className="lobby-field">
                   <span>Angle°</span>
                   <input className="bg-select full" type="number" min={10} max={180} value={effect.data.angle ?? 60} onChange={(e) => onEffect({ angle: Math.max(10, Math.min(180, parseInt(e.target.value, 10) || 60)) })} />
+                </label>
+              )}
+              {(effect.kind === "line" || effect.kind === "ring" || effect.kind === "cross") && (
+                <label className="lobby-field">
+                  <span>{effect.kind === "ring" ? "Band" : "Width"}</span>
+                  <input className="bg-select full" type="number" min={1} max={20} value={effect.data.w ?? 1} onChange={(e) => onEffect({ w: Math.max(1, parseInt(e.target.value, 10) || 1) })} />
+                </label>
+              )}
+              {effect.kind === "line" && (
+                <label className="lobby-field">
+                  <span>Dir°</span>
+                  <input
+                    className="bg-select full"
+                    type="number"
+                    min={0}
+                    max={359}
+                    value={Math.round(((effect.data.dir ?? 0) * 180) / Math.PI)}
+                    onChange={(e) => onEffect({ dir: ((parseInt(e.target.value, 10) || 0) * Math.PI) / 180 })}
+                  />
                 </label>
               )}
             </div>

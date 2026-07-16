@@ -3,7 +3,7 @@ import type { VttAbility } from "./data/characterAbilities";
 import { suggestedTemplate } from "./data/effectMeta";
 
 export type AoeMode = "self" | "selected" | "center" | "click";
-export type AoeKind = "circle" | "cone" | "zone";
+export type AoeKind = "circle" | "cone" | "zone" | "line" | "ring" | "cross";
 
 export interface AoePlacement {
   mode: AoeMode;
@@ -63,7 +63,10 @@ export function VttAoePrompt({ ability, casterName, hasSelectedToken, onPlace, o
             <select value={kind} onChange={(e) => setKind(e.target.value as AoeKind)}>
               <option value="circle">Circle / burst</option>
               <option value="cone">Cone</option>
-              <option value="zone">Zone / line</option>
+              <option value="line">Line / beam</option>
+              <option value="ring">Ring</option>
+              <option value="cross">Cross</option>
+              <option value="zone">Zone (rect)</option>
             </select>
           </label>
           <label>
