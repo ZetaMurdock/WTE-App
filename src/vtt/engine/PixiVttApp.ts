@@ -14,6 +14,7 @@ import { MeasurementLayer } from "./layers/MeasurementLayer";
 import { EffectLayer } from "./layers/EffectLayer";
 import { AtmosphereLayer } from "./layers/AtmosphereLayer";
 import { computeVisibleCells, pathBlocked } from "./systems/VisionSystem";
+import { CustomShaderFilter, validateShaderBody } from "./filters/CustomShaderFilter";
 import { EffectSystem } from "./systems/EffectSystem";
 import { TimelineSystem } from "./systems/TimelineSystem";
 import { SimulationSystem } from "./systems/SimulationSystem";
@@ -66,13 +67,22 @@ export class PixiVttApp {
   /** Emitted on each LOCAL scene mutation for P2P sync (slice 10). Remote ops
    *  arrive via applyRemote(), which never calls this — so no echo loops. */
   onOp: (op: VttOp) => void = () => {};
+  /** A custom 2D GLSL chunk failed to compile (message is the GL info log). */
+  onShaderError: (err: string) => void = () => {};
+
+  // Custom 2D shader filter on the background (scene atmosphere.shader.glsl).
+  private shaderFilter: CustomShaderFilter | null = null;
+  private shaderGlsl = "";
+  private shaderT0 = 0;
 
   private input: InputController | null = null;
   private ready = false;
   private destroyed = false;
 
   async init(host: HTMLElement): Promise<void> {
-    await this.app.init({ backgroundAlpha: 0, resizeTo: host, antialias: true });
+    // WebGL explicitly: user-authored shader chunks are GLSL, which the WebGPU
+    // backend can't run — pin the renderer so custom shaders always work.
+    await this.app.init({ backgroundAlpha: 0, resizeTo: host, antialias: true, preference: "webgl" });
     // React StrictMode mounts, cleans up, and remounts: if destroy() ran while
     // app.init() was in flight, dispose here instead of attaching.
     if (this.destroyed) {
@@ -105,6 +115,8 @@ export class PixiVttApp {
       const moving = this.camera.tick(this.app.ticker.deltaTime);
       if (was && !moving) this.persistCamera();
       if (this.scene) this.atmosphere.animate(this.app.ticker.deltaMS / 1000, this.app.screen.width, this.app.screen.height);
+      // Animate the custom 2D shader (uTime drives water/haze/pulse effects).
+      if (this.shaderFilter) this.shaderFilter.tick((Date.now() - this.shaderT0) / 1000, this.app.screen.width, this.app.screen.height);
       // Realistic fog decays with TIME, not just mutations — repaint fog AND
       // lights twice a second so left areas sink back into the dark and burning
       // lanterns visibly dim toward nothing.
@@ -165,8 +177,35 @@ export class PixiVttApp {
     return this.visionCache;
   }
 
+  // (Re)apply the scene's custom 2D GLSL chunk to the background. String-guarded
+  // so calling from every redraw is free; invalid chunks report via onShaderError
+  // and leave the background unfiltered.
+  private applyShader2D(): void {
+    const glsl = (this.scene?.data.atmosphere?.shader?.glsl ?? "").trim();
+    if (glsl === this.shaderGlsl) return;
+    this.shaderGlsl = glsl;
+    this.shaderFilter = null;
+    this.bg.view.filters = [];
+    if (!glsl) return;
+    const err = validateShaderBody(glsl);
+    if (err) {
+      this.onShaderError(err);
+      return;
+    }
+    try {
+      this.shaderFilter = new CustomShaderFilter(glsl);
+      this.shaderT0 = Date.now();
+      this.bg.view.filters = [this.shaderFilter];
+    } catch (e) {
+      this.shaderFilter = null;
+      this.bg.view.filters = [];
+      this.onShaderError(String(e).slice(0, 500));
+    }
+  }
+
   redraw(): void {
     if (!this.scene || !this.ready) return;
+    this.applyShader2D();
     const visible = this.visionOf();
     this.bg.draw(this.scene);
     this.grid.draw(this.scene);

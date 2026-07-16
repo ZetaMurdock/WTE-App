@@ -349,6 +349,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     };
     engine.onSelect = (s) => setSel(s);
     engine.onOp = (op) => broadcastRef.current(op);
+    engine.onShaderError = (err) => setShaderError(err);
     // Dev-only handle for debugging sync ops in the preview (stripped in prod).
     if (import.meta.env.DEV) (window as unknown as { __vttEngine?: PixiVttApp }).__vttEngine = engine;
     void engine.init(host);
