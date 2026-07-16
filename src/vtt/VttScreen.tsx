@@ -386,11 +386,27 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     [campaign, reloadScenes, sync]
   );
 
+  // Guard against double-clicks / wheel-spam interleaving two switches; fall back
+  // to the in-memory list when the DB read misses (the old silent no-op bug).
+  const switchingRef = useRef(false);
   async function switchScene(id: string) {
-    if (!campaign || id === scene?.id) return;
-    await flush();
-    const target = await getScene(id).catch(() => null);
-    if (target) await adopt(target);
+    if (!campaign || id === scene?.id || switchingRef.current) return;
+    switchingRef.current = true;
+    try {
+      await flush();
+      const target = (await getScene(id).catch(() => null)) ?? scenes.find((s) => s.id === id) ?? null;
+      if (target) await adopt(target);
+    } finally {
+      switchingRef.current = false;
+    }
+  }
+
+  // Step to the previous/next scene (wheel + arrow buttons on the scene rail).
+  function stepScene(dir: 1 | -1) {
+    if (!scenes.length) return;
+    const idx = Math.max(0, scenes.findIndex((s) => s.id === scene?.id));
+    const next = scenes[(idx + dir + scenes.length) % scenes.length];
+    if (next && next.id !== scene?.id) void switchScene(next.id);
   }
 
   // Curator pushes a scene to the whole table: switch to it (which broadcasts a
@@ -633,6 +649,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
           scenes={scenes}
           activeId={scene?.id ?? null}
           onSwitch={(id) => void switchScene(id)}
+          onStep={stepScene}
           onSetBackground={(id) => {
             menuTarget.current = id;
             sceneBgRef.current?.click();

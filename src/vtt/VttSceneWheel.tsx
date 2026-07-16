@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { VttScene } from "./types/scene";
 
@@ -6,6 +6,8 @@ interface Props {
   scenes: VttScene[];
   activeId: string | null;
   onSwitch: (id: string) => void;
+  /** Step to the previous (-1) / next (+1) scene — arrow buttons + scroll wheel. */
+  onStep: (dir: 1 | -1) => void;
   /** Per-scene environment actions (right-click menu). Nothing transfers between scenes. */
   onSetBackground: (id: string) => void;
   onSetMusic: (id: string) => void;
@@ -20,7 +22,7 @@ interface Props {
   playerCount: number;
 }
 
-/** Short initials for a scene dot — the significant part after any "·" separator. */
+/** Short initials for a scene card — the significant part after any "·" separator. */
 function initials(name: string): string {
   const last = (name.split("·").pop() || name).trim();
   const words = last.split(/\s+/).filter(Boolean);
@@ -65,14 +67,19 @@ const IconX = () => (
   </svg>
 );
 
-// The Scene Wheel (right edge, Curator-only): one dot per scene; click to
-// traverse, RIGHT-CLICK for that scene's tools — set active for all, open,
-// background, ambient music, soundboard, settings. Each setting is stored on
-// that scene alone. The menu is PORTALED to <body> because the wheel column is
-// CSS-transformed + overflow-clipped, which otherwise cut the menu off (its
-// buttons landed outside the column and were unclickable).
-export function VttSceneWheel({ scenes, activeId, onSwitch, onSetBackground, onSetMusic, onClearMusic, onOpenSettings, onOpenSoundboard, onSetActiveForEveryone, playerCount }: Props) {
+// The Scene Rail (right edge, Curator-only): each scene is a BOX on a vertical
+// wheel — click to open it, right-click for that scene's tools, step with the
+// up/down buttons or the scroll wheel. Replaces the old tiny dots, whose hover
+// tooltip overlapped neighbouring dots and ate their clicks. The menu is
+// PORTALED to <body> so no transform/overflow ancestor can clip it.
+export function VttSceneWheel({ scenes, activeId, onSwitch, onStep, onSetBackground, onSetMusic, onClearMusic, onOpenSettings, onOpenSoundboard, onSetActiveForEveryone, playerCount }: Props) {
+  const [open, setOpen] = useState(true);
   const [menu, setMenu] = useState<{ id: string; y: number } | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const onStepRef = useRef(onStep);
+  onStepRef.current = onStep;
+  const wheelAcc = useRef(0);
+  const wheelLock = useRef(0);
 
   useEffect(() => {
     if (!menu) return;
@@ -86,6 +93,33 @@ export function VttSceneWheel({ scenes, activeId, onSwitch, onSetBackground, onS
     };
   }, [menu]);
 
+  // Scroll wheel steps through scenes. Native non-passive listener because React
+  // registers `onWheel` passively (preventDefault would be ignored), and we must
+  // stop the page/list from scrolling while stepping. One flick = one step.
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el || !open) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const now = Date.now();
+      if (now < wheelLock.current) return;
+      wheelAcc.current += e.deltaY;
+      if (Math.abs(wheelAcc.current) >= 60) {
+        onStepRef.current(wheelAcc.current > 0 ? 1 : -1);
+        wheelAcc.current = 0;
+        wheelLock.current = now + 280;
+      }
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [open]);
+
+  // Keep the active card visible as switches happen (long campaigns scroll).
+  useEffect(() => {
+    if (!open) return;
+    listRef.current?.querySelector(".vtt2-rail-card.active")?.scrollIntoView({ block: "nearest" });
+  }, [activeId, open]);
+
   if (scenes.length === 0) return null;
   const menuScene = menu ? scenes.find((s) => s.id === menu.id) : null;
 
@@ -93,7 +127,7 @@ export function VttSceneWheel({ scenes, activeId, onSwitch, onSetBackground, onS
     menu && menuScene ? (
       <div
         className="vtt2-scene-menu"
-        style={{ top: Math.max(60, Math.min(menu.y - 40, window.innerHeight - 320)) }}
+        style={{ top: Math.max(60, Math.min(menu.y - 40, window.innerHeight - 340)) }}
         onMouseDown={(e) => e.stopPropagation()}
         onContextMenu={(e) => e.preventDefault()}
       >
@@ -149,22 +183,37 @@ export function VttSceneWheel({ scenes, activeId, onSwitch, onSetBackground, onS
     ) : null;
 
   return (
-    <div className="vtt2-scenewheel">
-      {scenes.map((s) => (
-        <button
-          key={s.id}
-          className={"vtt2-wheel-dot" + (s.id === activeId ? " active" : "") + (s.data.audio ? " has-audio" : "")}
-          data-name={s.name}
-          title={`${s.name} — right-click for scene tools`}
-          onClick={() => s.id !== activeId && onSwitch(s.id)}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            setMenu({ id: s.id, y: (e.currentTarget as HTMLElement).getBoundingClientRect().top });
-          }}
-        >
-          {initials(s.name)}
-        </button>
-      ))}
+    <div className={"vtt2-scenerail" + (open ? " open" : "")}>
+      <button className="vtt2-rail-toggle" onClick={() => setOpen((o) => !o)} title={open ? "Collapse the scene rail" : "Scenes"}>
+        {open ? "›" : `Scenes · ${scenes.length}`}
+      </button>
+      {open && (
+        <div className="vtt2-rail-panel">
+          <button className="vtt2-rail-step" onClick={() => onStep(-1)} title="Previous scene">
+            ▲
+          </button>
+          <div className="vtt2-rail-list" ref={listRef}>
+            {scenes.map((s) => (
+              <button
+                key={s.id}
+                className={"vtt2-rail-card" + (s.id === activeId ? " active" : "") + (s.data.audio ? " has-audio" : "")}
+                onClick={() => s.id !== activeId && onSwitch(s.id)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setMenu({ id: s.id, y: e.clientY });
+                }}
+                title={`${s.name} — right-click for scene tools`}
+              >
+                <span className="vtt2-rail-init">{initials(s.name)}</span>
+                <span className="vtt2-rail-name">{s.name}</span>
+              </button>
+            ))}
+          </div>
+          <button className="vtt2-rail-step" onClick={() => onStep(1)} title="Next scene">
+            ▼
+          </button>
+        </div>
+      )}
       {menuEl && createPortal(menuEl, document.body)}
     </div>
   );

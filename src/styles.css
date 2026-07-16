@@ -5433,49 +5433,125 @@ body.wte-dot-cursor * {
 .shader-status.ok { color: var(--muted); }
 .shader-status.err { color: #e08a7c; background: rgba(194, 91, 74, 0.12); }
 /* Scene Wheel — right-edge quick scene switcher (Curator) */
-.vtt2-scenewheel {
+/* Scene Rail — boxed scene cards on the right edge; wheel/buttons step scenes. */
+.vtt2-scenerail {
   position: absolute;
   right: 10px;
   top: 50%;
   transform: translateY(-50%);
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: 4px;
   z-index: 7;
-  max-height: 60%;
-  overflow-y: auto;
-  padding: 4px 2px;
 }
-.vtt2-wheel-dot {
-  position: relative;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
+.vtt2-rail-toggle {
   background: rgba(10, 17, 34, 0.92);
   border: 1px solid var(--panel-line);
+  border-radius: 8px;
   color: var(--muted);
-  font-family: Consolas, monospace;
-  font-size: 10px;
-  letter-spacing: 0.5px;
+  font-family: Georgia, serif;
+  font-size: 11px;
+  padding: 8px 6px;
   cursor: pointer;
-  flex: 0 0 auto;
+  writing-mode: vertical-rl;
+  letter-spacing: 1px;
 }
-.vtt2-wheel-dot:hover {
+.vtt2-scenerail.open .vtt2-rail-toggle {
+  writing-mode: horizontal-tb;
+  padding: 8px 9px;
+  font-size: 13px;
+}
+.vtt2-rail-toggle:hover {
   color: var(--ink);
   border-color: var(--accent);
 }
-.vtt2-wheel-dot.active {
+.vtt2-rail-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 172px;
+  background: rgba(10, 15, 28, 0.94);
+  border: 1px solid var(--panel-line);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.45);
+}
+.vtt2-rail-step {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 10px;
+  padding: 3px 0;
+  cursor: pointer;
+}
+.vtt2-rail-step:hover {
+  color: var(--accent);
+  border-color: var(--panel-line);
+}
+.vtt2-rail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 46vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.vtt2-rail-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  color: var(--muted);
+  padding: 7px 8px;
+  cursor: pointer;
+  text-align: left;
+}
+.vtt2-rail-card:hover {
+  color: var(--ink);
+  border-color: var(--accent);
+}
+.vtt2-rail-card.active {
   color: var(--accent);
   border-color: var(--accent);
-  box-shadow: 0 0 10px rgba(126, 207, 202, 0.35);
+  background: rgba(126, 207, 202, 0.08);
+  box-shadow: 0 0 10px rgba(126, 207, 202, 0.25);
 }
-.vtt2-wheel-dot.has-audio::before {
+.vtt2-rail-init {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid var(--panel-line);
+  font-family: Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+}
+.vtt2-rail-card.active .vtt2-rail-init {
+  border-color: var(--accent);
+}
+.vtt2-rail-name {
+  font-family: Georgia, serif;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vtt2-rail-card.has-audio::before {
   content: "";
   position: absolute;
-  right: -1px;
-  top: -1px;
-  width: 8px;
-  height: 8px;
+  right: 5px;
+  top: 5px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: #d8b25a;
   border: 1px solid #04070d;
@@ -5540,22 +5616,6 @@ body.wte-dot-cursor * {
   text-transform: uppercase;
   color: var(--muted);
   padding: 6px 10px 2px;
-}
-.vtt2-wheel-dot:hover::after {
-  content: attr(data-name);
-  position: absolute;
-  right: 42px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: rgba(10, 17, 34, 0.95);
-  border: 1px solid var(--panel-line);
-  border-radius: 6px;
-  color: var(--ink);
-  font-family: Georgia, serif;
-  font-size: 11px;
-  padding: 4px 9px;
-  white-space: nowrap;
-  pointer-events: none;
 }
 .vtt2-stage {
   flex: 1;
