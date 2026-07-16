@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { defaultAtmosphere, defaultShader, type VttAtmosphere, type VttBackground, type VttFogMode, type VttFogState, type VttGrid, type VttShader, type VttTerrain } from "./types/scene";
+import { defaultAtmosphere, defaultShader, newId, type VttAtmosphere, type VttBackground, type VttFogMode, type VttFogState, type VttGrid, type VttLinkEdge, type VttSceneLink, type VttShader, type VttTerrain } from "./types/scene";
 import { listShaderPresets, saveShaderPreset, deleteShaderPreset, isBuiltinPreset, type ShaderPreset } from "../lib/shaderPresets";
 
 interface Props {
@@ -15,20 +15,32 @@ interface Props {
   onAtmosphere: (atmo: VttAtmosphere) => void;
   fog: VttFogState;
   onFog: (patch: { mode?: VttFogMode; decaySeconds?: number }) => void;
+  /** Other scenes in the campaign (portal targets) + this scene's border links. */
+  otherScenes: { id: string; name: string }[];
+  links: VttSceneLink[];
+  onLinks: (links: VttSceneLink[]) => void;
   onSetMusic: () => void;
   onClearMusic: () => void;
   onMusicVolume: (v: number) => void;
   onClose: () => void;
 }
 
-type StudioTab = "grid" | "terrain" | "atmosphere" | "fog" | "shaders" | "music";
+type StudioTab = "grid" | "terrain" | "atmosphere" | "fog" | "shaders" | "portals" | "music";
 const STUDIO_TABS: { id: StudioTab; label: string }[] = [
   { id: "grid", label: "Grid" },
   { id: "terrain", label: "Terrain" },
   { id: "atmosphere", label: "Atmosphere" },
   { id: "fog", label: "Fog" },
   { id: "shaders", label: "Shaders" },
+  { id: "portals", label: "Portals" },
   { id: "music", label: "Music" },
+];
+
+const EDGES: { id: VttLinkEdge; label: string }[] = [
+  { id: "north", label: "North edge (top)" },
+  { id: "south", label: "South edge (bottom)" },
+  { id: "east", label: "East edge (right)" },
+  { id: "west", label: "West edge (left)" },
 ];
 
 const FOG_MODES: { id: VttFogMode; label: string; desc: string }[] = [
@@ -79,6 +91,9 @@ export function VttGridPanel({
   onAtmosphere,
   fog,
   onFog,
+  otherScenes,
+  links,
+  onLinks,
   onSetMusic,
   onClearMusic,
   onMusicVolume,
@@ -370,6 +385,54 @@ export function VttGridPanel({
                     Save
                   </button>
                 </div>
+              </>
+            )}
+          </>
+        )}
+
+        {tab === "portals" && (
+          <>
+            <div className="scene-studio-sub">Border portals</div>
+            {otherScenes.length === 0 ? (
+              <p className="size-note">Create another scene first — portals link this map's borders to it.</p>
+            ) : (
+              <>
+                {links.length === 0 && <p className="size-note">No portals yet. A portal turns a map border into a doorway to another scene.</p>}
+                {links.map((l) => (
+                  <div key={l.id} className="portal-row">
+                    <select
+                      className="bg-select"
+                      value={l.edge}
+                      onChange={(e) => onLinks(links.map((x) => (x.id === l.id ? { ...x, edge: e.target.value as VttLinkEdge } : x)))}
+                    >
+                      {EDGES.map((ed) => (
+                        <option key={ed.id} value={ed.id}>{ed.label}</option>
+                      ))}
+                    </select>
+                    <select
+                      className="bg-select"
+                      value={l.targetSceneId}
+                      onChange={(e) => onLinks(links.map((x) => (x.id === l.id ? { ...x, targetSceneId: e.target.value } : x)))}
+                    >
+                      {otherScenes.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                    <button className="icon-btn" onClick={() => onLinks(links.filter((x) => x.id !== l.id))} title="Remove this portal">
+                      ×
+                    </button>
+                  </div>
+                ))}
+                <button
+                  className="primary-btn full mt"
+                  onClick={() => onLinks([...links, { id: newId("ln"), edge: "east", targetSceneId: otherScenes[0].id }])}
+                >
+                  Add portal
+                </button>
+                <p className="size-note" style={{ marginTop: 10 }}>
+                  Walking a token into a linked border carries it through — it arrives just inside the opposite edge of the target
+                  map, same relative position. With players connected you'll be asked whether the whole party travels.
+                </p>
               </>
             )}
           </>

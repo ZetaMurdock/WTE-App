@@ -69,6 +69,9 @@ export class PixiVttApp {
   onOp: (op: VttOp) => void = () => {};
   /** A custom 2D GLSL chunk failed to compile (message is the GL info log). */
   onShaderError: (err: string) => void = () => {};
+  /** A token finished a move (local drop/step or a remote peer's) — the host
+   *  listens to detect border-portal crossings (multi-map links). */
+  onTokenMoved: (id: string, x: number, y: number) => void = () => {};
 
   // Custom 2D shader filter on the background (scene atmosphere.shader.glsl).
   private shaderFilter: CustomShaderFilter | null = null;
@@ -506,7 +509,10 @@ export class PixiVttApp {
     t.y = p.y;
     this.redraw();
     // Broadcast the final resting place only (on drop) — not every drag frame.
-    if (snap) this.onOp({ op: "token.move", id, x: t.x, y: t.y });
+    if (snap) {
+      this.onOp({ op: "token.move", id, x: t.x, y: t.y });
+      this.onTokenMoved(id, t.x, t.y);
+    }
   }
   updateToken(id: string, patch: Partial<VttToken>): void {
     if (!this.scene) return;
@@ -554,6 +560,8 @@ export class PixiVttApp {
       this.redraw();
     }
     this.onChanged();
+    // Portal detection is host-side: a player's move must trigger links too.
+    if (op.op === "token.move") this.onTokenMoved(op.id, op.x, op.y);
   }
 
   destroy(): void {

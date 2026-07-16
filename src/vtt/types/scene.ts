@@ -186,6 +186,15 @@ export interface VttBackground {
   y: number;
 }
 
+/** A portal along a map border: walking a token into that edge carries the
+ *  party into the linked scene (arriving at the opposite edge). */
+export type VttLinkEdge = "north" | "south" | "east" | "west";
+export interface VttSceneLink {
+  id: string;
+  targetSceneId: string;
+  edge: VttLinkEdge;
+}
+
 export interface VttSceneData {
   grid: VttGrid;
   camera: VttCameraState;
@@ -201,6 +210,8 @@ export interface VttSceneData {
   atmosphere?: VttAtmosphere | null;
   /** Per-scene ambient music (audio data URL) — plays while the scene is active. */
   audio?: { src: string; volume: number } | null;
+  /** Border portals into adjacent scenes (multi-map dungeons). */
+  links?: VttSceneLink[];
   encounterId?: string | null;
 }
 

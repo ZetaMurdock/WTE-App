@@ -27,6 +27,7 @@ import { VttAbilitiesPanel } from "./VttAbilitiesPanel";
 import { VttRollToast } from "./VttRollToast";
 import { VttAoePrompt, type AoePlacement, type AoeKind } from "./VttAoePrompt";
 import { hasAoe } from "./data/effectMeta";
+import { tokenInEdge, arrivalPos } from "./data/sceneLinks";
 import type { VttAbility } from "./data/characterAbilities";
 import { logRoll } from "../lib/rolls";
 import type { RollResult } from "../game/wte";
@@ -350,6 +351,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     engine.onSelect = (s) => setSel(s);
     engine.onOp = (op) => broadcastRef.current(op);
     engine.onShaderError = (err) => setShaderError(err);
+    engine.onTokenMoved = (id, x, y) => void tokenMovedRef.current(id, x, y);
     // Dev-only handle for debugging sync ops in the preview (stripped in prod).
     if (import.meta.env.DEV) (window as unknown as { __vttEngine?: PixiVttApp }).__vttEngine = engine;
     void engine.init(host);
@@ -427,6 +429,45 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
       switchingRef.current = false;
     }
   }
+
+  // Border-portal crossings (multi-map links) — HOST-side detection: fires for
+  // local drops/steps and for remote players' moves (via applyRemote). Carries
+  // the traveller (and optionally the whole party) into the linked scene at the
+  // opposite edge, then switches the table there.
+  const linkBusy = useRef(false);
+  const onTokenCrossed = async (tokenId: string, x: number, y: number) => {
+    if (isNetPlayer || linkBusy.current || switchingRef.current) return;
+    const liveScene = engineRef.current?.scene;
+    if (!campaign || !liveScene?.data.links?.length) return;
+    const grid = liveScene.data.grid;
+    const link = liveScene.data.links.find((l) => tokenInEdge(grid, l.edge, x, y));
+    if (!link) return;
+    linkBusy.current = true;
+    try {
+      const target = (await getScene(link.targetSceneId).catch(() => null)) ?? scenes.find((s) => s.id === link.targetSceneId) ?? null;
+      if (!target || target.id === liveScene.id) return;
+      const trigger = liveScene.data.tokens.find((t) => t.id === tokenId);
+      if (!trigger) return;
+      const others = liveScene.data.tokens.filter((t) => t.id !== tokenId && t.owner);
+      const party = others.length > 0 && confirm(`Take the whole party through to "${target.name}"?`);
+      const moving = party ? [trigger, ...others] : [trigger];
+      liveScene.data.tokens = liveScene.data.tokens.filter((t) => !moving.includes(t));
+      moving.forEach((t, i) => {
+        const p = arrivalPos(grid, target.data.grid, link.edge, t.x, t.y, i);
+        t.x = p.x;
+        t.y = p.y;
+        target.data.tokens.push(t);
+      });
+      await flush();
+      await saveScene(liveScene).catch(() => {});
+      await saveScene(target).catch(() => {});
+      await adopt(target); // switches the whole table + snapshots to peers
+    } finally {
+      linkBusy.current = false;
+    }
+  };
+  const tokenMovedRef = useRef(onTokenCrossed);
+  tokenMovedRef.current = onTokenCrossed;
 
   // Step to the previous/next scene (wheel + arrow buttons on the scene rail).
   function stepScene(dir: 1 | -1) {
@@ -723,6 +764,9 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
           onMusicVolume={(v) => engine?.scene && void patchScene(engine.scene.id, (s) => { if (s.data.audio) s.data.audio.volume = v; })}
           fog={live.data.fog}
           onFog={(p) => engine?.setFogConfig(p)}
+          otherScenes={scenes.filter((s) => s.id !== live.id).map((s) => ({ id: s.id, name: s.name }))}
+          links={live.data.links ?? []}
+          onLinks={(next) => void patchScene(live.id, (s) => (s.data.links = next))}
           onClose={() => setGridOpen(false)}
         />
       )}
