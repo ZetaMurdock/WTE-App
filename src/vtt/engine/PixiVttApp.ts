@@ -252,7 +252,7 @@ export class PixiVttApp {
     this.lights.draw(this.scene, this.selection, this.playerView && this.selfId ? this.selfId : undefined);
     this.effects.draw(this.scene, this.selection);
     this.tokens.sync(this.scene, this.selection?.kind === "token" ? this.selection.id : null, this.playerView ? visible : null);
-    this.walls.draw(this.scene, this.selection);
+    this.walls.draw(this.scene, this.selection, this.playerView);
     this.fog.draw(this.scene, visible ?? new Set<string>(), this.playerView);
     this.atmosphere.draw(this.scene, this.app.screen.width, this.app.screen.height);
   }

@@ -138,6 +138,12 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     engineRef.current?.setPlayerView(isNetPlayer, net.selfId);
   });
 
+  // Joining a room as a player drops any scene-builder tool still in hand.
+  useEffect(() => {
+    if (isNetPlayer && tool !== "select" && tool !== "pan" && tool !== "measure") setTool("select");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNetPlayer]);
+
   // Capture EVERY party roll into the durable session store at this always-mounted
   // level — even while the roll tray is closed — so opening the tray never loses
   // the shared history. (The tray used to hold the only `roll` listener and dropped
@@ -712,6 +718,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
       <VttActionBar
         tool={tool}
         onTool={pickTool}
+        builder={!isNetPlayer}
         fogOn={fogOn}
         onToggleFog={() => engine?.toggleFog()}
         onResetFog={!isNetPlayer ? () => engine?.resetFog() : undefined}

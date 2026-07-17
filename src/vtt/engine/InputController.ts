@@ -54,6 +54,12 @@ export class InputController {
       this.mode = "pan";
       return;
     }
+    // Scene-BUILDER tools are Curator-only. The action bar hides them from
+    // players; this guard is the belt to that suspender.
+    if (v.playerView && (v.tool === "token" || v.tool === "wall" || v.tool === "light" || v.tool === "effect" || v.tool === "zone")) {
+      this.mode = "none";
+      return;
+    }
     if (v.tool === "token") {
       v.addTokenAt(w.x, w.y);
       this.mode = "none";
@@ -104,15 +110,35 @@ export class InputController {
       this.dragFrom = { x: hit.x, y: hit.y };
       return;
     }
+    if (v.playerView) {
+      // Players never SELECT lights or walls (they can't even see the points).
+      // Realistic fog: a click anywhere near a lantern they can see (re)lights
+      // it — the pulsing beacon marks the area, no pixel-hunting required.
+      if (v.scene.data.fog.mode === "realistic") {
+        const near = v.lights.pickNear(v.scene, w.x, w.y, v.scene.data.grid.size * 0.9);
+        if (near) {
+          const l = v.scene.data.lights.find((x) => x.id === near);
+          if (l && lightVisibleTo(v.scene.data, l, v.selfId ?? undefined)) {
+            v.igniteLight(near);
+            this.mode = "none";
+            return;
+          }
+        }
+      }
+      // players can still grab AoE effects (aiming their own placed hitboxes)
+      const pfx = v.effects.pick(v.scene, w.x, w.y, v.camera.zoom);
+      if (pfx) {
+        v.select({ kind: "effect", id: pfx });
+        this.mode = "none";
+        return;
+      }
+      v.select(null);
+      this.mode = "pan"; // drag empty space to pan, same as the Curator
+      return;
+    }
     const light = v.lights.pick(v.scene, w.x, w.y, v.camera.zoom);
     if (light) {
       v.select({ kind: "light", id: light });
-      // Realistic fog: a PLAYER clicking a lantern they can see (re)lights it —
-      // lights are started by the players, and relighting resets the burn.
-      if (v.playerView && v.scene.data.fog.mode === "realistic") {
-        const l = v.scene.data.lights.find((x) => x.id === light);
-        if (l && lightVisibleTo(v.scene.data, l, v.selfId ?? undefined)) v.igniteLight(light);
-      }
       this.mode = "none";
       return;
     }

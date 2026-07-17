@@ -4,6 +4,7 @@
 // interface so NetSession is unaware of any of this. See docs/NETPLAY.md.
 import type { Envelope } from "./protocol";
 import type { Transport } from "./transport";
+import { ChunkAssembler, frameChunks } from "./chunking";
 
 type Role = "host" | "player";
 interface SignalData {
@@ -32,6 +33,8 @@ export interface WebRtcOpts {
 interface PeerConn {
   pc: RTCPeerConnection;
   ch?: RTCDataChannel;
+  /** Reassembles chunked large messages (scene snapshots with map art). */
+  rx?: ChunkAssembler;
 }
 
 export class WebRtcTransport implements Transport {
@@ -123,12 +126,18 @@ export class WebRtcTransport implements Transport {
 
   private bindChannel(remote: string, ch: RTCDataChannel): void {
     const entry = this.peers.get(remote);
-    if (entry) entry.ch = ch;
+    const rx = new ChunkAssembler();
+    if (entry) {
+      entry.ch = ch;
+      entry.rx = rx;
+    }
     ch.onopen = () => this.upCbs.forEach((cb) => cb(remote));
     ch.onclose = () => this.downCbs.forEach((cb) => cb(remote));
     ch.onmessage = (e) => {
       try {
-        const env = JSON.parse(e.data as string) as Envelope;
+        const payload = rx.feed(e.data as string);
+        if (payload === null) return; // partial chunk — keep accumulating
+        const env = JSON.parse(payload) as Envelope;
         this.envCbs.forEach((cb) => cb(env));
       } catch {
         /* ignore malformed frame */
@@ -157,18 +166,30 @@ export class WebRtcTransport implements Transport {
     }
   }
 
+  /** Send a payload down one channel, chunking anything past the safe SCTP
+   *  message floor — an oversized send can kill the entire channel. */
+  private sendRaw(ch: RTCDataChannel, payload: string): void {
+    for (const frame of frameChunks(payload)) {
+      try {
+        ch.send(frame);
+      } catch {
+        return; // send queue overrun — drop the rest of this message, keep the channel
+      }
+    }
+  }
+
   send(env: Envelope): void {
     const payload = JSON.stringify(env);
     if (env.to) {
       const e = this.peers.get(env.to);
       if (e?.ch?.readyState === "open") {
-        e.ch.send(payload);
+        this.sendRaw(e.ch, payload);
         return;
       }
       // Target not directly connected (e.g. a player whispering to another player) →
       // fall through to every channel; in the star that reaches the host, which forwards.
     }
-    for (const e of this.peers.values()) if (e.ch?.readyState === "open") e.ch.send(payload);
+    for (const e of this.peers.values()) if (e.ch?.readyState === "open") this.sendRaw(e.ch, payload);
   }
   onEnvelope(cb: (env: Envelope) => void): void {
     this.envCbs.push(cb);

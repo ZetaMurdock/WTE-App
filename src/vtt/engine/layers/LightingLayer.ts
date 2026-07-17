@@ -60,11 +60,25 @@ export class LightingLayer {
         this.glows.addChild(spr);
       }
 
-      const sel = selection?.kind === "light" && selection.id === l.id;
-      // Unlit lanterns show a cold, dim handle — visibly waiting to be lit.
       const cold = realistic && f <= 0;
-      this.handles.circle(l.x, l.y, 7).fill({ color: cold ? 0x39424f : l.color || "#a08a4f", alpha: cold ? 0.7 : 0.9 });
-      this.handles.circle(l.x, l.y, sel ? 12 : 9).stroke({ width: sel ? 2.5 : 1.5, color: sel ? 0x7ecfca : 0x04070d });
+      if (!viewerId) {
+        // Curator: editing handles for every light; cold lanterns read dim grey.
+        const sel = selection?.kind === "light" && selection.id === l.id;
+        this.handles.circle(l.x, l.y, 7).fill({ color: cold ? 0x39424f : l.color || "#a08a4f", alpha: cold ? 0.7 : 0.9 });
+        this.handles.circle(l.x, l.y, sel ? 12 : 9).stroke({ width: sel ? 2.5 : 1.5, color: sel ? 0x7ecfca : 0x04070d });
+      } else if (cold) {
+        // Player: light SOURCE points stay invisible — except a cold lantern
+        // right next to their own token, which prompts with a soft beacon so
+        // they know something here can be lit (click anywhere in it).
+        const near = scene.data.tokens.some(
+          (t) => t.owner === viewerId && t.visible !== false && Math.hypot(t.x - l.x, t.y - l.y) < size * 2.5
+        );
+        if (near) {
+          const pulse = 0.5 + 0.5 * Math.sin(now / 280);
+          this.handles.circle(l.x, l.y, size * (0.22 + 0.1 * pulse)).stroke({ width: 2.5, color: 0x9fb9d0, alpha: 0.35 + 0.35 * pulse });
+          this.handles.circle(l.x, l.y, size * 0.06).fill({ color: 0x9fb9d0, alpha: 0.8 });
+        }
+      }
     }
   }
 
@@ -75,5 +89,20 @@ export class LightingLayer {
       if ((wx - l.x) ** 2 + (wy - l.y) ** 2 <= tol * tol) return l.id;
     }
     return null;
+  }
+
+  /** Nearest light within a WORLD-space radius — players lighting a lantern
+   *  click the beacon area, not a pixel-perfect point. */
+  pickNear(scene: VttScene, wx: number, wy: number, worldTol: number): string | null {
+    let best: string | null = null;
+    let bestD = worldTol;
+    for (const l of scene.data.lights) {
+      const d = Math.hypot(wx - l.x, wy - l.y);
+      if (d < bestD) {
+        bestD = d;
+        best = l.id;
+      }
+    }
+    return best;
   }
 }

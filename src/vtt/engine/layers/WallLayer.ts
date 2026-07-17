@@ -7,10 +7,12 @@ export class WallLayer {
   readonly view = new Graphics();
   readonly previewG = new Graphics();
 
-  draw(scene: VttScene, selection: VttSelection): void {
+  draw(scene: VttScene, selection: VttSelection, playerView = false): void {
     const g = this.view;
     g.clear();
-    g.visible = scene.data.layers.walls;
+    // Walls are the Curator's construction lines — players never see them (they
+    // still block sight and movement; the fog IS how players perceive them).
+    g.visible = scene.data.layers.walls && !playerView;
     if (!g.visible) return;
     for (const w of scene.data.walls) {
       const sel = selection?.kind === "wall" && selection.id === w.id;

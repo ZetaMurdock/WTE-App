@@ -1,8 +1,12 @@
 import { VTT_TOOLS, type VttTool } from "./types/tool";
 
+const PLAYER_TOOLS: VttTool[] = ["select", "pan", "measure"];
+
 interface Props {
   tool: VttTool;
   onTool: (t: VttTool) => void;
+  /** Curator gets the scene-builder tools; players get select/pan/measure. */
+  builder: boolean;
   fogOn: boolean;
   onToggleFog: () => void;
   /** Curator-only: wipe exploration progress (visited areas back to dark). */
@@ -17,11 +21,12 @@ interface Props {
 // left, then a "content" group for quickly ADDING things to the encounter (spawn
 // an actor, load an asset, open your abilities). Tool hints ride the tooltips.
 // (The 3D view is vaulted — the 2D top-down perspective is the standard.)
-export function VttActionBar({ tool, onTool, fogOn, onToggleFog, onResetFog, onSpawnActor, onAddAsset, onOpenAbilities }: Props) {
+export function VttActionBar({ tool, onTool, builder, fogOn, onToggleFog, onResetFog, onSpawnActor, onAddAsset, onOpenAbilities }: Props) {
   const hasContent = onSpawnActor || onAddAsset || onOpenAbilities;
+  const tools = builder ? VTT_TOOLS : VTT_TOOLS.filter((t) => PLAYER_TOOLS.includes(t.id));
   return (
     <div className="vtt2-actionbar">
-      {VTT_TOOLS.map((t) => (
+      {tools.map((t) => (
         <button
           key={t.id}
           className={"vtt2-action" + (tool === t.id ? " active" : "")}
