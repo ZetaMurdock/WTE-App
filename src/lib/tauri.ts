@@ -208,14 +208,16 @@ export async function signInWithGoogle(): Promise<AuthUser | null> {
   }
 }
 
-/** Restore any persisted Firebase session on launch; calls back with the user (or null). */
+/** Restore any persisted Firebase session on launch; calls back with the user (or null).
+ *  Anonymous sessions (the shared-library fallback) don't count as "signed in"
+ *  for the profile — the menu keeps offering Google sign-in. */
 export async function restoreAuth(cb: (user: AuthUser | null) => void): Promise<void> {
   if (!isTauri()) return;
   const cfg = getFbConfig();
   if (!cfg || !cfg.authDomain) return;
   try {
     await ensureFirebase(cfg);
-    window.firebase.auth().onAuthStateChanged((u: AuthUser | null) => cb(u));
+    window.firebase.auth().onAuthStateChanged((u: (AuthUser & { isAnonymous?: boolean }) | null) => cb(u && !u.isAnonymous ? u : null));
   } catch {
     /* ignore */
   }
@@ -284,6 +286,15 @@ export function firebaseDb(): Promise<any> {
         s.onerror = () => rej(new Error("Could not load Firebase Database."));
         document.head.appendChild(s);
       });
+    }
+    // Publishing needs SOME auth (rules: ".write": "auth != null" while the
+    // library is unclaimed). Fall back to an anonymous session when the user
+    // hasn't signed in with Google — reads are public either way.
+    try {
+      const auth = window.firebase.auth();
+      if (!auth.currentUser) await auth.signInAnonymously();
+    } catch {
+      /* anonymous sign-in unavailable — reads still work; writes surface their own error */
     }
     return window.firebase.database();
   })();
