@@ -1100,13 +1100,26 @@ body.wte-dot-cursor * {
   transform: translateY(-6px) scale(0.98);
   transform-origin: top right;
   pointer-events: none;
-  transition: opacity 0.16s ease, transform 0.16s ease;
+  /* the delay is a CLOSING grace period — slipping off the button for a moment
+     (or crossing toward the menu) no longer snatches it away mid-click */
+  transition: opacity 0.16s ease 0.25s, transform 0.16s ease 0.25s;
   z-index: 20;
+}
+/* invisible bridge over the 8px gap between button and menu, so the hover
+   never breaks while the cursor crosses down into the options */
+.vault-new-menu::before {
+  content: "";
+  position: absolute;
+  top: -10px;
+  left: 0;
+  right: 0;
+  height: 10px;
 }
 .vault-new-wrap:hover .vault-new-menu {
   opacity: 1;
   transform: translateY(0) scale(1);
   pointer-events: auto;
+  transition-delay: 0s;
 }
 .vault-new-menu button {
   display: flex;
