@@ -17,6 +17,7 @@ import { VttInspector } from "./VttInspector";
 import { useNet } from "../net/NetContext";
 import type { NetMessage } from "../net/protocol";
 import { addSessionRoll } from "./sync/rollSession";
+import { SfxPlayer } from "./audio/sfxPlayer";
 import { VttSceneBrowser } from "./VttSceneBrowser";
 import { VttActorsPanel } from "./VttActorsPanel";
 import { VttEncounterPanel } from "./VttEncounterPanel";
@@ -163,6 +164,24 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
       });
     });
   }, [campaign, net.subscribe, net.selfId]);
+
+  // Table audio: the Curator's soundboard reaches everyone. Always-mounted so a
+  // clip lands even with every panel closed; self is skipped (the sender's own
+  // soundboard already plays locally) and only the HOST may drive table audio.
+  const sfxRef = useRef<SfxPlayer | null>(null);
+  useEffect(() => {
+    return net.subscribe("sfx", (m, from) => {
+      if (from === net.selfId) return;
+      const hostId = peersRef.current.find((p) => p.role === "host")?.id;
+      if (from !== hostId) return;
+      if (!sfxRef.current) sfxRef.current = new SfxPlayer();
+      sfxRef.current.apply(m as Extract<NetMessage, { t: "sfx" }>);
+    });
+  }, [net.subscribe, net.selfId]);
+  // Leaving the VTT (or the room) silences anything still looping.
+  useEffect(() => {
+    return () => sfxRef.current?.stopAll();
+  }, []);
 
   // Armed roll context — the Abilities panel LOCKS a labeled roll (with the
   // ability's own dice pre-filled) into the tray; the player presses Roll there.

@@ -31,7 +31,11 @@ export type NetMessage =
   | { t: "vtt-patch"; scope: string; patch: unknown; rev: number } // reserved: VTT sync
   | { t: "snapshot"; state: unknown; rev: number } // reserved: late-joiner catch-up
   | { t: "ping"; ts: number }
-  | { t: "pong"; ts: number };
+  | { t: "pong"; ts: number }
+  // Table audio: the Curator's soundboard reaches every player. `uri` (a data
+  // URL, rides the chunked transport) is included the FIRST time a clip plays
+  // this session; repeats reference the receiver's cache by id.
+  | { t: "sfx"; action: "play" | "loop" | "stop" | "stopall"; id: string; name?: string; uri?: string; volume?: number };
 
 export type NetMessageType = NetMessage["t"];
 

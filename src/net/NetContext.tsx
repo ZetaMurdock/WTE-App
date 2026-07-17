@@ -45,7 +45,7 @@ export function useNet(): NetApi {
 }
 
 // Wire event types re-dispatched to React subscribers.
-const FANOUT: NetMessageType[] = ["roll", "chat", "party", "presence", "sheet-patch", "vtt-patch", "snapshot", "bp", "unit-note"];
+const FANOUT: NetMessageType[] = ["roll", "chat", "party", "presence", "sheet-patch", "vtt-patch", "snapshot", "bp", "unit-note", "sfx"];
 
 export function NetProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>("idle");
