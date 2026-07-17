@@ -17,9 +17,11 @@ import {
   installUpdate,
   signInWithGoogle,
   restoreAuth,
+  firebasePublishConfigured,
   type WteUpdate,
   type AuthUser,
 } from "./lib/tauri";
+import { autoRefreshPulledPages } from "./lib/publishedPages";
 import type { Campaign } from "./models/campaign";
 import {
   listCampaigns,
@@ -176,6 +178,17 @@ export default function App() {
     reload();
     window.addEventListener("wte-pages-changed", reload);
     return () => window.removeEventListener("wte-pages-changed", reload);
+  }, []);
+  // Library auto-refresh: shared pages this install already pulled re-import at
+  // launch when the owner republished them — the owner's edits reach everyone
+  // without anyone pressing anything.
+  useEffect(() => {
+    if (!firebasePublishConfigured()) return;
+    autoRefreshPulledPages()
+      .then((n) => {
+        if (n > 0) window.dispatchEvent(new Event("wte-pages-changed"));
+      })
+      .catch(() => {});
   }, []);
 
   // keep the Dashboard character count in sync with the active campaign

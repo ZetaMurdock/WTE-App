@@ -21,13 +21,23 @@ project; **everyone else just pastes the same config** into their app.
    ```json
    {
      "rules": {
-       "published_pages": { ".read": true, ".write": "auth != null" }
+       "published_pages": {
+         ".read": true,
+         ".write": "auth != null && (!root.child('role_grants').exists() || root.child('role_grants').child(auth.token.email.toLowerCase().replace('.', ',')).exists())"
+       },
+       "role_grants": {
+         ".read": "auth != null",
+         ".write": "auth != null && (!root.child('role_grants').exists() || root.child('role_grants').child(auth.token.email.toLowerCase().replace('.', ',')).child('role').val() === 'owner')"
+       }
      }
    }
    ```
-   (Anyone can read the shared pages; only signed‑in apps can write. The app signs
-   in anonymously for you.)
+   (Anyone can read the shared pages. Writing is **role-gated**: while no roles
+   are set, any signed-in app may publish; once someone claims ownership in the
+   app, only granted accounts can publish and only the owner can change roles.)
 4. Enable anonymous sign‑in: **Build → Authentication → Get started → Sign‑in method → Anonymous → Enable**.
+   For the **role system**, players also enable **Google** sign-in there and sign
+   in from the app (Profile menu) — roles are granted to Google account emails.
 5. Get the config: **Project settings (gear) → General →** scroll to **Your apps →**
    click the **web** icon `</>`, register an app (nickname only), and copy the
    `firebaseConfig = { … }` block. It must include a **`databaseURL`**
@@ -37,9 +47,16 @@ project; **everyone else just pastes the same config** into their app.
 7. **Everyone else** repeats only step 6 with the *same* config text.
 
 **Using it:** as Engineer, open the Codex, and on a page click **pub** to publish it.
-Anyone clicks **Sync official** to pull all published pages into their Codex.
-Published Species/Paradigm/Background/etc. pages then flow into the character
-creator and VTT via the normal pull.
+Anyone opens **Codex → Library…** to pull pages — by category or individually,
+with NEW / UPDATED / UP-TO-DATE tags per page. Pages you pulled once
+**auto-refresh at launch** when the owner republishes them. Published
+Species/Paradigm/Background/Weapon/Creature/etc. pages flow into the character
+creator, sheets, and VTT automatically (they import marked "pulled").
+
+**Roles:** in **Codex → Library… → Roles**, the first signed-in person clicks
+**Claim ownership**; after that the owner grants **engineer** (may publish) or
+**owner** roles to Google account emails, and revokes them there too. Until
+ownership is claimed the library is open (anyone with the config may publish).
 
 > Free-tier limits (Spark): 1 GB stored, 10 GB/month download — plenty for text
 > pages. Keep large images out of published pages.

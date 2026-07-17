@@ -15,6 +15,8 @@ import { allPageMeta, getPageMeta, setPageMeta as savePageMeta, type PageMeta } 
 import { PageEditor, type PageDraft } from "./PageEditor";
 import { firebasePublishConfigured } from "../../lib/tauri";
 import { publishPage, unpublishPage, fetchPublishedPages } from "../../lib/publishedPages";
+import { assertCanPublish } from "../../lib/codexRoles";
+import { LibraryDialog } from "./LibraryDialog";
 
 // The new Codex: a browser built solely for W.T.E (Remaster slice 1 — the usable
 // shell: tabs, wte:// address bar, history, search, bookmarks, recents, reader).
@@ -58,7 +60,7 @@ const VTT_CLASS_COLORS: Record<number, string> = {
 };
 const TYPE_CHIPS = ["All", "Creature", "Weapon", "Equipment", "Cipher", "Genus"];
 // Base "pull targets" a page can link to (feed the sheet/VTT); custom labels add to these.
-const BASE_LABELS = ["Creature", "Weapon", "Equipment", "Cipher", "Genus", "Species", "Paradigm"];
+const BASE_LABELS = ["Creature", "Weapon", "Equipment", "Cipher", "Genus", "Species", "Paradigm", "Background"];
 // Filter-dot colours (the circular type points above the index).
 const DOT_COLORS: Record<string, string> = {
   All: "#7ecfca", Creature: "#a1584a", Weapon: "#a08a4f", Equipment: "#689a96",
@@ -195,6 +197,7 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
   const [editor, setEditor] = useState<{ initial?: PageDraft } | null>(null);
   const publishAvail = firebasePublishConfigured();
   const [publishedStems, setPublishedStems] = useState<Set<string>>(new Set());
+  const [libraryOpen, setLibraryOpen] = useState(false);
 
   // Tell the data-driven loader (App) that pages or pull flags changed.
   const notifyPagesChanged = () => window.dispatchEvent(new Event("wte-pages-changed"));
@@ -263,6 +266,7 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
 
   async function togglePublish(stem: string) {
     try {
+      await assertCanPublish(); // role-gated shared library (Codex → Library → Roles)
       if (publishedStems.has(stem)) {
         await unpublishPage(stem);
         setPublishedStems((s) => {
@@ -283,24 +287,16 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
     window.setTimeout(() => setUploadNote(""), 6000);
   }
 
-  async function syncOfficial() {
-    try {
-      const pages = await fetchPublishedPages();
-      for (const p of pages) {
-        const stem = await invoke<string>("wte_save_page", { name: p.title || p.stem, content: p.content });
-        if (p.label) savePageMeta(stem, { label: p.label });
-      }
-      setPublishedStems(new Set(pages.map((p) => p.stem)));
-      setPageMetaMap(allPageMeta());
-      invoke<string[]>("wte_list_pages").then(setPages).catch(() => {});
-      typeMap.current = null;
-      linkMap.current = null;
-      setScanState("idle");
-      notifyPagesChanged();
-      setUploadNote(`Synced ${pages.length} official page${pages.length === 1 ? "" : "s"} into your Codex.`);
-    } catch (e) {
-      setUploadNote("Sync failed: " + (e instanceof Error ? e.message : String(e)));
-    }
+  // The Library dialog imported pages — re-list, re-scan, and reload game data.
+  function afterLibraryImport(count: number) {
+    setPageMetaMap(allPageMeta());
+    invoke<string[]>("wte_list_pages").then(setPages).catch(() => {});
+    fetchPublishedPages().then((ps) => setPublishedStems(new Set(ps.map((p) => p.stem)))).catch(() => {});
+    typeMap.current = null;
+    linkMap.current = null;
+    setScanState("idle");
+    notifyPagesChanged();
+    setUploadNote(`Pulled ${count} page${count === 1 ? "" : "s"} from the shared library.`);
     window.setTimeout(() => setUploadNote(""), 6000);
   }
 
@@ -960,8 +956,8 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
                     </>
                   )}
                   {publishAvail && (
-                    <button className="chip" onClick={() => void syncOfficial()} title="Pull the latest official published pages into your Codex">
-                      Sync official
+                    <button className="chip" onClick={() => setLibraryOpen(true)} title="The shared library — pull particular categories/pages and manage publish roles">
+                      Library…
                     </button>
                   )}
                 </div>
@@ -1280,6 +1276,7 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
           onCancel={() => setEditor(null)}
         />
       )}
+      {libraryOpen && <LibraryDialog onClose={() => setLibraryOpen(false)} onImported={afterLibraryImport} />}
     </div>
   );
 }

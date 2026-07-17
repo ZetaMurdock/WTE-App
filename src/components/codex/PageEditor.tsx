@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { VisualDocEditor } from "./visualdoc/VisualDocEditor";
 import { CodeArea } from "./CodeArea";
+import { PAGE_TEMPLATES, parsePreview, type TemplateLabel } from "../../lib/pageTemplates";
 
 export interface PageDraft {
   title: string;
@@ -32,6 +33,18 @@ export function PageEditor({ initial, labels, onSave, onCancel }: Props) {
 
   const effectiveLabel = creatingLabel ? newLabel.trim() : label;
   const canSave = title.trim().length > 0 && effectiveLabel.length > 0;
+
+  // The builder-format scaffold for the picked section, if one exists — inserted
+  // on demand so the page is GUARANTEED to parse into that record type.
+  const template = PAGE_TEMPLATES[effectiveLabel as TemplateLabel];
+  function insertTemplate() {
+    if (!template) return;
+    const named = title.trim() ? template.replace(/^# New .*$/m, `# ${title.trim()}`).replace(/\| Name \| New [^|]+\|/, `| Name | ${title.trim()} |`) : template;
+    setContent(content.trim() ? content + "\n\n" + named : named);
+    setMode("code");
+  }
+  // Live "what will this page become" line, straight from the real parsers.
+  const preview = useMemo(() => (content.trim() ? parsePreview(content, title || "draft") : ""), [content, title]);
 
   function save() {
     if (!canSave) return;
@@ -93,6 +106,11 @@ export function PageEditor({ initial, labels, onSave, onCancel }: Props) {
           <p className="pe-hint">
             A base target (Creature/Weapon/…) links the page into that catalog; a new label spawns its own Codex section.
           </p>
+          {template && (
+            <button className="chip" style={{ marginTop: 6 }} onClick={insertTemplate} title="Insert the builder format for this record type — fields the sheet/VTT parsers are guaranteed to read">
+              Insert {effectiveLabel} format
+            </button>
+          )}
         </div>
 
         <div className="lobby-field mt">
@@ -112,6 +130,12 @@ export function PageEditor({ initial, labels, onSave, onCancel }: Props) {
             <CodeArea value={content} onChange={setContent} />
           )}
         </div>
+
+        {preview && (
+          <p className="pe-hint pe-parse-preview" title="What the sheet/VTT data pull will read from this page">
+            Parses as: {preview}
+          </p>
+        )}
 
         <div className="pe-actions">
           <button className="ghost-btn" onClick={onCancel}>

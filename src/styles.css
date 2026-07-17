@@ -5940,6 +5940,75 @@ body.wte-dot-cursor * {
   white-space: nowrap;
   pointer-events: none;
 }
+/* Shared-library dialog: category groups with per-page checkboxes + status. */
+.cdx-library {
+  max-height: 82vh;
+  overflow-y: auto;
+}
+.cdx-lib-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cdx-lib-group {
+  border: 1px solid var(--line, #22304a);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+.cdx-lib-grouphead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.cdx-lib-count {
+  color: var(--muted, #7f8ba3);
+  font-size: 11px;
+}
+.cdx-lib-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0 3px 20px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.cdx-lib-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cdx-lib-status {
+  font-size: 10px;
+  padding: 1px 7px;
+  border-radius: 9px;
+  border: 1px solid var(--line, #22304a);
+  color: var(--muted, #7f8ba3);
+}
+.cdx-lib-status.new {
+  color: #9fe07a;
+  border-color: #9fe07a55;
+}
+.cdx-lib-status.updated {
+  color: #e0b57a;
+  border-color: #e0b57a55;
+}
+.cdx-lib-by {
+  color: var(--muted, #7f8ba3);
+  font-size: 10px;
+}
+/* Page editor: the live "parses as …" line. */
+.pe-parse-preview {
+  margin-top: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--line, #22304a);
+  border-radius: 8px;
+  color: var(--accent, #7ecfca);
+}
+
 /* Play Mode: the minimal floating bar players keep while the chrome is hidden. */
 .vtt2-playbar {
   position: absolute;
