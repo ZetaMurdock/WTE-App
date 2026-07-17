@@ -280,12 +280,18 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     saveTimer.current = window.setTimeout(() => void saveScene(s).catch(() => {}), 500);
   }, []);
 
-  // Keyboard token movement: with a token selected, arrow keys / WASD nudge it one
-  // cell — no UI needed. Only while the VTT is the visible tab, and never while
-  // typing in a field. Snaps + syncs like a drag-drop, so peers see the move.
+  // Keyboard token movement: the LAST token you clicked stays arrow-key /
+  // WASD-drivable — one cell per press — even after the selection moves on or
+  // clears (clicking empty space to pan must not strand your character).
+  // Only while the VTT is the visible tab, never while typing in a field.
+  // Snaps + syncs like a drag-drop, so peers see the move.
+  const [lastTokenId, setLastTokenId] = useState<string | null>(null);
   useEffect(() => {
-    if (!active || sel?.kind !== "token") return;
-    const tokenId = sel.id;
+    if (sel?.kind === "token") setLastTokenId(sel.id);
+  }, [sel]);
+  useEffect(() => {
+    if (!active || !lastTokenId) return;
+    const tokenId = lastTokenId;
     function onKey(e: KeyboardEvent) {
       const el = e.target as HTMLElement | null;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
@@ -315,7 +321,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [active, sel]);
+  }, [active, lastTokenId]);
 
   // Flush the debounced autosave immediately — used before switching scenes so
   // in-flight edits aren't lost when the engine's scene object is swapped out.
