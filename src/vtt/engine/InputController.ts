@@ -24,6 +24,7 @@ export class InputController {
     canvas.addEventListener("pointermove", this.onMove);
     window.addEventListener("pointerup", this.onUp);
     canvas.addEventListener("wheel", this.onWheel, { passive: false });
+    canvas.addEventListener("dblclick", this.onDblClick);
     canvas.addEventListener("contextmenu", (e) => e.preventDefault());
   }
   detach(): void {
@@ -33,6 +34,7 @@ export class InputController {
     c.removeEventListener("pointermove", this.onMove);
     window.removeEventListener("pointerup", this.onUp);
     c.removeEventListener("wheel", this.onWheel);
+    c.removeEventListener("dblclick", this.onDblClick);
   }
 
   private pos(e: PointerEvent | WheelEvent): { x: number; y: number } {
@@ -253,6 +255,16 @@ export class InputController {
     }
     this.mode = "none";
     this.dragTokenId = null;
+  };
+
+  // PING — double-click on the everyman tools pulses "look here" for the room.
+  private onDblClick = (e: MouseEvent): void => {
+    const v = this.vtt;
+    if (!v.scene) return;
+    if (v.tool !== "select" && v.tool !== "pan" && v.tool !== "measure") return;
+    const r = this.canvas!.getBoundingClientRect();
+    const w = v.camera.screenToWorld(e.clientX - r.left, e.clientY - r.top);
+    v.ping(w.x, w.y);
   };
 
   private onWheel = (e: WheelEvent): void => {

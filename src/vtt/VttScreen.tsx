@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { Campaign } from "../models/campaign";
 import { isTauri } from "../lib/tauri";
-import { PixiVttApp, type VttSelection } from "./engine/PixiVttApp";
+import { PixiVttApp, peerInkColor, type VttSelection } from "./engine/PixiVttApp";
 import { listScenes, saveScene, getScene, setActiveScene, deleteScene } from "./data/sceneRepo";
 import { newScene, type VttScene, type VttZoneKind } from "./types/scene";
 import type { VttTool } from "./types/tool";
@@ -166,6 +166,20 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
       });
     });
   }, [campaign, net.subscribe, net.selfId]);
+
+  // PING — double-click "look here", every peer sees the pulse in your ink.
+  const pingOutRef = useRef<(x: number, y: number) => void>(() => {});
+  pingOutRef.current = (x, y) => {
+    if (net.status === "connected") net.publish({ t: "vtt-ping", x, y });
+  };
+  useEffect(() => {
+    return net.subscribe("vtt-ping", (m, from) => {
+      if (from === net.selfId) return;
+      const p = m as Extract<NetMessage, { t: "vtt-ping" }>;
+      const hostId = peersRef.current.find((x) => x.role === "host")?.id;
+      engineRef.current?.showPing(p.x, p.y, peerInkColor(from, from === hostId));
+    });
+  }, [net.subscribe, net.selfId]);
 
   // Table audio: the Curator's soundboard reaches everyone. Always-mounted so a
   // clip lands even with every panel closed; self is skipped (the sender's own
@@ -379,6 +393,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     engine.onOp = (op) => broadcastRef.current(op);
     engine.onShaderError = (err) => setShaderError(err);
     engine.onTokenMoved = (id, x, y) => void tokenMovedRef.current(id, x, y);
+    engine.onPing = (x, y) => pingOutRef.current(x, y);
     // Dev-only handle for debugging sync ops in the preview (stripped in prod).
     if (import.meta.env.DEV) (window as unknown as { __vttEngine?: PixiVttApp }).__vttEngine = engine;
     void engine.init(host);

@@ -37,7 +37,9 @@ export type NetMessage =
   // Table audio: the Curator's soundboard reaches every player. `uri` (a data
   // URL, rides the chunked transport) is included the FIRST time a clip plays
   // this session; repeats reference the receiver's cache by id.
-  | { t: "sfx"; action: "play" | "loop" | "stop" | "stopall"; id: string; name?: string; uri?: string; volume?: number };
+  | { t: "sfx"; action: "play" | "loop" | "stop" | "stopall"; id: string; name?: string; uri?: string; volume?: number }
+  // "Look here" — a transient pulse at a world point, in the pinger's ink color.
+  | { t: "vtt-ping"; x: number; y: number };
 
 export type NetMessageType = NetMessage["t"];
 
@@ -58,4 +60,5 @@ export const RELAYED: ReadonlySet<NetMessageType> = new Set<NetMessageType>([
   "party",
   "sheet-patch",
   "vtt-patch",
+  "vtt-ping",
 ]);

@@ -18,6 +18,7 @@ import { CustomShaderFilter, validateShaderBody, validateFragmentSource } from "
 import { ZoneLayer, ZONE_DEFAULT_BODIES, buildZoneFragment } from "./layers/ZoneLayer";
 import { DrawingLayer } from "./layers/DrawingLayer";
 import { EmitterLayer } from "./layers/EmitterLayer";
+import { PingLayer } from "./layers/PingLayer";
 import { SpatialAudioEngine } from "./systems/spatialAudio";
 import { ZONE_KINDS } from "../types/scene";
 import { EffectSystem } from "./systems/EffectSystem";
@@ -46,6 +47,16 @@ import type { VttTool } from "../types/tool";
 
 export type VttSelection = { kind: "token" | "wall" | "light" | "effect" | "emitter"; id: string } | null;
 
+/** A peer's ink color (drawings, pings): the Curator is gold, every player a
+ *  stable hue hashed from their peer id — same everywhere on every client. */
+export function peerInkColor(id: string | null, curator: boolean): string {
+  if (curator || !id) return "#d8b25a";
+  const palette = ["#7ecfca", "#e08fbe", "#8fb6e0", "#9fe07a", "#e0b57a", "#b39fe0"];
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return palette[h % palette.length];
+}
+
 export class PixiVttApp {
   readonly app = new Application();
   readonly world = new Container();
@@ -62,6 +73,7 @@ export class PixiVttApp {
   readonly zones = new ZoneLayer();
   readonly drawings = new DrawingLayer();
   readonly emitters = new EmitterLayer();
+  readonly pings = new PingLayer();
   // Spatial-sound playback (distance falloff + wall muffling), synced from the ticker.
   readonly spatial = new SpatialAudioEngine();
 
@@ -84,6 +96,8 @@ export class PixiVttApp {
   /** A token finished a move (local drop/step or a remote peer's) — the host
    *  listens to detect border-portal crossings (multi-map links). */
   onTokenMoved: (id: string, x: number, y: number) => void = () => {};
+  /** THIS client pinged the map (double-click) — React broadcasts it. */
+  onPing: (x: number, y: number) => void = () => {};
 
   // Custom 2D shader filter on the background (scene atmosphere.shader.glsl).
   private shaderFilter: CustomShaderFilter | null = null;
@@ -120,6 +134,7 @@ export class PixiVttApp {
       this.walls.view,
       this.walls.previewG,
       this.fog.view,
+      this.pings.view, // "look here" pulses read over everything, even fog
       this.measure.view
     );
     // Only the uniform post-grades (mood tint, vignette, height-fog, shadows) are
@@ -141,6 +156,7 @@ export class PixiVttApp {
         const o = this.world.toGlobal({ x: 0, y: 0 });
         this.zones.tick(performance.now() / 1000, o.x, o.y, this.world.scale.x, this.scene.data.grid.size);
       }
+      if (this.pings.active) this.pings.tick();
       // Spatial sound follows the listener a few times a second — token moves,
       // camera pans, and wall edits all re-mix without any explicit hook.
       const nowMs = performance.now();
@@ -540,11 +556,16 @@ export class PixiVttApp {
   }
   /** This client's ink color — Curator draws gold; each player a hashed hue. */
   inkColor(): string {
-    if (!this.playerView || !this.selfId) return "#d8b25a";
-    const palette = ["#7ecfca", "#e08fbe", "#8fb6e0", "#9fe07a", "#e0b57a", "#b39fe0"];
-    let h = 0;
-    for (let i = 0; i < this.selfId.length; i++) h = (h * 31 + this.selfId.charCodeAt(i)) >>> 0;
-    return palette[h % palette.length];
+    return peerInkColor(this.selfId, !this.playerView);
+  }
+  /** Local "look here" — pulse at the point in MY ink color + report upward. */
+  ping(wx: number, wy: number): void {
+    this.pings.add(wx, wy, this.inkColor());
+    this.onPing(wx, wy);
+  }
+  /** A peer's ping arriving over the wire (color = their ink). */
+  showPing(wx: number, wy: number, color: string): void {
+    this.pings.add(wx, wy, color);
   }
   beginDraw(wx: number, wy: number): void {
     if (!this.scene || !this.canDraw()) return;
