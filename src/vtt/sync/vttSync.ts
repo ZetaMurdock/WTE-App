@@ -88,6 +88,11 @@ export function useVttSync({ engineRef, sceneId, getScene, onSnapshot }: Opts): 
           if (engineRef.current?.moveBlocked(tok.x, tok.y, op.x, op.y)) return;
         }
       }
+      // Spatial-sound emitters are Curator scene-building: host-only, like walls.
+      if (op.op === "emitter.add" || op.op === "emitter.update" || op.op === "emitter.remove") {
+        const hostId = roleRef.current === "host" ? net.selfId : peersRef.current.find((p) => p.role === "host")?.id ?? null;
+        if (!((hostId != null && from === hostId) || from === net.selfId)) return;
+      }
       // Drawing rules: only the host flips the switch or wipes the board, and a
       // player's stroke is dropped while the Curator has drawing disabled.
       if (op.op === "draw.allow" || op.op === "draw.clear" || op.op === "draw.add") {

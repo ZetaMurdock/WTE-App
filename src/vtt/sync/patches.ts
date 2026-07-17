@@ -2,7 +2,7 @@
 // small op (never a full-scene resend); peers apply it to their own scene. Late
 // joiners get a full `snapshot` instead. Ops ride the reserved `vtt-patch` net
 // message (scope = scene id) so the protocol envelope stays stable.
-import type { VttAtmosphere, VttBackground, VttDrawing, VttEffect, VttEffectData, VttFogMode, VttGrid, VttLight, VttSceneData, VttTerrain, VttToken, VttWall, VttZoneKind } from "../types/scene";
+import type { VttAtmosphere, VttBackground, VttDrawing, VttEffect, VttEffectData, VttEmitter, VttFogMode, VttGrid, VttLight, VttSceneData, VttTerrain, VttToken, VttWall, VttZoneKind } from "../types/scene";
 
 export type VttOp =
   | { op: "token.add"; token: VttToken }
@@ -15,6 +15,9 @@ export type VttOp =
   | { op: "light.add"; light: VttLight }
   | { op: "light.update"; id: string; patch: Partial<VttLight> }
   | { op: "light.remove"; id: string }
+  | { op: "emitter.add"; emitter: VttEmitter }
+  | { op: "emitter.update"; id: string; patch: Partial<VttEmitter> }
+  | { op: "emitter.remove"; id: string }
   | { op: "fog.set"; enabled: boolean }
   | { op: "fog.reveal"; cells: string[] }
   | { op: "fog.reset" }
@@ -89,6 +92,23 @@ export function applyOp(d: VttSceneData, op: VttOp): boolean {
       const before = d.lights.length;
       d.lights = d.lights.filter((x) => x.id !== op.id);
       return d.lights.length !== before;
+    }
+    case "emitter.add": {
+      const list = (d.emitters ??= []);
+      if (list.some((e) => e.id === op.emitter.id)) return false;
+      list.push(op.emitter);
+      return true;
+    }
+    case "emitter.update": {
+      const e = d.emitters?.find((x) => x.id === op.id);
+      if (!e) return false;
+      Object.assign(e, op.patch);
+      return true;
+    }
+    case "emitter.remove": {
+      const before = d.emitters?.length ?? 0;
+      d.emitters = (d.emitters ?? []).filter((x) => x.id !== op.id);
+      return d.emitters.length !== before;
     }
     case "fog.set":
       if (d.fog.enabled === op.enabled) return false;

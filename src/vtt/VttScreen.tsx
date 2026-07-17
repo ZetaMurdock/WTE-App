@@ -67,6 +67,8 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
   const [leftPanel, setLeftPanel] = useState<"scenes" | "actors" | "encounter" | "assets" | "abilities" | null>(null);
   const [abilityCharId, setAbilityCharId] = useState<string | null>(null);
   const [pendingAoe, setPendingAoe] = useState<VttAbility | null>(null);
+  // A soundboard clip armed for click-to-place as a spatial emitter.
+  const [armedSound, setArmedSound] = useState<{ name: string; src: string } | null>(null);
   const [armedAoe, setArmedAoe] = useState<{ kind: AoeKind; cells: number; rounds: number } | null>(null);
   const [rollsOpen, setRollsOpen] = useState(false);
   const [gridOpen, setGridOpen] = useState(false);
@@ -191,13 +193,14 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     setRollsOpen(true);
   }, []);
 
-  // Esc cancels an armed click-to-place AoE.
+  // Esc cancels an armed click-to-place AoE / spatial sound.
   useEffect(() => {
-    if (!armedAoe) return;
-    const onEsc = (e: KeyboardEvent) => e.key === "Escape" && setArmedAoe(null);
+    if (!armedAoe && !armedSound) return;
+    const onEsc = (e: KeyboardEvent) =>
+      e.key === "Escape" && (setArmedAoe(null), setArmedSound(null));
     window.addEventListener("keydown", onEsc);
     return () => window.removeEventListener("keydown", onEsc);
-  }, [armedAoe]);
+  }, [armedAoe, armedSound]);
 
   // --- Live character-sheet sync (Curator control over player sheets) --------
   // Players push their full record; the Curator (and the owner) apply incoming
@@ -920,12 +923,36 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
           <span className="vtt2-aoe-place-hint">Click to place the area · Esc to cancel</span>
         </div>
       )}
+      {armedSound && (
+        <div
+          className="vtt2-aoe-place"
+          onMouseDown={(e) => {
+            if (e.button !== 0) return;
+            const eng = engineRef.current;
+            if (eng) {
+              const w = eng.clientToWorld(e.clientX, e.clientY);
+              eng.addEmitterAt(w.x, w.y, armedSound);
+            }
+            setArmedSound(null);
+          }}
+        >
+          <span className="vtt2-aoe-place-hint">Click to pin “{armedSound.name}” to the map · Esc to cancel</span>
+        </div>
+      )}
       {campaign && <VttRollToast campaignId={campaign.id} />}
       {campaign && rollsOpen && (
         <VttRollFeed campaignId={campaign.id} lock={rollLock} onClearLock={() => setRollLock(null)} onClose={() => setRollsOpen(false)} />
       )}
       {campaign && soundboardOpen && (
-        <VttSoundboard campaignId={campaign.id} sceneName={scene?.name ?? "Scene"} onClose={() => setSoundboardOpen(false)} />
+        <VttSoundboard
+          campaignId={campaign.id}
+          sceneName={scene?.name ?? "Scene"}
+          onClose={() => setSoundboardOpen(false)}
+          onPlaceEmitter={(s) => {
+            setArmedSound(s);
+            setSoundboardOpen(false);
+          }}
+        />
       )}
       {campaign && sheetCharId && (
         <div className="vtt2-sheet-overlay" onMouseDown={() => setSheetCharId(null)}>
@@ -952,6 +979,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
           onToken={(patch) => engine.updateToken(sel.id, patch)}
           onWall={(patch) => engine.updateWall(sel.id, patch)}
           onLight={(patch) => engine.updateLight(sel.id, patch)}
+          onEmitter={(patch) => engine.updateEmitter(sel.id, patch)}
           onEffect={(patch) => engine.updateEffect(sel.id, patch)}
           onEffectKind={(kind) => engine.setEffectKind(sel.id, kind)}
           onDelete={() => engine.deleteSelected()}

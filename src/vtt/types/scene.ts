@@ -82,6 +82,25 @@ export interface VttLight {
   /** Curator-set seconds from lit to burned out (unset/0 = never burns out). */
   burnSeconds?: number;
 }
+/** A spatial sound pinned to the world: players hear it by RANGE from their own
+ *  token, and every wall between them and the source muffles it (quieter +
+ *  low-passed). Handles render for the Curator only; the audio itself (a data
+ *  URL) rides scene snapshots to players and is de-inlined to a blob ref at
+ *  save time like map art. */
+export interface VttEmitter {
+  id: string;
+  x: number; // world px
+  y: number;
+  /** Audible radius in cells — silent at and beyond the edge. */
+  radius: number;
+  /** Clip name (from the soundboard), for the inspector. */
+  name: string;
+  /** Audio data URL. */
+  src: string;
+  /** 0..1 volume standing at the source. */
+  volume: number;
+  loop: boolean;
+}
 export type VttEffectKind = "circle" | "cone" | "zone" | "line" | "ring" | "cross";
 export interface VttEffectData {
   radius?: number; // cells — circle/cone reach; line length; ring outer radius; cross arm length
@@ -226,6 +245,8 @@ export interface VttSceneData {
   atmosphere?: VttAtmosphere | null;
   /** Per-scene ambient music (audio data URL) — plays while the scene is active. */
   audio?: { src: string; volume: number } | null;
+  /** Spatial sounds pinned to world positions (distance + wall muffling). */
+  emitters?: VttEmitter[];
   /** Border portals into adjacent scenes (multi-map dungeons). */
   links?: VttSceneLink[];
   /** Painted effect zones — cell keys per effect kind (water/smoke/ember),

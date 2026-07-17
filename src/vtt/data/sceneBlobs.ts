@@ -28,10 +28,15 @@ function isInline(v: unknown): v is string {
   return typeof v === "string" && v.startsWith("data:") && v.length >= BLOB_MIN_CHARS;
 }
 
-/** Replace large inline images with refs, reporting each blob via `put`.
+/** Replace large inline images/audio with refs, reporting each blob via `put`.
  *  Returns a DEEP-enough copy — the input data is never mutated. */
 export function deflateSceneData(data: VttSceneData, put: (id: string, uri: string) => void): VttSceneData {
-  const out: VttSceneData = { ...data, background: { ...data.background }, tokens: data.tokens.map((t) => ({ ...t })) };
+  const out: VttSceneData = {
+    ...data,
+    background: { ...data.background },
+    tokens: data.tokens.map((t) => ({ ...t })),
+    emitters: data.emitters?.map((e) => ({ ...e })),
+  };
   if (isInline(out.background.src)) {
     const id = blobId(out.background.src);
     put(id, out.background.src);
@@ -42,6 +47,13 @@ export function deflateSceneData(data: VttSceneData, put: (id: string, uri: stri
       const id = blobId(t.img);
       put(id, t.img);
       t.img = BLOB_PREFIX + id;
+    }
+  }
+  for (const e of out.emitters ?? []) {
+    if (isInline(e.src)) {
+      const id = blobId(e.src);
+      put(id, e.src);
+      e.src = BLOB_PREFIX + id;
     }
   }
   return out;
@@ -55,6 +67,7 @@ export function collectBlobRefs(data: VttSceneData): string[] {
   };
   ref(data.background.src);
   for (const t of data.tokens) ref(t.img);
+  for (const e of data.emitters ?? []) ref(e.src);
   return ids;
 }
 
@@ -67,6 +80,7 @@ export function inflateSceneData(data: VttSceneData, get: (id: string) => string
   };
   data.background.src = swap(data.background.src) ?? undefined;
   for (const t of data.tokens) t.img = swap(t.img);
+  for (const e of data.emitters ?? []) e.src = swap(e.src) ?? e.src;
   return data;
 }
 

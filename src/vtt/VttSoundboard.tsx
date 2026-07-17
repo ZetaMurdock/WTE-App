@@ -7,6 +7,8 @@ interface Props {
   campaignId: string;
   sceneName: string;
   onClose: () => void;
+  /** Arm this clip for click-to-place as a SPATIAL emitter on the map. */
+  onPlaceEmitter?: (s: { name: string; src: string }) => void;
 }
 
 function fileToDataUrl(file: File): Promise<string> {
@@ -25,7 +27,7 @@ const sentSfx = new Set<string>();
 // The Soundboard: a campaign sound library you trigger while running a scene —
 // and the whole TABLE hears it (clips broadcast over the chunked transport).
 // Upload single clips or a WHOLE FOLDER (it auto-organizes into groups).
-export function VttSoundboard({ campaignId, sceneName, onClose }: Props) {
+export function VttSoundboard({ campaignId, sceneName, onClose, onPlaceEmitter }: Props) {
   const net = useNet();
   const [sounds, setSounds] = useState<VttAsset[]>([]);
   const [loading, setLoading] = useState(true);
@@ -152,6 +154,15 @@ export function VttSoundboard({ campaignId, sceneName, onClose }: Props) {
           </button>
           {playing.has(s.id) && (
             <button className="vtt2-sb-mini" onClick={() => stopOne(s.id)} title="Stop">Stop</button>
+          )}
+          {onPlaceEmitter && (
+            <button
+              className="vtt2-sb-mini"
+              onClick={() => onPlaceEmitter({ name: soundDisplayName(s.name), src: s.uri })}
+              title="Pin to the map — players hear it by distance from their token, muffled through walls"
+            >
+              Pin
+            </button>
           )}
           <button className="vtt2-sb-mini danger" onClick={() => void remove(s.id)} title="Delete sound">Del</button>
         </div>

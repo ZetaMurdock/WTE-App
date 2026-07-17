@@ -151,6 +151,12 @@ export class InputController {
       this.mode = "none";
       return;
     }
+    const emitter = v.emitters.pick(v.scene, w.x, w.y, v.camera.zoom);
+    if (emitter) {
+      v.select({ kind: "emitter", id: emitter });
+      this.mode = "none";
+      return;
+    }
     const wall = v.walls.pick(v.scene, w.x, w.y, v.camera.zoom);
     if (wall) {
       v.select({ kind: "wall", id: wall });

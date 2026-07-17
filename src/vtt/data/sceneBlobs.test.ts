@@ -1,10 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { blobId, deflateSceneData, inflateSceneData, collectBlobRefs, BLOB_PREFIX, BLOB_MIN_CHARS } from "./sceneBlobs";
-import { defaultSceneData, type VttToken } from "../types/scene";
+import { defaultSceneData, type VttEmitter, type VttToken } from "../types/scene";
 
 const bigImg = "data:image/png;base64," + "A".repeat(BLOB_MIN_CHARS);
 const smallImg = "data:image/png;base64,tiny";
+const bigClip = "data:audio/wav;base64," + "Q".repeat(BLOB_MIN_CHARS);
 const tok = (id: string, img?: string): VttToken => ({ id, name: id, x: 0, y: 0, size: 1, color: "#fff", hp: 1, visible: true, img });
+const emit = (id: string, src: string): VttEmitter => ({ id, x: 0, y: 0, radius: 8, name: id, src, volume: 1, loop: true });
 
 describe("blobId", () => {
   it("is stable and content-addressed", () => {
@@ -34,9 +36,22 @@ describe("deflateSceneData", () => {
     const d = defaultSceneData();
     d.background.src = bigImg;
     d.tokens.push(tok("t1", bigImg));
+    d.emitters = [emit("e1", bigClip)];
     deflateSceneData(d, () => {});
     expect(d.background.src).toBe(bigImg);
     expect(d.tokens[0].img).toBe(bigImg);
+    expect(d.emitters[0].src).toBe(bigClip);
+  });
+
+  it("de-inlines spatial-emitter audio too, and round-trips it", () => {
+    const d = defaultSceneData();
+    d.emitters = [emit("e1", bigClip)];
+    const blobs = new Map<string, string>();
+    const slim = deflateSceneData(d, (id, uri) => blobs.set(id, uri));
+    expect(slim.emitters![0].src).toBe(BLOB_PREFIX + blobId(bigClip));
+    expect(collectBlobRefs(slim)).toEqual([blobId(bigClip)]);
+    const back = inflateSceneData(slim, (id) => blobs.get(id));
+    expect(back.emitters![0].src).toBe(bigClip);
   });
 
   it("shrinks the serialized payload dramatically", () => {

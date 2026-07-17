@@ -17,6 +17,8 @@ import { computeVisibleCells, pathBlocked } from "./systems/VisionSystem";
 import { CustomShaderFilter, validateShaderBody, validateFragmentSource } from "./filters/CustomShaderFilter";
 import { ZoneLayer, ZONE_DEFAULT_BODIES, buildZoneFragment } from "./layers/ZoneLayer";
 import { DrawingLayer } from "./layers/DrawingLayer";
+import { EmitterLayer } from "./layers/EmitterLayer";
+import { SpatialAudioEngine } from "./systems/spatialAudio";
 import { ZONE_KINDS } from "../types/scene";
 import { EffectSystem } from "./systems/EffectSystem";
 import { TimelineSystem } from "./systems/TimelineSystem";
@@ -31,6 +33,7 @@ import {
   type VttZoneKind,
   type VttEffectData,
   type VttEffectKind,
+  type VttEmitter,
   type VttGrid,
   type VttTerrain,
   type VttLight,
@@ -41,7 +44,7 @@ import {
 import { applyOp, type VttOp } from "../sync/patches";
 import type { VttTool } from "../types/tool";
 
-export type VttSelection = { kind: "token" | "wall" | "light" | "effect"; id: string } | null;
+export type VttSelection = { kind: "token" | "wall" | "light" | "effect" | "emitter"; id: string } | null;
 
 export class PixiVttApp {
   readonly app = new Application();
@@ -58,6 +61,9 @@ export class PixiVttApp {
   readonly atmosphere = new AtmosphereLayer();
   readonly zones = new ZoneLayer();
   readonly drawings = new DrawingLayer();
+  readonly emitters = new EmitterLayer();
+  // Spatial-sound playback (distance falloff + wall muffling), synced from the ticker.
+  readonly spatial = new SpatialAudioEngine();
 
   // Engine systems (slice 12). Encounter round advance runs timeline + sim.
   readonly effectSystem = new EffectSystem();
@@ -105,6 +111,7 @@ export class PixiVttApp {
       this.grid.view,
       this.zones.view, // painted effect zones sit on the map, under lights/tokens
       this.lights.view,
+      this.emitters.view, // spatial-sound handles (Curator-only)
       this.effects.view,
       this.tokens.view,
       this.drawings.view, // annotations ride above tokens so arrows/marks stay readable
@@ -134,6 +141,14 @@ export class PixiVttApp {
         const o = this.world.toGlobal({ x: 0, y: 0 });
         this.zones.tick(performance.now() / 1000, o.x, o.y, this.world.scale.x, this.scene.data.grid.size);
       }
+      // Spatial sound follows the listener a few times a second — token moves,
+      // camera pans, and wall edits all re-mix without any explicit hook.
+      const nowMs = performance.now();
+      if (this.scene && nowMs - this.spatialAt >= 250) {
+        this.spatialAt = nowMs;
+        const d = this.scene.data;
+        this.spatial.sync(d.emitters ?? [], this.listenerWorld(), d.walls, d.grid.size);
+      }
       // Realistic fog decays with TIME, not just mutations — repaint fog AND
       // lights twice a second so left areas sink back into the dark and burning
       // lanterns visibly dim toward nothing.
@@ -156,6 +171,17 @@ export class PixiVttApp {
     if (!this.ready) return;
     this.camera.set(scene.data.camera);
     this.redraw();
+  }
+  /** Where spatial sound is heard FROM: a player's own token (no token = hears
+   *  nothing), the Curator's camera centre. */
+  private spatialAt = 0;
+  private listenerWorld(): { x: number; y: number } | null {
+    if (!this.scene) return null;
+    if (this.playerView && this.selfId) {
+      const own = this.scene.data.tokens.find((t) => t.owner === this.selfId && t.visible !== false);
+      return own ? { x: own.x, y: own.y } : null;
+    }
+    return this.viewCenterWorld();
   }
   // Vision is O(sources × cells × walls) — cache it and recompute only when a
   // source crosses a cell (not on every drag-frame redraw).
@@ -255,6 +281,7 @@ export class PixiVttApp {
     this.zones.draw(this.scene);
     this.drawings.draw(this.scene);
     this.lights.draw(this.scene, this.selection, this.playerView && this.selfId ? this.selfId : undefined);
+    this.emitters.draw(this.scene, this.selection, this.playerView);
     this.effects.draw(this.scene, this.selection);
     this.tokens.sync(this.scene, this.selection?.kind === "token" ? this.selection.id : null, this.playerView ? visible : null);
     this.walls.draw(this.scene, this.selection, this.playerView);
@@ -371,6 +398,24 @@ export class PixiVttApp {
     this.onChanged();
     this.onOp({ op: "light.add", light: l });
   }
+  /** Pin a soundboard clip to the world as a spatial emitter (synced). */
+  addEmitterAt(wx: number, wy: number, spec: { name: string; src: string }): void {
+    if (!this.scene) return;
+    const p = this.snap(wx, wy);
+    const e: VttEmitter = { id: newId("em"), x: p.x, y: p.y, radius: 8, name: spec.name, src: spec.src, volume: 0.9, loop: true };
+    (this.scene.data.emitters ??= []).push(e);
+    this.select({ kind: "emitter", id: e.id });
+    this.onChanged();
+    this.onOp({ op: "emitter.add", emitter: e });
+  }
+  updateEmitter(id: string, patch: Partial<VttEmitter>): void {
+    const e = this.scene?.data.emitters?.find((x) => x.id === id);
+    if (!e) return;
+    Object.assign(e, patch);
+    this.redraw();
+    this.onChanged();
+    this.onOp({ op: "emitter.update", id, patch });
+  }
   addEffectAt(kind: VttEffectKind, wx: number, wy: number): void {
     if (!this.scene) return;
     const round = this.scene.data.timeline.round || 0;
@@ -470,12 +515,14 @@ export class PixiVttApp {
     if (kind === "token") d.tokens = d.tokens.filter((x) => x.id !== id);
     if (kind === "wall") d.walls = d.walls.filter((x) => x.id !== id);
     if (kind === "light") d.lights = d.lights.filter((x) => x.id !== id);
+    if (kind === "emitter") d.emitters = (d.emitters ?? []).filter((x) => x.id !== id);
     if (kind === "effect") d.effects = d.effects.filter((x) => x.id !== id);
     this.select(null);
     this.onChanged();
     if (kind === "token") this.onOp({ op: "token.remove", id });
     else if (kind === "wall") this.onOp({ op: "wall.remove", id });
     else if (kind === "light") this.onOp({ op: "light.remove", id });
+    else if (kind === "emitter") this.onOp({ op: "emitter.remove", id });
     else if (kind === "effect") this.onOp({ op: "effect.remove", id });
   }
   toggleFog(): void {
@@ -703,6 +750,7 @@ export class PixiVttApp {
 
   destroy(): void {
     this.destroyed = true;
+    this.spatial.destroy();
     this.input?.detach();
     if (this.ready) {
       this.ready = false;

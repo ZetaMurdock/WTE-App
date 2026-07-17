@@ -3,6 +3,7 @@ import {
   TOKEN_COLORS,
   type VttEffectData,
   type VttEffectKind,
+  type VttEmitter,
   type VttLight,
   type VttScene,
   type VttToken,
@@ -15,6 +16,7 @@ interface Props {
   onToken: (patch: Partial<VttToken>) => void;
   onWall: (patch: Partial<VttWall>) => void;
   onLight: (patch: Partial<VttLight>) => void;
+  onEmitter: (patch: Partial<VttEmitter>) => void;
   onEffect: (patch: Partial<VttEffectData>) => void;
   onEffectKind: (kind: VttEffectKind) => void;
   onDelete: () => void;
@@ -27,12 +29,13 @@ interface Props {
 const LIGHT_COLORS = ["#a08a4f", "#689a96", "#837aae", "#a1584a", "#a7aebd"];
 const EFFECT_COLORS = ["#837aae", "#a1584a", "#a08a4f", "#689a96", "#6f9a68"];
 
-export function VttInspector({ sel, scene, onToken, onWall, onLight, onEffect, onEffectKind, onDelete, onClose, peers = [], selfId }: Props) {
+export function VttInspector({ sel, scene, onToken, onWall, onLight, onEmitter, onEffect, onEffectKind, onDelete, onClose, peers = [], selfId }: Props) {
   const token = sel.kind === "token" ? scene.data.tokens.find((t) => t.id === sel.id) : null;
   const wall = sel.kind === "wall" ? scene.data.walls.find((w) => w.id === sel.id) : null;
   const light = sel.kind === "light" ? scene.data.lights.find((l) => l.id === sel.id) : null;
+  const emitter = sel.kind === "emitter" ? scene.data.emitters?.find((e) => e.id === sel.id) : null;
   const effect = sel.kind === "effect" ? scene.data.effects.find((e) => e.id === sel.id) : null;
-  if (!token && !wall && !light && !effect) return null;
+  if (!token && !wall && !light && !emitter && !effect) return null;
 
   function addTokenStatus() {
     if (!token) return;
@@ -46,7 +49,7 @@ export function VttInspector({ sel, scene, onToken, onWall, onLight, onEffect, o
     <div className="vtt2-inspector">
       <div className="vtt2-insp-head">
         <span className="panel-title" style={{ margin: 0 }}>
-          {sel.kind === "token" ? "Token" : sel.kind === "wall" ? "Wall" : sel.kind === "light" ? "Light" : "Effect"}
+          {sel.kind === "token" ? "Token" : sel.kind === "wall" ? "Wall" : sel.kind === "light" ? "Light" : sel.kind === "emitter" ? "Sound" : "Effect"}
         </span>
         <button className="cdx-tab-x" onClick={onClose} title="Close">×</button>
       </div>
@@ -219,6 +222,49 @@ export function VttInspector({ sel, scene, onToken, onWall, onLight, onEffect, o
               </button>
             )}
           </div>
+        </>
+      )}
+
+      {emitter && (
+        <>
+          <div className="vtt2-linked">
+            <span className="vtt2-linked-tag" title="Players hear this clip by distance from their own token — walls between them muffle it">
+              {emitter.name || "Sound"}
+            </span>
+          </div>
+          <div className="vtt2-hp-row" style={{ marginTop: 10 }}>
+            <label className="lobby-field">
+              <span>Range (cells)</span>
+              <input
+                className="bg-select full"
+                type="number"
+                min={1}
+                max={60}
+                value={emitter.radius}
+                onChange={(e) => onEmitter({ radius: Math.max(1, Math.min(60, parseInt(e.target.value, 10) || 1)) })}
+              />
+            </label>
+            <label className="lobby-field">
+              <span>Volume</span>
+              <input
+                className="bg-select full"
+                type="number"
+                step={0.1}
+                min={0}
+                max={1}
+                value={emitter.volume}
+                onChange={(e) => onEmitter({ volume: Math.max(0, Math.min(1, parseFloat(e.target.value) || 0)) })}
+              />
+            </label>
+          </div>
+          <button
+            className={"chip" + (emitter.loop ? " active" : "")}
+            style={{ marginTop: 10 }}
+            onClick={() => onEmitter({ loop: !emitter.loop })}
+            title="Looping sounds play continuously (ambience); one-shots need re-placing"
+          >
+            {emitter.loop ? "Looping" : "One-shot"}
+          </button>
         </>
       )}
 
