@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { Campaign } from "../../models/campaign";
 import { listCharacters, createCharacter, type CharacterRecord } from "../../lib/characters";
 import { randomCharacter } from "../../lib/randomChar";
+import { parseLegacySheet, scanLegacyStorage } from "../../lib/legacyImport";
 import { isTauri } from "../../lib/tauri";
 import { CharacterVault } from "./CharacterVault";
 import { CharacterCreator } from "./CharacterCreator";
@@ -93,6 +94,38 @@ export function CharactersTab({ campaign, curator, onCharactersChanged }: Props)
         const rec = await createCharacter(campaign.id, name, sheet);
         await reload();
         setView({ mode: "sheet", id: rec.id });
+      }}
+      onImportFiles={async (files) => {
+        const failed: string[] = [];
+        let lastId: string | null = null;
+        for (const f of files) {
+          try {
+            const { name, sheet } = parseLegacySheet(JSON.parse(await f.text()));
+            lastId = (await createCharacter(campaign.id, name, sheet)).id;
+          } catch {
+            failed.push(f.name);
+          }
+        }
+        if (failed.length) alert("Couldn't import: " + failed.join(", ") + "\n(Expecting the old sheet's exported .json.)");
+        await reload();
+        if (lastId && files.length === 1) setView({ mode: "sheet", id: lastId });
+      }}
+      onMigrateLegacy={async () => {
+        const found = scanLegacyStorage(localStorage);
+        if (found.length === 0) {
+          alert("No legacy sheet characters found in this app's storage.");
+          return;
+        }
+        if (!confirm(`Import ${found.length} legacy character${found.length === 1 ? "" : "s"} into this campaign?\n\n` + found.map((c) => "• " + c.name).join("\n") + "\n\n(Creates new vault entries — the legacy data stays untouched.)")) return;
+        for (const c of found) {
+          try {
+            const { name, sheet } = parseLegacySheet(c.data);
+            await createCharacter(campaign.id, name, sheet);
+          } catch {
+            /* one bad blob shouldn't stop the rest */
+          }
+        }
+        await reload();
       }}
       onOpen={(id) => setView({ mode: "sheet", id })}
       onChanged={reload}

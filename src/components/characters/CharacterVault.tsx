@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import type { Campaign } from "../../models/campaign";
 import type { CharacterRecord } from "../../lib/characters";
 import { deleteCharacter, updateCharacter } from "../../lib/characters";
@@ -11,11 +12,16 @@ interface Props {
   loading: boolean;
   onNew: () => void;
   onRandomize: () => void;
+  /** Import old-sheet .json exports (one character per file). */
+  onImportFiles: (files: File[]) => void;
+  /** Pull characters the legacy sheet left in this app's own storage. */
+  onMigrateLegacy: () => void;
   onOpen: (id: string) => void;
   onChanged: () => void;
 }
 
-export function CharacterVault({ campaign, characters, loading, onNew, onRandomize, onOpen, onChanged }: Props) {
+export function CharacterVault({ campaign, characters, loading, onNew, onRandomize, onImportFiles, onMigrateLegacy, onOpen, onChanged }: Props) {
+  const importRef = useRef<HTMLInputElement>(null);
   async function handleRename(c: CharacterRecord) {
     const next = prompt("Rename character", c.name);
     if (next && next.trim()) {
@@ -64,9 +70,33 @@ export function CharacterVault({ campaign, characters, loading, onNew, onRandomi
               </span>
               Randomize an Inquisitor
             </button>
+            <button onClick={() => importRef.current?.click()} title="Import .json files exported from the old character sheet">
+              <span className="vault-menu-ico" aria-hidden>
+                ⇪
+              </span>
+              Import legacy JSON…
+            </button>
+            <button onClick={onMigrateLegacy} title="Find characters the old sheet saved on this computer and copy them into the vault">
+              <span className="vault-menu-ico" aria-hidden>
+                ⇉
+              </span>
+              Migrate legacy sheet characters
+            </button>
           </div>
         </div>
       </div>
+      <input
+        ref={importRef}
+        type="file"
+        accept=".json,application/json"
+        multiple
+        hidden
+        onChange={(e) => {
+          const files = Array.from(e.target.files ?? []);
+          e.target.value = "";
+          if (files.length) onImportFiles(files);
+        }}
+      />
 
       {loading ? (
         <p className="list-empty">Loading…</p>
