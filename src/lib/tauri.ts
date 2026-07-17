@@ -64,14 +64,14 @@ const DEFAULT_OAUTH_CLIENT_ID =
 // (`/published_pages` write requires auth, which the app does anonymously).
 // A user can override this with their own project via the Lobby settings.
 const DEFAULT_FB_CONFIG = {
-  apiKey: "AIzaSyCCYi1dAM8cVw2UrCDJdrazJ7FnKFrohAg",
-  authDomain: "codex-753ac.firebaseapp.com",
-  databaseURL: "https://codex-753ac-default-rtdb.firebaseio.com",
-  projectId: "codex-753ac",
-  storageBucket: "codex-753ac.firebasestorage.app",
-  messagingSenderId: "1014842817225",
-  appId: "1:1014842817225:web:0986dde5740bb5fd4d6b18",
-  measurementId: "G-PLG5GXCERZ",
+  apiKey: "AIzaSyA43CFKCjC8tsHXbAQNHONR9OEd1c-RQfE",
+  authDomain: "codexlib-b81bf.firebaseapp.com",
+  databaseURL: "https://codexlib-b81bf-default-rtdb.firebaseio.com",
+  projectId: "codexlib-b81bf",
+  storageBucket: "codexlib-b81bf.firebasestorage.app",
+  messagingSenderId: "622684783576",
+  appId: "1:622684783576:web:fad2e8380be4243ef6e8ad",
+  measurementId: "G-W061DE7X9T",
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
