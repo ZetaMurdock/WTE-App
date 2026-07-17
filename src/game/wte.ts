@@ -777,3 +777,36 @@ export function rollToHit(label: string, mod: number): RollResult {
   const roll = rollDie(20);
   return { formula: `1d20 ${fmtMod(mod)}`, result: roll + mod, detail: { die: 20, roll, modifier: mod, label } };
 }
+
+/** Parse a dice expression — "2d6+3", "d20", "3d8-1" (whitespace tolerant). */
+export function parseDiceExpr(raw: string): { count: number; sides: number; mod: number } | null {
+  const m = raw
+    .trim()
+    .toLowerCase()
+    .replace(/\s/g, "")
+    .match(/^(\d+)?d(\d+)([+-]\d+)?$/);
+  if (!m) return null;
+  const count = Math.min(99, parseInt(m[1] || "1", 10));
+  const sides = Math.min(1000, parseInt(m[2], 10));
+  const mod = parseInt(m[3] || "0", 10);
+  if (count < 1 || sides < 2) return null;
+  return { count, sides, mod };
+}
+
+/** Roll a freeform dice expression (the legacy sheet's dice-panel behavior) —
+ *  null when the expression doesn't parse. */
+export function rollDiceExpr(label: string, raw: string): RollResult | null {
+  const p = parseDiceExpr(raw);
+  if (!p) return null;
+  let sum = 0;
+  for (let i = 0; i < p.count; i++) sum += rollDie(p.sides);
+  const formula = `${p.count}d${p.sides}${p.mod > 0 ? "+" + p.mod : p.mod < 0 ? String(p.mod) : ""}`;
+  return { formula, result: sum + p.mod, detail: { die: p.sides, roll: sum, modifier: p.mod, label } };
+}
+
+/** First dice expression found in free text ("deals 3d6 fire…" → "3d6"), for
+ *  pre-filling the roller when an ability is used. */
+export function diceExprFromText(text?: string | null): string | null {
+  const m = (text || "").match(/(\d*)d(\d+)([+-]\d+)?/i);
+  return m ? `${m[1] || "1"}d${m[2]}${m[3] || ""}` : null;
+}

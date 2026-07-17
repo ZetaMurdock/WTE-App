@@ -6422,6 +6422,43 @@ body.wte-dot-cursor * {
   color: #e88;
   border-color: #a44;
 }
+/* legacy-style locked roll banner + expression row */
+.vtt2-roll-lock {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  background: rgba(126, 207, 202, 0.1);
+  border: 1px solid rgba(126, 207, 202, 0.35);
+  border-radius: 7px;
+  padding: 4px 8px;
+  margin-bottom: 6px;
+}
+.vtt2-roll-lock-name {
+  font-family: Georgia, serif;
+  font-size: 12px;
+  color: var(--accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vtt2-roll-exprrow {
+  display: flex;
+  gap: 5px;
+  margin: 6px 0 4px;
+}
+.vtt2-roll-expr {
+  flex: 1;
+  min-width: 0;
+  font-family: Consolas, monospace;
+}
+.vtt2-roll-expr.bad {
+  border-color: #b5564e;
+}
+.vtt2-roll-go {
+  white-space: nowrap;
+  padding: 4px 12px;
+}
 .vtt2-dicetray {
   display: flex;
   flex-wrap: wrap;

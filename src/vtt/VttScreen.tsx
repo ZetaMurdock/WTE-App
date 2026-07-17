@@ -20,7 +20,7 @@ import { addSessionRoll } from "./sync/rollSession";
 import { VttSceneBrowser } from "./VttSceneBrowser";
 import { VttActorsPanel } from "./VttActorsPanel";
 import { VttEncounterPanel } from "./VttEncounterPanel";
-import { VttRollFeed } from "./VttRollFeed";
+import { VttRollFeed, type RollLock } from "./VttRollFeed";
 import { VttAssetPanel } from "./VttAssetPanel";
 import { VttSoundboard } from "./VttSoundboard";
 import { VttAbilitiesPanel } from "./VttAbilitiesPanel";
@@ -29,8 +29,6 @@ import { VttAoePrompt, type AoePlacement, type AoeKind } from "./VttAoePrompt";
 import { hasAoe } from "./data/effectMeta";
 import { tokenInEdge, arrivalPos } from "./data/sceneLinks";
 import type { VttAbility } from "./data/characterAbilities";
-import { logRoll } from "../lib/rolls";
-import type { RollResult } from "../game/wte";
 import { CharacterSheet } from "../components/characters/CharacterSheet";
 import { listCharacters, getCharacter, upsertCharacter, type CharacterRecord } from "../lib/characters";
 import {
@@ -166,19 +164,13 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     });
   }, [campaign, net.subscribe, net.selfId]);
 
-  // Emit a roll from the abilities panel: durable feed + SQLite + broadcast, the
-  // same path the dice tray uses so ability rolls show up everywhere.
-  const emitRoll = useCallback(
-    (roll: RollResult) => {
-      if (!campaign) return;
-      const id = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : "r-" + Date.now().toString(36);
-      const label = roll.detail.label;
-      addSessionRoll(campaign.id, { id, who: "You", label, formula: roll.formula, result: roll.result, at: Date.now() });
-      void logRoll(campaign.id, null, roll);
-      if (net.status === "connected") net.publish({ t: "roll", label, formula: roll.formula, result: roll.result, id });
-    },
-    [campaign, net]
-  );
+  // Armed roll context — the Abilities panel LOCKS a labeled roll (with the
+  // ability's own dice pre-filled) into the tray; the player presses Roll there.
+  const [rollLock, setRollLock] = useState<RollLock | null>(null);
+  const armRoll = useCallback((label: string, expr?: string) => {
+    setRollLock({ label, expr });
+    setRollsOpen(true);
+  }, []);
 
   // Esc cancels an armed click-to-place AoE.
   useEffect(() => {
@@ -706,10 +698,10 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
         abilitiesOpen={leftPanel === "abilities"}
         rollsOpen={rollsOpen}
         gridOpen={gridOpen}
-        onToggleScenes={campaign ? () => setLeftPanel((p) => (p === "scenes" ? null : "scenes")) : undefined}
+        onToggleScenes={campaign && !isNetPlayer ? () => setLeftPanel((p) => (p === "scenes" ? null : "scenes")) : undefined}
         onToggleActors={campaign ? () => setLeftPanel((p) => (p === "actors" ? null : "actors")) : undefined}
-        onToggleEncounter={campaign ? () => setLeftPanel((p) => (p === "encounter" ? null : "encounter")) : undefined}
-        onToggleAssets={campaign ? () => setLeftPanel((p) => (p === "assets" ? null : "assets")) : undefined}
+        onToggleEncounter={campaign && !isNetPlayer ? () => setLeftPanel((p) => (p === "encounter" ? null : "encounter")) : undefined}
+        onToggleAssets={campaign && !isNetPlayer ? () => setLeftPanel((p) => (p === "assets" ? null : "assets")) : undefined}
         onToggleAbilities={campaign ? () => setLeftPanel((p) => (p === "abilities" ? null : "abilities")) : undefined}
         onToggleRolls={campaign ? () => setRollsOpen((v) => !v) : undefined}
         onToggleGrid={!isNetPlayer ? () => setGridOpen((v) => !v) : undefined}
@@ -726,7 +718,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
         onTool={pickTool}
         builder={!isNetPlayer}
         fogOn={fogOn}
-        onToggleFog={() => engine?.toggleFog()}
+        onToggleFog={!isNetPlayer ? () => engine?.toggleFog() : undefined}
         onResetFog={!isNetPlayer ? () => engine?.resetFog() : undefined}
         onSpawnActor={campaign && !isNetPlayer ? () => setLeftPanel((p) => (p === "actors" ? null : "actors")) : undefined}
         onAddAsset={campaign && !isNetPlayer ? () => setLeftPanel((p) => (p === "assets" ? null : "assets")) : undefined}
@@ -867,7 +859,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
           character={abilityChar}
           characters={characters.map((c) => ({ id: c.id, name: c.name }))}
           onPickCharacter={(id) => setAbilityCharId(id)}
-          onRoll={emitRoll}
+          onArmRoll={armRoll}
           onUseAbility={(ability) => {
             // The roll already fired; if the ability implies an area, prompt to
             // place an editable hitbox.
@@ -906,7 +898,9 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
         </div>
       )}
       {campaign && <VttRollToast campaignId={campaign.id} />}
-      {campaign && rollsOpen && <VttRollFeed campaignId={campaign.id} onClose={() => setRollsOpen(false)} />}
+      {campaign && rollsOpen && (
+        <VttRollFeed campaignId={campaign.id} lock={rollLock} onClearLock={() => setRollLock(null)} onClose={() => setRollsOpen(false)} />
+      )}
       {campaign && soundboardOpen && (
         <VttSoundboard campaignId={campaign.id} sceneName={scene?.name ?? "Scene"} onClose={() => setSoundboardOpen(false)} />
       )}

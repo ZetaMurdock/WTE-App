@@ -8,7 +8,8 @@ interface Props {
   /** Curator gets the scene-builder tools; players get select/pan/measure. */
   builder: boolean;
   fogOn: boolean;
-  onToggleFog: () => void;
+  /** Undefined hides the Fog toggle (players don't control the fog). */
+  onToggleFog?: () => void;
   /** Curator-only: wipe exploration progress (visited areas back to dark). */
   onResetFog?: () => void;
   /** Content-add quick actions (undefined hides each). Add-to-gameplay group. */
@@ -36,14 +37,16 @@ export function VttActionBar({ tool, onTool, builder, fogOn, onToggleFog, onRese
           {t.label}
         </button>
       ))}
-      <span className="vtt2-action-sep" />
-      <button
-        className={"vtt2-action" + (fogOn ? " active" : "")}
-        onClick={onToggleFog}
-        title="Fog of war — vision from tokens + lights, blocked by walls"
-      >
-        Fog
-      </button>
+      {onToggleFog && <span className="vtt2-action-sep" />}
+      {onToggleFog && (
+        <button
+          className={"vtt2-action" + (fogOn ? " active" : "")}
+          onClick={onToggleFog}
+          title="Fog of war — vision from tokens + lights, blocked by walls"
+        >
+          Fog
+        </button>
+      )}
       {onResetFog && fogOn && (
         <button className="vtt2-action" onClick={onResetFog} title="Reset fog — every visited area goes back to unexplored dark">
           Reset fog

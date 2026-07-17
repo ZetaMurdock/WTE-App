@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { CharacterRecord } from "../lib/characters";
-import { ATTRIBUTES, SPECIALTIES, rollAttribute, rollSpecialty, rollGeneric, rollToHit, signedMod, type RollResult } from "../game/wte";
+import { ATTRIBUTES, SPECIALTIES, rollMod, specRollMod, diceExprFromText, signedMod } from "../game/wte";
 import { characterActionSet, type VttAbility } from "./data/characterAbilities";
 import { hasAoe, suggestedTemplate } from "./data/effectMeta";
 
@@ -8,8 +8,10 @@ interface Props {
   character: CharacterRecord | null;
   characters: { id: string; name: string }[];
   onPickCharacter: (id: string) => void;
-  onRoll: (roll: RollResult) => void;
-  onUseAbility: (ability: VttAbility, roll: RollResult) => void;
+  /** ARM the dice tray with a labeled (optionally pre-filled) roll — nothing
+   *  rolls until the player presses Roll (the legacy sheet's locked flow). */
+  onArmRoll: (label: string, expr?: string) => void;
+  onUseAbility: (ability: VttAbility) => void;
   onClose: () => void;
 }
 
@@ -21,15 +23,25 @@ function aoeTag(a: VttAbility): string | null {
   return size ? `${shape} · ${size} ${a.meta.area?.unit}` : shape;
 }
 
-// Roll a weapon attack (1d20 + to-hit) or a plain ability check.
-function rollFor(a: VttAbility): RollResult {
-  return a.source === "action" && a.hit != null ? rollToHit(`${a.name} attack`, a.hit) : rollGeneric(a.name);
+/** "+3" / "-2" / "" — modifier suffix for a pre-filled dice expression. */
+function modSuffix(mod: number): string {
+  return mod > 0 ? `+${mod}` : mod < 0 ? String(mod) : "";
+}
+
+/** The dice an ability suggests: a weapon's damage dice, or the first dice
+ *  expression in the effect text. Null = the player picks in the tray. */
+function suggestedExpr(a: VttAbility): string | undefined {
+  if (a.source === "action" && a.damage) return diceExprFromText(a.damage) ?? undefined;
+  return a.meta.values[0]?.expr ?? diceExprFromText(a.effect) ?? undefined;
 }
 
 // Left-dock Abilities panel: base rolls + specialties, weapon actions, the
-// paradigm's standard genus + cipher sets, and racial abilities in a dropdown.
-// "Use" rolls into the shared feed and, for area abilities, prompts a hitbox.
-export function VttAbilitiesPanel({ character, characters, onPickCharacter, onRoll, onUseAbility, onClose }: Props) {
+// slotted genus/cipher loadout, and racial abilities in a dropdown. NOTHING
+// auto-rolls: every button ARMS the dice tray with the right label + dice
+// (attribute d20s, specialty d40s, an ability's own damage dice) and the
+// player presses Roll — the legacy sheet's locked-roll flow. Area abilities
+// still prompt their hitbox on use.
+export function VttAbilitiesPanel({ character, characters, onPickCharacter, onArmRoll, onUseAbility, onClose }: Props) {
   const set = useMemo(
     () => (character ? characterActionSet(character) : { actions: [], genus: [], cipher: [], racial: [] }),
     [character]
@@ -37,9 +49,8 @@ export function VttAbilitiesPanel({ character, characters, onPickCharacter, onRo
   const [racialIdx, setRacialIdx] = useState(0);
 
   function use(a: VttAbility) {
-    const roll = rollFor(a);
-    onRoll(roll);
-    onUseAbility(a, roll);
+    onArmRoll(a.name, suggestedExpr(a));
+    onUseAbility(a);
   }
 
   function Row({ a }: { a: VttAbility }) {
@@ -102,8 +113,8 @@ export function VttAbilitiesPanel({ character, characters, onPickCharacter, onRo
               <button
                 key={attr.key}
                 className="chip"
-                title={`${attr.label} check — 1d20 + mod`}
-                onClick={() => onRoll(rollAttribute(attr.short, character.sheet.attributes[attr.key] ?? 0))}
+                title={`${attr.label} check — arms the roller with 1d20${modSuffix(rollMod(character.sheet.attributes[attr.key] ?? 0))}`}
+                onClick={() => onArmRoll(`${attr.short} check`, `1d20${modSuffix(rollMod(character.sheet.attributes[attr.key] ?? 0))}`)}
               >
                 {attr.short}
               </button>
@@ -116,8 +127,8 @@ export function VttAbilitiesPanel({ character, characters, onPickCharacter, onRo
               <button
                 key={spec.key}
                 className="chip"
-                title={`${spec.label} check — 1d40 + mod${(character.sheet.specialties[spec.key] ?? 0) < 25 ? " (−25 under 25 pts)" : ""}`}
-                onClick={() => onRoll(rollSpecialty(spec.label, character.sheet.specialties[spec.key] ?? 0))}
+                title={`${spec.label} check — arms the roller with 1d40${modSuffix(specRollMod(character.sheet.specialties[spec.key] ?? 0))}`}
+                onClick={() => onArmRoll(`${spec.label} check`, `1d40${modSuffix(specRollMod(character.sheet.specialties[spec.key] ?? 0))}`)}
               >
                 {spec.key.toUpperCase()}
               </button>
