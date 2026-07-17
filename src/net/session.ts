@@ -18,6 +18,8 @@ type MsgHandler<T extends NetMessageType> = (msg: MsgOf<T>, from: string) => voi
 export class NetSession {
   readonly self: string;
   readonly role: Role;
+  /** Host-set: a locked room refuses NEW joins (current peers stay). */
+  locked = false;
   private name: string;
   private ready = false;
   private peers = new Map<string, Peer>();
@@ -107,6 +109,10 @@ export class NetSession {
     switch (msg.t) {
       case "hello": {
         if (this.role !== "host") return;
+        if (this.locked) {
+          this.send(from, { t: "room-locked" });
+          return; // never welcomed — the joiner surfaces the refusal and leaves
+        }
         const peer: Peer = { id: from, name: msg.name, role: msg.role };
         this.peers.set(from, peer);
         this.send(from, { t: "welcome", you: from, host: this.self, peers: this.roster() });

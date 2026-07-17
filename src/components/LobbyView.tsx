@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isTauri, getFirebaseConfigRaw, saveFirebaseConfig, firebasePublishConfigured } from "../lib/tauri";
 import { discovered, myPeerName, setPeerName, type DiscoveredHost } from "../net/discovery";
+import { deleteSavedRoom, listSavedRooms, type SavedRoom } from "../net/savedRooms";
 import { getNetConfig, setNetConfig, type NetConfig } from "../net/netconfig";
 import { useNet } from "../net/NetContext";
 import type { NetMessage } from "../net/protocol";
@@ -20,6 +21,7 @@ export function LobbyView() {
   const [party, setParty] = useState<Record<string, { name: string; summary: Record<string, unknown> }>>({});
   const [scanning, setScanning] = useState(false);
   const [hosts, setHosts] = useState<DiscoveredHost[]>([]);
+  const [saved, setSaved] = useState<SavedRoom[]>(listSavedRooms());
   const scanTimer = useRef<number | undefined>(undefined);
   const [fbText, setFbText] = useState(getFirebaseConfigRaw());
   const [fbNote, setFbNote] = useState("");
@@ -50,6 +52,12 @@ export function LobbyView() {
       offParty();
     };
   }, [net.subscribe, nameOf]);
+
+  // Refresh the saved-room cards whenever we land back on the idle screen —
+  // the room just hosted/joined was upserted by NetContext and should lead.
+  useEffect(() => {
+    if (net.status === "idle") setSaved(listSavedRooms());
+  }, [net.status]);
 
   useEffect(() => {
     if (!scanning) return;
@@ -94,12 +102,42 @@ export function LobbyView() {
       <div className="dashboard">
         <div className="dash-header">
           <div>
-            <div className="dash-eyebrow">Netplay · {net.role === "host" ? "hosting" : "joined"}</div>
+            <div className="dash-eyebrow">
+              Netplay · {net.role === "host" ? "hosting" : "joined"}
+              {net.locked ? " · locked" : ""}
+            </div>
             <h1 className="dash-title">Room · {net.room}</h1>
           </div>
           <button className="ghost-btn" onClick={net.leave}>Leave</button>
         </div>
         <div className="lobby-grid">
+          <div className="lobby-card">
+            <div className="panel-title">This room</div>
+            {net.role === "host" ? (
+              <>
+                <button
+                  className={"chip" + (net.locked ? " active" : "")}
+                  onClick={() => net.setLocked(!net.locked)}
+                  title="A locked room refuses new joins — everyone already inside stays"
+                >
+                  {net.locked ? "Locked — no new joins" : "Open — anyone with the code can join"}
+                </button>
+                <label className="lobby-field mt">
+                  <span>Next session (shown on everyone's room card)</span>
+                  <input
+                    className="bg-select full"
+                    value={net.nextSession}
+                    onChange={(e) => net.setNextSession(e.target.value)}
+                    placeholder="e.g. Sat 8pm — the sunken vault"
+                  />
+                </label>
+              </>
+            ) : net.nextSession ? (
+              <p className="vtt2-actor-hint" style={{ margin: 0 }}>Next session · {net.nextSession}</p>
+            ) : (
+              <p className="list-empty">The host can set the next session here.</p>
+            )}
+          </div>
           <div className="lobby-card">
             <div className="panel-title">Players ({net.peers.length})</div>
             <div className="chip-list">
@@ -206,6 +244,38 @@ export function LobbyView() {
           {fbNote && <p className="vtt2-actor-hint" style={{ marginTop: 6 }}>{fbNote}</p>}
         </div>
       </div>
+
+      {saved.length > 0 && (
+        <div className="lobby-scan" style={{ marginBottom: 16 }}>
+          <div className="panel-title">Saved rooms</div>
+          <div className="char-grid">
+            {saved.map((r) => (
+              <div className="char-card" key={r.code}>
+                <button
+                  className="char-open"
+                  onClick={() => (r.role === "host" ? void net.host(r.code) : void net.join(r.code))}
+                  disabled={net.status === "connecting"}
+                  title={r.role === "host" ? "Host this room again" : "Rejoin this room"}
+                >
+                  <div className="char-name">{r.code}</div>
+                  <div className="char-meta">
+                    {r.role === "host" ? "Your room" : "Joined"}
+                    {r.nextSession ? " · Next session: " + r.nextSession : ""}
+                  </div>
+                </button>
+                <div className="char-actions">
+                  <button className="icon-btn accent" onClick={() => (r.role === "host" ? void net.host(r.code) : void net.join(r.code))} disabled={net.status === "connecting"}>
+                    {r.role === "host" ? "Host" : "Join"}
+                  </button>
+                  <button className="icon-btn" onClick={() => setSaved(deleteSavedRoom(r.code))} title="Forget this room">
+                    Forget
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="lobby-grid">
         <div className="lobby-card">

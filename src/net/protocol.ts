@@ -19,6 +19,8 @@ export interface Peer {
 export type NetMessage =
   | { t: "hello"; name: string; role: Role; protocol: number }
   | { t: "welcome"; you: string; host: string; peers: Peer[] }
+  | { t: "room-locked" } // host refused the join — the room is locked
+  | { t: "room-info"; nextSession?: string } // host → room: card info for saved rooms
   | { t: "peer-join"; peer: Peer }
   | { t: "peer-leave"; peerId: string }
   | { t: "presence"; status: string }

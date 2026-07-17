@@ -7,6 +7,7 @@ import { WebRtcTransport } from "./webrtc";
 import { NetSession } from "./session";
 import { getNetConfig, buildIceServers } from "./netconfig";
 import { advertise, unadvertise, myPeerId, myPeerName } from "./discovery";
+import { listSavedRooms, upsertSavedRoom } from "./savedRooms";
 import type { NetMessage, NetMessageType, Peer } from "./protocol";
 import type { DeskNote } from "../lib/campaignDesk";
 
@@ -35,6 +36,12 @@ interface NetApi {
   deleteUnitNote(id: string): void;
   /** Replace the whole shared set (host seeds it from its local notes). */
   syncUnitNotes(notes: DeskNote[]): void;
+  /** Room lock (host only): a locked room refuses NEW joins. */
+  locked: boolean;
+  setLocked(v: boolean): void;
+  /** Table info shown on saved-room cards (host sets; syncs to the room). */
+  nextSession: string;
+  setNextSession(v: string): void;
 }
 
 const Ctx = createContext<NetApi | null>(null);
@@ -45,7 +52,7 @@ export function useNet(): NetApi {
 }
 
 // Wire event types re-dispatched to React subscribers.
-const FANOUT: NetMessageType[] = ["roll", "chat", "party", "presence", "sheet-patch", "vtt-patch", "snapshot", "bp", "unit-note", "sfx"];
+const FANOUT: NetMessageType[] = ["roll", "chat", "party", "presence", "sheet-patch", "vtt-patch", "snapshot", "bp", "unit-note", "sfx", "room-locked", "room-info"];
 
 export function NetProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>("idle");
@@ -110,6 +117,42 @@ export function NetProvider({ children }: { children: ReactNode }) {
     sessionRef.current?.publish({ t: "unit-note", op: "sync", notes });
   }, []);
 
+  // Room lock + shared table info (next session), persisted per saved room.
+  const [locked, setLockedState] = useState(false);
+  const [nextSession, setNextSessionState] = useState("");
+  const roomRef = useRef(room);
+  roomRef.current = room;
+  const roleRef = useRef(role);
+  roleRef.current = role;
+  const nextSessionRef = useRef(nextSession);
+  nextSessionRef.current = nextSession;
+  const setLocked = useCallback((v: boolean) => {
+    setLockedState(v);
+    if (sessionRef.current) sessionRef.current.locked = v;
+  }, []);
+  const setNextSession = useCallback((v: string) => {
+    setNextSessionState(v);
+    if (roomRef.current) upsertSavedRoom({ code: roomRef.current, nextSession: v });
+    if (roleRef.current === "host") sessionRef.current?.publish({ t: "room-info", nextSession: v });
+  }, []);
+  useEffect(() => {
+    // The host said no: surface it and drop the half-open transport.
+    return subscribe("room-locked", () => {
+      setError("That room is locked by its host.");
+      leave();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    // Host-pushed table info lands on OUR saved card for this room.
+    return subscribe("room-info", (m) => {
+      const info = m as Extract<NetMessage, { t: "room-info" }>;
+      setNextSessionState(info.nextSession ?? "");
+      if (roomRef.current) upsertSavedRoom({ code: roomRef.current, nextSession: info.nextSession ?? "" });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const emit = (type: string, msg: NetMessage, from: string) => listeners.current.get(type)?.forEach((cb) => cb(msg, from));
 
   const subscribe = useCallback((type: NetMessageType, cb: Sub) => {
@@ -148,6 +191,11 @@ export function NetProvider({ children }: { children: ReactNode }) {
         sessionRef.current = session;
         setRoom(c);
         setStatus("connected");
+        // Remember the room (one-click next time) and restore its table info.
+        upsertSavedRoom({ code: c, role: asRole });
+        const saved = listSavedRooms().find((r) => r.code === c);
+        setNextSessionState(saved?.nextSession ?? "");
+        setLockedState(false);
         if (asRole === "host") await advertise(c).catch(() => {});
       } catch (e) {
         setStatus("idle");
@@ -164,6 +212,8 @@ export function NetProvider({ children }: { children: ReactNode }) {
     setStatus("idle");
     setPeers([]);
     setRoom("");
+    setLockedState(false);
+    setNextSessionState("");
   }, []);
 
   // Bridge for the legacy tool iframes (same-origin): the VTT reads
@@ -184,6 +234,7 @@ export function NetProvider({ children }: { children: ReactNode }) {
     if (grew && liveRef.current.role === "host" && liveRef.current.status === "connected") {
       sessionRef.current?.publish({ t: "bp", value: bpRef.current });
       sessionRef.current?.publish({ t: "unit-note", op: "sync", notes: unitNotesRef.current });
+      if (nextSessionRef.current) sessionRef.current?.publish({ t: "room-info", nextSession: nextSessionRef.current });
     }
   }, [peers]);
   useEffect(() => {
@@ -227,6 +278,10 @@ export function NetProvider({ children }: { children: ReactNode }) {
     upsertUnitNote,
     deleteUnitNote,
     syncUnitNotes,
+    locked,
+    setLocked,
+    nextSession,
+    setNextSession,
   };
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }
