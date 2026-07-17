@@ -17,3 +17,5 @@ PASSPHRASE.txt
 # OS
 .DS_Store
 Thumbs.db
+
+itch-upload/

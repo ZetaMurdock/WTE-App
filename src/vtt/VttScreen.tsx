@@ -133,17 +133,71 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
   const net = useNet();
   const isNetPlayer = net.status === "connected" && net.role === "player";
 
+  // Curator PLAYER VIEW: preview the table exactly as a player would see it —
+  // walls/lights hidden, fog from the viewed peer's tokens, builder UI gone.
+  // `previewAs` holds the peer id being impersonated (own id when solo).
+  const [previewAs, setPreviewAs] = useState<string | null>(null);
+  // Every UI gate below uses asPlayer (real player OR Curator previewing);
+  // netplay AUTHORITY (sheet sync, portals, owner stamps) stays on isNetPlayer.
+  const asPlayer = isNetPlayer || previewAs != null;
+  const viewId = isNetPlayer ? net.selfId : previewAs ?? net.selfId;
+
+  // Play Mode (Curator toggle, synced): players lose the chrome — token
+  // movement + rolls only — and their camera locks to their own token.
+  const [playMode, setPlayModeState] = useState({ on: false, range: 0.35 });
+  const setPlayMode = useCallback(
+    (next: { on: boolean; range: number }) => {
+      setPlayModeState(next);
+      if (net.status === "connected" && net.role === "host") net.publish({ t: "play-mode", on: next.on, range: next.range });
+    },
+    [net]
+  );
+  useEffect(() => {
+    return net.subscribe("play-mode", (m, from) => {
+      if (from === net.selfId) return;
+      const hostId = peersRef.current.find((p) => p.role === "host")?.id;
+      if (from !== hostId) return;
+      const pm = m as Extract<NetMessage, { t: "play-mode" }>;
+      setPlayModeState({ on: pm.on, range: pm.range });
+    });
+  }, [net.subscribe, net.selfId]);
+  // Late joiners land mid-session: the host repeats the current play state.
+  const playModeRef = useRef(playMode);
+  playModeRef.current = playMode;
+  const prevPeerCount = useRef(0);
+  useEffect(() => {
+    const grew = net.peers.length > prevPeerCount.current;
+    prevPeerCount.current = net.peers.length;
+    if (grew && net.role === "host" && net.status === "connected" && playModeRef.current.on) {
+      net.publish({ t: "play-mode", on: true, range: playModeRef.current.range });
+    }
+  }, [net.peers, net.role, net.status, net]);
+  // The whole player chrome collapses while playing (Curator keeps theirs
+  // unless previewing player view).
+  const playHidden = playMode.on && asPlayer;
+
   // Player perspective: fog reveals only from the player's OWN tokens (GM sees
   // all). Runs every render so it tracks role/selection changes in the 2D view.
   useEffect(() => {
-    engineRef.current?.setPlayerView(isNetPlayer, net.selfId);
+    engineRef.current?.setPlayerView(asPlayer, viewId);
   });
-
-  // Joining a room as a player drops any scene-builder tool still in hand.
   useEffect(() => {
-    if (isNetPlayer && tool !== "select" && tool !== "pan" && tool !== "measure") setTool("select");
+    engineRef.current?.setPlayCam(playMode.on, playMode.range);
+  }, [playMode]);
+
+  // Joining a room as a player (or entering play mode) drops any scene-builder
+  // tool still in hand; play mode pins players to Select. Curator-only panels
+  // close too — a stale open Scene Studio would leak builder UI into the view.
+  useEffect(() => {
+    if (asPlayer && tool !== "select" && tool !== "pan" && tool !== "measure") setTool("select");
+    if (playHidden && tool !== "select") setTool("select");
+    if (asPlayer) {
+      setGridOpen(false);
+      setLeftPanel((p) => (p === "scenes" || p === "encounter" || p === "assets" ? null : p));
+    }
+    if (playHidden) setLeftPanel((p) => (p === "abilities" ? p : null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isNetPlayer]);
+  }, [asPlayer, playHidden]);
 
   // Capture EVERY party roll into the durable session store at this always-mounted
   // level — even while the roll tray is closed — so opening the tray never loses
@@ -723,6 +777,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
 
   return (
     <div className="vtt2">
+      {!playHidden && (
       <VttToolbar
         sceneName={scene?.name ?? ""}
         onRename={renameScene}
@@ -735,34 +790,68 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
         abilitiesOpen={leftPanel === "abilities"}
         rollsOpen={rollsOpen}
         gridOpen={gridOpen}
-        onToggleScenes={campaign && !isNetPlayer ? () => setLeftPanel((p) => (p === "scenes" ? null : "scenes")) : undefined}
+        onToggleScenes={campaign && !asPlayer ? () => setLeftPanel((p) => (p === "scenes" ? null : "scenes")) : undefined}
         onToggleActors={campaign ? () => setLeftPanel((p) => (p === "actors" ? null : "actors")) : undefined}
-        onToggleEncounter={campaign && !isNetPlayer ? () => setLeftPanel((p) => (p === "encounter" ? null : "encounter")) : undefined}
-        onToggleAssets={campaign && !isNetPlayer ? () => setLeftPanel((p) => (p === "assets" ? null : "assets")) : undefined}
+        onToggleEncounter={campaign && !asPlayer ? () => setLeftPanel((p) => (p === "encounter" ? null : "encounter")) : undefined}
+        onToggleAssets={campaign && !asPlayer ? () => setLeftPanel((p) => (p === "assets" ? null : "assets")) : undefined}
         onToggleAbilities={campaign ? () => setLeftPanel((p) => (p === "abilities" ? null : "abilities")) : undefined}
         onToggleRolls={campaign ? () => setRollsOpen((v) => !v) : undefined}
-        onToggleGrid={!isNetPlayer ? () => setGridOpen((v) => !v) : undefined}
+        onToggleGrid={!asPlayer ? () => setGridOpen((v) => !v) : undefined}
         syncOn={sync.connected}
         syncPeers={sync.peerCount}
+        play={
+          !isNetPlayer
+            ? {
+                on: playMode.on,
+                range: playMode.range,
+                onToggle: () => setPlayMode({ on: !playMode.on, range: playMode.range }),
+                onRange: (v) => setPlayMode({ on: playMode.on, range: v }),
+              }
+            : undefined
+        }
+        preview={!isNetPlayer ? { on: previewAs != null, onToggle: () => setPreviewAs((p) => (p != null ? null : net.peers.find((x) => x.role === "player")?.id ?? net.selfId)) } : undefined}
       />
+      )}
+      {playHidden && (
+        <div className="vtt2-playbar">
+          <span className="vtt2-playbar-hint">Play mode — move your token · double-click to ping</span>
+          {campaign && (
+            <button className={"chip" + (leftPanel === "abilities" ? " active" : "")} onClick={() => setLeftPanel((p) => (p === "abilities" ? null : "abilities"))}>
+              Abilities
+            </button>
+          )}
+          {campaign && (
+            <button className={"chip" + (rollsOpen ? " active" : "")} onClick={() => setRollsOpen((v) => !v)}>
+              Rolls
+            </button>
+          )}
+          {!isNetPlayer && (
+            <button className="chip" onClick={() => setPreviewAs(null)} title="Leave the player-view preview">
+              Exit player view
+            </button>
+          )}
+        </div>
+      )}
       <div className="vtt2-stage" ref={hostRef}>
         {sel?.kind === "token" && engine && (
           <VttRadialMenu engine={engine} three={null} view3d={false} tokenId={sel.id} />
         )}
       </div>
-      <VttActionBar
-        tool={tool}
-        onTool={pickTool}
-        builder={!isNetPlayer}
-        canDraw={live?.data.allowPlayerDraw !== false}
-        fogOn={fogOn}
-        onToggleFog={!isNetPlayer ? () => engine?.toggleFog() : undefined}
-        onResetFog={!isNetPlayer ? () => engine?.resetFog() : undefined}
-        onSpawnActor={campaign && !isNetPlayer ? () => setLeftPanel((p) => (p === "actors" ? null : "actors")) : undefined}
-        onAddAsset={campaign && !isNetPlayer ? () => setLeftPanel((p) => (p === "assets" ? null : "assets")) : undefined}
-        onOpenAbilities={campaign ? () => setLeftPanel((p) => (p === "abilities" ? null : "abilities")) : undefined}
-      />
-      {campaign && !isNetPlayer && (
+      {!playHidden && (
+        <VttActionBar
+          tool={tool}
+          onTool={pickTool}
+          builder={!asPlayer}
+          canDraw={live?.data.allowPlayerDraw !== false}
+          fogOn={fogOn}
+          onToggleFog={!asPlayer ? () => engine?.toggleFog() : undefined}
+          onResetFog={!asPlayer ? () => engine?.resetFog() : undefined}
+          onSpawnActor={campaign && !asPlayer ? () => setLeftPanel((p) => (p === "actors" ? null : "actors")) : undefined}
+          onAddAsset={campaign && !asPlayer ? () => setLeftPanel((p) => (p === "assets" ? null : "assets")) : undefined}
+          onOpenAbilities={campaign ? () => setLeftPanel((p) => (p === "abilities" ? null : "abilities")) : undefined}
+        />
+      )}
+      {campaign && !asPlayer && (
         <VttSceneWheel
           scenes={scenes}
           activeId={scene?.id ?? null}
@@ -786,7 +875,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
       <input ref={sceneBgRef} type="file" accept="image/*" hidden onChange={(e) => void onSceneBgFile(e)} />
       <input ref={sceneMusicRef} type="file" accept="audio/*" hidden onChange={(e) => void onSceneMusicFile(e)} />
       <audio ref={audioRef} hidden />
-      {gridOpen && !isNetPlayer && live && (
+      {gridOpen && !asPlayer && live && (
         <VttGridPanel
           grid={live.data.grid}
           background={live.data.background}
@@ -848,9 +937,9 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
           loading={charsLoading}
           creatures={creatures}
           creaturesLoading={creaturesLoading}
-          canSpawnCreatures={!isNetPlayer}
+          canSpawnCreatures={!asPlayer}
           remoteChars={
-            isNetPlayer
+            asPlayer
               ? [] // only the Curator gets live control over other players' sheets
               : partySheets
                   .filter((e) => e.ownerId !== net.selfId)
@@ -976,7 +1065,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
               key={sheetCharId + ":" + sheetSyncTick}
               characterId={sheetCharId}
               campaignId={campaign.id}
-              curator={!isNetPlayer}
+              curator={!asPlayer}
               onBack={() => setSheetCharId(null)}
               onChanged={() => {
                 void loadCharacters();

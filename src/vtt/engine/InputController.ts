@@ -53,7 +53,8 @@ export class InputController {
     const w = v.camera.screenToWorld(s.x, s.y);
 
     if (e.button === 1 || e.button === 2 || v.tool === "pan") {
-      this.mode = "pan";
+      // Play mode: players don't drive the camera — it walks with their token.
+      this.mode = v.playLocked() ? "none" : "pan";
       return;
     }
     // Scene-BUILDER tools are Curator-only. The action bar hides them from
@@ -144,7 +145,7 @@ export class InputController {
         return;
       }
       v.select(null);
-      this.mode = "pan"; // drag empty space to pan, same as the Curator
+      this.mode = v.playLocked() ? "none" : "pan"; // drag empty space to pan, same as the Curator
       return;
     }
     const light = v.lights.pick(v.scene, w.x, w.y, v.camera.zoom);
@@ -271,6 +272,9 @@ export class InputController {
     e.preventDefault();
     const s = this.pos(e);
     this.vtt.camera.zoomAt(s.x, s.y, e.deltaY < 0 ? 1.12 : 1 / 1.12);
+    // Play mode: zoom is clamped by the raised camera floor and always stays
+    // centred on the player's own token — no zoom-walking across the map.
+    if (this.vtt.playLocked()) this.vtt.followOwnToken();
     this.vtt.persistCamera();
   };
 }

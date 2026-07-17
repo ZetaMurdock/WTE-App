@@ -39,7 +39,10 @@ export type NetMessage =
   // this session; repeats reference the receiver's cache by id.
   | { t: "sfx"; action: "play" | "loop" | "stop" | "stopall"; id: string; name?: string; uri?: string; volume?: number }
   // "Look here" — a transient pulse at a world point, in the pinger's ink color.
-  | { t: "vtt-ping"; x: number; y: number };
+  | { t: "vtt-ping"; x: number; y: number }
+  // Curator's Play Mode: players' UI collapses to token movement + rolls, their
+  // camera follows their token, zoom-out clamped to `range` (0.1..1 of normal).
+  | { t: "play-mode"; on: boolean; range: number };
 
 export type NetMessageType = NetMessage["t"];
 

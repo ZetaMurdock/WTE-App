@@ -5940,6 +5940,37 @@ body.wte-dot-cursor * {
   white-space: nowrap;
   pointer-events: none;
 }
+/* Play Mode: the minimal floating bar players keep while the chrome is hidden. */
+.vtt2-playbar {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: rgba(10, 15, 28, 0.9);
+  border: 1px solid var(--line, #22304a);
+  border-radius: 22px;
+}
+.vtt2-playbar-hint {
+  color: var(--muted, #7f8ba3);
+  font-size: 11px;
+  white-space: nowrap;
+}
+/* Curator's play-mode view-range slider in the top toolbar. */
+.vtt2-play-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted, #7f8ba3);
+  font-size: 11px;
+}
+.vtt2-play-range input[type="range"] {
+  width: 90px;
+}
 /* Abilities panel — left dock, same frame as Actors. */
 .vtt2-abilities {
   position: absolute;

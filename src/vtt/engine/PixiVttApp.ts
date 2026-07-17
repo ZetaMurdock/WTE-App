@@ -313,7 +313,47 @@ export class PixiVttApp {
     if (this.playerView === v && this.selfId === selfId) return;
     this.playerView = v;
     this.selfId = selfId;
+    this.applyPlayCam();
     this.redraw();
+  }
+
+  // ── Play Mode camera (session, not scene): players lose free pan, their view
+  // follows their own token, and the zoom-out floor rises (Curator-set range).
+  playCam = { on: false, range: 0.35 };
+  setPlayCam(on: boolean, range: number): void {
+    this.playCam = { on, range: Math.max(0.1, Math.min(1, range || 0.35)) };
+    this.applyPlayCam();
+  }
+  /** Is THIS client's camera locked right now? (players only, while playing) */
+  playLocked(): boolean {
+    return this.playCam.on && this.playerView;
+  }
+  private applyPlayCam(): void {
+    if (this.playLocked()) {
+      this.camera.cancelFling();
+      this.camera.min = Math.min(this.camera.max, 0.15 / this.playCam.range);
+      if (this.camera.zoom < this.camera.min) this.camera.set({ ...this.camera.state(), zoom: this.camera.min });
+      this.followOwnToken();
+    } else {
+      this.camera.min = 0.15;
+    }
+  }
+  /** The first token this player owns — their body on the table. */
+  ownToken(): VttToken | null {
+    if (!this.selfId) return null;
+    return this.scene?.data.tokens.find((t) => t.owner === this.selfId && t.visible !== false) ?? null;
+  }
+  /** Center the viewport on a world point (play-mode follow). */
+  centerOn(wx: number, wy: number): void {
+    const cw = this.app.canvas.clientWidth || this.app.renderer.width;
+    const ch = this.app.canvas.clientHeight || this.app.renderer.height;
+    this.camera.x = cw / 2 - wx * this.camera.zoom;
+    this.camera.y = ch / 2 - wy * this.camera.zoom;
+    this.camera.apply();
+  }
+  followOwnToken(): void {
+    const t = this.ownToken();
+    if (t) this.centerOn(t.x, t.y);
   }
 
   setTool(t: VttTool): void {
@@ -717,6 +757,8 @@ export class PixiVttApp {
     if (snap) {
       this.onOp({ op: "token.move", id, x: t.x, y: t.y });
       this.onTokenMoved(id, t.x, t.y);
+      // Play mode: the camera walks WITH the player's own token.
+      if (this.playLocked() && t.owner === this.selfId) this.centerOn(t.x, t.y);
     }
   }
   updateToken(id: string, patch: Partial<VttToken>): void {
@@ -766,7 +808,11 @@ export class PixiVttApp {
     }
     this.onChanged();
     // Portal detection is host-side: a player's move must trigger links too.
-    if (op.op === "token.move") this.onTokenMoved(op.id, op.x, op.y);
+    if (op.op === "token.move") {
+      this.onTokenMoved(op.id, op.x, op.y);
+      // Host teleported/moved MY token while playing → my view goes with it.
+      if (this.playLocked() && this.ownToken()?.id === op.id) this.centerOn(op.x, op.y);
+    }
   }
 
   destroy(): void {
