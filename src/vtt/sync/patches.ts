@@ -2,7 +2,7 @@
 // small op (never a full-scene resend); peers apply it to their own scene. Late
 // joiners get a full `snapshot` instead. Ops ride the reserved `vtt-patch` net
 // message (scope = scene id) so the protocol envelope stays stable.
-import type { VttAtmosphere, VttBackground, VttEffect, VttEffectData, VttFogMode, VttGrid, VttLight, VttSceneData, VttTerrain, VttToken, VttWall, VttZoneKind } from "../types/scene";
+import type { VttAtmosphere, VttBackground, VttDrawing, VttEffect, VttEffectData, VttFogMode, VttGrid, VttLight, VttSceneData, VttTerrain, VttToken, VttWall, VttZoneKind } from "../types/scene";
 
 export type VttOp =
   | { op: "token.add"; token: VttToken }
@@ -21,6 +21,9 @@ export type VttOp =
   | { op: "fog.config"; patch: { mode?: VttFogMode; decaySeconds?: number } }
   | { op: "zone.paint"; kind: VttZoneKind; cells: string[]; erase?: boolean }
   | { op: "zone.glsl"; kind: VttZoneKind; body: string }
+  | { op: "draw.add"; drawing: VttDrawing }
+  | { op: "draw.clear" }
+  | { op: "draw.allow"; allow: boolean }
   | { op: "bg.set"; src?: string | null; patch?: Partial<VttBackground> }
   | { op: "grid.set"; patch: Partial<VttGrid> }
   | { op: "terrain.set"; terrain: VttTerrain | null }
@@ -128,6 +131,21 @@ export function applyOp(d: VttSceneData, op: VttOp): boolean {
       zg[op.kind] = op.body;
       return true;
     }
+    case "draw.add": {
+      const list = (d.drawings ??= []);
+      if (list.some((x) => x.id === op.drawing.id)) return false;
+      list.push(op.drawing);
+      return true;
+    }
+    case "draw.clear": {
+      if (!d.drawings?.length) return false;
+      d.drawings = [];
+      return true;
+    }
+    case "draw.allow":
+      if ((d.allowPlayerDraw ?? true) === op.allow) return false;
+      d.allowPlayerDraw = op.allow;
+      return true;
     case "bg.set":
       if (op.patch) Object.assign(d.background, op.patch);
       else d.background.src = op.src || undefined; // legacy src-only form

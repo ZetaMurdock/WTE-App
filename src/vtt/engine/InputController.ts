@@ -3,7 +3,7 @@
 import type { PixiVttApp } from "./PixiVttApp";
 import { lightVisibleTo } from "./systems/VisionSystem";
 
-type DragMode = "none" | "pan" | "token" | "measure" | "wall" | "rotate" | "scale" | "zone";
+type DragMode = "none" | "pan" | "token" | "measure" | "wall" | "rotate" | "scale" | "zone" | "draw";
 
 export class InputController {
   private canvas: HTMLCanvasElement | null = null;
@@ -90,6 +90,15 @@ export class InputController {
     if (v.tool === "zone") {
       this.mode = "zone";
       v.paintZoneAt(w.x, w.y); // paint the cell under the press; drag keeps painting
+      return;
+    }
+    if (v.tool === "draw") {
+      if (!v.canDraw()) {
+        this.mode = "none";
+        return; // Curator turned player drawing off
+      }
+      this.mode = "draw";
+      v.beginDraw(w.x, w.y);
       return;
     }
     // transform handles on the already-selected token take priority
@@ -188,6 +197,7 @@ export class InputController {
     }
     else if (this.mode === "measure") v.measure.show(this.start.x, this.start.y, w.x, w.y, v.scene.data.grid.size);
     else if (this.mode === "zone") v.paintZoneAt(w.x, w.y); // brush-drag painting
+    else if (this.mode === "draw") v.extendDraw(w.x, w.y);
     else if (this.mode === "wall") {
       const p = v.snapVertex(w.x, w.y);
       v.walls.preview(this.start.x, this.start.y, p.x, p.y);
@@ -196,6 +206,7 @@ export class InputController {
 
   private onUp = (): void => {
     const v = this.vtt;
+    if (this.mode === "draw") v.endDraw(); // commit + sync the stroke
     if (this.mode === "token" && this.dragTokenId && this.moved) {
       const t = v.scene?.data.tokens.find((x) => x.id === this.dragTokenId);
       if (t) {

@@ -29,6 +29,10 @@ interface Props {
   /** Custom GLSL body per zone slot ("" = built-in effect). */
   zoneGlsl: Partial<Record<VttZoneKind, string>>;
   onZoneGlsl: (kind: VttZoneKind, body: string) => void;
+  /** Freehand-drawing table rules (Curator). */
+  allowPlayerDraw: boolean;
+  onAllowPlayerDraw: (allow: boolean) => void;
+  onClearDrawings: () => void;
   onSetMusic: () => void;
   onClearMusic: () => void;
   onMusicVolume: (v: number) => void;
@@ -180,6 +184,9 @@ export function VttGridPanel({
   onZoneClear,
   zoneGlsl,
   onZoneGlsl,
+  allowPlayerDraw,
+  onAllowPlayerDraw,
+  onClearDrawings,
   onSetMusic,
   onClearMusic,
   onMusicVolume,
@@ -235,6 +242,19 @@ export function VttGridPanel({
                 <span>Rows</span>
                 <input className="bg-select full" type="number" min={5} max={200} value={grid.rows} onChange={(e) => onGrid({ rows: Math.max(5, Math.min(200, parseInt(e.target.value, 10) || 5)) })} />
               </label>
+            </div>
+            <div className="scene-studio-sub">Drawing</div>
+            <div className="chip-row">
+              <button
+                className={"chip" + (allowPlayerDraw ? " active" : "")}
+                onClick={() => onAllowPlayerDraw(!allowPlayerDraw)}
+                title="May players use the Draw tool on this scene?"
+              >
+                Players can draw
+              </button>
+              <button className="chip" onClick={onClearDrawings} title="Erase every annotation on this scene (synced)">
+                Clear drawings
+              </button>
             </div>
             <button className={"chip" + (grid.visible ? " active" : "")} style={{ marginTop: 8 }} onClick={() => onGrid({ visible: !grid.visible })}>
               {grid.visible ? "Grid lines shown" : "Grid lines hidden"}

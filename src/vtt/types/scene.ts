@@ -202,6 +202,15 @@ export interface VttSceneLink {
   edge: VttLinkEdge;
 }
 
+/** A freehand annotation stroke (world-space polyline). */
+export interface VttDrawing {
+  id: string;
+  /** Flat [x0,y0, x1,y1, ...] world coords. */
+  points: number[];
+  color: string;
+  width: number;
+}
+
 export interface VttSceneData {
   grid: VttGrid;
   camera: VttCameraState;
@@ -222,6 +231,10 @@ export interface VttSceneData {
   /** Painted effect zones — cell keys per effect kind (water/smoke/ember),
    *  rendered as animated procedural shader regions over the map. */
   zones?: Partial<Record<VttZoneKind, string[]>>;
+  /** Freehand annotation strokes (everyone sees them; per-peer ink colors). */
+  drawings?: VttDrawing[];
+  /** Curator switch: may players use the Draw tool? Default true. */
+  allowPlayerDraw?: boolean;
   /** Custom GLSL body per zone slot (empty/undefined = the slot's built-in
    *  effect). Contract: set `col` (vec3) and `alpha` (float) from `mask`
    *  (feathered 0..1), `pc` (world cell coords), and `uTime` (seconds). */

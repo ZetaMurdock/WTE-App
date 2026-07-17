@@ -717,6 +717,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
         tool={tool}
         onTool={pickTool}
         builder={!isNetPlayer}
+        canDraw={live?.data.allowPlayerDraw !== false}
         fogOn={fogOn}
         onToggleFog={!isNetPlayer ? () => engine?.toggleFog() : undefined}
         onResetFog={!isNetPlayer ? () => engine?.resetFog() : undefined}
@@ -787,6 +788,9 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
             setShaderError("");
             engine?.setZoneGlsl(k, body);
           }}
+          allowPlayerDraw={live.data.allowPlayerDraw !== false}
+          onAllowPlayerDraw={(allow) => engine?.setAllowPlayerDraw(allow)}
+          onClearDrawings={() => engine?.clearDrawings()}
           onClose={() => setGridOpen(false)}
         />
       )}

@@ -88,6 +88,20 @@ describe("applyOp", () => {
     expect(applyOp(d, { op: "zone.glsl", kind: "auxa", body: "" })).toBe(true); // back to built-in
   });
 
+  it("adds, dedups, and clears freehand drawings + the allow switch", () => {
+    const d = fresh();
+    const stroke = { id: "dr1", points: [0, 0, 10, 10, 20, 5], color: "#7ecfca", width: 3 };
+    expect(applyOp(d, { op: "draw.add", drawing: stroke })).toBe(true);
+    expect(applyOp(d, { op: "draw.add", drawing: stroke })).toBe(false); // dedup by id
+    expect(d.drawings).toHaveLength(1);
+    expect(applyOp(d, { op: "draw.allow", allow: false })).toBe(true);
+    expect(applyOp(d, { op: "draw.allow", allow: false })).toBe(false); // unchanged
+    expect(d.allowPlayerDraw).toBe(false);
+    expect(applyOp(d, { op: "draw.clear" })).toBe(true);
+    expect(d.drawings).toEqual([]);
+    expect(applyOp(d, { op: "draw.clear" })).toBe(false); // already empty
+  });
+
   it("treats scene.switch as a no-op at this layer", () => {
     const d = fresh();
     expect(applyOp(d, { op: "scene.switch", sceneId: "s2" })).toBe(false);

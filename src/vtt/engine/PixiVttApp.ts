@@ -16,6 +16,7 @@ import { AtmosphereLayer } from "./layers/AtmosphereLayer";
 import { computeVisibleCells, pathBlocked } from "./systems/VisionSystem";
 import { CustomShaderFilter, validateShaderBody, validateFragmentSource } from "./filters/CustomShaderFilter";
 import { ZoneLayer, ZONE_DEFAULT_BODIES, buildZoneFragment } from "./layers/ZoneLayer";
+import { DrawingLayer } from "./layers/DrawingLayer";
 import { ZONE_KINDS } from "../types/scene";
 import { EffectSystem } from "./systems/EffectSystem";
 import { TimelineSystem } from "./systems/TimelineSystem";
@@ -56,6 +57,7 @@ export class PixiVttApp {
   readonly effects = new EffectLayer();
   readonly atmosphere = new AtmosphereLayer();
   readonly zones = new ZoneLayer();
+  readonly drawings = new DrawingLayer();
 
   // Engine systems (slice 12). Encounter round advance runs timeline + sim.
   readonly effectSystem = new EffectSystem();
@@ -105,6 +107,8 @@ export class PixiVttApp {
       this.lights.view,
       this.effects.view,
       this.tokens.view,
+      this.drawings.view, // annotations ride above tokens so arrows/marks stay readable
+      this.drawings.previewG,
       this.atmosphere.worldFx, // weather (mist + particles) OVER the map, in world space
       this.walls.view,
       this.walls.previewG,
@@ -249,6 +253,7 @@ export class PixiVttApp {
     this.bg.draw(this.scene);
     this.grid.draw(this.scene);
     this.zones.draw(this.scene);
+    this.drawings.draw(this.scene);
     this.lights.draw(this.scene, this.selection, this.playerView && this.selfId ? this.selfId : undefined);
     this.effects.draw(this.scene, this.selection);
     this.tokens.sync(this.scene, this.selection?.kind === "token" ? this.selection.id : null, this.playerView ? visible : null);
@@ -480,6 +485,59 @@ export class PixiVttApp {
     this.onChanged();
     this.onOp({ op: "fog.set", enabled: this.scene.data.fog.enabled });
   }
+  // ── Freehand drawing (synced annotations, per-peer ink) ────────────────────
+  private stroke: number[] | null = null;
+  /** May THIS client draw right now? Players obey the Curator's switch. */
+  canDraw(): boolean {
+    return !this.playerView || this.scene?.data.allowPlayerDraw !== false;
+  }
+  /** This client's ink color — Curator draws gold; each player a hashed hue. */
+  inkColor(): string {
+    if (!this.playerView || !this.selfId) return "#d8b25a";
+    const palette = ["#7ecfca", "#e08fbe", "#8fb6e0", "#9fe07a", "#e0b57a", "#b39fe0"];
+    let h = 0;
+    for (let i = 0; i < this.selfId.length; i++) h = (h * 31 + this.selfId.charCodeAt(i)) >>> 0;
+    return palette[h % palette.length];
+  }
+  beginDraw(wx: number, wy: number): void {
+    if (!this.scene || !this.canDraw()) return;
+    this.stroke = [wx, wy];
+  }
+  extendDraw(wx: number, wy: number): void {
+    if (!this.stroke) return;
+    const n = this.stroke.length;
+    // thin points to ~4 world px so long strokes stay light on the wire
+    if (Math.hypot(wx - this.stroke[n - 2], wy - this.stroke[n - 1]) < 4) return;
+    this.stroke.push(wx, wy);
+    this.drawings.preview(this.stroke, this.inkColor(), 3);
+  }
+  endDraw(): void {
+    const pts = this.stroke;
+    this.stroke = null;
+    this.drawings.clearPreview();
+    if (!this.scene || !pts || pts.length < 4) return;
+    const drawing = { id: newId("dr"), points: pts, color: this.inkColor(), width: 3 };
+    (this.scene.data.drawings ??= []).push(drawing);
+    this.redraw();
+    this.onChanged();
+    this.onOp({ op: "draw.add", drawing });
+  }
+  /** Curator: wipe every annotation (synced). */
+  clearDrawings(): void {
+    if (!this.scene?.data.drawings?.length) return;
+    this.scene.data.drawings = [];
+    this.redraw();
+    this.onChanged();
+    this.onOp({ op: "draw.clear" });
+  }
+  /** Curator: allow/forbid player drawing (synced live). */
+  setAllowPlayerDraw(allow: boolean): void {
+    if (!this.scene || (this.scene.data.allowPlayerDraw ?? true) === allow) return;
+    this.scene.data.allowPlayerDraw = allow;
+    this.onChanged();
+    this.onOp({ op: "draw.allow", allow });
+  }
+
   /** Active zone brush ({kind, erase}) — the "zone" tool paints with it. */
   zoneBrush: { kind: VttZoneKind; erase: boolean } | null = null;
   /** Paint (or erase) the zone cell under a world point with the active brush. */
