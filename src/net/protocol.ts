@@ -30,6 +30,7 @@ export type NetMessage =
   | { t: "bp"; value: number } // shared Base Pressure for the table
   | { t: "unit-note"; op: "upsert" | "delete" | "sync"; note?: DeskNote; id?: string; notes?: DeskNote[] } // shared party notes
   | { t: "sheet-patch"; charId: string; patch: unknown; rev: number } // reserved: sheet sync
+  | { t: "sheet-request" } // Curator → players: push me your characters so I can open/edit them
   | { t: "vtt-patch"; scope: string; patch: unknown; rev: number } // reserved: VTT sync
   | { t: "snapshot"; state: unknown; rev: number } // reserved: late-joiner catch-up
   | { t: "ping"; ts: number }

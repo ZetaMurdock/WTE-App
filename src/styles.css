@@ -6870,3 +6870,18 @@ body.wte-dot-cursor * {
   margin: 12px 0 10px;
   opacity: 0.6;
 }
+
+/* Actors → room roster (Curator: request player sheets) */
+.vtt2-room-block { margin-bottom: 8px; }
+.vtt2-room-block .vtt2-actor-group { display: flex; align-items: center; gap: 8px; }
+.vtt2-room-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: rgba(147, 161, 184, 0.35);
+  border: 1px solid rgba(147, 161, 184, 0.5);
+  flex: 0 0 auto;
+}
+.vtt2-room-dot.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 6px rgba(126, 207, 202, 0.6);
+}

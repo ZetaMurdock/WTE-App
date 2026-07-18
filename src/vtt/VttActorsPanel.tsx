@@ -11,6 +11,10 @@ interface Props {
   canSpawnCreatures: boolean;
   /** Characters other players have shared live into the room (netplay). */
   remoteChars: { id: string; name: string; owner: string }[];
+  /** Connected players in the room (Curator side) + whether they've shared yet. */
+  roomPlayers?: { id: string; name: string; shared: boolean }[];
+  /** Curator: ask every player to push their sheets so you can open + edit them. */
+  onRequestSheets?: () => void;
   onSpawn: (rec: CharacterRecord) => void;
   onSpawnCreature: (c: Creature) => void;
   /** Open a local vault character's full sheet as an overlay. */
@@ -34,6 +38,8 @@ export function VttActorsPanel({
   creaturesLoading,
   canSpawnCreatures,
   remoteChars,
+  roomPlayers = [],
+  onRequestSheets,
   onSpawn,
   onSpawnCreature,
   onOpenSheet,
@@ -76,6 +82,31 @@ export function VttActorsPanel({
 
       {tab === "party" ? (
         <>
+          {onRequestSheets && (
+            <div className="vtt2-room-block">
+              <div className="vtt2-actor-group" style={{ marginTop: 0 }}>
+                In the room ({roomPlayers.length})
+                <button className="chip" style={{ marginLeft: "auto" }} onClick={onRequestSheets} title="Ask every player to send their characters so you can open and edit them">
+                  Request sheets
+                </button>
+              </div>
+              {roomPlayers.length === 0 ? (
+                <p className="list-empty" style={{ margin: "4px 0 8px" }}>No players connected yet.</p>
+              ) : (
+                <ul className="vtt2-actor-list">
+                  {roomPlayers.map((p) => (
+                    <li key={p.id} className="vtt2-actor-row">
+                      <span className="vtt2-actor-label">
+                        {p.name}
+                        <span className="vtt2-actor-sub">{p.shared ? "sheet shared" : "no sheet yet — request it"}</span>
+                      </span>
+                      <span className={"vtt2-room-dot" + (p.shared ? " on" : "")} title={p.shared ? "This player's sheet is available below" : "Waiting for this player's sheet"} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
           {remoteChars.length > 0 && (
             <>
               <div className="vtt2-actor-group">Players (live)</div>

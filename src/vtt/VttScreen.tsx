@@ -363,6 +363,26 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     if (sheetCharId) void broadcastSheet(sheetCharId);
   }, [sheetCharId, broadcastSheet]);
 
+  // The Curator can't open a player's sheet until that player has shared it (they
+  // broadcast on open/save). "Request sheets" lets the Curator PULL them: on a
+  // host request, every player pushes ALL their campaign characters so they land
+  // in the Curator's Actors → Players list, ready to open + edit. (Force-sends,
+  // bypassing the unchanged-content guard.)
+  const requestSheets = useCallback(() => {
+    if (net.status === "connected" && net.role === "host") net.publish({ t: "sheet-request" });
+  }, [net]);
+  useEffect(() => {
+    if (!campaign || net.role === "host") return; // only players answer
+    return net.subscribe("sheet-request", (_m, from) => {
+      const hostId = peersRef.current.find((p) => p.role === "host")?.id;
+      if (from !== hostId) return; // only the Curator may ask
+      void (async () => {
+        const mine = await listCharacters(campaign.id).catch(() => [] as CharacterRecord[]);
+        for (const rec of mine) net.publish({ t: "sheet-patch", charId: rec.id, patch: rec, rev: Date.now() });
+      })();
+    });
+  }, [campaign, net.subscribe, net.role]);
+
   // Per-scene ambient music: play the ACTIVE scene's track (looped), stop when
   // it has none. Scene switches swap tracks automatically.
   useEffect(() => {
@@ -990,6 +1010,14 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
                   .filter((e) => e.ownerId !== net.selfId)
                   .map((e) => ({ id: e.record.id, name: e.record.name, owner: net.peers.find((p) => p.id === e.ownerId)?.name || "player" }))
           }
+          roomPlayers={
+            !asPlayer && net.status === "connected"
+              ? net.peers
+                  .filter((p) => p.role !== "host" && p.id !== net.selfId)
+                  .map((p) => ({ id: p.id, name: p.name, shared: partySheets.some((e) => e.ownerId === p.id) }))
+              : []
+          }
+          onRequestSheets={!asPlayer && net.status === "connected" ? requestSheets : undefined}
           onSpawn={spawnCharacter}
           onSpawnCreature={spawnCreature}
           onOpenSheet={(rec) => setSheetCharId(rec.id)}
