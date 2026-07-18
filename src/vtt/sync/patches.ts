@@ -14,6 +14,7 @@ export type VttOp =
   | { op: "wall.remove"; id: string }
   | { op: "light.add"; light: VttLight }
   | { op: "light.update"; id: string; patch: Partial<VttLight> }
+  | { op: "light.all"; patch: Partial<VttLight> } // configure every light at once
   | { op: "light.remove"; id: string }
   | { op: "emitter.add"; emitter: VttEmitter }
   | { op: "emitter.update"; id: string; patch: Partial<VttEmitter> }
@@ -22,7 +23,7 @@ export type VttOp =
   | { op: "fog.set"; enabled: boolean }
   | { op: "fog.reveal"; cells: string[] }
   | { op: "fog.reset" }
-  | { op: "fog.config"; patch: { mode?: VttFogMode; decaySeconds?: number } }
+  | { op: "fog.config"; patch: { mode?: VttFogMode; decaySeconds?: number; lanterns?: boolean } }
   | { op: "zone.paint"; kind: VttZoneKind; cells: string[]; erase?: boolean }
   | { op: "zone.glsl"; kind: VttZoneKind; body: string }
   | { op: "draw.add"; drawing: VttDrawing }
@@ -87,6 +88,11 @@ export function applyOp(d: VttSceneData, op: VttOp): boolean {
       const l = d.lights.find((x) => x.id === op.id);
       if (!l) return false;
       Object.assign(l, op.patch);
+      return true;
+    }
+    case "light.all": {
+      if (!d.lights.length) return false;
+      for (const l of d.lights) Object.assign(l, op.patch);
       return true;
     }
     case "light.remove": {

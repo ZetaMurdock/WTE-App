@@ -19,6 +19,7 @@ import type { NetMessage } from "../net/protocol";
 import { addSessionRoll } from "./sync/rollSession";
 import { SfxPlayer } from "./audio/sfxPlayer";
 import { getMasterVolume, subscribeMasterVolume } from "../lib/audioPrefs";
+import { reportSaveFailure } from "../lib/appToast";
 import { VttCinePanel, type CineConfig } from "./VttCinePanel";
 import { VttSceneBrowser } from "./VttSceneBrowser";
 import { VttActorsPanel } from "./VttActorsPanel";
@@ -423,7 +424,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
 
   const persist = useCallback((s: VttScene) => {
     window.clearTimeout(saveTimer.current);
-    saveTimer.current = window.setTimeout(() => void saveScene(s).catch(() => {}), 500);
+    saveTimer.current = window.setTimeout(() => void reportSaveFailure(saveScene(s), "the scene"), 500);
   }, []);
 
   // Keyboard token movement: the LAST token you clicked stays arrow-key /
@@ -474,7 +475,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
   const flush = useCallback(async () => {
     window.clearTimeout(saveTimer.current);
     const s = engineRef.current?.scene;
-    if (s) await saveScene(s).catch(() => {});
+    if (s) await reportSaveFailure(saveScene(s), "the scene");
   }, []);
 
   // Adopt a full scene pushed by a peer (host scene switch / late-join snapshot).
@@ -537,7 +538,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
         s = newScene(campaign?.id ?? "sandbox", campaign ? campaign.name + " · Scene 1" : "Sandbox");
         s.active = true;
         if (campaign) {
-          await saveScene(s).catch(() => {});
+          await reportSaveFailure(saveScene(s), "the scene");
           all = [s];
         }
       }
@@ -619,8 +620,8 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
         target.data.tokens.push(t);
       });
       await flush();
-      await saveScene(liveScene).catch(() => {});
-      await saveScene(target).catch(() => {});
+      await reportSaveFailure(saveScene(liveScene), "the scene");
+      await reportSaveFailure(saveScene(target), "the scene");
       await adopt(target); // switches the whole table + snapshots to peers
     } finally {
       linkBusy.current = false;
@@ -649,7 +650,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     if (!campaign) return;
     await flush();
     const s = newScene(campaign.id, `${campaign.name} · Scene ${scenes.length + 1}`);
-    await saveScene(s).catch(() => {});
+    await reportSaveFailure(saveScene(s), "the scene");
     await adopt(s);
   }
 
@@ -657,10 +658,10 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     if (id === scene?.id && engineRef.current?.scene) {
       engineRef.current.scene.name = name;
       setScene((s) => (s ? { ...s, name } : s));
-      await saveScene(engineRef.current.scene).catch(() => {});
+      await reportSaveFailure(saveScene(engineRef.current.scene), "the scene");
     } else {
       const target = scenes.find((s) => s.id === id);
-      if (target) await saveScene({ ...target, name }).catch(() => {});
+      if (target) await reportSaveFailure(saveScene({ ...target, name }), "the scene");
     }
     await reloadScenes();
   }
@@ -962,6 +963,8 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
           onMusicVolume={(v) => engine?.scene && void patchScene(engine.scene.id, (s) => { if (s.data.audio) s.data.audio.volume = v; })}
           fog={live.data.fog}
           onFog={(p) => engine?.setFogConfig(p)}
+          lightCount={live.data.lights.length}
+          onAllLights={(p) => engine?.updateAllLights(p)}
           otherScenes={scenes.filter((s) => s.id !== live.id).map((s) => ({ id: s.id, name: s.name }))}
           links={live.data.links ?? []}
           onLinks={(next) => void patchScene(live.id, (s) => (s.data.links = next))}

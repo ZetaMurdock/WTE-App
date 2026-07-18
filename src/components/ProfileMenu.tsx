@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { myPeerName, setPeerName } from "../net/discovery";
+import { replayIntro } from "./FirstRun";
 
 interface Props {
   theme: "dark" | "light";
@@ -148,6 +149,14 @@ export function ProfileMenu({
             <button className="profile-row" onClick={onAccount}>
               <span>{accountLabel === "Sign in" ? "Sign in with Google" : accountLabel}</span>
               <span className="profile-row-hint">{accountLabel === "Sign in" ? "" : "signed in"}</span>
+            </button>
+          </div>
+
+          <div className="profile-sec">
+            <span className="profile-sec-label">Help</span>
+            <button className="profile-row" onClick={replayIntro} title="Replay the welcome guide">
+              <span>How to play</span>
+              <span className="profile-row-hint">guide</span>
             </button>
           </div>
 

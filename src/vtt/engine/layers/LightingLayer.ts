@@ -5,7 +5,7 @@ import { Container, Graphics, Sprite, Texture } from "pixi.js";
 import type { VttScene } from "../../types/scene";
 import type { VttSelection } from "../PixiVttApp";
 import { lightVisibleTo } from "../systems/VisionSystem";
-import { lightFactor, lightRadiusScale } from "../systems/lightState";
+import { burnMechanicOn, isDirectional, lightFactor, lightRadiusScale } from "../systems/lightState";
 
 let glowTex: Texture | null = null;
 function glowTexture(): Texture {
@@ -39,7 +39,7 @@ export class LightingLayer {
     this.view.visible = scene.data.layers.lights;
     if (!this.view.visible) return;
     const size = scene.data.grid.size;
-    const realistic = scene.data.fog.enabled && scene.data.fog.mode === "realistic";
+    const realistic = scene.data.fog.enabled && burnMechanicOn(scene.data.fog);
     const now = Date.now();
     for (const l of scene.data.lights) {
       // Players don't see a light AT ALL (glow or handle) until they have a
@@ -58,6 +58,19 @@ export class LightingLayer {
         spr.alpha = Math.min(1, (l.intensity ?? 0.5) * 0.95) * (realistic ? 0.25 + 0.75 * f : 1);
         spr.blendMode = "add";
         this.glows.addChild(spr);
+        // Directional lights are clipped to their cone — a pie mask over the
+        // radial glow keeps the soft falloff but points it somewhere.
+        if (isDirectional(l)) {
+          const half = ((l.cone as number) * Math.PI) / 180 / 2;
+          const reach = d; // cover the whole glow sprite
+          const pie = new Graphics();
+          pie.moveTo(l.x, l.y);
+          pie.arc(l.x, l.y, reach, (l.dir as number) - half, (l.dir as number) + half);
+          pie.closePath();
+          pie.fill({ color: 0xffffff });
+          this.glows.addChild(pie);
+          spr.mask = pie;
+        }
       }
 
       const cold = realistic && f <= 0;

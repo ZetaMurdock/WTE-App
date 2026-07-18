@@ -14,6 +14,7 @@ import { MeasurementLayer } from "./layers/MeasurementLayer";
 import { EffectLayer } from "./layers/EffectLayer";
 import { AtmosphereLayer } from "./layers/AtmosphereLayer";
 import { computeVisibleCells, pathBlocked } from "./systems/VisionSystem";
+import { burnMechanicOn } from "./systems/lightState";
 import { CustomShaderFilter, validateShaderBody, validateFragmentSource } from "./filters/CustomShaderFilter";
 import { ZoneLayer, ZONE_DEFAULT_BODIES, buildZoneFragment } from "./layers/ZoneLayer";
 import { DrawingLayer } from "./layers/DrawingLayer";
@@ -439,7 +440,7 @@ export class PixiVttApp {
       this.camera.cancelFling();
       this.camera.min = Math.min(this.camera.max, 0.15 / this.playCam.range);
       if (this.camera.zoom < this.camera.min) this.camera.set({ ...this.camera.state(), zoom: this.camera.min });
-      this.followOwnToken();
+      this.followOwnToken(true); // hard cut onto your token when the lock engages
     } else {
       this.camera.min = 0.15;
     }
@@ -449,17 +450,20 @@ export class PixiVttApp {
     if (!this.selfId) return null;
     return this.scene?.data.tokens.find((t) => t.owner === this.selfId && t.visible !== false) ?? null;
   }
-  /** Center the viewport on a world point (play-mode follow). */
-  centerOn(wx: number, wy: number): void {
+  /** Center the viewport on a world point. Locked cameras GLIDE there (tokens
+   *  move a whole cell at a time — snapping every step is what felt jerky);
+   *  `instant` is for hard cuts: engaging the lock, scene loads, teleports. */
+  centerOn(wx: number, wy: number, instant = false): void {
     const cw = this.app.canvas.clientWidth || this.app.renderer.width;
     const ch = this.app.canvas.clientHeight || this.app.renderer.height;
-    this.camera.x = cw / 2 - wx * this.camera.zoom;
-    this.camera.y = ch / 2 - wy * this.camera.zoom;
-    this.camera.apply();
+    const x = cw / 2 - wx * this.camera.zoom;
+    const y = ch / 2 - wy * this.camera.zoom;
+    if (instant) this.camera.snapTo(x, y);
+    else this.camera.followTo(x, y);
   }
-  followOwnToken(): void {
+  followOwnToken(instant = false): void {
     const t = this.ownToken();
-    if (t) this.centerOn(t.x, t.y);
+    if (t) this.centerOn(t.x, t.y, instant);
   }
 
   setTool(t: VttTool): void {
@@ -656,6 +660,15 @@ export class PixiVttApp {
     this.onChanged();
     this.onOp({ op: "wall.update", id, patch });
   }
+  /** Configure EVERY light in the scene at once (Curator bulk edit, synced). */
+  updateAllLights(patch: Partial<VttLight>): void {
+    const lights = this.scene?.data.lights;
+    if (!lights?.length) return;
+    for (const l of lights) Object.assign(l, patch);
+    this.redraw();
+    this.onChanged();
+    this.onOp({ op: "light.all", patch });
+  }
   updateLight(id: string, patch: Partial<VttLight>): void {
     const l = this.scene?.data.lights.find((x) => x.id === id);
     if (!l) return;
@@ -667,7 +680,7 @@ export class PixiVttApp {
   /** (Re)light a lantern — realistic fog only. Clicking an already-burning one
    *  refreshes it to full ("until it has been relit again"). Synced. */
   igniteLight(id: string): void {
-    if (this.scene?.data.fog.mode !== "realistic") return;
+    if (!this.scene || !burnMechanicOn(this.scene.data.fog)) return;
     this.updateLight(id, { lit: true, litAt: Date.now() });
   }
   deleteSelected(): void {
@@ -806,7 +819,7 @@ export class PixiVttApp {
     this.onOp({ op: "fog.reset" });
   }
   /** Change the fog darkness level / decay speed (Curator, synced). */
-  setFogConfig(patch: { mode?: VttFogMode; decaySeconds?: number }): void {
+  setFogConfig(patch: { mode?: VttFogMode; decaySeconds?: number; lanterns?: boolean }): void {
     if (!this.scene) return;
     Object.assign(this.scene.data.fog, patch);
     this.redraw();

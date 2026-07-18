@@ -6885,3 +6885,98 @@ body.wte-dot-cursor * {
   border-color: var(--accent);
   box-shadow: 0 0 6px rgba(126, 207, 202, 0.6);
 }
+
+/* free colour picker beside the light swatches */
+.light-color-pick {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--panel-line);
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+}
+
+/* ── App-wide notices (save failures — never silent) ── */
+.app-toasts {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 12000;
+  max-width: 380px;
+}
+.app-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--panel-line);
+  background: rgba(12, 18, 32, 0.97);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  font-size: 13px;
+  line-height: 1.35;
+}
+.app-toast.error {
+  border-color: #a1584a;
+  color: #f0c7c0;
+}
+
+/* ── First-run guide ── */
+.intro-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 7, 13, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 13000;
+}
+.intro-card {
+  width: min(560px, 92vw);
+  background: rgba(12, 18, 32, 0.98);
+  border: 1px solid var(--panel-line);
+  border-radius: 14px;
+  padding: 26px 28px 20px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6);
+}
+.intro-dots {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.intro-dot {
+  width: 22px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--panel-line);
+}
+.intro-dot.on {
+  background: var(--accent);
+}
+.intro-title {
+  font-family: Georgia, serif;
+  font-size: 24px;
+  margin: 0 0 10px;
+  color: var(--accent);
+}
+.intro-body {
+  margin: 0 0 10px;
+  line-height: 1.55;
+}
+.intro-hint {
+  margin: 0 0 18px;
+  font-size: 12.5px;
+  opacity: 0.72;
+  border-left: 2px solid var(--panel-line);
+  padding-left: 10px;
+}
+.intro-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}

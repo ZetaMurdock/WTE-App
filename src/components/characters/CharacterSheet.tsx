@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getCharacter, updateCharacter, deleteCharacter, type CharacterRecord } from "../../lib/characters";
 import { logRoll } from "../../lib/rolls";
+import { reportSaveFailure } from "../../lib/appToast";
 import {
   ATTRIBUTES,
   SPECIALTIES,
@@ -95,7 +96,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
     const p = pending.current;
     if (p) {
       pending.current = null;
-      void updateCharacter(p.id, { name: p.name, sheet: p.sheet }).then(onChanged);
+      void reportSaveFailure(updateCharacter(p.id, { name: p.name, sheet: p.sheet }), "this character").then(onChanged);
     }
   }, [onChanged]);
 
@@ -176,7 +177,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
       const p = pending.current;
       if (!p) return;
       pending.current = null;
-      void updateCharacter(p.id, { name: p.name, sheet: p.sheet }).then(onChanged);
+      void reportSaveFailure(updateCharacter(p.id, { name: p.name, sheet: p.sheet }), "this character").then(onChanged);
     }, 400);
   }
   function setAttr(k: AttrKey, v: number) {

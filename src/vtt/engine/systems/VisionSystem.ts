@@ -6,7 +6,7 @@
 // realistic fog a light contributes only while it's lit (and shrinks as it
 // burns down).
 import type { VttLight, VttSceneData, VttWall } from "../../types/scene";
-import { lightFactor, lightRadiusScale } from "./lightState";
+import { burnMechanicOn, inLightCone, lightFactor, lightRadiusScale } from "./lightState";
 
 export const cellKey = (c: number, r: number): string => `${c},${r}`;
 
@@ -77,7 +77,6 @@ export function computeVisibleCells(data: VttSceneData, ownerId?: string, now = 
   if (!data.fog.enabled) return vis;
   const size = data.grid.size;
   const walls = data.walls.filter((w) => w.blocksLight);
-  const realistic = data.fog.mode === "realistic";
   const peripheral = PERIPHERAL_CELLS * size;
   const visionTokens = ownerId ? data.tokens.filter((t) => t.owner === ownerId) : data.tokens;
 
@@ -86,15 +85,18 @@ export function computeVisibleCells(data: VttSceneData, ownerId?: string, now = 
     y: number;
     r: number;
     facing?: number;
+    /** Directional lights only light (and reveal) what's inside their cone. */
+    cone?: { dir?: number; cone?: number };
   }
   const sources: Source[] = visionTokens
     .filter((t) => t.visible !== false)
     .map((t) => ({ x: t.x, y: t.y, r: (t.vision ?? 5) * size, facing: t.facing }));
+  const burns = burnMechanicOn(data.fog);
   for (const l of data.lights) {
-    const f = lightFactor(l, realistic, now);
+    const f = lightFactor(l, burns, now);
     if (f <= 0) continue; // unlit / burned-out lanterns reveal nothing
     if (!lightVisibleTo(data, l, ownerId)) continue; // no visual on it yet
-    sources.push({ x: l.x, y: l.y, r: l.radius * size * lightRadiusScale(f) });
+    sources.push({ x: l.x, y: l.y, r: l.radius * size * lightRadiusScale(f), cone: { dir: l.dir, cone: l.cone } });
   }
 
   for (const s of sources) {
@@ -111,6 +113,7 @@ export function computeVisibleCells(data: VttSceneData, ownerId?: string, now = 
         const dx = cx - s.x;
         const dy = cy - s.y;
         if (dx * dx + dy * dy > s.r * s.r) continue;
+        if (s.cone && !inLightCone(s.cone, dx, dy)) continue;
         if (!inVisionCone(s.facing, dx, dy, Math.sqrt(dx * dx + dy * dy), peripheral)) continue;
         if (!blocked(s.x, s.y, cx, cy, walls)) vis.add(key);
       }

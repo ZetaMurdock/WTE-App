@@ -1,5 +1,6 @@
 import type { VttSelection } from "./engine/PixiVttApp";
 import { ENV_FX_PRESETS } from "./engine/filters/EnvFxFilter";
+import { LIGHT_DIRECTIONS } from "./engine/systems/lightState";
 import {
   TOKEN_COLORS,
   type VttEffectData,
@@ -192,12 +193,67 @@ export function VttInspector({ sel, scene, onToken, onWall, onLight, onEmitter, 
           </label>
           <div className="lobby-field mt">
             <span>Color</span>
-            <div className="seq-pick-row" style={{ marginBottom: 0 }}>
+            <div className="seq-pick-row" style={{ marginBottom: 0, alignItems: "center" }}>
               {LIGHT_COLORS.map((c) => (
                 <button key={c} className={"seq-swatch" + (light.color === c ? " on" : "")} style={{ background: c }} onClick={() => onLight({ color: c })} />
               ))}
+              <input
+                type="color"
+                className="light-color-pick"
+                value={/^#[0-9a-f]{6}$/i.test(light.color || "") ? light.color : "#a08a4f"}
+                onChange={(e) => onLight({ color: e.target.value })}
+                title="Any colour you like"
+              />
             </div>
           </div>
+          <div className="lobby-field mt">
+            <span>Direction {light.cone != null && light.cone < 360 ? `· ${Math.round(light.cone)}° cone` : "· omnidirectional"}</span>
+            <div className="chip-row" style={{ flexWrap: "wrap" }}>
+              {LIGHT_DIRECTIONS.map((d) => (
+                <button
+                  key={d.label}
+                  className={"chip" + (light.dir != null && Math.abs(light.dir - d.rad) < 0.01 && (light.cone ?? 360) < 360 ? " active" : "")}
+                  onClick={() => onLight({ dir: d.rad, cone: light.cone != null && light.cone < 360 ? light.cone : 90 })}
+                  title={`Point this light ${d.label}`}
+                >
+                  {d.label}
+                </button>
+              ))}
+              <button
+                className={"chip" + ((light.cone ?? 360) >= 360 ? " active" : "")}
+                onClick={() => onLight({ cone: 360 })}
+                title="Light everything around it"
+              >
+                Omni
+              </button>
+            </div>
+          </div>
+          {(light.cone ?? 360) < 360 && (
+            <div className="vtt2-hp-row">
+              <label className="lobby-field">
+                <span>Spread°</span>
+                <input
+                  className="bg-select full"
+                  type="number"
+                  min={10}
+                  max={359}
+                  value={Math.round(light.cone ?? 90)}
+                  onChange={(e) => onLight({ cone: Math.max(10, Math.min(359, parseInt(e.target.value, 10) || 90)) })}
+                />
+              </label>
+              <label className="lobby-field">
+                <span>Aim°</span>
+                <input
+                  className="bg-select full"
+                  type="number"
+                  min={0}
+                  max={359}
+                  value={Math.round((((light.dir ?? 0) * 180) / Math.PI + 360) % 360)}
+                  onChange={(e) => onLight({ dir: (((parseInt(e.target.value, 10) || 0) % 360) * Math.PI) / 180 })}
+                />
+              </label>
+            </div>
+          )}
           <label className="lobby-field mt" title="Realistic fog only: seconds from lit to burned out. 0 = never burns out. Players click a lantern they can see to (re)light it.">
             <span>Burn time (s) · realistic fog</span>
             <input
@@ -209,6 +265,15 @@ export function VttInspector({ sel, scene, onToken, onWall, onLight, onEmitter, 
               onChange={(e) => onLight({ burnSeconds: Math.max(0, Math.min(7200, parseInt(e.target.value, 10) || 0)) })}
             />
           </label>
+          <div className="vtt2-hp-row mt">
+            <button
+              className={"chip" + (light.alwaysOn ? " active" : "")}
+              onClick={() => onLight({ alwaysOn: !light.alwaysOn })}
+              title="Ignore the lit/burn-down mechanic entirely — this light is simply always on"
+            >
+              {light.alwaysOn ? "Always on" : "Burns down"}
+            </button>
+          </div>
           <div className="vtt2-hp-row mt">
             <button
               className={"chip" + (light.lit ? " active" : "")}

@@ -81,6 +81,12 @@ export interface VttLight {
   litAt?: number;
   /** Curator-set seconds from lit to burned out (unset/0 = never burns out). */
   burnSeconds?: number;
+  /** Exempt from the lit/burn mechanic — always at full brightness. */
+  alwaysOn?: boolean;
+  /** Direction the light points, radians clockwise from +x (omni when unset). */
+  dir?: number;
+  /** Cone spread in degrees. Unset or >= 360 = omnidirectional. */
+  cone?: number;
 }
 /** A spatial sound pinned to the world: players hear it by RANGE from their own
  *  token, and every wall between them and the source muffles it (quieter +
@@ -143,6 +149,9 @@ export interface VttFogState {
   seen?: Record<string, number>;
   /** realistic: seconds for a left cell to fade fully back to black (default 90). */
   decaySeconds?: number;
+  /** realistic: must players light lanterns themselves (default true)? Turn OFF
+   *  to make every light simply burn — the whole lit/relight mechanic opts out. */
+  lanterns?: boolean;
   /** Revealed cells as "col,row" keys. */
   revealed: string[];
 }

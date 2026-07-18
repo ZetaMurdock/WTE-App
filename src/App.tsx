@@ -9,6 +9,8 @@ import { CodexBrowser } from "./components/codex/CodexBrowser";
 import { VttScreen } from "./vtt/VttScreen";
 import { Boundary } from "./components/ui/Boundary";
 import { CursorDot } from "./components/CursorDot";
+import { AppToasts } from "./components/ui/AppToasts";
+import { FirstRun } from "./components/FirstRun";
 import { countCharacters } from "./lib/characters";
 import { loadCodexGameData } from "./lib/gameData";
 import {
@@ -275,6 +277,8 @@ export default function App() {
     <div className="app">
       {wallpaper && <div className="app-wallpaper" style={{ backgroundImage: `url(${wallpaper})` }} />}
       <CursorDot enabled={dotCursor} />
+      <AppToasts />
+      <FirstRun />
       <TopBar
         activeTab={activeTab}
         onTab={setActiveTab}

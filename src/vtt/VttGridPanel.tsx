@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
-import { ZONE_KINDS, defaultAtmosphere, defaultShader, newId, type VttAtmosphere, type VttBackground, type VttFogMode, type VttFogState, type VttGrid, type VttLinkEdge, type VttSceneLink, type VttShader, type VttTerrain, type VttZoneKind } from "./types/scene";
+import { ZONE_KINDS, defaultAtmosphere, defaultShader, newId, type VttAtmosphere, type VttBackground, type VttFogMode, type VttFogState, type VttGrid, type VttLight, type VttLinkEdge, type VttSceneLink, type VttShader, type VttTerrain, type VttZoneKind } from "./types/scene";
+import { LIGHT_DIRECTIONS } from "./engine/systems/lightState";
 import { listShaderPresets, saveShaderPreset, deleteShaderPreset, isBuiltinPreset, type ShaderPreset } from "../lib/shaderPresets";
 import { listZonePresets, saveZonePreset } from "../lib/zonePresets";
 import { ZONE_DEFAULT_BODIES } from "./engine/layers/ZoneLayer";
@@ -16,7 +17,10 @@ interface Props {
   onTerrain: (terrain: VttTerrain | null) => void;
   onAtmosphere: (atmo: VttAtmosphere) => void;
   fog: VttFogState;
-  onFog: (patch: { mode?: VttFogMode; decaySeconds?: number }) => void;
+  onFog: (patch: { mode?: VttFogMode; decaySeconds?: number; lanterns?: boolean }) => void;
+  /** Every light in the scene — bulk configuration. */
+  lightCount: number;
+  onAllLights: (patch: Partial<VttLight>) => void;
   /** Other scenes in the campaign (portal targets) + this scene's border links. */
   otherScenes: { id: string; name: string }[];
   links: VttSceneLink[];
@@ -39,12 +43,13 @@ interface Props {
   onClose: () => void;
 }
 
-type StudioTab = "grid" | "terrain" | "atmosphere" | "fog" | "shaders" | "zones" | "portals" | "music";
+type StudioTab = "grid" | "terrain" | "atmosphere" | "fog" | "lights" | "shaders" | "zones" | "portals" | "music";
 const STUDIO_TABS: { id: StudioTab; label: string }[] = [
   { id: "grid", label: "Grid" },
   { id: "terrain", label: "Terrain" },
   { id: "atmosphere", label: "Atmos" },
   { id: "fog", label: "Fog" },
+  { id: "lights", label: "Lights" },
   { id: "shaders", label: "Shaders" },
   { id: "zones", label: "Zones" },
   { id: "portals", label: "Portals" },
@@ -175,6 +180,8 @@ export function VttGridPanel({
   onAtmosphere,
   fog,
   onFog,
+  lightCount,
+  onAllLights,
   otherScenes,
   links,
   onLinks,
@@ -395,9 +402,82 @@ export function VttGridPanel({
                 />
               </label>
             )}
+            {(fog.mode ?? "remembered") === "realistic" && (
+              <button
+                className={"chip mt" + (fog.lanterns !== false ? " active" : "")}
+                onClick={() => onFog({ lanterns: fog.lanterns === false })}
+                title="ON: lights start dark and players must click them alight, then they burn down. OFF: every light simply burns — no lantern mechanic."
+              >
+                {fog.lanterns !== false ? "Players light lanterns" : "Lights always burning"}
+              </button>
+            )}
             <p className="size-note" style={{ marginTop: 10 }}>
               Fog on/off lives on the action bar; "Reset fog" there wipes exploration progress. The level applies to this scene and syncs to everyone.
             </p>
+          </>
+        )}
+
+        {tab === "lights" && (
+          <>
+            <div className="scene-studio-sub">All lights · {lightCount} in this scene</div>
+            {lightCount === 0 ? (
+              <p className="size-note">No lights yet — place them with the Light tool, then configure them all together here.</p>
+            ) : (
+              <>
+                <p className="size-note" style={{ marginBottom: 8 }}>
+                  Each control below applies to EVERY light at once. Individual lights stay editable by clicking them.
+                </p>
+                <div className="vtt2-hp-row">
+                  <label className="lobby-field">
+                    <span>Radius (cells)</span>
+                    <input className="bg-select full" type="number" min={1} max={30} defaultValue={6}
+                      onKeyDown={(e) => { if (e.key === "Enter") onAllLights({ radius: Math.max(1, Math.min(30, parseInt((e.target as HTMLInputElement).value, 10) || 6)) }); }}
+                      onBlur={(e) => onAllLights({ radius: Math.max(1, Math.min(30, parseInt(e.target.value, 10) || 6)) })}
+                    />
+                  </label>
+                  <label className="lobby-field">
+                    <span>Intensity</span>
+                    <input className="bg-select full" type="number" step={0.1} min={0.1} max={1} defaultValue={0.5}
+                      onBlur={(e) => onAllLights({ intensity: Math.max(0.1, Math.min(1, parseFloat(e.target.value) || 0.5)) })}
+                    />
+                  </label>
+                </div>
+                <div className="lobby-field mt">
+                  <span>Colour — applies to all</span>
+                  <div className="seq-pick-row" style={{ marginBottom: 0, alignItems: "center" }}>
+                    {["#a08a4f", "#689a96", "#837aae", "#a1584a", "#a7aebd"].map((c) => (
+                      <button key={c} className="seq-swatch" style={{ background: c }} onClick={() => onAllLights({ color: c })} />
+                    ))}
+                    <input type="color" className="light-color-pick" defaultValue="#a08a4f" onChange={(e) => onAllLights({ color: e.target.value })} title="Any colour you like" />
+                  </div>
+                </div>
+                <div className="lobby-field mt">
+                  <span>Point them all</span>
+                  <div className="chip-row" style={{ flexWrap: "wrap" }}>
+                    {LIGHT_DIRECTIONS.map((d) => (
+                      <button key={d.label} className="chip" onClick={() => onAllLights({ dir: d.rad, cone: 90 })} title={`Aim every light ${d.label}`}>
+                        {d.label}
+                      </button>
+                    ))}
+                    <button className="chip" onClick={() => onAllLights({ cone: 360 })} title="Back to omnidirectional">Omni</button>
+                  </div>
+                </div>
+                <label className="lobby-field mt">
+                  <span>Cone spread° (applies to all)</span>
+                  <input className="bg-select full" type="number" min={10} max={359} defaultValue={90}
+                    onBlur={(e) => onAllLights({ cone: Math.max(10, Math.min(359, parseInt(e.target.value, 10) || 90)) })}
+                  />
+                </label>
+                <div className="vtt2-hp-row mt">
+                  <button className="chip" onClick={() => onAllLights({ alwaysOn: true })} title="Exempt every light from the lit/burn mechanic">All always on</button>
+                  <button className="chip" onClick={() => onAllLights({ alwaysOn: false })} title="Every light obeys the lantern mechanic again">All burn down</button>
+                </div>
+                <div className="vtt2-hp-row mt">
+                  <button className="chip" onClick={() => onAllLights({ lit: true, litAt: Date.now() })} title="Light every lantern now">Light them all</button>
+                  <button className="chip" onClick={() => onAllLights({ lit: false })} title="Snuff every lantern">Snuff them all</button>
+                </div>
+              </>
+            )}
           </>
         )}
 

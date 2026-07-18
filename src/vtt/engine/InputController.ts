@@ -2,6 +2,7 @@
 // drag always pans; wheel zooms at the cursor.
 import type { PixiVttApp } from "./PixiVttApp";
 import { lightVisibleTo } from "./systems/VisionSystem";
+import { burnMechanicOn } from "./systems/lightState";
 
 type DragMode = "none" | "pan" | "token" | "measure" | "wall" | "rotate" | "scale" | "zone" | "draw";
 
@@ -126,7 +127,7 @@ export class InputController {
       // Players never SELECT lights or walls (they can't even see the points).
       // Realistic fog: a click anywhere near a lantern they can see (re)lights
       // it — the pulsing beacon marks the area, no pixel-hunting required.
-      if (v.scene.data.fog.mode === "realistic") {
+      if (burnMechanicOn(v.scene.data.fog)) {
         const near = v.lights.pickNear(v.scene, w.x, w.y, v.scene.data.grid.size * 0.9);
         if (near) {
           const l = v.scene.data.lights.find((x) => x.id === near);
