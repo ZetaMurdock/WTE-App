@@ -21,10 +21,14 @@ export function VttRollToast({ campaignId }: Props) {
     seen.current = new Set(getSessionRolls(campaignId).map((r) => r.id));
     const off = subscribeSessionRolls(() => {
       const cur = getSessionRolls(campaignId);
-      const fresh = cur.filter((r) => !seen.current.has(r.id));
+      // Only toast rolls that actually just happened. The SQLite history
+      // hydrates ASYNC after mount, so the seed above misses it — without the
+      // recency gate the whole session history sprayed as toasts on first roll.
+      const cutoff = Date.now() - 8000;
+      const fresh = cur.filter((r) => !seen.current.has(r.id) && r.at >= cutoff);
+      for (const r of cur) seen.current.add(r.id);
       if (!fresh.length) return;
-      for (const r of fresh) seen.current.add(r.id);
-      setToasts((t) => [...fresh, ...t].slice(0, 4));
+      setToasts((t) => [...fresh, ...t].slice(0, 3));
       for (const r of fresh) {
         const id = window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== r.id)), DURATION);
         timers.current.push(id);

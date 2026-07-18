@@ -37,8 +37,10 @@ import {
   usableRacial,
   rollAttribute,
   rollSpecialty,
+  DERIVED,
   type AttrKey,
   type SpecKey,
+  type DerivedKey,
   type RollResult,
   type EquipmentItem,
 } from "../../game/wte";
@@ -142,6 +144,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
     equip,
     sizeMove: sizeOf(sheet.sizeId, sheet.speciesId).move,
     morality: sheet.morality,
+    overrides: sheet.derivedOverrides,
   });
   // Same, minus equipment/loadout — so vitals can show the gear contribution.
   const derivedBase = computeDerived(sheet.attributes, sheet.specialties, {
@@ -199,6 +202,16 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   }
   function setMorality(v: number) {
     persist({ ...rec!, sheet: { ...sheet, morality: Math.max(0, Math.min(100, v)) } });
+  }
+  function setAllowOverrides(v: boolean) {
+    persist({ ...rec!, sheet: { ...sheet, allowOverrides: v || undefined } });
+  }
+  function setOverride(k: DerivedKey | "hpMax", raw: string) {
+    const cur: Record<string, number> = { ...(sheet.derivedOverrides ?? {}) };
+    const n = parseInt(raw, 10);
+    if (raw.trim() === "" || !Number.isFinite(n)) delete cur[k];
+    else cur[k] = n;
+    persist({ ...rec!, sheet: { ...sheet, derivedOverrides: Object.keys(cur).length ? cur : undefined } });
   }
   function setEminence(v: number) {
     persist({ ...rec!, sheet: { ...sheet, eminence: Math.max(-20, Math.min(20, v)) } });
@@ -460,6 +473,54 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                   </div>
                 </div>
 
+              </div>
+            )}
+            {tab === "stats" && (
+              <div className="overrides-block">
+                <div className="panel-title">
+                  Stat overrides
+                  {curator ? (
+                    <button
+                      className={"chip" + (sheet.allowOverrides ? " active" : "")}
+                      style={{ marginLeft: 10 }}
+                      onClick={() => setAllowOverrides(!sheet.allowOverrides)}
+                      title="Let this character's player hand-edit these overrides themselves"
+                    >
+                      {sheet.allowOverrides ? "Player editing allowed" : "Curator only"}
+                    </button>
+                  ) : (
+                    !sheet.allowOverrides && <span className="points-inline">locked by Curator</span>
+                  )}
+                </div>
+                {curator || sheet.allowOverrides ? (
+                  <>
+                    <p className="inv-sub">Blank = computed by the formulas. A number replaces the computed value everywhere — sheet, actions, and VTT token.</p>
+                    <div className="override-grid">
+                      {DERIVED.map((d) => (
+                        <label key={d.key} className="override-cell" title={d.label}>
+                          <span>{d.short}</span>
+                          <input
+                            type="number"
+                            placeholder={String(derived[d.key])}
+                            value={sheet.derivedOverrides?.[d.key] ?? ""}
+                            onChange={(e) => setOverride(d.key, e.target.value)}
+                          />
+                        </label>
+                      ))}
+                      <label className="override-cell" title="Maximum hit points">
+                        <span>Max HP</span>
+                        <input
+                          type="number"
+                          placeholder={String(derived.hpMax)}
+                          value={sheet.derivedOverrides?.hpMax ?? ""}
+                          onChange={(e) => setOverride("hpMax", e.target.value)}
+                        />
+                      </label>
+                    </div>
+                  </>
+                ) : (
+                  <p className="inv-sub">Your Curator can unlock hand-editing of derived stats for this character.</p>
+                )}
               </div>
             )}
 

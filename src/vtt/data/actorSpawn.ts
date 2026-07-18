@@ -43,6 +43,7 @@ export function characterToTokenSpec(rec: CharacterRecord): Partial<VttToken> {
     bgBonuses: bgBonuses(sheet.background),
     equip,
     sizeMove: size.move,
+    overrides: sheet.derivedOverrides,
   });
   const hpMax = Math.max(1, derived.hpMax);
   return {

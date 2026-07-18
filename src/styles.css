@@ -211,13 +211,18 @@ body.wte-dot-cursor * {
   top: -14px;
   width: 28px;
   height: 28px;
-  border-radius: 50%;
-  border: 1px solid rgba(126, 207, 202, 0.45);
   pointer-events: none;
   z-index: 9998;
   transition: opacity 0.2s ease;
 }
-.cursor-ring.pulse {
+/* the drawn circle — pulsing scales THIS, never the positioned wrapper */
+.cursor-ring-core {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(126, 207, 202, 0.45);
+}
+.cursor-ring.pulse .cursor-ring-core {
   animation: cursor-pulse 0.4s ease;
 }
 @keyframes cursor-pulse {
@@ -6757,4 +6762,104 @@ body.wte-dot-cursor * {
 .vtt2-asset-actions {
   display: flex;
   gap: 4px;
+}
+
+/* ── Master volume (toolbar) — one slider for music, table sfx, spatial ── */
+.vtt2-vol {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 10px;
+}
+.vtt2-vol-label {
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--ink-dim, #93a1b8);
+}
+.vtt2-vol input[type="range"] {
+  width: 84px;
+  accent-color: var(--accent);
+}
+
+.vtt2-abil-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: stretch;
+}
+
+/* catalog gear stacks: row = main toggle + per-copy steppers */
+.gear-stack-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+}
+.gear-stack-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.gear-stack-btns {
+  display: inline-flex;
+  gap: 4px;
+  padding-right: 8px;
+}
+
+/* ── Stat overrides (Curator-gated hand edits of derived stats) ── */
+.overrides-block {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--panel-line);
+  border-radius: 10px;
+}
+.override-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+}
+.override-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 10px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--ink-dim, #93a1b8);
+}
+.override-cell input {
+  width: 100%;
+  background: rgba(12, 18, 32, 0.7);
+  border: 1px solid var(--panel-line);
+  border-radius: 6px;
+  color: var(--ink);
+  padding: 5px 7px;
+  font-size: 13px;
+}
+.override-cell input::placeholder {
+  color: rgba(147, 161, 184, 0.45);
+}
+
+/* ── Cinematic director's booth (Curator) ── */
+.vtt2-cine {
+  position: absolute;
+  top: 54px;
+  right: 12px;
+  width: 280px;
+  max-height: 78vh;
+  overflow-y: auto;
+  background: rgba(12, 18, 32, 0.96);
+  border: 1px solid var(--panel-line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  z-index: 12;
 }

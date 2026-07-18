@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { addAsset, deleteAsset, listAssets, type VttAsset } from "./data/assetRepo";
 import { groupSounds, soundDisplayName, soundNameFromFile } from "./data/soundLib";
+import { getMasterVolume } from "../lib/audioPrefs";
 import { useNet } from "../net/NetContext";
 
 interface Props {
@@ -98,7 +99,7 @@ export function VttSoundboard({ campaignId, sceneName, onClose, onPlaceEmitter }
     stopOne(s.id, false);
     if (loop && loopId === s.id) return;
     const audio = new Audio(s.uri);
-    audio.volume = volume;
+    audio.volume = Math.max(0, Math.min(1, volume * getMasterVolume()));
     audio.loop = loop;
     audio.onended = () => {
       if (!loop) stopOne(s.id, false);
@@ -123,7 +124,7 @@ export function VttSoundboard({ campaignId, sceneName, onClose, onPlaceEmitter }
 
   function changeVolume(v: number) {
     setVolume(v);
-    for (const a of active.current.values()) a.volume = v;
+    for (const a of active.current.values()) a.volume = Math.max(0, Math.min(1, v * getMasterVolume()));
   }
 
   async function addFiles(files: File[], useRelativePath: boolean) {

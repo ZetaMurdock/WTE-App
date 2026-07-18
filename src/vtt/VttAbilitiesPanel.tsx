@@ -73,9 +73,27 @@ export function VttAbilitiesPanel({ character, characters, onPickCharacter, onAr
             </div>
           )}
         </div>
-        <button className="chip" onClick={() => use(a)} title={a.source === "action" ? "Roll to hit" : "Roll this ability"}>
-          Use
-        </button>
+        {a.source === "action" ? (
+          // weapons get BOTH rolls: to-hit (1d20 + attack context) and damage
+          <div className="vtt2-abil-btns">
+            {a.hit != null && (
+              <button
+                className="chip"
+                onClick={() => onArmRoll(`${a.name} — hit`, `1d20${modSuffix(a.hit ?? 0)}`)}
+                title="Arm the to-hit roll (1d20 + attack)"
+              >
+                Hit
+              </button>
+            )}
+            <button className="chip" onClick={() => use(a)} title="Arm the damage roll">
+              Dmg
+            </button>
+          </div>
+        ) : (
+          <button className="chip" onClick={() => use(a)} title="Roll this ability">
+            Use
+          </button>
+        )}
       </li>
     );
   }

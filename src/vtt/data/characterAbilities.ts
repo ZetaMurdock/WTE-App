@@ -78,6 +78,7 @@ function deriveHits(rec: CharacterRecord): { atk: number; phyMod: number; dexMod
     equip,
     sizeMove: sizeOf(s.sizeId, s.speciesId).move,
     morality: s.morality,
+    overrides: s.derivedOverrides,
   });
   return { atk: derived.atk, phyMod: rollMod(eff.phy), dexMod: rollMod(eff.dex) };
 }

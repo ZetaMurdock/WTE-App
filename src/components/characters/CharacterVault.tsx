@@ -17,10 +17,12 @@ interface Props {
   /** Pull characters the legacy sheet left in this app's own storage. */
   onMigrateLegacy: () => void;
   onOpen: (id: string) => void;
+  /** Reopen a character in the step-by-step creator (edit mode). */
+  onEditInCreator: (id: string) => void;
   onChanged: () => void;
 }
 
-export function CharacterVault({ campaign, characters, loading, onNew, onRandomize, onImportFiles, onMigrateLegacy, onOpen, onChanged }: Props) {
+export function CharacterVault({ campaign, characters, loading, onNew, onRandomize, onImportFiles, onMigrateLegacy, onOpen, onEditInCreator, onChanged }: Props) {
   const importRef = useRef<HTMLInputElement>(null);
   async function handleRename(c: CharacterRecord) {
     const next = prompt("Rename character", c.name);
@@ -116,6 +118,9 @@ export function CharacterVault({ campaign, characters, loading, onNew, onRandomi
               <div className="char-actions">
                 <button className="icon-btn" onClick={() => onOpen(c.id)} title="Open & edit this character">
                   Edit
+                </button>
+                <button className="icon-btn" onClick={() => onEditInCreator(c.id)} title="Reopen in the step-by-step creator — species, background, attributes, the works">
+                  Rebuild
                 </button>
                 <button className="icon-btn" onClick={() => handleRename(c)}>
                   Rename

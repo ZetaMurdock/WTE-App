@@ -157,6 +157,22 @@ export class PixiVttApp {
         this.zones.tick(performance.now() / 1000, o.x, o.y, this.world.scale.x, this.scene.data.grid.size);
       }
       if (this.pings.active) this.pings.tick();
+      // Cinematic Mode: animate the screen effect, follow the spotlit token
+      // (players), and jitter the frame for shake — re-applying the camera
+      // first so the offset never accumulates.
+      if (this.cineFilter) this.cineFilter.tick((Date.now() - this.cineT0) / 1000, this.app.screen.width, this.app.screen.height);
+      if (this.cineState.on) {
+        if (this.playerView && this.cineState.tokenId) {
+          const t = this.scene?.data.tokens.find((x) => x.id === this.cineState.tokenId);
+          if (t) this.centerOn(t.x, t.y);
+        }
+        if (this.cineState.shake > 0) {
+          this.camera.apply();
+          const s = this.cineState.shake * 9;
+          this.world.position.x += (Math.random() * 2 - 1) * s;
+          this.world.position.y += (Math.random() * 2 - 1) * s;
+        }
+      }
       // Spatial sound follows the listener a few times a second — token moves,
       // camera pans, and wall edits all re-mix without any explicit hook.
       const nowMs = performance.now();
@@ -326,7 +342,43 @@ export class PixiVttApp {
   }
   /** Is THIS client's camera locked right now? (players only, while playing) */
   playLocked(): boolean {
-    return this.playCam.on && this.playerView;
+    return (this.playCam.on || (this.cineState.on && !!this.cineState.tokenId)) && this.playerView;
+  }
+
+  // ── Cinematic Mode: the director's cut. A full-screen GLSL effect over the
+  // whole stage, optional frame shake, and (for players) a camera locked onto
+  // the spotlit token, following it as it moves.
+  readonly cineState = { on: false, tokenId: undefined as string | undefined, shake: 0 };
+  private cineFilter: CustomShaderFilter | null = null;
+  private cineBody = "";
+  private cineT0 = 0;
+  setCinematic(on: boolean, opts: { tokenId?: string; glsl?: string; shake?: number } = {}): void {
+    this.cineState.on = on;
+    this.cineState.tokenId = on ? opts.tokenId : undefined;
+    this.cineState.shake = on ? Math.max(0, Math.min(1, opts.shake ?? 0)) : 0;
+    const body = on ? (opts.glsl ?? "").trim() : "";
+    if (body !== this.cineBody) {
+      this.cineBody = body;
+      this.cineFilter = null;
+      this.app.stage.filters = [];
+      if (body) {
+        const err = validateShaderBody(body);
+        if (err) {
+          this.onShaderError("Cinematic: " + err);
+        } else {
+          try {
+            this.cineFilter = new CustomShaderFilter(body);
+            this.cineT0 = Date.now();
+            this.app.stage.filters = [this.cineFilter];
+          } catch (e) {
+            this.cineFilter = null;
+            this.app.stage.filters = [];
+            this.onShaderError("Cinematic: " + String(e).slice(0, 300));
+          }
+        }
+      }
+    }
+    if (!on) this.camera.apply(); // clear any leftover shake offset
   }
   private applyPlayCam(): void {
     if (this.playLocked()) {

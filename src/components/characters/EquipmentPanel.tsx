@@ -135,9 +135,16 @@ export function InventoryBody({ speciesId, sizeId, equipment, weaponLoadout, gea
     (g) => (gCat === "All" || (g.category || "Other") === gCat) && g.name.toLowerCase().includes(gSearch.toLowerCase())
   );
 
-  function toggleGear(name: string) {
-    if (gearLoadout.includes(name)) onGear(gearLoadout.filter((n) => n !== name));
-    else onGear([...gearLoadout, name]);
+  /** Catalog gear stacks: the loadout holds one entry PER COPY carried. */
+  function gearCount(name: string): number {
+    return gearLoadout.filter((n) => n === name).length;
+  }
+  function addGearOne(name: string) {
+    onGear([...gearLoadout, name]);
+  }
+  function removeGearOne(name: string) {
+    const i = gearLoadout.indexOf(name);
+    if (i >= 0) onGear([...gearLoadout.slice(0, i), ...gearLoadout.slice(i + 1)]);
   }
   function update(id: string, patch: Partial<EquipmentItem>) {
     onEquipment(items.map((it) => (it.id === id ? { ...it, ...patch } : it)));
@@ -154,15 +161,26 @@ export function InventoryBody({ speciesId, sizeId, equipment, weaponLoadout, gea
     else removeItem(it.id);
   }
   function gearRow(g: Equipment) {
-    const equipped = gearLoadout.includes(g.name);
+    const count = gearCount(g.name);
     return (
-      <button key={g.name} className={"use-row" + (equipped ? " selected" : "")} disabled={!curator} onClick={() => toggleGear(g.name)}>
-        <span className="ability-check">{equipped ? "✓" : "+"}</span>
-        <span className="use-name">{g.name}</span>
-        {g.slot ? <span className="ss-badge">{SLOT_LABEL[g.slot.toUpperCase()] || g.slot}</span> : null}
-        {g.mods ? <span className="use-mods">{g.mods}</span> : null}
-        <span className="ss-badge">{g.ncCost ?? 0} NC</span>
-      </button>
+      <div key={g.name} className={"use-row gear-stack-row" + (count > 0 ? " selected" : "")}>
+        <button className="gear-stack-main" disabled={!curator} onClick={() => (count > 0 ? removeGearOne(g.name) : addGearOne(g.name))} title={count > 0 ? "Remove one" : "Equip one"}>
+          <span className="ability-check">{count > 0 ? "✓" : "+"}</span>
+          <span className="use-name">
+            {g.name}
+            {count > 1 && <span className="inv-tag consumable"> ×{count}</span>}
+          </span>
+          {g.slot ? <span className="ss-badge">{SLOT_LABEL[g.slot.toUpperCase()] || g.slot}</span> : null}
+          {g.mods ? <span className="use-mods">{g.mods}</span> : null}
+          <span className="ss-badge">{(g.ncCost ?? 0) * Math.max(1, count)} NC</span>
+        </button>
+        {curator && count > 0 && (
+          <span className="gear-stack-btns">
+            <button className="icon-btn sm" onClick={() => removeGearOne(g.name)} title="Carry one less">−</button>
+            <button className="icon-btn sm" onClick={() => addGearOne(g.name)} title="Carry another copy">+</button>
+          </span>
+        )}
+      </div>
     );
   }
 
@@ -208,8 +226,8 @@ export function InventoryBody({ speciesId, sizeId, equipment, weaponLoadout, gea
             {equippedWeapons.map((w) => (
               <EquippedRow key={"w:" + w.name} item={{ name: w.name, slot: w.slot, weight: w.weight, damage: w.damage, mods: w.mods, ncCost: w.ncCost, effect: w.effect, kind: "weapon" }} />
             ))}
-            {equippedGear.map((g) => (
-              <EquippedRow key={"g:" + g.name} item={{ name: g.name, slot: g.slot, weight: g.weight, category: g.category, mods: g.mods, ncCost: g.ncCost, effect: g.effect, consumable: isConsumable(g.category), kind: "gear" }} />
+            {equippedGear.map((g, i) => (
+              <EquippedRow key={"g:" + g.name + ":" + i} item={{ name: g.name, slot: g.slot, weight: g.weight, category: g.category, mods: g.mods, ncCost: g.ncCost, effect: g.effect, consumable: isConsumable(g.category), kind: "gear" }} />
             ))}
           </div>
         )}
@@ -235,18 +253,28 @@ export function InventoryBody({ speciesId, sizeId, equipment, weaponLoadout, gea
           )}
           <p className="inv-sub">From the catalog — how they function:</p>
           <div className="inv-list">
-            {catalogConsumables.map((g) => (
-              <div className="inv-item" key={g.name}>
-                <div className="inv-item-head">
-                  <span className="inv-name">{g.name}</span>
-                  {gearLoadout.includes(g.name) && <span className="inv-tag consumable">equipped</span>}
-                  {curator && (
-                    <button className="chip" onClick={() => toggleGear(g.name)}>{gearLoadout.includes(g.name) ? "Unequip" : "Equip"}</button>
-                  )}
+            {catalogConsumables.map((g) => {
+              const count = gearCount(g.name);
+              return (
+                <div className="inv-item" key={g.name}>
+                  <div className="inv-item-head">
+                    <span className="inv-name">{g.name}</span>
+                    {count > 0 && <span className="inv-tag consumable">×{count}</span>}
+                    {count > 0 && (
+                      <button className="chip" onClick={() => removeGearOne(g.name)} title="Use one — removes a copy from your loadout">
+                        Use
+                      </button>
+                    )}
+                    {curator && (
+                      <button className="chip" onClick={() => addGearOne(g.name)} title="Carry another copy">
+                        +1
+                      </button>
+                    )}
+                  </div>
+                  <EffectLine text={g.effect} />
                 </div>
-                <EffectLine text={g.effect} />
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </Collapsible>

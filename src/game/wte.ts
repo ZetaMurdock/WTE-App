@@ -657,6 +657,8 @@ export interface DerivedOpts {
   sizeMove?: number;
   /** Polarized Soul position — wires the Process/Resonance mechanics in. */
   morality?: number;
+  /** Curator-sanctioned manual overrides — replace the computed value outright. */
+  overrides?: Partial<Derived> & { hpMax?: number };
 }
 export function computeDerived(
   attrsIn: Attributes,
@@ -706,8 +708,15 @@ export function computeDerived(
     d.inf = 0;
     raw.inf = 0;
   }
+  // Manual overrides land LAST — the Curator's word beats every formula.
+  if (opts.overrides) {
+    for (const stat of DERIVED) {
+      const ov = opts.overrides[stat.key];
+      if (ov != null && Number.isFinite(ov)) d[stat.key] = ov;
+    }
+  }
   const hpMax = Math.max(0, Math.floor((raw.dhp / 2) * rankMult(rank)) + attrMod(a.end));
-  return { ...d, hpMax, raw };
+  return { ...d, hpMax: opts.overrides?.hpMax ?? hpMax, raw };
 }
 
 export function specialtyTotal(specs: Specialties): number {

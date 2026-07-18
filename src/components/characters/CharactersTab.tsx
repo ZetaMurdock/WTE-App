@@ -8,7 +8,7 @@ import { CharacterVault } from "./CharacterVault";
 import { CharacterCreator } from "./CharacterCreator";
 import { CharacterSheet } from "./CharacterSheet";
 
-type View = { mode: "vault" } | { mode: "creator" } | { mode: "sheet"; id: string };
+type View = { mode: "vault" } | { mode: "creator"; editId?: string } | { mode: "sheet"; id: string };
 
 interface Props {
   campaign: Campaign | null;
@@ -60,7 +60,9 @@ export function CharactersTab({ campaign, curator, onCharactersChanged }: Props)
   if (view.mode === "creator") {
     return (
       <CharacterCreator
+        key={view.editId ?? "new"}
         campaignId={campaign.id}
+        edit={view.editId ? characters.find((c) => c.id === view.editId) : undefined}
         onCancel={() => setView({ mode: "vault" })}
         onDone={async (id) => {
           await reload();
@@ -128,6 +130,7 @@ export function CharactersTab({ campaign, curator, onCharactersChanged }: Props)
         await reload();
       }}
       onOpen={(id) => setView({ mode: "sheet", id })}
+      onEditInCreator={(id) => setView({ mode: "creator", editId: id })}
       onChanged={reload}
     />
   );

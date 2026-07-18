@@ -21,8 +21,17 @@ export interface SfxMsg {
 export class SfxPlayer {
   private cache = new Map<string, string>();
   private live = new Map<string, SfxAudio>();
+  /** Each clip's own volume, so the master slider can retune live audio. */
+  private clipVol = new Map<string, number>();
+  private master = 1;
 
   constructor(private make: (uri: string) => SfxAudio = (uri) => new Audio(uri) as unknown as SfxAudio) {}
+
+  /** Master volume 0..1 — scales every playing and future clip. */
+  setMaster(v: number): void {
+    this.master = Math.max(0, Math.min(1, v));
+    for (const [id, a] of this.live) a.volume = (this.clipVol.get(id) ?? 0.8) * this.master;
+  }
 
   apply(msg: SfxMsg): void {
     if (msg.uri) this.cache.set(msg.id, msg.uri);
@@ -44,7 +53,9 @@ export class SfxPlayer {
     this.live.get(msg.id)?.pause(); // re-trigger restarts the clip
     const a = this.make(uri);
     a.loop = msg.action === "loop";
-    a.volume = Math.max(0, Math.min(1, msg.volume ?? 0.8));
+    const clip = Math.max(0, Math.min(1, msg.volume ?? 0.8));
+    this.clipVol.set(msg.id, clip);
+    a.volume = clip * this.master;
     a.onended = () => {
       if (!a.loop) this.live.delete(msg.id);
     };

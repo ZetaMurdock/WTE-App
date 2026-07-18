@@ -63,6 +63,8 @@ interface LiveEmitter {
 export class SpatialAudioEngine {
   private ctx: AudioContext | null = null;
   private live = new Map<string, LiveEmitter>();
+  /** Master volume 0..1 — applied on top of each emitter's spatial mix. */
+  master = 1;
 
   sync(emitters: VttEmitter[], listener: { x: number; y: number } | null, walls: VttWall[], cellPx: number): void {
     // Tear down emitters that were removed or whose clip changed.
@@ -102,7 +104,7 @@ export class SpatialAudioEngine {
       if (n.el.paused && e.loop) void n.el.play().catch(() => {});
       const mix = listener ? spatialMix(e, listener.x, listener.y, walls, cellPx) : { gain: 0, cutoff: OPEN_CUTOFF };
       const t = ctx.currentTime;
-      n.gain.gain.setTargetAtTime(mix.gain, t, 0.15);
+      n.gain.gain.setTargetAtTime(mix.gain * Math.max(0, Math.min(1, this.master)), t, 0.15);
       n.filter.frequency.setTargetAtTime(mix.cutoff, t, 0.15);
     }
   }

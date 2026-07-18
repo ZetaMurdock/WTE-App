@@ -18,6 +18,8 @@ import { useNet } from "../net/NetContext";
 import type { NetMessage } from "../net/protocol";
 import { addSessionRoll } from "./sync/rollSession";
 import { SfxPlayer } from "./audio/sfxPlayer";
+import { getMasterVolume, subscribeMasterVolume } from "../lib/audioPrefs";
+import { VttCinePanel, type CineConfig } from "./VttCinePanel";
 import { VttSceneBrowser } from "./VttSceneBrowser";
 import { VttActorsPanel } from "./VttActorsPanel";
 import { VttEncounterPanel } from "./VttEncounterPanel";
@@ -161,20 +163,49 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
       setPlayModeState({ on: pm.on, range: pm.range });
     });
   }, [net.subscribe, net.selfId]);
+  // Cinematic Mode (Curator-directed): synced like play-mode, applied by the engine.
+  const [cine, setCineState] = useState<CineConfig>({ on: false });
+  const [cineOpen, setCineOpen] = useState(false);
+  const setCine = useCallback(
+    (next: CineConfig) => {
+      setCineState(next);
+      engineRef.current?.setCinematic(next.on, next);
+      if (net.status === "connected" && net.role === "host") {
+        net.publish({ t: "cine", on: next.on, tokenId: next.tokenId, glsl: next.glsl, shake: next.shake });
+      }
+    },
+    [net]
+  );
+  useEffect(() => {
+    return net.subscribe("cine", (m, from) => {
+      if (from === net.selfId) return;
+      const hostId = peersRef.current.find((p) => p.role === "host")?.id;
+      if (from !== hostId) return;
+      const c = m as Extract<NetMessage, { t: "cine" }>;
+      const next: CineConfig = { on: c.on, tokenId: c.tokenId, glsl: c.glsl, shake: c.shake };
+      setCineState(next);
+      engineRef.current?.setCinematic(next.on, next);
+    });
+  }, [net.subscribe, net.selfId]);
+
   // Late joiners land mid-session: the host repeats the current play state.
   const playModeRef = useRef(playMode);
   playModeRef.current = playMode;
+  const cineRef = useRef(cine);
+  cineRef.current = cine;
   const prevPeerCount = useRef(0);
   useEffect(() => {
     const grew = net.peers.length > prevPeerCount.current;
     prevPeerCount.current = net.peers.length;
-    if (grew && net.role === "host" && net.status === "connected" && playModeRef.current.on) {
-      net.publish({ t: "play-mode", on: true, range: playModeRef.current.range });
+    if (grew && net.role === "host" && net.status === "connected") {
+      if (playModeRef.current.on) net.publish({ t: "play-mode", on: true, range: playModeRef.current.range });
+      const c = cineRef.current;
+      if (c.on) net.publish({ t: "cine", on: true, tokenId: c.tokenId, glsl: c.glsl, shake: c.shake });
     }
   }, [net.peers, net.role, net.status, net]);
-  // The whole player chrome collapses while playing (Curator keeps theirs
-  // unless previewing player view).
-  const playHidden = playMode.on && asPlayer;
+  // The whole player chrome collapses while playing OR during a cinematic
+  // (Curator keeps theirs unless previewing player view).
+  const playHidden = (playMode.on || cine.on) && asPlayer;
 
   // Player perspective: fog reveals only from the player's OWN tokens (GM sees
   // all). Runs every render so it tracks role/selection changes in the 2D view.
@@ -341,12 +372,25 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     if (audio?.src) {
       if (el.src !== audio.src) el.src = audio.src;
       el.loop = true;
-      el.volume = audio.volume ?? 0.5;
+      el.volume = Math.max(0, Math.min(1, (audio.volume ?? 0.5) * getMasterVolume()));
       void el.play().catch(() => {});
     } else {
       el.pause();
       el.removeAttribute("src");
     }
+  });
+  // ONE master volume scales scene music, received table sfx, and spatial
+  // emitters together — moving the slider retunes audio that's already playing.
+  useEffect(() => {
+    const apply = (v: number) => {
+      const el = audioRef.current;
+      const audio = engineRef.current?.scene?.data.audio ?? scene?.data.audio ?? null;
+      if (el && audio?.src) el.volume = Math.max(0, Math.min(1, (audio.volume ?? 0.5) * v));
+      sfxRef.current?.setMaster(v);
+      if (engineRef.current) engineRef.current.spatial.master = v;
+    };
+    apply(getMasterVolume());
+    return subscribeMasterVolume(apply);
   });
   const [characters, setCharacters] = useState<CharacterRecord[]>([]);
   const [charsLoading, setCharsLoading] = useState(false);
@@ -810,6 +854,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
             : undefined
         }
         preview={!isNetPlayer ? { on: previewAs != null, onToggle: () => setPreviewAs((p) => (p != null ? null : net.peers.find((x) => x.role === "player")?.id ?? net.selfId)) } : undefined}
+        cine={!isNetPlayer ? { on: cine.on, open: cineOpen, onToggle: () => setCineOpen((v) => !v) } : undefined}
       />
       )}
       {playHidden && (
@@ -1042,6 +1087,9 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
         >
           <span className="vtt2-aoe-place-hint">Click to pin “{armedSound.name}” to the map · Esc to cancel</span>
         </div>
+      )}
+      {cineOpen && !asPlayer && live && (
+        <VttCinePanel tokens={live.data.tokens} cine={cine} onChange={setCine} onClose={() => setCineOpen(false)} />
       )}
       {campaign && <VttRollToast campaignId={campaign.id} />}
       {campaign && rollsOpen && (

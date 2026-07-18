@@ -42,7 +42,11 @@ export type NetMessage =
   | { t: "vtt-ping"; x: number; y: number }
   // Curator's Play Mode: players' UI collapses to token movement + rolls, their
   // camera follows their token, zoom-out clamped to `range` (0.1..1 of normal).
-  | { t: "play-mode"; on: boolean; range: number };
+  | { t: "play-mode"; on: boolean; range: number }
+  // Cinematic Mode — the director's cut: lock every player's camera onto a
+  // token (follows as it moves), shake the frame, and run a full-screen GLSL
+  // effect (validated per client; bad bodies fall back to none).
+  | { t: "cine"; on: boolean; tokenId?: string; glsl?: string; shake?: number };
 
 export type NetMessageType = NetMessage["t"];
 

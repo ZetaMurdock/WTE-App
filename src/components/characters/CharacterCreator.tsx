@@ -36,7 +36,7 @@ import {
   type CodexBackground,
 } from "../../game/wte";
 import type { CharacterSheet } from "../../models/character";
-import { createCharacter } from "../../lib/characters";
+import { createCharacter, updateCharacter, type CharacterRecord } from "../../lib/characters";
 import { DerivedPreview } from "./DerivedPreview";
 import { AttributeRoller } from "./AttributeRoller";
 import { PortraitFrame } from "./PortraitFrame";
@@ -45,6 +45,9 @@ const STEPS = ["Identity", "Species", "Origin", "Paradigm", "Attributes", "Speci
 
 interface Props {
   campaignId: string;
+  /** Present = EDIT an existing character through the same wizard; fields not
+   *  covered by the wizard (rank, loadouts, equipment, pressure…) survive. */
+  edit?: CharacterRecord;
   onDone: (id?: string) => void;
   onCancel: () => void;
 }
@@ -68,25 +71,32 @@ function statBonusRows(b: CodexBackground): { label: string; amount: number }[] 
   return rows;
 }
 
-export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
+export function CharacterCreator({ campaignId, edit, onDone, onCancel }: Props) {
+  const es = edit?.sheet;
   const [step, setStep] = useState(0);
-  const [name, setName] = useState("");
-  const [speciesId, setSpeciesId] = useState<string | undefined>();
-  const [variantName, setVariantName] = useState<string | undefined>();
-  const [variantOption, setVariantOption] = useState<string | undefined>();
-  const [paradigmId, setParadigmId] = useState<string | undefined>();
-  const [attributes, setAttributes] = useState<Attributes>(zeroAttributes());
-  const [specialties, setSpecialties] = useState<Specialties>(zeroSpecialties());
-  const [bgName, setBgName] = useState("");
-  const [bgMode, setBgMode] = useState<BgMode>("standard");
-  const [bgAssign, setBgAssign] = useState<(AttrKey | null)[]>([null, null, null, null]);
-  const [selectedBg, setSelectedBg] = useState<CodexBackground | null>(null);
-  const [backstory, setBackstory] = useState("");
-  const [sector, setSector] = useState<string | undefined>();
-  const [morality, setMorality] = useState(50);
-  const [sizeId, setSizeId] = useState("auto");
+  const [name, setName] = useState(edit?.name ?? "");
+  const [speciesId, setSpeciesId] = useState<string | undefined>(es?.speciesId);
+  const [variantName, setVariantName] = useState<string | undefined>(es?.variantName);
+  const [variantOption, setVariantOption] = useState<string | undefined>(es?.variantOption);
+  const [paradigmId, setParadigmId] = useState<string | undefined>(es?.paradigmId);
+  const [attributes, setAttributes] = useState<Attributes>(es ? { ...es.attributes } : zeroAttributes());
+  const [specialties, setSpecialties] = useState<Specialties>(es ? { ...es.specialties } : zeroSpecialties());
+  const [bgName, setBgName] = useState(es?.background?.name ?? "");
+  const [bgMode, setBgMode] = useState<BgMode>(es?.background?.mode ?? "standard");
+  const [bgAssign, setBgAssign] = useState<(AttrKey | null)[]>(
+    es?.background?.assign?.length ? [...es.background.assign] : [null, null, null, null]
+  );
+  const [selectedBg, setSelectedBg] = useState<CodexBackground | null>(() =>
+    es?.background && (es.background.attrBonus || es.background.specBonus)
+      ? ({ name: es.background.name ?? "Background", mode: es.background.mode, attrBonus: es.background.attrBonus, specBonus: es.background.specBonus } as CodexBackground)
+      : null
+  );
+  const [backstory, setBackstory] = useState(es?.notes ?? "");
+  const [sector, setSector] = useState<string | undefined>(es?.sector);
+  const [morality, setMorality] = useState(es?.morality ?? 50);
+  const [sizeId, setSizeId] = useState(es?.sizeId ?? "auto");
   const [attrMode, setAttrMode] = useState<"manual" | "roll">("manual");
-  const [portrait, setPortrait] = useState<string | undefined>();
+  const [portrait, setPortrait] = useState<string | undefined>(es?.portrait);
   const [saving, setSaving] = useState(false);
 
   // A Codex background with fixed bonuses overrides the manual mode/assign spread.
@@ -121,12 +131,18 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
 
   async function finish() {
     setSaving(true);
-    const sheet: CharacterSheet = { attributes, specialties, speciesId, variantName, variantOption, paradigmId, rank: 0, portrait, background, sizeId, sector, morality, notes: backstory };
+    const fields = { attributes, specialties, speciesId, variantName, variantOption, paradigmId, portrait, background, sizeId, sector, morality, notes: backstory };
     try {
-      const rec = await createCharacter(campaignId, name, sheet);
-      onDone(rec.id);
+      if (edit) {
+        // merge OVER the existing sheet — rank/loadouts/equipment/etc. survive
+        await updateCharacter(edit.id, { name: name.trim() || edit.name, sheet: { ...edit.sheet, ...fields } });
+        onDone(edit.id);
+      } else {
+        const rec = await createCharacter(campaignId, name, { rank: 0, ...fields } as CharacterSheet);
+        onDone(rec.id);
+      }
     } catch (e) {
-      alert("Could not create character: " + (e instanceof Error ? e.message : String(e)));
+      alert("Could not save character: " + (e instanceof Error ? e.message : String(e)));
       setSaving(false);
     }
   }
@@ -147,7 +163,7 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
     <div className="dashboard">
       <div className="dash-header">
         <div>
-          <div className="dash-eyebrow">New character</div>
+          <div className="dash-eyebrow">{edit ? `Editing ${edit.name}` : "New character"}</div>
           <h1 className="dash-title">{STEPS[step]}</h1>
         </div>
         <button className="ghost-btn" onClick={onCancel}>
@@ -524,7 +540,7 @@ export function CharacterCreator({ campaignId, onDone, onCancel }: Props) {
             )}
             <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} background={background} morality={morality} />
             <button className="primary-btn full mt" disabled={saving || !validation.ok} onClick={finish}>
-              {saving ? "Creating…" : "Create character"}
+              {saving ? "Saving…" : edit ? "Save changes" : "Create character"}
             </button>
           </div>
         )}

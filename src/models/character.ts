@@ -1,4 +1,4 @@
-import type { Attributes, Specialties, Background, EquipmentItem } from "../game/wte";
+import type { Attributes, Specialties, Background, DerivedKey, EquipmentItem } from "../game/wte";
 
 /** DB-row metadata for a character (the `data` column holds the CharacterSheet JSON). */
 export interface Character {
@@ -45,5 +45,9 @@ export interface CharacterSheet {
   gearLoadout?: string[];
   /** Synaptic Space spent (current SS = derived SS − ssSpent); reset by Rest. */
   ssSpent?: number;
+  /** Curator switch: may this character's stats be hand-edited/overridden? */
+  allowOverrides?: boolean;
+  /** Manual derived-stat overrides (Curator-sanctioned) — replace computed values. */
+  derivedOverrides?: Partial<Record<DerivedKey, number>> & { hpMax?: number };
   notes?: string;
 }

@@ -29,6 +29,18 @@ function player() {
 }
 
 describe("SfxPlayer", () => {
+  it("master volume scales live clips and future ones", () => {
+    const { p, made } = player();
+    p.apply({ action: "loop", id: "a", uri: "data:x", volume: 0.8 });
+    expect(made[0].volume).toBeCloseTo(0.8);
+    p.setMaster(0.5);
+    expect(made[0].volume).toBeCloseTo(0.4); // retunes what's already playing
+    p.apply({ action: "play", id: "b", uri: "data:y", volume: 1 });
+    expect(made[1].volume).toBeCloseTo(0.5); // and scales new clips
+    p.setMaster(1);
+    expect(made[0].volume).toBeCloseTo(0.8);
+  });
+
   it("caches bytes on first play and plays them", () => {
     const { p, made } = player();
     p.apply({ action: "play", id: "a", uri: "data:x", volume: 0.5 });

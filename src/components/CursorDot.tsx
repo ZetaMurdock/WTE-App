@@ -51,14 +51,21 @@ export function CursorDot({ enabled }: { enabled: boolean }) {
       dot.classList.add("off");
       ring.classList.add("off");
     };
-    const tick = () => {
+    let last = performance.now();
+    const tick = (now: number) => {
       raf = requestAnimationFrame(tick);
-      // the ring trails the dot with a soft chase
-      rx += (tx - rx) * 0.18;
-      ry += (ty - ry) * 0.18;
+      // the ring trails the dot with a soft chase — DELTA-timed so the feel is
+      // identical at 60Hz, 144Hz, or through frame drops (no more stutter-lurch)
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      const k = 1 - Math.exp(-12 * dt);
+      rx += (tx - rx) * k;
+      ry += (ty - ry) * k;
+      if (Math.abs(tx - rx) < 0.1) rx = tx;
+      if (Math.abs(ty - ry) < 0.1) ry = ty;
       ring.style.transform = `translate(${rx}px, ${ry}px)`;
     };
-    tick();
+    raf = requestAnimationFrame(tick);
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mousedown", onDown);
     document.documentElement.addEventListener("mouseleave", onLeave);
@@ -75,7 +82,12 @@ export function CursorDot({ enabled }: { enabled: boolean }) {
   return (
     <>
       <div ref={dotRef} className="cursor-dot" />
-      <div ref={ringRef} className="cursor-ring" />
+      {/* the visible circle lives on an inner core so the click pulse scales
+          IN PLACE — scaling the translated wrapper multiplied the screen
+          position and made the ring lurch toward the corner on every click */}
+      <div ref={ringRef} className="cursor-ring">
+        <div className="cursor-ring-core" />
+      </div>
     </>
   );
 }

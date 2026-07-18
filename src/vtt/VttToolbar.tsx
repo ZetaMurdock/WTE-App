@@ -1,3 +1,6 @@
+import { useSyncExternalStore } from "react";
+import { getMasterVolume, setMasterVolume, subscribeMasterVolume } from "../lib/audioPrefs";
+
 interface Props {
   sceneName: string;
   onRename: (name: string) => void;
@@ -25,6 +28,8 @@ interface Props {
   play?: { on: boolean; range: number; onToggle: () => void; onRange: (v: number) => void };
   /** Curator-only: preview the table exactly as a player sees it. */
   preview?: { on: boolean; onToggle: () => void };
+  /** Curator-only: the Cinematic director's booth (camera lock + screen FX). */
+  cine?: { on: boolean; open: boolean; onToggle: () => void };
 }
 
 // The slim top bar: panel toggles + scene identity. Map TOOLS live in the
@@ -52,6 +57,7 @@ export function VttToolbar({
   syncPeers,
   play,
   preview,
+  cine,
 }: Props) {
   return (
     <div className="vtt2-toolbar">
@@ -109,7 +115,17 @@ export function VttToolbar({
           Player view
         </button>
       )}
+      {cine && (
+        <button
+          className={"chip" + (cine.open || cine.on ? " active" : "")}
+          onClick={cine.onToggle}
+          title="Cinematic — lock players' cameras on a token, shake the frame, run screen effects"
+        >
+          {cine.on ? "● Cinematic" : "Cinematic"}
+        </button>
+      )}
       <span className="rank-spacer" />
+      <MasterVolume />
       {syncOn && (
         <span className="vtt2-sync" title={`Live sync — ${syncPeers} peer${syncPeers === 1 ? "" : "s"} in the room`}>
           Live · {syncPeers}
@@ -124,5 +140,17 @@ export function VttToolbar({
       />
       <span className="vtt2-meta">{tokenCount} tokens</span>
     </div>
+  );
+}
+
+/** One slider for EVERYTHING this device plays: scene music, table sfx,
+ *  spatial emitters. Per-device — it never affects what others hear. */
+function MasterVolume() {
+  const vol = useSyncExternalStore(subscribeMasterVolume, getMasterVolume);
+  return (
+    <label className="vtt2-vol" title="Master volume — music, table sounds, and spatial audio on this device">
+      <span className="vtt2-vol-label">Vol</span>
+      <input type="range" min={0} max={1} step={0.02} value={vol} onChange={(e) => setMasterVolume(parseFloat(e.target.value))} />
+    </label>
   );
 }
