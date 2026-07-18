@@ -3,6 +3,10 @@
 import { Assets, Container, Graphics, Sprite, Text } from "pixi.js";
 import type { VttScene, VttToken } from "../../types/scene";
 import { cellKey } from "../systems/VisionSystem";
+import { burnMechanicOn, lightFactor } from "../systems/lightState";
+
+/** Token fade stiffness as it slips in/out of sight. */
+const TOKEN_FADE_DAMP = 7;
 
 const STATUS_PALETTE = [0xa1584a, 0xa08a4f, 0x689a96, 0x837aae, 0x6f9a68, 0xa7aebd];
 /** Stable colour per status tag, so a given status always reads the same. */
@@ -14,6 +18,8 @@ function statusColor(s: string): number {
 
 interface Node {
   root: Container;
+  /** Soft ground shadow, cast away from the nearest light (under everything). */
+  shadow: Graphics;
   /** Rotating part (disc + art); the label stays upright. */
   body: Container;
   disc: Graphics;
@@ -57,9 +63,16 @@ export class TokenLayer {
     return null;
   }
 
-  sync(scene: VttScene, selectedId: string | null, visible: Set<string> | null = null): void {
+  /** Per-token displayed opacity, eased — tokens slipping in/out of your sight
+   *  fade rather than blink. */
+  private shown = new Map<string, number>();
+  /** True while every token has settled at its target opacity. */
+  settled = true;
+
+  sync(scene: VttScene, selectedId: string | null, visible: Set<string> | null = null, dt = 1 / 60): void {
     const { tokens, layers } = scene.data;
     this.view.visible = layers.tokens;
+    this.settled = true;
     const live = new Set(tokens.map((t) => t.id));
     for (const [id, n] of this.nodes) {
       if (!live.has(id)) {
@@ -68,10 +81,13 @@ export class TokenLayer {
       }
     }
     const cell = scene.data.grid.size;
+    const realistic = scene.data.fog.enabled && burnMechanicOn(scene.data.fog);
+    const now = Date.now();
     for (const t of tokens) {
       let n = this.nodes.get(t.id);
       if (!n) {
         const root = new Container();
+        const shadow = new Graphics();
         const body = new Container();
         const disc = new Graphics();
         body.addChild(disc);
@@ -80,17 +96,60 @@ export class TokenLayer {
           style: { fontFamily: "Georgia, serif", fontSize: 13, fill: 0xd5dbe6, stroke: { color: 0x04070d, width: 3 } },
         });
         label.anchor.set(0.5, 0);
-        root.addChild(body, label);
+        root.addChild(shadow, body, label); // shadow first = under the token
         this.view.addChild(root);
-        n = { root, body, disc, art: null, artMask: null, imgSrc: "", label, token: t };
+        n = { root, shadow, body, disc, art: null, artMask: null, imgSrc: "", label, token: t };
         this.nodes.set(t.id, n);
       }
       n.token = t;
       const r = ((t.size || 1) * cell) / 2 - 4;
       n.root.position.set(t.x, t.y);
-      // Player view: a token in an unseen cell is hidden by the fog of war.
+      // Player view: a token in an unseen cell is hidden by the fog of war —
+      // faded out over a beat, not blinked away.
       const inFog = visible !== null && !visible.has(cellKey(Math.floor(t.x / cell), Math.floor(t.y / cell)));
-      n.root.visible = t.visible !== false && !inFog;
+      const target = t.visible !== false && !inFog ? 1 : 0;
+      const prev = this.shown.get(t.id);
+      let op: number;
+      if (prev == null) op = target; // first sight — no fade from nothing
+      else {
+        const k = 1 - Math.exp(-TOKEN_FADE_DAMP * dt);
+        op = prev + (target - prev) * k;
+        if (Math.abs(target - op) < 0.004) op = target;
+        else this.settled = false;
+      }
+      this.shown.set(t.id, op);
+      n.root.alpha = op;
+      n.root.visible = op > 0.004;
+      // Ground shadow: thrown AWAY from the nearest lit light and stretched the
+      // farther that light is — a body standing in light reads as standing on
+      // something. No light nearby = a soft pool directly underneath.
+      n.shadow.clear();
+      {
+        const lit = (scene.data.lights ?? []).filter((l) => lightFactor(l, realistic, now) > 0);
+        let bx = 0;
+        let by = 0;
+        let bd = Infinity;
+        for (const l of lit) {
+          const d = Math.hypot(l.x - t.x, l.y - t.y);
+          if (d < bd) {
+            bd = d;
+            bx = l.x;
+            by = l.y;
+          }
+        }
+        let ox = 0;
+        let oy = r * 0.16;
+        let stretch = 1;
+        if (bd !== Infinity && bd > 1) {
+          const ux = (t.x - bx) / bd;
+          const uy = (t.y - by) / bd;
+          const lean = Math.min(1, bd / (cell * 6)); // farther light = longer throw
+          ox = ux * r * 0.55 * lean;
+          oy = uy * r * 0.55 * lean;
+          stretch = 1 + 0.45 * lean;
+        }
+        n.shadow.ellipse(ox, oy, r * 0.92 * stretch, r * 0.55).fill({ color: 0x04070d, alpha: 0.34 });
+      }
       n.body.rotation = (((t.rotation || 0) % 360) * Math.PI) / 180;
       n.disc.clear();
       n.disc.circle(0, 0, r).fill(t.color || "#689a96");

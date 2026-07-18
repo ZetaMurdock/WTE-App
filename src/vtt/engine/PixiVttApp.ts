@@ -188,17 +188,26 @@ export class PixiVttApp {
         const d = this.scene.data;
         this.spatial.sync(d.emitters ?? [], this.listenerWorld(), d.walls, d.grid.size);
       }
-      // Realistic fog decays with TIME, not just mutations — repaint fog AND
-      // lights twice a second so left areas sink back into the dark and burning
-      // lanterns visibly dim toward nothing.
+      // Nothing in the world POPS: lights, tokens and fog cells all ease toward
+      // their target, so while any of them is still travelling we keep
+      // repainting. (Realistic fog additionally repaints on a 500ms beat so
+      // time-based decay and lantern burn-down keep moving on their own.)
+      const dt = Math.min(0.05, this.app.ticker.deltaMS / 1000);
       const fog = this.scene?.data.fog;
+      const easing = !this.lights.settled || !this.tokens.settled || !this.fog.settled;
+      let beat = false;
       if (fog?.enabled && fog.mode === "realistic") {
         const now = Date.now();
         if (now - fogTickAt >= 500) {
           fogTickAt = now;
-          this.lights.draw(this.scene!, this.selection, this.playerView && this.selfId ? this.selfId : undefined);
-          this.fog.draw(this.scene!, this.visionOf() ?? new Set<string>(), this.playerView);
+          beat = true;
         }
+      }
+      if (this.scene && (easing || beat)) {
+        const visible = this.visionOf();
+        this.lights.draw(this.scene, this.selection, this.playerView && this.selfId ? this.selfId : undefined, dt);
+        this.tokens.sync(this.scene, this.selection?.kind === "token" ? this.selection.id : null, this.playerView ? visible : null, dt);
+        this.fog.draw(this.scene, visible ?? new Set<string>(), this.playerView, dt);
       }
     });
     this.ready = true;

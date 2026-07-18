@@ -14,6 +14,11 @@ export const cellKey = (c: number, r: number): string => `${c},${r}`;
 export const VISION_CONE_DEG = 140;
 /** You can always sense right around yourself (cells) — even behind you. */
 export const PERIPHERAL_CELLS = 1.5;
+/** How much of a light you still perceive with it OUTSIDE your cone — turning
+ *  away dims a light, it doesn't switch it off. */
+export const AMBIENT_OFF_CONE = 0.4;
+/** Ambiance carries this many times a light's lit radius before fading out. */
+export const AMBIENT_REACH = 2.2;
 
 /** Is the offset (dx,dy) inside the token's field of view? No facing = 360. */
 export function inVisionCone(facing: number | undefined, dx: number, dy: number, distPx: number, peripheralPx: number): boolean {
@@ -65,6 +70,34 @@ export function lightVisibleTo(data: VttSceneData, light: Pick<VttLight, "x" | "
     if (!blocked(t.x, t.y, light.x, light.y, walls)) return true;
   }
   return false;
+}
+
+/** How strongly a viewer PERCEIVES a light, 0..1 — for rendering its glow.
+ *  Light doesn't switch off when you look away: with clear line of sight you
+ *  still catch its ambiance, dimmer the farther away and dimmer again when it's
+ *  outside your cone. A wall between you and it IS a hard cut (the wall really
+ *  does block it). This shapes the GLOW only — which cells a light reveals stays
+ *  cone-gated by lightVisibleTo, so the claustrophobic feel survives. */
+export function lightPerception(data: VttSceneData, light: Pick<VttLight, "x" | "y" | "radius">, ownerId?: string): number {
+  if (!ownerId) return 1; // GM sees everything at full strength
+  const size = data.grid.size;
+  const walls = data.walls.filter((w) => w.blocksLight);
+  const peripheral = PERIPHERAL_CELLS * size;
+  let best = 0;
+  for (const t of data.tokens) {
+    if (t.owner !== ownerId || t.visible === false) continue;
+    const dx = light.x - t.x;
+    const dy = light.y - t.y;
+    const dist = Math.hypot(dx, dy);
+    if (blocked(t.x, t.y, light.x, light.y, walls)) continue; // wall = genuinely unseen
+    const facing = inVisionCone(t.facing, dx, dy, dist, peripheral) ? 1 : AMBIENT_OFF_CONE;
+    // ambiance carries past the lit radius, then fades out with distance
+    const reach = Math.max(1, light.radius * size * AMBIENT_REACH);
+    const falloff = Math.max(0, 1 - dist / reach);
+    best = Math.max(best, facing * (0.25 + 0.75 * falloff));
+    if (best >= 1) break;
+  }
+  return Math.min(1, best);
 }
 
 /** Currently-visible cell keys. Empty set when fog is disabled (fog layer hides itself).

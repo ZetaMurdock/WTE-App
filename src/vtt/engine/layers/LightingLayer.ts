@@ -4,8 +4,11 @@
 import { Container, Graphics, Sprite, Texture } from "pixi.js";
 import type { VttScene } from "../../types/scene";
 import type { VttSelection } from "../PixiVttApp";
-import { lightVisibleTo } from "../systems/VisionSystem";
+import { lightPerception } from "../systems/VisionSystem";
 import { burnMechanicOn, isDirectional, lightFactor, lightRadiusScale } from "../systems/lightState";
+
+/** Glow fade stiffness — how fast a light dims as you turn away from it. */
+const LIGHT_FADE_DAMP = 6;
 
 let glowTex: Texture | null = null;
 function glowTexture(): Texture {
@@ -28,23 +31,47 @@ export class LightingLayer {
   readonly view = new Container();
   private glows = new Container();
   private handles = new Graphics();
+  /** Per-light DISPLAYED perception, eased toward the true value — a light you
+   *  turn away from dims down over a beat instead of blinking out. */
+  private shown = new Map<string, number>();
+  /** True while any light is still easing (the engine keeps repainting). */
+  settled = true;
 
   constructor() {
     this.view.addChild(this.glows, this.handles);
   }
 
-  draw(scene: VttScene, selection: VttSelection, viewerId?: string): void {
+  /** Ease displayed perception toward target; returns the value to render. */
+  private ease(id: string, target: number, dt: number): number {
+    const cur = this.shown.get(id);
+    if (cur == null) {
+      this.shown.set(id, target); // first sight — no fade-in from nothing
+      return target;
+    }
+    const k = 1 - Math.exp(-LIGHT_FADE_DAMP * dt);
+    let next = cur + (target - cur) * k;
+    if (Math.abs(target - next) < 0.004) next = target;
+    else this.settled = false;
+    this.shown.set(id, next);
+    return next;
+  }
+
+  draw(scene: VttScene, selection: VttSelection, viewerId?: string, dt = 1 / 60): void {
     this.handles.clear();
     for (const ch of this.glows.removeChildren()) ch.destroy();
     this.view.visible = scene.data.layers.lights;
     if (!this.view.visible) return;
+    this.settled = true;
     const size = scene.data.grid.size;
     const realistic = scene.data.fog.enabled && burnMechanicOn(scene.data.fog);
     const now = Date.now();
     for (const l of scene.data.lights) {
-      // Players don't see a light AT ALL (glow or handle) until they have a
-      // visual on it — no free map knowledge from off-screen torches.
-      if (viewerId && scene.data.fog.enabled && !lightVisibleTo(scene.data, l, viewerId)) continue;
+      // A player's perception of a light is graded, not binary: full in your
+      // cone, dimmer when you've turned away, fading with distance, nothing
+      // through a wall. Eased so turning away is a fade, never a switch.
+      const target = viewerId && scene.data.fog.enabled ? lightPerception(scene.data, l, viewerId) : 1;
+      const seen = this.ease(l.id, target, dt);
+      if (seen <= 0.004) continue;
       const f = lightFactor(l, realistic, now);
       if (f > 0) {
         const spr = new Sprite(glowTexture());
@@ -55,7 +82,7 @@ export class LightingLayer {
         spr.width = d;
         spr.height = d;
         spr.tint = l.color || "#a08a4f";
-        spr.alpha = Math.min(1, (l.intensity ?? 0.5) * 0.95) * (realistic ? 0.25 + 0.75 * f : 1);
+        spr.alpha = Math.min(1, (l.intensity ?? 0.5) * 0.95) * (realistic ? 0.25 + 0.75 * f : 1) * seen;
         spr.blendMode = "add";
         this.glows.addChild(spr);
         // Directional lights are clipped to their cone — a pie mask over the
