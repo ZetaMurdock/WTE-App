@@ -88,8 +88,9 @@ export function useVttSync({ engineRef, sceneId, getScene, onSnapshot }: Opts): 
           if (engineRef.current?.moveBlocked(tok.x, tok.y, op.x, op.y)) return;
         }
       }
-      // Spatial-sound emitters are Curator scene-building: host-only, like walls.
-      if (op.op === "emitter.add" || op.op === "emitter.update" || op.op === "emitter.remove") {
+      // Spatial-sound emitters + the whole-map FX field are Curator scene-
+      // building: host-only, like walls.
+      if (op.op === "emitter.add" || op.op === "emitter.update" || op.op === "emitter.remove" || op.op === "envfx.set") {
         const hostId = roleRef.current === "host" ? net.selfId : peersRef.current.find((p) => p.role === "host")?.id ?? null;
         if (!((hostId != null && from === hostId) || from === net.selfId)) return;
       }

@@ -100,6 +100,12 @@ export interface VttEmitter {
   /** 0..1 volume standing at the source. */
   volume: number;
   loop: boolean;
+  /** Optional environmental screen FX (EnvFxFilter preset id) that intensifies
+   *  as a player's token nears this emitter — "walk toward the altar, the
+   *  screen bleeds harder". Independent of whether it also plays a sound. */
+  fx?: string;
+  /** Max FX strength 0..1 at the source (default 0.85). */
+  fxMax?: number;
 }
 export type VttEffectKind = "circle" | "cone" | "zone" | "line" | "ring" | "cross";
 export interface VttEffectData {
@@ -247,6 +253,9 @@ export interface VttSceneData {
   audio?: { src: string; volume: number } | null;
   /** Spatial sounds pinned to world positions (distance + wall muffling). */
   emitters?: VttEmitter[];
+  /** Whole-map environmental screen FX — a constant field everyone sees (e.g.
+   *  "all the walls bleed"). Emitters can locally exceed it by proximity. */
+  envFx?: { preset: string; intensity: number } | null;
   /** Border portals into adjacent scenes (multi-map dungeons). */
   links?: VttSceneLink[];
   /** Painted effect zones — cell keys per effect kind (water/smoke/ember),

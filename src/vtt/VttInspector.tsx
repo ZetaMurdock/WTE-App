@@ -1,4 +1,5 @@
 import type { VttSelection } from "./engine/PixiVttApp";
+import { ENV_FX_PRESETS } from "./engine/filters/EnvFxFilter";
 import {
   TOKEN_COLORS,
   type VttEffectData,
@@ -265,6 +266,28 @@ export function VttInspector({ sel, scene, onToken, onWall, onLight, onEmitter, 
           >
             {emitter.loop ? "Looping" : "One-shot"}
           </button>
+          <label className="lobby-field mt" title="A full-screen effect that gets STRONGER as a player's token nears this spot — walk toward it and the screen reacts. Uses the Range above as its reach.">
+            <span>Reactive FX (by proximity)</span>
+            <select className="bg-select full" value={emitter.fx ?? ""} onChange={(e) => onEmitter({ fx: e.target.value || undefined })}>
+              <option value="">None</option>
+              {ENV_FX_PRESETS.map((p) => (
+                <option key={p.id} value={p.id} title={p.note}>{p.name}</option>
+              ))}
+            </select>
+          </label>
+          {emitter.fx && (
+            <label className="lobby-field mt" title="How strong the effect gets when standing right on the source">
+              <span>FX at source · {Math.round((emitter.fxMax ?? 0.85) * 100)}%</span>
+              <input
+                type="range"
+                min={0.1}
+                max={1}
+                step={0.05}
+                value={emitter.fxMax ?? 0.85}
+                onChange={(e) => onEmitter({ fxMax: parseFloat(e.target.value) })}
+              />
+            </label>
+          )}
         </>
       )}
 

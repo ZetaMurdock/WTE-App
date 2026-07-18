@@ -6863,3 +6863,10 @@ body.wte-dot-cursor * {
   padding: 12px 14px;
   z-index: 12;
 }
+
+.vtt2-cine-sep {
+  height: 1px;
+  background: var(--panel-line);
+  margin: 12px 0 10px;
+  opacity: 0.6;
+}

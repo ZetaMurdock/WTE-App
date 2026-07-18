@@ -1089,7 +1089,14 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
         </div>
       )}
       {cineOpen && !asPlayer && live && (
-        <VttCinePanel tokens={live.data.tokens} cine={cine} onChange={setCine} onClose={() => setCineOpen(false)} />
+        <VttCinePanel
+          tokens={live.data.tokens}
+          cine={cine}
+          onChange={setCine}
+          envFx={live.data.envFx ?? null}
+          onEnvFx={(f) => engineRef.current?.setSceneEnvFx(f)}
+          onClose={() => setCineOpen(false)}
+        />
       )}
       {campaign && <VttRollToast campaignId={campaign.id} />}
       {campaign && rollsOpen && (

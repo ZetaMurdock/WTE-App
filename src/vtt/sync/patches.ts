@@ -18,6 +18,7 @@ export type VttOp =
   | { op: "emitter.add"; emitter: VttEmitter }
   | { op: "emitter.update"; id: string; patch: Partial<VttEmitter> }
   | { op: "emitter.remove"; id: string }
+  | { op: "envfx.set"; envFx: { preset: string; intensity: number } | null }
   | { op: "fog.set"; enabled: boolean }
   | { op: "fog.reveal"; cells: string[] }
   | { op: "fog.reset" }
@@ -110,6 +111,9 @@ export function applyOp(d: VttSceneData, op: VttOp): boolean {
       d.emitters = (d.emitters ?? []).filter((x) => x.id !== op.id);
       return d.emitters.length !== before;
     }
+    case "envfx.set":
+      d.envFx = op.envFx;
+      return true;
     case "fog.set":
       if (d.fog.enabled === op.enabled) return false;
       d.fog.enabled = op.enabled;

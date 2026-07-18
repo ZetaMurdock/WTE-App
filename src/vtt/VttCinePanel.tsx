@@ -1,6 +1,9 @@
 import { useState } from "react";
 import type { VttToken } from "./types/scene";
 import { CINE_PRESETS, cinePresetBody, validateCineBody } from "../lib/cinePresets";
+import { ENV_FX_PRESETS } from "./engine/filters/EnvFxFilter";
+
+export type EnvFxField = { preset: string; intensity: number } | null;
 
 export interface CineConfig {
   on: boolean;
@@ -14,13 +17,16 @@ interface Props {
   tokens: VttToken[];
   cine: CineConfig;
   onChange: (next: CineConfig) => void;
+  /** Whole-map ambient FX field (persisted in the scene, synced). */
+  envFx: EnvFxField;
+  onEnvFx: (next: EnvFxField) => void;
   onClose: () => void;
 }
 
 // Director's booth (Curator only): lock every player's camera onto one token,
 // shake the frame, and drive a full-screen effect — presets or your own GLSL,
 // the same way the zone brushes work. Everything applies live to the room.
-export function VttCinePanel({ tokens, cine, onChange, onClose }: Props) {
+export function VttCinePanel({ tokens, cine, onChange, envFx, onEnvFx, onClose }: Props) {
   const [presetId, setPresetId] = useState<string>("");
   const [customBody, setCustomBody] = useState("");
   const [glslError, setGlslError] = useState("");
@@ -122,8 +128,37 @@ export function VttCinePanel({ tokens, cine, onChange, onClose }: Props) {
         )}
       </div>
       {glslError && <div className="validation-list" style={{ marginTop: 6 }}>{glslError}</div>}
+
+      <div className="vtt2-cine-sep" />
+      <div className="lobby-field">
+        <span>Whole-map ambient FX</span>
+        <select
+          className="bg-select full"
+          value={envFx?.preset ?? ""}
+          onChange={(e) => onEnvFx(e.target.value ? { preset: e.target.value, intensity: envFx?.intensity ?? 0.6 } : null)}
+          title="A constant effect the whole table sees — e.g. all the walls bleed. Emitters can locally exceed it as players get near them."
+        >
+          <option value="">None</option>
+          {ENV_FX_PRESETS.map((p) => (
+            <option key={p.id} value={p.id} title={p.note}>{p.name}</option>
+          ))}
+        </select>
+      </div>
+      {envFx && (
+        <label className="lobby-field mt" title="How strong the whole-map effect is for everyone">
+          <span>Map FX strength · {Math.round(envFx.intensity * 100)}%</span>
+          <input
+            type="range"
+            min={0.05}
+            max={1}
+            step={0.05}
+            value={envFx.intensity}
+            onChange={(e) => onEnvFx({ preset: envFx.preset, intensity: parseFloat(e.target.value) })}
+          />
+        </label>
+      )}
       <p className="vtt2-actor-hint" style={{ marginTop: 8 }}>
-        Camera lock and hidden chrome apply to players only — your view stays free. Use Player View to feel it yourself.
+        Reactive FX also live on sound emitters (Inspector → Reactive FX): players walking near one see it grow. Camera lock and hidden chrome apply to players only — use Player View to feel it yourself.
       </p>
     </div>
   );

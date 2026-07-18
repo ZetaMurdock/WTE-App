@@ -20,6 +20,8 @@ import { DrawingLayer } from "./layers/DrawingLayer";
 import { EmitterLayer } from "./layers/EmitterLayer";
 import { PingLayer } from "./layers/PingLayer";
 import { SpatialAudioEngine } from "./systems/spatialAudio";
+import { EnvFxFilter } from "./filters/EnvFxFilter";
+import { pickEnvFx } from "./systems/envFx";
 import { ZONE_KINDS } from "../types/scene";
 import { EffectSystem } from "./systems/EffectSystem";
 import { TimelineSystem } from "./systems/TimelineSystem";
@@ -157,6 +159,10 @@ export class PixiVttApp {
         this.zones.tick(performance.now() / 1000, o.x, o.y, this.world.scale.x, this.scene.data.grid.size);
       }
       if (this.pings.active) this.pings.tick();
+      // Environmental FX: recompute the winning ambient effect for this client's
+      // listener every frame (cheap; a few emitters) so proximity ramps live and
+      // the effect animates smoothly.
+      if (this.scene) this.updateEnvFx();
       // Cinematic Mode: animate the screen effect, follow the spotlit token
       // (players), and jitter the frame for shake — re-applying the camera
       // first so the offset never accumulates.
@@ -360,7 +366,6 @@ export class PixiVttApp {
     if (body !== this.cineBody) {
       this.cineBody = body;
       this.cineFilter = null;
-      this.app.stage.filters = [];
       if (body) {
         const err = validateShaderBody(body);
         if (err) {
@@ -369,16 +374,65 @@ export class PixiVttApp {
           try {
             this.cineFilter = new CustomShaderFilter(body);
             this.cineT0 = Date.now();
-            this.app.stage.filters = [this.cineFilter];
           } catch (e) {
             this.cineFilter = null;
-            this.app.stage.filters = [];
             this.onShaderError("Cinematic: " + String(e).slice(0, 300));
           }
         }
       }
+      this.restageFilters();
     }
     if (!on) this.camera.apply(); // clear any leftover shake offset
+  }
+
+  // ── Environmental FX: the ambient screen effect (env FX field + emitters) and
+  // the cinematic effect are BOTH stage filters — compose them in a stable order
+  // (ambient underneath, cinematic on top) so neither clobbers the other.
+  private envFilter: EnvFxFilter | null = null;
+  private envPreset = "";
+  private envT0 = 0;
+  private restageFilters(): void {
+    const f: (EnvFxFilter | CustomShaderFilter)[] = [];
+    if (this.envFilter) f.push(this.envFilter);
+    if (this.cineFilter) f.push(this.cineFilter);
+    this.app.stage.filters = f;
+  }
+  /** Set (or clear) the whole-map ambient FX field (Curator, synced). */
+  setSceneEnvFx(envFx: { preset: string; intensity: number } | null): void {
+    if (!this.scene) return;
+    this.scene.data.envFx = envFx;
+    this.onChanged();
+    this.onOp({ op: "envfx.set", envFx });
+  }
+  /** Recompute the winning ambient FX for THIS client's listener and apply it. */
+  private updateEnvFx(): void {
+    if (!this.scene) return;
+    const d = this.scene.data;
+    const pick = pickEnvFx(d.emitters ?? [], this.listenerWorld(), d.grid.size, d.envFx);
+    if (!pick) {
+      if (this.envFilter) {
+        this.envFilter = null;
+        this.envPreset = "";
+        this.restageFilters();
+      }
+      return;
+    }
+    if (pick.preset !== this.envPreset) {
+      try {
+        this.envFilter = new EnvFxFilter(pick.preset);
+        this.envPreset = pick.preset;
+        this.envT0 = Date.now();
+        this.restageFilters();
+      } catch (e) {
+        this.envFilter = null;
+        this.envPreset = "";
+        this.onShaderError("Env FX: " + String(e).slice(0, 200));
+        this.restageFilters();
+        return;
+      }
+    }
+    this.envFilter!.setIntensity(pick.intensity);
+    this.envFilter!.tick((Date.now() - this.envT0) / 1000, this.app.screen.width, this.app.screen.height);
   }
   private applyPlayCam(): void {
     if (this.playLocked()) {
