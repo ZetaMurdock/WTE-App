@@ -1,20 +1,15 @@
 import { useEffect, useRef } from "react";
 import type { PixiVttApp } from "./engine/PixiVttApp";
-import type { ThreeVttView } from "./engine3d/ThreeVttView";
 
 interface Props {
   engine: PixiVttApp;
-  /** The 3D view, when the VTT is in 3D mode (radial projects from its camera). */
-  three: ThreeVttView | null;
-  view3d: boolean;
   tokenId: string;
 }
 
 // Owlbear-style radial quick actions: a ring of translucent glass buttons around
-// the selected token. A per-frame loop re-anchors it to the LIVE token position
-// (2D camera or 3D projection), so it glues to the token through drags, camera
-// pans/momentum, piloting, and 3D orbit. Works in both 2D and 3D.
-export function VttRadialMenu({ engine, three, view3d, tokenId }: Props) {
+// the selected token. A per-frame loop re-anchors it to the LIVE token position,
+// so it glues to the token through drags, camera pans/momentum and piloting.
+export function VttRadialMenu({ engine, tokenId }: Props) {
   const ringRef = useRef<HTMLDivElement>(null);
   const btnRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
@@ -29,22 +24,10 @@ export function VttRadialMenu({ engine, three, view3d, tokenId }: Props) {
         ring.style.display = "none";
         return;
       }
-      let sx: number, sy: number, r: number;
-      if (view3d && three) {
-        const p = three.projectToken(tokenId);
-        if (!p) {
-          ring.style.display = "none";
-          return;
-        }
-        sx = p.x;
-        sy = p.y;
-        r = Math.max(34, Math.min(120, p.r));
-      } else {
-        const cam = engine.camera;
-        sx = tok.x * cam.zoom + cam.x;
-        sy = tok.y * cam.zoom + cam.y;
-        r = (((tok.size || 1) * (engine.scene?.data.grid.size ?? 70)) / 2) * cam.zoom + 30;
-      }
+      const cam = engine.camera;
+      const sx = tok.x * cam.zoom + cam.x;
+      const sy = tok.y * cam.zoom + cam.y;
+      const r = (((tok.size || 1) * (engine.scene?.data.grid.size ?? 70)) / 2) * cam.zoom + 30;
       ring.style.display = "block";
       ring.style.left = `${sx}px`;
       ring.style.top = `${sy}px`;
@@ -61,7 +44,7 @@ export function VttRadialMenu({ engine, three, view3d, tokenId }: Props) {
     };
     frame();
     return () => cancelAnimationFrame(raf);
-  }, [engine, three, view3d, tokenId]);
+  }, [engine, tokenId]);
 
   // Actions read the LIVE token at click time (size may have changed since mount).
   const live = () => engine.scene?.data.tokens.find((t) => t.id === tokenId);

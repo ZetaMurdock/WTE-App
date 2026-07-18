@@ -231,7 +231,12 @@ export function LobbyView() {
         <div className="lobby-card">
           <div className="panel-title">Shared library {fbOk ? "· connected" : "· not set"}</div>
           <p className="vtt2-actor-hint" style={{ margin: "0 0 6px" }}>
-            Paste your Firebase config (free Spark plan → Realtime Database) so Codex pages you publish are visible to everyone. See docs/PUBLISH-SETUP.md.
+            W.T.E ships with a built-in community library — you can pull official pages without any setup.
+            Anything <b>published</b> to it is <b>public</b> to everyone using the app, so keep private notes out of it.
+          </p>
+          <p className="vtt2-actor-hint" style={{ margin: "0 0 6px" }}>
+            Want a library only your group can see? Paste your own Firebase config (free Spark plan → Realtime Database)
+            to point this device at your own project instead. See docs/PUBLISH-SETUP.md.
           </p>
           <textarea
             className="bg-select full"

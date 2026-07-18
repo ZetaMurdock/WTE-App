@@ -900,7 +900,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
       )}
       <div className="vtt2-stage" ref={hostRef}>
         {sel?.kind === "token" && engine && (
-          <VttRadialMenu engine={engine} three={null} view3d={false} tokenId={sel.id} />
+          <VttRadialMenu engine={engine} tokenId={sel.id} />
         )}
       </div>
       {!playHidden && (
