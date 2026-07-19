@@ -48,6 +48,6 @@ export interface CharacterSheet {
   /** Curator switch: may this character's stats be hand-edited/overridden? */
   allowOverrides?: boolean;
   /** Manual derived-stat overrides (Curator-sanctioned) — replace computed values. */
-  derivedOverrides?: Partial<Record<DerivedKey, number>> & { hpMax?: number };
+  derivedOverrides?: Partial<Record<DerivedKey, number>> & { hpMax?: number; ncMod?: number };
   notes?: string;
 }

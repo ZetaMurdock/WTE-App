@@ -9,8 +9,11 @@ import {
   peBand,
   rankMult,
   rollMod,
+  rollDie,
   signedMod,
   moralityMods,
+  SPEC_PENALTY,
+  SPEC_PENALTY_MIN,
   type Attributes,
   type Specialties,
   type AttrKey,
@@ -45,7 +48,7 @@ interface Props {
 
 // The Pressure Engine, moved up from the legacy sheet: situation resolution,
 // AAV vs PE. Pick 1–4 skills (specialty + optional attribute); each rolls
-// (1d20 + specialty pts + attribute mod + Complexity) × rank mult. AAV is the
+// (1d40 + specialty pts + attribute mod + Complexity − untrained penalty) × rank mult. AAV is the
 // rounded average plus the multi-skill bonus (3 → +1, 4 → +2); AAV − PE lands
 // in an outcome band that suggests the pressure change.
 export function PressureEngine({ attrs, specs, rank, morality, pressure, onPressure, onRoll, shared }: Props) {
@@ -70,12 +73,14 @@ export function PressureEngine({ attrs, specs, rank, morality, pressure, onPress
         r.out = "—";
         continue;
       }
-      const die = 1 + Math.floor(Math.random() * 40);
+      const die = rollDie(40);
       const specPts = specs[r.spec] || 0;
       const attrM = r.attr ? rollMod(attrs[r.attr] || 0) : 0;
-      const tot = Math.round((die + specPts + attrM + complexity) * mult);
+      // Untrained specialties take the same flat −25 an ordinary specialty check does.
+      const penalty = specPts < SPEC_PENALTY_MIN ? SPEC_PENALTY : 0;
+      const tot = Math.round((die + specPts + attrM + complexity - penalty) * mult);
       totals.push(tot);
-      r.out = `${tot} (d20=${die})`;
+      r.out = penalty ? `${tot} (d40=${die} −${SPEC_PENALTY})` : `${tot} (d40=${die})`;
     }
     setRows(next);
     if (totals.length === 0) return;
@@ -125,7 +130,7 @@ export function PressureEngine({ attrs, specs, rank, morality, pressure, onPress
         </span>
       </div>
       <p className="identity-hint" style={{ margin: "4px 0 10px" }}>
-        Per skill: (1d20 + specialty pts + attribute mod + Complexity) × rank mult. Pick 1–4 skills — 3 gives +1, 4 gives +2 to AAV.
+        Per skill: (1d40 + specialty pts + attribute mod + Complexity) × rank mult, −{SPEC_PENALTY} if the specialty is under {SPEC_PENALTY_MIN}. Pick 1–4 skills — 3 gives +1, 4 gives +2 to AAV.
       </p>
 
       {rows.map((r, i) => (

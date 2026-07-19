@@ -61,11 +61,13 @@ export const SPEC_MAX = 75;
 export const RED_DIV = 3;
 export const ATTR_MIN = 0;
 export const ATTR_MAX = 20;
-// NOTE: untrained specialties (< 25 points) used to take a flat −25, which
-// existed to balance the old d40 spread. Every check is a d20 now, so an
-// untrained specialty rolls STANDARD — its lower roll modifier is the penalty.
+/** An untrained specialty (< SPEC_PENALTY_MIN points) takes a flat SPEC_PENALTY
+ *  hit. This balances the d40 spread specialty checks roll on — ATTRIBUTES roll
+ *  a d20 and never take it. */
+export const SPEC_PENALTY_MIN = 25;
+export const SPEC_PENALTY = 25;
 
-/** Roll modifier: floor((value - 10) / 2). Used for every d20 check and the on-sheet mod boxes. */
+/** Roll modifier: floor((value - 10) / 2). Used for d20/d40 checks and the on-sheet mod boxes. */
 export function rollMod(v: number): number {
   return Math.floor((v - 10) / 2);
 }
@@ -799,13 +801,13 @@ export interface DerivedOpts {
   /** Polarized Soul position — wires the Process/Resonance mechanics in. */
   morality?: number;
   /** Curator-sanctioned manual overrides — replace the computed value outright. */
-  overrides?: Partial<Derived> & { hpMax?: number };
+  overrides?: Partial<Derived> & { hpMax?: number; ncMod?: number };
 }
 export function computeDerived(
   attrsIn: Attributes,
   specsIn: Specialties,
   opts: DerivedOpts = {}
-): Derived & { hpMax: number; raw: Derived } {
+): Derived & { hpMax: number; ncMod: number; raw: Derived } {
   const mm = moralityMods(opts.morality);
   const bgb: Partial<Record<AttrKey, number>> = { ...(opts.bgBonuses ?? {}) };
   for (const k of ATTR_KEYS) if (mm.attr[k]) bgb[k] = (bgb[k] || 0) + mm.attr[k]!;
@@ -867,7 +869,11 @@ export function computeDerived(
     }
   }
   const hpMax = Math.max(0, Math.floor((raw.dhp / 2) * rankMult(rank)) + attrMod(a.end));
-  return { ...d, hpMax: opts.overrides?.hpMax ?? hpMax, raw };
+  // Neuronal Capacity is a CORE total (it budgets equipment), but it also gets a
+  // check modifier like every other derived stat — so `nc` stays the budget and
+  // `ncMod` is what you add to an NC roll.
+  const ncMod = opts.overrides?.ncMod ?? derivedMod(raw.nc, rank);
+  return { ...d, hpMax: opts.overrides?.hpMax ?? hpMax, ncMod, raw };
 }
 
 export function specialtyTotal(specs: Specialties): number {
@@ -903,15 +909,15 @@ export interface RollResult {
   result: number;
   detail: { die: number; roll: number; modifier: number; label: string };
 }
-function rollDie(sides: number): number {
+export function rollDie(sides: number): number {
   return 1 + Math.floor(Math.random() * sides);
 }
 function fmtMod(n: number): string {
   return n >= 0 ? `+ ${n}` : `- ${Math.abs(n)}`;
 }
-/** Net specialty roll modifier — just rollMod(pts) on d20. Shown in the mod box. */
+/** Net specialty roll modifier: rollMod(pts) minus the under-25 penalty. Shown in the mod box. */
 export function specRollMod(pts: number): number {
-  return rollMod(pts);
+  return rollMod(pts) - (pts < SPEC_PENALTY_MIN ? SPEC_PENALTY : 0);
 }
 /** Attribute check: 1d20 + rollMod(score). */
 export function rollAttribute(label: string, score: number): RollResult {
@@ -919,12 +925,15 @@ export function rollAttribute(label: string, score: number): RollResult {
   const mod = rollMod(score);
   return { formula: `1d20 ${fmtMod(mod)}`, result: roll + mod, detail: { die: 20, roll, modifier: mod, label } };
 }
-/** Specialty check: 1d20 + rollMod(pts). Untrained specialties roll standard —
- *  every check in the game is a straight d20 plus its modifier. */
+/** Specialty check: 1d40 + rollMod(pts), with a flat −25 when the specialty has
+ *  under 25 points. Specialties (and the Pressure Engine) roll d40; only
+ *  ATTRIBUTE checks roll a d20. */
 export function rollSpecialty(label: string, pts: number): RollResult {
-  const roll = rollDie(20);
+  const roll = rollDie(40);
   const mod = rollMod(pts);
-  return { formula: `1d20 ${fmtMod(mod)}`, result: roll + mod, detail: { die: 20, roll, modifier: mod, label } };
+  const penalty = pts < SPEC_PENALTY_MIN ? SPEC_PENALTY : 0;
+  const formula = penalty ? `1d40 ${fmtMod(mod)} - ${SPEC_PENALTY}` : `1d40 ${fmtMod(mod)}`;
+  return { formula, result: roll + mod - penalty, detail: { die: 40, roll, modifier: mod - penalty, label } };
 }
 /** Plain 1d20 assist roll (used when resolving an ability). */
 export function rollGeneric(label: string): RollResult {

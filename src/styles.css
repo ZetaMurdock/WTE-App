@@ -7017,3 +7017,11 @@ body.wte-dot-cursor * {
 .size-matrix tr.too-big td { opacity: 0.4; }
 .size-limit { color: #e08fbe; }
 .wcat-ex { color: var(--ink-dim, #93a1b8); font-size: 11px; }
+
+/* NC shows its budget total AND its check modifier */
+.derived-submod {
+  font-size: 11px;
+  margin-left: 5px;
+  color: var(--accent);
+  opacity: 0.85;
+}

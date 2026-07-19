@@ -10,6 +10,10 @@ import {
   sizeIndexOf,
   sizeOf,
   rollSpecialty,
+  rollAttribute,
+  derivedMod,
+  SPEC_PENALTY,
+  SPEC_PENALTY_MIN,
   specRollMod,
   rollMod,
   type Attributes,
@@ -113,27 +117,52 @@ describe("auto size falls back to the species default", () => {
   });
 });
 
-describe("every check is a d20", () => {
-  it("specialty checks roll a d20", () => {
-    for (let i = 0; i < 40; i++) {
-      const r = rollSpecialty("Willpower", 30);
-      expect(r.formula.startsWith("1d20")).toBe(true);
+describe("which die each check rolls", () => {
+  it("ATTRIBUTES are the only d20 — 1d20 + rollMod, never a penalty", () => {
+    for (let i = 0; i < 30; i++) {
+      const r = rollAttribute("Physical", 14);
+      expect(r.formula).toBe(`1d20 + ${rollMod(14)}`);
       expect((r.detail as { die: number }).die).toBe(20);
+      expect(r.result).toBeGreaterThanOrEqual(1 + rollMod(14));
+      expect(r.result).toBeLessThanOrEqual(20 + rollMod(14));
     }
   });
 
-  it("an UNTRAINED specialty rolls standard — no flat penalty (that was a d40 rule)", () => {
-    const pts = 4; // well under the old 25-point line
-    const untrained = rollSpecialty("Verve", pts);
-    // the ONLY term besides the die is the normal roll modifier — no extra hit
-    expect(untrained.formula).toBe(`1d20 - ${Math.abs(rollMod(pts))}`);
-    expect(specRollMod(pts)).toBe(rollMod(pts)); // mod box agrees
-    expect((untrained.detail as { modifier: number }).modifier).toBe(rollMod(pts));
-    expect(untrained.result).toBeGreaterThanOrEqual(1 + rollMod(pts));
-    expect(untrained.result).toBeLessThanOrEqual(20 + rollMod(pts));
+  it("SPECIALTIES roll a d40", () => {
+    for (let i = 0; i < 40; i++) {
+      const r = rollSpecialty("Willpower", 30);
+      expect(r.formula.startsWith("1d40")).toBe(true);
+      expect((r.detail as { die: number }).die).toBe(40);
+      expect(r.result).toBeGreaterThanOrEqual(1 + rollMod(30));
+      expect(r.result).toBeLessThanOrEqual(40 + rollMod(30));
+    }
   });
 
-  it("training still helps — more points means a better modifier", () => {
-    expect(specRollMod(40)).toBeGreaterThan(specRollMod(10));
+  it("a specialty UNDER 25 takes the flat −25", () => {
+    const pts = 10;
+    const r = rollSpecialty("Verve", pts);
+    expect(r.formula).toContain(`- ${SPEC_PENALTY}`);
+    expect(specRollMod(pts)).toBe(rollMod(pts) - SPEC_PENALTY);
+    expect((r.detail as { modifier: number }).modifier).toBe(rollMod(pts) - SPEC_PENALTY);
+  });
+
+  it("a specialty AT or over 25 takes no penalty", () => {
+    expect(specRollMod(SPEC_PENALTY_MIN)).toBe(rollMod(SPEC_PENALTY_MIN));
+    expect(rollSpecialty("Balance", 25).formula).not.toContain(`- ${SPEC_PENALTY}`);
+  });
+});
+
+describe("Neuronal Capacity carries a modifier as well as its budget", () => {
+  it("nc stays the equipment budget while ncMod is the check modifier", () => {
+    const d = computeDerived(attrs(), specs(), {});
+    expect(d.nc).toBeGreaterThan(20); // a budget-sized total, not a small mod
+    expect(d.ncMod).toBe(derivedMod(d.raw.nc, 0)); // graded like every other derived
+  });
+
+  it("a Curator override replaces the NC modifier without touching the budget", () => {
+    const base = computeDerived(attrs(), specs(), {});
+    const over = computeDerived(attrs(), specs(), { overrides: { ncMod: 7 } });
+    expect(over.ncMod).toBe(7);
+    expect(over.nc).toBe(base.nc);
   });
 });

@@ -206,7 +206,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   function setAllowOverrides(v: boolean) {
     persist({ ...rec!, sheet: { ...sheet, allowOverrides: v || undefined } });
   }
-  function setOverride(k: DerivedKey | "hpMax", raw: string) {
+  function setOverride(k: DerivedKey | "hpMax" | "ncMod", raw: string) {
     const cur: Record<string, number> = { ...(sheet.derivedOverrides ?? {}) };
     const n = parseInt(raw, 10);
     if (raw.trim() === "" || !Number.isFinite(n)) delete cur[k];
@@ -409,7 +409,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                         <div className="stat-info">
                           <span className="stat-short">{a.short}</span>
                         </div>
-                        <span className="mod-box" title="Roll modifier">
+                        <span className="mod-box" title="Roll modifier (incl. under-25 penalty)">
                           {signedMod(rollMod(eff[a.key]))}
                         </span>
                         {eff[a.key] !== sheet.attributes[a.key] && (
@@ -453,7 +453,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                           <div className="stat-info">
                             <span className="stat-short">{s.label}</span>
                           </div>
-                          <span className="mod-box" title="Roll modifier">
+                          <span className="mod-box" title="Roll modifier (incl. under-25 penalty)">
                             {signedMod(specRollMod(pts))}
                           </span>
                           <input
@@ -465,7 +465,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                             onChange={(e) => setSpec(s.key, intOf(e.target.value))}
                           />
                           <RollButton className="roll-btn" title={`Roll ${s.label}`} make={() => rollSpecialty(`${s.label} Check`, pts)} onLocal={doRoll}>
-                            d20
+                            d40
                           </RollButton>
                         </div>
                       );
@@ -507,6 +507,15 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                           />
                         </label>
                       ))}
+                      <label className="override-cell" title="Neuronal Capacity CHECK modifier (the NC number above is the equipment budget)">
+                        <span>NC mod</span>
+                        <input
+                          type="number"
+                          placeholder={String(derived.ncMod)}
+                          value={sheet.derivedOverrides?.ncMod ?? ""}
+                          onChange={(e) => setOverride("ncMod", e.target.value)}
+                        />
+                      </label>
                       <label className="override-cell" title="Maximum hit points">
                         <span>Max HP</span>
                         <input

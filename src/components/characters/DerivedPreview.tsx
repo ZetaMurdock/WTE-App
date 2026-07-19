@@ -48,11 +48,23 @@ export function DerivedPreview({ attributes, specialties, speciesId, rank, backg
       {DERIVED.filter((stat) => !skip.has(stat.key)).map((stat) => {
         const core = CORE_DERIVED.has(stat.key);
         const v = d[stat.key];
+        // NC is a core TOTAL (it budgets equipment) but also carries a check
+        // modifier like every other derived stat — show both.
+        const isNc = stat.key === "nc";
         return (
           <div className="derived-cell" key={stat.key} title={`${stat.label} · raw ${d.raw[stat.key]}`}>
             <div className="derived-label">{stat.short}</div>
-            <div className={"derived-val" + (v < 0 ? " neg" : "")}>{core ? v : signedMod(v)}</div>
-            <div className="derived-full">{core ? stat.label : `${stat.label} · raw ${d.raw[stat.key]}`}</div>
+            <div className={"derived-val" + (v < 0 ? " neg" : "")}>
+              {core ? v : signedMod(v)}
+              {isNc && (
+                <span className="derived-submod" title="Neuronal Capacity check modifier">
+                  {signedMod(d.ncMod)}
+                </span>
+              )}
+            </div>
+            <div className="derived-full">
+              {isNc ? `${stat.label} · budget · mod ${signedMod(d.ncMod)}` : core ? stat.label : `${stat.label} · raw ${d.raw[stat.key]}`}
+            </div>
           </div>
         );
       })}
