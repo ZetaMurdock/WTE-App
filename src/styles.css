@@ -6980,3 +6980,40 @@ body.wte-dot-cursor * {
   justify-content: space-between;
   gap: 10px;
 }
+
+/* ── Size class profile + matrices (Inventory tab) ── */
+.size-scale {
+  font-size: 11px;
+  color: var(--ink-dim, #93a1b8);
+  margin: 6px 0 4px;
+}
+.size-rules {
+  margin: 8px 0 0;
+  padding-left: 16px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-dim, #93a1b8);
+}
+.size-rules li { margin-bottom: 4px; }
+.size-matrix {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.size-matrix th {
+  text-align: left;
+  font-size: 10px;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--ink-dim, #93a1b8);
+  border-bottom: 1px solid var(--panel-line);
+  padding: 4px 6px;
+}
+.size-matrix td {
+  padding: 5px 6px;
+  border-bottom: 1px solid rgba(147, 161, 184, 0.12);
+}
+.size-matrix tr.self td { background: rgba(126, 207, 202, 0.08); }
+.size-matrix tr.too-big td { opacity: 0.4; }
+.size-limit { color: #e08fbe; }
+.wcat-ex { color: var(--ink-dim, #93a1b8); font-size: 11px; }

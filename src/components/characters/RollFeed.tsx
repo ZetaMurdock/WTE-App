@@ -63,7 +63,7 @@ export function useRollFeed() {
 
 export function RollFeed({ items }: { items: FeedItem[] }) {
   if (items.length === 0) {
-    return <p className="list-empty">No rolls yet — hit a d20 or d40 button.</p>;
+    return <p className="list-empty">No rolls yet — hit a d20 button.</p>;
   }
   return (
     <ul className="roll-feed">

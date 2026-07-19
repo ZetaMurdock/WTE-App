@@ -61,9 +61,11 @@ export const SPEC_MAX = 75;
 export const RED_DIV = 3;
 export const ATTR_MIN = 0;
 export const ATTR_MAX = 20;
-/** A specialty check with fewer than SPEC_PENALTY_MIN points takes a flat SPEC_PENALTY hit. */
+/** A specialty check with fewer than SPEC_PENALTY_MIN points takes a flat SPEC_PENALTY hit.
+ *  Scaled with the die: checks moved from d40 to d20, so the untrained penalty
+ *  halved to match — a flat −25 on a d20 would make untrained checks impossible. */
 export const SPEC_PENALTY_MIN = 25;
-export const SPEC_PENALTY = 25;
+export const SPEC_PENALTY = 12;
 
 /** Roll modifier: floor((value - 10) / 2). Used for all d20/d40 checks and the on-sheet mod boxes. */
 export function rollMod(v: number): number {
@@ -402,37 +404,175 @@ export function getParadigm(id?: string): Paradigm | undefined {
 }
 
 // ── Size, weight & equipment (ported from the legacy sheet) ───────────────
+// ── Size Classes ────────────────────────────────────────────────────────────
+// An INVERSE KINETIC SCALING model: small things are fast and evasive but
+// fragile; large things are slow, durable and devastating. Moderate is the
+// baseline every equipment slot and rule is balanced around.
 export interface SizeClass {
   key: string;
   label: string;
+  /** Equipment slot budget. */
   budget: number;
+  /** Innate reach in feet (0 = adjacent only). */
   reach: number;
+  /** Base movement in feet. */
   move: number;
+  /** Starting HP anchor for the class. */
+  startHp: number;
+  /** Added into the DHP pool (Base DHP = Weight + Endurance + this). */
+  dhpMod: number;
+  /** Applied to Action Priority checks. */
+  apMod: number;
+  /** Applied to Evasion. */
+  evMod: number;
+  height: string;
+  weight: string;
+  /** Battlefield footprint, feet per side (0 = a single cell). */
+  footprint: number;
   note: string;
+  /** The class's full rules profile, shown on the sheet. */
+  rules: string[];
 }
 export const SIZE_CLASSES: SizeClass[] = [
-  { key: "tiny", label: "Tiny", budget: 8, reach: 0, move: 15, note: "¼ weapon dmg · ½ AoE · Minute gear only" },
-  { key: "small", label: "Small", budget: 13, reach: 5, move: 25, note: "Disadv vs Huge+ · +1 Stealth (tight) · +1 grapple escape" },
-  { key: "moderate", label: "Moderate", budget: 20, reach: 5, move: 30, note: "Baseline — no size modifiers" },
-  { key: "large", label: "Large", budget: 27, reach: 10, move: 35, note: "Adv vs Small/Tiny · +1d4 melee · Large armor +2 DHP · −1 Stealth (open)" },
-  { key: "huge", label: "Huge", budget: 35, reach: 15, move: 45, note: "Adv vs Moderate− · +2d6 melee · Stomp" },
-  { key: "colossal", label: "Colossal", budget: 50, reach: 25, move: 60, note: "Phase-event scale" },
+  {
+    key: "tiny", label: "Tiny", budget: 8, reach: 0, move: 15,
+    startHp: 10, dhpMod: -5, apMod: 9, evMod: 4,
+    height: "Under 1 ft", weight: "Under 5 lbs", footprint: 0,
+    note: "¼ weapon dmg · ½ AoE · Minute gear only",
+    rules: [
+      "Cannot be targeted by weapons not built for their scale (Director's call).",
+      "Take half damage from all AoE/splash — they slip through the pressure wave.",
+      "Deal ¼ damage on standard physical attacks.",
+      "Automatically fail physical grapple checks started by Small or larger.",
+      "Can enter cells held by larger creatures without threatening space or drawing reactions.",
+      "8 slots. Minute-scale weapons only (1d4 damage maximum).",
+    ],
+  },
+  {
+    key: "small", label: "Small", budget: 13, reach: 5, move: 25,
+    startHp: 15, dhpMod: -2, apMod: 3, evMod: 2,
+    height: "1–4 ft", weight: "5–60 lbs", footprint: 5,
+    note: "Disadv vs Huge+ · +1 Stealth (tight) · Squeeze",
+    rules: [
+      "Disadvantage on physical attacks against Huge or Colossal targets — unless using reach weaponry or a specialised Cipher.",
+      "Advantage against Huge/Colossal when attacking from behind or below (flanking).",
+      "Squeeze Protocol: move through spaces held by Moderate or larger without penalty.",
+      "+1 Stealth in non-open terrain; free access to vents, crawlspaces and pipes.",
+      "13 slots. Standard gear needs custom sizing (+20% vendor premium; Paradigm-issued gear recalibrates itself).",
+    ],
+  },
+  {
+    key: "moderate", label: "Moderate", budget: 20, reach: 5, move: 30,
+    startHp: 25, dhpMod: 0, apMod: 0, evMod: 0,
+    height: "4–7 ft", weight: "60–350 lbs", footprint: 5,
+    note: "Baseline — no size modifiers",
+    rules: ["The baseline: no innate size bonuses or penalties.", "20 slots. All standard gear fits natively."],
+  },
+  {
+    key: "large", label: "Large", budget: 27, reach: 10, move: 35,
+    startHp: 35, dhpMod: 5, apMod: -2, evMod: -2,
+    height: "7–12 ft", weight: "350–1,500 lbs", footprint: 10,
+    note: "Adv vs Small/Tiny · +1d4 melee · +1d4 taken from AoE",
+    rules: [
+      "Advantage on physical attacks against Small or Tiny targets.",
+      "+1d4 damage on every successful melee attack (kinetic mass).",
+      "Easy target: AoE and splash attacks deal +1d4 against them.",
+      "Occupies a 10×10 ft footprint with 10 ft innate reach.",
+      "Must squeeze through Moderate doorways/vents at half speed; −1 Stealth in the open.",
+      "27 slots. Custom gear +40%. Large weapons gain +1 damage die; Large armor grants +2 DHP.",
+    ],
+  },
+  {
+    key: "huge", label: "Huge", budget: 35, reach: 15, move: 45,
+    startHp: 55, dhpMod: 10, apMod: -5, evMod: -5,
+    height: "12–25 ft", weight: "1,500–15,000 lbs", footprint: 15,
+    note: "Adv vs Moderate− · +2d6 melee · Stomp · unparryable",
+    rules: [
+      "Advantage on physical attacks against any target Moderate or smaller.",
+      "+2d6 damage on every successful melee attack.",
+      "Parry Barrier: Moderate and smaller cannot Parry its attacks — they must Avoid (reflex) or Endure.",
+      "Kinetic Mass Immunity: immune to knockback, trip and grapple from Moderate or smaller.",
+      "Stomp (standard action): everyone in an adjacent/occupied cell makes a Dexterity save (DC 10 + Strength mod) or takes 2d8 crushing damage and is knocked prone.",
+      "Occupies a 15×15 ft footprint with 15 ft innate reach.",
+      "35 slots. Standard gear is non-functional — Huge-scale fabrication required.",
+    ],
+  },
+  {
+    key: "colossal", label: "Colossal", budget: 50, reach: 25, move: 60,
+    startHp: 90, dhpMod: 20, apMod: -10, evMod: -8,
+    height: "25+ ft", weight: "15,000+ lbs", footprint: 25,
+    note: "Adv vs all · +3d10 melee · +2d6 taken from AoE · phase-event scale",
+    rules: [
+      "Advantage on physical attacks against every smaller size class.",
+      "+3d10 damage on every successful melee attack.",
+      "Parry Barrier: smaller creatures cannot Parry without specialised heavy shielding (e.g. the Vanguard's Diverger).",
+      "Kinetic Mass Immunity: immune to all displacement, knockback and grapple from smaller classes.",
+      "AoE Vulnerability: inescapable surface area — takes +2d6 from all AoE, explosive and splash attacks.",
+      "Occupies a 25×25 ft footprint (or larger) with 25 ft innate reach, scaling to orbital ranges by tier.",
+      "50 slots. Most standard gear is non-functional.",
+      "Combat is usually resolved as a multi-phase narrative event rather than grid turns.",
+    ],
+  },
 ];
+
+/** Size-difference combat modifiers (attacker index − defender index). */
+export interface SizeDiffMods {
+  /** Flat modifier to the attack roll. */
+  attack: number;
+  /** Damage rider, as written on the table. */
+  damage: string;
+  /** Roll posture forced by the mismatch. */
+  posture: "standard" | "advantage" | "disadvantage";
+  /** Defensive reaction the target loses, if any. */
+  limit?: string;
+}
+export function sizeDiffMods(attackerIdx: number, defenderIdx: number): SizeDiffMods {
+  const d = attackerIdx - defenderIdx;
+  if (d >= 3) return { attack: 3, damage: "+1d8", posture: "advantage", limit: "Target cannot Parry" };
+  if (d === 2) return { attack: 2, damage: "+1d6", posture: "standard" };
+  if (d === 1) return { attack: 1, damage: "+1d4", posture: "standard" };
+  if (d === 0) return { attack: 0, damage: "—", posture: "standard" };
+  if (d === -1) return { attack: 0, damage: "−1d4 (min 1 die)", posture: "standard" };
+  if (d === -2) return { attack: 0, damage: "−2 flat", posture: "disadvantage" };
+  return { attack: -2, damage: "−4 flat", posture: "disadvantage", limit: "Target cannot Endure" };
+}
+
+/** Grapple modifiers by size difference (attacker index − defender index). */
+export interface SizeGrapple {
+  mod: number;
+  posture: "standard" | "advantage" | "disadvantage";
+  /** True when the grapple simply succeeds barring a displacement Cipher. */
+  automatic: boolean;
+  note: string;
+}
+export function sizeGrapple(attackerIdx: number, defenderIdx: number): SizeGrapple {
+  const d = attackerIdx - defenderIdx;
+  if (d >= 3) return { mod: 0, posture: "advantage", automatic: true, note: "Automatic success unless the defender has a displacement Cipher or escape ability" };
+  if (d === 2) return { mod: 0, posture: "advantage", automatic: false, note: "Advantage on the grapple check" };
+  if (d === 1) return { mod: 2, posture: "standard", automatic: false, note: "+2 to the grapple check" };
+  if (d === 0) return { mod: 0, posture: "standard", automatic: false, note: "Standard contested roll" };
+  return { mod: 0, posture: "disadvantage", automatic: false, note: `Disadvantage (${-d} class${-d === 1 ? "" : "es"} smaller)` };
+}
 
 export type WeightKey = "minute" | "light" | "standard" | "heavy" | "massive" | "titanic";
 export interface WeightCat {
   key: WeightKey;
   label: string;
   cost: number;
+  /** Smallest SIZE_CLASSES index that can wield it. */
   minSize: number;
+  /** Physical weight band. */
+  weight: string;
+  /** Representative gear at this weight. */
+  examples: string;
 }
 export const WEIGHT_CATS: WeightCat[] = [
-  { key: "minute", label: "Minute", cost: 0.25, minSize: 0 },
-  { key: "light", label: "Light", cost: 0.5, minSize: 1 },
-  { key: "standard", label: "Standard", cost: 1.0, minSize: 2 },
-  { key: "heavy", label: "Heavy", cost: 2.0, minSize: 3 },
-  { key: "massive", label: "Massive", cost: 4.0, minSize: 4 },
-  { key: "titanic", label: "Titanic", cost: 8.0, minSize: 5 },
+  { key: "minute", label: "Minute", cost: 0.25, minSize: 0, weight: "Under 1 lb", examples: "Throwing darts, nano-scanners, micro-tools" },
+  { key: "light", label: "Light", cost: 0.5, minSize: 1, weight: "1–5 lbs", examples: "Short blades, light pistols, wrist terminals" },
+  { key: "standard", label: "Standard", cost: 1.0, minSize: 2, weight: "5–25 lbs", examples: "Paradigm rifles, standard armor, longswords" },
+  { key: "heavy", label: "Heavy", cost: 2.0, minSize: 3, weight: "25–80 lbs", examples: "Heavy support cannons, full plate armor" },
+  { key: "massive", label: "Massive", cost: 4.0, minSize: 4, weight: "80–300 lbs", examples: "Vehicle-mounted blasters, industrial tools" },
+  { key: "titanic", label: "Titanic", cost: 8.0, minSize: 5, weight: "300+ lbs", examples: "Starship batteries, geological drills" },
 ];
 
 /** Default size per species id, used when a character's size is left on "auto". */
@@ -655,6 +795,9 @@ export interface DerivedOpts {
   equip?: EquipMods;
   /** Movement is floored at the size class's base move. */
   sizeMove?: number;
+  /** The character's size class — supplies the DHP / AP / Evasion modifiers and
+   *  the movement floor. Pass this (with speciesId) rather than sizeMove. */
+  sizeId?: string;
   /** Polarized Soul position — wires the Process/Resonance mechanics in. */
   morality?: number;
   /** Curator-sanctioned manual overrides — replace the computed value outright. */
@@ -668,6 +811,10 @@ export function computeDerived(
   const mm = moralityMods(opts.morality);
   const bgb: Partial<Record<AttrKey, number>> = { ...(opts.bgBonuses ?? {}) };
   for (const k of ATTR_KEYS) if (mm.attr[k]) bgb[k] = (bgb[k] || 0) + mm.attr[k]!;
+  // Size class: AP rides the attribute (it modifies every AP check), while the
+  // DHP and Evasion modifiers land on their derived stats below.
+  const size = opts.sizeId !== undefined || opts.speciesId !== undefined ? sizeOf(opts.sizeId, opts.speciesId) : null;
+  if (size?.apMod) bgb.ap = (bgb.ap || 0) + size.apMod;
   const a = effectiveAttributes(attrsIn, opts.speciesId, bgb, opts.equip?.attr);
   const s = { ...specsIn };
   for (const k of SPEC_KEYS) s[k] = Math.min(SPEC_MAX, (s[k] || 0) + (opts.equip?.spec?.[k] || 0) + (opts.bgSpec?.[k] || 0) + (mm.spec[k] || 0));
@@ -695,6 +842,9 @@ export function computeDerived(
   // Equipment MODS on derived stats feed the RAW pool (everything flows through raw).
   const ed = opts.equip?.derived;
   if (ed) for (const stat of DERIVED) raw[stat.key] += ed[stat.key] || 0;
+  // Size DHP modifier joins the pool (Base DHP = Weight + Endurance + size), and
+  // never drops a body below the Tiny floor of 5.
+  if (size?.dhpMod) raw.dhp = Math.max(5, raw.dhp + size.dhpMod);
 
   const d: Derived = { ...raw };
   for (const stat of DERIVED) {
@@ -702,7 +852,10 @@ export function computeDerived(
       ? Math.round(raw[stat.key] * rankMult(rank))
       : derivedMod(raw[stat.key], rank);
   }
-  if (opts.sizeMove != null) d.mv = Math.max(d.mv, opts.sizeMove);
+  // Size Evasion modifier applies to the CHECK (post-conversion), per the AAV rule.
+  if (size?.evMod) d.ev += size.evMod;
+  const moveFloor = opts.sizeMove ?? size?.move;
+  if (moveFloor != null) d.mv = Math.max(d.mv, moveFloor);
   // Process morality: Influence Collapse — the stat is permanently 0.
   if (mm.influenceZero) {
     d.inf = 0;
@@ -768,13 +921,14 @@ export function rollAttribute(label: string, score: number): RollResult {
   const mod = rollMod(score);
   return { formula: `1d20 ${fmtMod(mod)}`, result: roll + mod, detail: { die: 20, roll, modifier: mod, label } };
 }
-/** Specialty check: 1d40 + rollMod(pts), with a flat -25 penalty when the specialty has < 25 points. */
+/** Specialty check: 1d20 + rollMod(pts), with a flat penalty when the specialty
+ *  has < SPEC_PENALTY_MIN points. Every check in the game rolls a d20. */
 export function rollSpecialty(label: string, pts: number): RollResult {
-  const roll = rollDie(40);
+  const roll = rollDie(20);
   const mod = rollMod(pts);
   const penalty = pts < SPEC_PENALTY_MIN ? SPEC_PENALTY : 0;
-  const formula = penalty ? `1d40 ${fmtMod(mod)} - ${SPEC_PENALTY}` : `1d40 ${fmtMod(mod)}`;
-  return { formula, result: roll + mod - penalty, detail: { die: 40, roll, modifier: mod - penalty, label } };
+  const formula = penalty ? `1d20 ${fmtMod(mod)} - ${SPEC_PENALTY}` : `1d20 ${fmtMod(mod)}`;
+  return { formula, result: roll + mod - penalty, detail: { die: 20, roll, modifier: mod - penalty, label } };
 }
 /** Plain 1d20 assist roll (used when resolving an ability). */
 export function rollGeneric(label: string): RollResult {

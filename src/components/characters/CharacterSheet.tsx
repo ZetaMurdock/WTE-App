@@ -15,7 +15,6 @@ import {
   mergeMods,
   computeDerived,
   bgSpecBonuses,
-  sizeOf,
   bgBonuses,
   rollMod,
   specRollMod,
@@ -143,7 +142,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
     bgBonuses: bgBonuses(sheet.background),
     bgSpec: bgSpecBonuses(sheet.background),
     equip,
-    sizeMove: sizeOf(sheet.sizeId, sheet.speciesId).move,
+    sizeId: sheet.sizeId,
     morality: sheet.morality,
     overrides: sheet.derivedOverrides,
   });
@@ -153,7 +152,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
     rank,
     bgBonuses: bgBonuses(sheet.background),
     bgSpec: bgSpecBonuses(sheet.background),
-    sizeMove: sizeOf(sheet.sizeId, sheet.speciesId).move,
+    sizeId: sheet.sizeId,
     morality: sheet.morality,
   });
   const maxSS = derived.ss;
@@ -466,7 +465,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                             onChange={(e) => setSpec(s.key, intOf(e.target.value))}
                           />
                           <RollButton className="roll-btn" title={`Roll ${s.label}`} make={() => rollSpecialty(`${s.label} Check`, pts)} onLocal={doRoll}>
-                            d40
+                            d20
                           </RollButton>
                         </div>
                       );

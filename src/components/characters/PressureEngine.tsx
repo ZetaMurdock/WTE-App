@@ -45,7 +45,7 @@ interface Props {
 
 // The Pressure Engine, moved up from the legacy sheet: situation resolution,
 // AAV vs PE. Pick 1–4 skills (specialty + optional attribute); each rolls
-// (1d40 + specialty pts + attribute mod + Complexity) × rank mult. AAV is the
+// (1d20 + specialty pts + attribute mod + Complexity) × rank mult. AAV is the
 // rounded average plus the multi-skill bonus (3 → +1, 4 → +2); AAV − PE lands
 // in an outcome band that suggests the pressure change.
 export function PressureEngine({ attrs, specs, rank, morality, pressure, onPressure, onRoll, shared }: Props) {
@@ -75,7 +75,7 @@ export function PressureEngine({ attrs, specs, rank, morality, pressure, onPress
       const attrM = r.attr ? rollMod(attrs[r.attr] || 0) : 0;
       const tot = Math.round((die + specPts + attrM + complexity) * mult);
       totals.push(tot);
-      r.out = `${tot} (d40=${die})`;
+      r.out = `${tot} (d20=${die})`;
     }
     setRows(next);
     if (totals.length === 0) return;
@@ -125,7 +125,7 @@ export function PressureEngine({ attrs, specs, rank, morality, pressure, onPress
         </span>
       </div>
       <p className="identity-hint" style={{ margin: "4px 0 10px" }}>
-        Per skill: (1d40 + specialty pts + attribute mod + Complexity) × rank mult. Pick 1–4 skills — 3 gives +1, 4 gives +2 to AAV.
+        Per skill: (1d20 + specialty pts + attribute mod + Complexity) × rank mult. Pick 1–4 skills — 3 gives +1, 4 gives +2 to AAV.
       </p>
 
       {rows.map((r, i) => (

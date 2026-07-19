@@ -5,7 +5,6 @@ import {
   bgBonuses,
   bgSpecBonuses,
   aggregateEquip,
-  sizeOf,
   signedMod,
   type Attributes,
   type Specialties,
@@ -40,7 +39,7 @@ export function DerivedPreview({ attributes, specialties, speciesId, rank, backg
     bgBonuses: bgBonuses(background),
     bgSpec: bgSpecBonuses(background),
     equip: aggregateEquip(equipment),
-    sizeMove: sizeOf(sizeId, speciesId).move,
+    sizeId,
     morality,
   });
   const skip = new Set(exclude ?? []);

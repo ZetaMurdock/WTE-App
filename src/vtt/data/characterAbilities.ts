@@ -12,7 +12,6 @@ import {
   mergeMods,
   bgBonuses,
   bgSpecBonuses,
-  sizeOf,
   rollMod,
 } from "../../game/wte";
 import { getWeapon, loadoutMods, isRangedWeapon } from "../../lib/codex";
@@ -76,7 +75,7 @@ function deriveHits(rec: CharacterRecord): { atk: number; phyMod: number; dexMod
     bgBonuses: bgBonuses(s.background),
     bgSpec: bgSpecBonuses(s.background),
     equip,
-    sizeMove: sizeOf(s.sizeId, s.speciesId).move,
+    sizeId: s.sizeId,
     morality: s.morality,
     overrides: s.derivedOverrides,
   });

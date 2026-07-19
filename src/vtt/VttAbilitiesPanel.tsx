@@ -38,7 +38,7 @@ function suggestedExpr(a: VttAbility): string | undefined {
 // Left-dock Abilities panel: base rolls + specialties, weapon actions, the
 // slotted genus/cipher loadout, and racial abilities in a dropdown. NOTHING
 // auto-rolls: every button ARMS the dice tray with the right label + dice
-// (attribute d20s, specialty d40s, an ability's own damage dice) and the
+// (attribute d20s, specialty d20s, an ability's own damage dice) and the
 // player presses Roll — the legacy sheet's locked-roll flow. Area abilities
 // still prompt their hitbox on use.
 export function VttAbilitiesPanel({ character, characters, onPickCharacter, onArmRoll, onUseAbility, onClose }: Props) {
@@ -139,14 +139,14 @@ export function VttAbilitiesPanel({ character, characters, onPickCharacter, onAr
             ))}
           </div>
 
-          <div className="vtt2-actor-group">Specialties · 1d40</div>
+          <div className="vtt2-actor-group">Specialties · 1d20</div>
           <div className="vtt2-abil-baserolls">
             {SPECIALTIES.map((spec) => (
               <button
                 key={spec.key}
                 className="chip"
-                title={`${spec.label} check — arms the roller with 1d40${modSuffix(specRollMod(character.sheet.specialties[spec.key] ?? 0))}`}
-                onClick={() => onArmRoll(`${spec.label} check`, `1d40${modSuffix(specRollMod(character.sheet.specialties[spec.key] ?? 0))}`)}
+                title={`${spec.label} check — arms the roller with 1d20${modSuffix(specRollMod(character.sheet.specialties[spec.key] ?? 0))}`}
+                onClick={() => onArmRoll(`${spec.label} check`, `1d20${modSuffix(specRollMod(character.sheet.specialties[spec.key] ?? 0))}`)}
               >
                 {spec.key.toUpperCase()}
               </button>

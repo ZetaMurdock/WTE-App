@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Collapsible } from "../ui/Collapsible";
-import { SIZE_CLASSES, WEIGHT_CATS, sizeOf, sizeIndexOf, type EquipmentItem, type WeightKey } from "../../game/wte";
+import { SIZE_CLASSES, WEIGHT_CATS, sizeOf, sizeIndexOf, sizeDiffMods, sizeGrapple, signedMod, type EquipmentItem, type WeightKey } from "../../game/wte";
 import { listWeapons, listEquipment, getWeapon, getEquipment, weaponSlotCost } from "../../lib/codex";
 import { bodySlotMap, isConsumable, ANATOMY_SLOTS, POOL_SLOTS, SLOT_LABEL } from "../../game/inventory";
 import type { Weapon, Equipment } from "../../models/codex";
@@ -303,12 +303,78 @@ export function InventoryBody({ speciesId, sizeId, equipment, weaponLoadout, gea
               </option>
             ))}
           </select>
-          <div className="size-readout">
-            <span>Budget {size.budget}</span>
-            <span>Reach {size.reach} ft</span>
-            <span>Move {size.move} ft</span>
+          <div className="size-scale">
+            {size.height} · {size.weight}
+            {size.footprint > 0 ? ` · ${size.footprint}×${size.footprint} ft footprint` : " · single cell"}
           </div>
-          <div className="size-note">{size.note}</div>
+          <div className="size-readout">
+            <span>Slots {size.budget}</span>
+            <span>Reach {size.reach === 0 ? "adjacent" : `${size.reach} ft`}</span>
+            <span>Move {size.move} ft</span>
+            <span>Start HP {size.startHp}</span>
+          </div>
+          <div className="size-readout">
+            <span title="Added into the DHP pool">DHP {signedMod(size.dhpMod)}</span>
+            <span title="Applies to every Action Priority check">AP {signedMod(size.apMod)}</span>
+            <span title="Applies to Evasion checks">EV {signedMod(size.evMod)}</span>
+          </div>
+          <ul className="size-rules">
+            {size.rules.map((r, i) => (
+              <li key={i}>{r}</li>
+            ))}
+          </ul>
+        </div>
+      </Collapsible>
+
+      <Collapsible title="Size vs. size — combat">
+        <div className="browse">
+          <p className="inv-sub">
+            How this character fares against each class. Attack/damage riders and the reactions a target loses.
+          </p>
+          <table className="size-matrix">
+            <thead>
+              <tr><th>Target</th><th>Attack</th><th>Damage</th><th>Grapple</th></tr>
+            </thead>
+            <tbody>
+              {SIZE_CLASSES.map((other, i) => {
+                const m = sizeDiffMods(sizeIdx, i);
+                const g = sizeGrapple(sizeIdx, i);
+                const post = m.posture === "advantage" ? " · Adv" : m.posture === "disadvantage" ? " · Disadv" : "";
+                return (
+                  <tr key={other.key} className={i === sizeIdx ? "self" : undefined}>
+                    <td>{other.label}</td>
+                    <td>{m.attack === 0 ? "—" : signedMod(m.attack)}{post}</td>
+                    <td>
+                      {m.damage}
+                      {m.limit ? <span className="size-limit"> · {m.limit}</span> : null}
+                    </td>
+                    <td title={g.note}>{g.automatic ? "Auto" : g.posture === "advantage" ? "Adv" : g.posture === "disadvantage" ? "Disadv" : g.mod ? signedMod(g.mod) : "—"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Collapsible>
+
+      <Collapsible title="Equipment weight classes">
+        <div className="browse">
+          <table className="size-matrix">
+            <thead>
+              <tr><th>Class</th><th>Weight</th><th>Usable by</th><th>Examples</th></tr>
+            </thead>
+            <tbody>
+              {WEIGHT_CATS.map((w) => (
+                <tr key={w.key} className={w.minSize > sizeIdx ? "too-big" : undefined}>
+                  <td>{w.label}</td>
+                  <td>{w.weight}</td>
+                  <td>{SIZE_CLASSES[w.minSize].label}+</td>
+                  <td className="wcat-ex">{w.examples}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="inv-sub">Greyed rows are too heavy for this size class.</p>
         </div>
       </Collapsible>
 
