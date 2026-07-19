@@ -453,7 +453,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                           <div className="stat-info">
                             <span className="stat-short">{s.label}</span>
                           </div>
-                          <span className="mod-box" title="Roll modifier (incl. under-25 penalty)">
+                          <span className="mod-box" title="Roll modifier">
                             {signedMod(specRollMod(pts))}
                           </span>
                           <input

@@ -10,6 +10,8 @@ import {
   sizeIndexOf,
   sizeOf,
   rollSpecialty,
+  specRollMod,
+  rollMod,
   type Attributes,
   type Specialties,
 } from "./wte";
@@ -118,5 +120,20 @@ describe("every check is a d20", () => {
       expect(r.formula.startsWith("1d20")).toBe(true);
       expect((r.detail as { die: number }).die).toBe(20);
     }
+  });
+
+  it("an UNTRAINED specialty rolls standard — no flat penalty (that was a d40 rule)", () => {
+    const pts = 4; // well under the old 25-point line
+    const untrained = rollSpecialty("Verve", pts);
+    // the ONLY term besides the die is the normal roll modifier — no extra hit
+    expect(untrained.formula).toBe(`1d20 - ${Math.abs(rollMod(pts))}`);
+    expect(specRollMod(pts)).toBe(rollMod(pts)); // mod box agrees
+    expect((untrained.detail as { modifier: number }).modifier).toBe(rollMod(pts));
+    expect(untrained.result).toBeGreaterThanOrEqual(1 + rollMod(pts));
+    expect(untrained.result).toBeLessThanOrEqual(20 + rollMod(pts));
+  });
+
+  it("training still helps — more points means a better modifier", () => {
+    expect(specRollMod(40)).toBeGreaterThan(specRollMod(10));
   });
 });

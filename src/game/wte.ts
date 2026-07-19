@@ -61,13 +61,11 @@ export const SPEC_MAX = 75;
 export const RED_DIV = 3;
 export const ATTR_MIN = 0;
 export const ATTR_MAX = 20;
-/** A specialty check with fewer than SPEC_PENALTY_MIN points takes a flat SPEC_PENALTY hit.
- *  Scaled with the die: checks moved from d40 to d20, so the untrained penalty
- *  halved to match — a flat −25 on a d20 would make untrained checks impossible. */
-export const SPEC_PENALTY_MIN = 25;
-export const SPEC_PENALTY = 12;
+// NOTE: untrained specialties (< 25 points) used to take a flat −25, which
+// existed to balance the old d40 spread. Every check is a d20 now, so an
+// untrained specialty rolls STANDARD — its lower roll modifier is the penalty.
 
-/** Roll modifier: floor((value - 10) / 2). Used for all d20/d40 checks and the on-sheet mod boxes. */
+/** Roll modifier: floor((value - 10) / 2). Used for every d20 check and the on-sheet mod boxes. */
 export function rollMod(v: number): number {
   return Math.floor((v - 10) / 2);
 }
@@ -911,9 +909,9 @@ function rollDie(sides: number): number {
 function fmtMod(n: number): string {
   return n >= 0 ? `+ ${n}` : `- ${Math.abs(n)}`;
 }
-/** Net specialty roll modifier: rollMod(pts) minus the under-25 penalty. Shown in the mod box. */
+/** Net specialty roll modifier — just rollMod(pts) on d20. Shown in the mod box. */
 export function specRollMod(pts: number): number {
-  return rollMod(pts) - (pts < SPEC_PENALTY_MIN ? SPEC_PENALTY : 0);
+  return rollMod(pts);
 }
 /** Attribute check: 1d20 + rollMod(score). */
 export function rollAttribute(label: string, score: number): RollResult {
@@ -921,14 +919,12 @@ export function rollAttribute(label: string, score: number): RollResult {
   const mod = rollMod(score);
   return { formula: `1d20 ${fmtMod(mod)}`, result: roll + mod, detail: { die: 20, roll, modifier: mod, label } };
 }
-/** Specialty check: 1d20 + rollMod(pts), with a flat penalty when the specialty
- *  has < SPEC_PENALTY_MIN points. Every check in the game rolls a d20. */
+/** Specialty check: 1d20 + rollMod(pts). Untrained specialties roll standard —
+ *  every check in the game is a straight d20 plus its modifier. */
 export function rollSpecialty(label: string, pts: number): RollResult {
   const roll = rollDie(20);
   const mod = rollMod(pts);
-  const penalty = pts < SPEC_PENALTY_MIN ? SPEC_PENALTY : 0;
-  const formula = penalty ? `1d20 ${fmtMod(mod)} - ${SPEC_PENALTY}` : `1d20 ${fmtMod(mod)}`;
-  return { formula, result: roll + mod - penalty, detail: { die: 20, roll, modifier: mod - penalty, label } };
+  return { formula: `1d20 ${fmtMod(mod)}`, result: roll + mod, detail: { die: 20, roll, modifier: mod, label } };
 }
 /** Plain 1d20 assist roll (used when resolving an ability). */
 export function rollGeneric(label: string): RollResult {
