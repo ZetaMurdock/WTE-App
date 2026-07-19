@@ -771,13 +771,14 @@ export function effectiveAttributes(
   return out;
 }
 
-/** Derived rework: the three CORE stats (Synaptic Space, Neuronal Capacity, Movement)
- *  stay as totals — raw pool × rank multiplier. Every OTHER derived stat is now a
+/** Derived rework: the CORE stats (Defensive Hit Points, Synaptic Space, Neuronal
+ *  Capacity, Movement) stay as POOLS — raw × rank multiplier, because they are
+ *  quantities you spend or lose, not check modifiers. Every OTHER derived stat is a
  *  MODIFIER derived from its raw pool:
  *    raw ≤ 40           → ⌊(raw − 20) / 4⌋            (−4 … +5)
  *    raw > 40           → ⌊5 + blocks·11⁄3 · rankMult⌋ where blocks = ⌊(raw − 40)/15⌋
  *  i.e. each 15 raw above 40 banks 11 points, divided by 3, scaled by rank. */
-export const CORE_DERIVED: ReadonlySet<DerivedKey> = new Set<DerivedKey>(["ss", "nc", "mv"]);
+export const CORE_DERIVED: ReadonlySet<DerivedKey> = new Set<DerivedKey>(["ss", "nc", "mv", "dhp"]);
 export function derivedMod(raw: number, rank = 0): number {
   if (raw <= 40) return Math.floor((raw - 20) / 4);
   const blocks = Math.floor((raw - 40) / 15);

@@ -12,6 +12,7 @@ import {
   rollSpecialty,
   rollAttribute,
   derivedMod,
+  rankMult,
   SPEC_PENALTY,
   SPEC_PENALTY_MIN,
   specRollMod,
@@ -149,6 +150,20 @@ describe("which die each check rolls", () => {
   it("a specialty AT or over 25 takes no penalty", () => {
     expect(specRollMod(SPEC_PENALTY_MIN)).toBe(rollMod(SPEC_PENALTY_MIN));
     expect(rollSpecialty("Balance", 25).formula).not.toContain(`- ${SPEC_PENALTY}`);
+  });
+});
+
+describe("Defensive Hit Points is a rank-multiplied pool", () => {
+  it("dhp = raw pool × rank multiplier, like SS/NC/MV", () => {
+    const d = computeDerived(attrs(), specs(), { rank: 3 });
+    expect(d.dhp).toBe(Math.round(d.raw.dhp * rankMult(3)));
+  });
+
+  it("scales up with rank (a higher rank has more DHP off the same raw pool)", () => {
+    const r0 = computeDerived(attrs(), specs(), { rank: 0 });
+    const r5 = computeDerived(attrs(), specs(), { rank: 5 });
+    expect(r5.dhp).toBeGreaterThan(r0.dhp);
+    expect(rankMult(5)).toBeGreaterThan(rankMult(0));
   });
 });
 

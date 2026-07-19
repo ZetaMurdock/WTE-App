@@ -25,7 +25,7 @@ export function CharacterVitals({ derived, derivedBase, ssSpent }: Props) {
   const currentSS = derived.ss - ssSpent;
   const tiles = [
     { key: "hp", label: "Health", num: `${derived.hpMax}`, lit: litOrbs(derived.hpMax, 5), delta: derived.hpMax - derivedBase.hpMax, accent: "hp" },
-    { key: "dhp", label: "Def. HP", num: signedMod(derived.dhp), lit: litOrbs(derived.dhp, 1), delta: derived.dhp - derivedBase.dhp, accent: "dhp" },
+    { key: "dhp", label: "Def. HP", num: `${derived.dhp}`, lit: litOrbs(derived.dhp, Math.max(1, derived.dhp / ORBS)), delta: derived.dhp - derivedBase.dhp, accent: "dhp" },
     { key: "mv", label: "Movement", num: `${derived.mv}`, lit: litOrbs(derived.mv, 2), delta: derived.mv - derivedBase.mv, accent: "mv" },
     { key: "ss", label: "Syn. Space", num: `${currentSS}/${derived.ss}`, lit: litOrbs(currentSS, Math.max(1, derived.ss / ORBS)), delta: derived.ss - derivedBase.ss, accent: "ss" },
   ];
