@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ATTRIBUTES, zeroAttributes, rollMod, signedMod, type AttrKey, type Attributes } from "../../game/wte";
+import { ATTRIBUTES, zeroAttributes, rollDie, rollMod, signedMod, type AttrKey, type Attributes } from "../../game/wte";
 
 interface Props {
   attributes: Attributes;
@@ -7,22 +7,15 @@ interface Props {
   onSet: (attrs: Attributes) => void;
 }
 
-// Roll 4d6, drop the lowest → 3..18. The familiar D&D-Beyond method, within
-// W.T.E's 0..20 attribute range.
-function roll4d6DropLowest(): number {
-  const d = [0, 0, 0, 0].map(() => 1 + Math.floor(Math.random() * 6)).sort((a, b) => a - b);
-  return d[1] + d[2] + d[3];
-}
-
-// Roll-and-assign attribute generator: roll seven scores, then assign each to an
-// attribute (each score used once). Mirrors the D&D-Beyond "Roll" flow.
+// Roll-and-assign attribute generator: seven SIMPLE d20 rolls — no formulas,
+// no drop-lowest — then assign each score to an attribute (each used once).
 export function AttributeRoller({ attributes, onSet }: Props) {
   const [pool, setPool] = useState<number[] | null>(null);
   // attribute → pool index it consumes
   const [assign, setAssign] = useState<Partial<Record<AttrKey, number>>>({});
 
   function roll() {
-    const vals = ATTRIBUTES.map(() => roll4d6DropLowest()).sort((a, b) => b - a);
+    const vals = ATTRIBUTES.map(() => rollDie(20)).sort((a, b) => b - a);
     setPool(vals);
     setAssign({});
     onSet(zeroAttributes());
@@ -53,8 +46,8 @@ export function AttributeRoller({ attributes, onSet }: Props) {
   return (
     <div className="roller">
       <div className="roller-head">
-        <button className="primary-btn" onClick={roll}>
-          {pool ? "Re-roll" : "Roll 7 scores"}
+        <button className="primary-btn" onClick={roll} title="Seven straight d20s — assign each score where you want it">
+          {pool ? "Re-roll" : "Roll 7 × d20"}
         </button>
         {pool && (
           <span className="roller-pool" title="Rolled scores — assign each once">

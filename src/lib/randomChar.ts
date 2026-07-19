@@ -12,6 +12,7 @@ import {
   SPEC_TOTAL,
   SPEC_MAX,
   bgAmounts,
+  rollDie,
   zeroAttributes,
   zeroSpecialties,
   type Background,
@@ -23,19 +24,14 @@ const NAME_A = ["Zephyr", "Kael", "Vesper", "Orin", "Nyx", "Cassian", "Lyra", "D
 const NAME_B = ["Voss", "Kane", "Rychar", "Halloway", "Vane", "Crowe", "Marrow", "Quill", "Stray", "Locke", "Ferro", "Wilde", "Grave", "Ozdemir", "Rell"];
 const rand = <T,>(a: T[]): T => a[Math.floor(Math.random() * a.length)];
 
-/** 4d6 drop lowest → 3..18, the familiar spread. */
-function roll4d6(): number {
-  const d = [0, 0, 0, 0].map(() => 1 + Math.floor(Math.random() * 6)).sort((a, b) => a - b);
-  return d[1] + d[2] + d[3];
-}
-
 export function randomCharacter(): { name: string; sheet: CharacterSheet } {
   const species = rand(SPECIES);
   const paradigm = rand(PARADIGMS);
   const variant = species.variants.length ? rand(species.variants) : undefined;
 
+  // Stats roll a simple d20 each — same as the creator's roll-and-assign.
   const attributes = zeroAttributes();
-  for (const k of ATTR_KEYS) attributes[k] = Math.min(ATTR_MAX, roll4d6());
+  for (const k of ATTR_KEYS) attributes[k] = Math.min(ATTR_MAX, rollDie(20));
 
   // scatter the specialty pool, respecting the per-specialty cap
   const specialties = zeroSpecialties();
