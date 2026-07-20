@@ -46,6 +46,7 @@ export type VttOp =
 export function foreignOpAllowed(d: VttSceneData, op: VttOp, from: string): boolean {
   if (op.op === "token.move" || op.op === "token.update" || op.op === "token.remove") {
     const tok = d.tokens.find((t) => t.id === op.id);
+    if (tok?.prop) return false; // props are Curator scenery
     if (tok?.owner && tok.owner !== from) return false;
   }
   if (op.op === "emitter.add" || op.op === "emitter.update" || op.op === "emitter.remove" || op.op === "envfx.set") return false;

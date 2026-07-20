@@ -113,12 +113,20 @@ describe("applyOp", () => {
 describe("foreignOpAllowed (pinned-scene op policy)", () => {
   it("owner-locked tokens obey their owner; unowned tokens stay free-for-all", () => {
     const d = fresh();
-    d.tokens.push({ ...tok("mine"), owner: "peer-a" }, tok("prop"));
+    d.tokens.push({ ...tok("mine"), owner: "peer-a" }, tok("npc"));
     expect(foreignOpAllowed(d, { op: "token.move", id: "mine", x: 5, y: 5 }, "peer-a")).toBe(true);
     expect(foreignOpAllowed(d, { op: "token.move", id: "mine", x: 5, y: 5 }, "peer-b")).toBe(false);
     expect(foreignOpAllowed(d, { op: "token.update", id: "mine", patch: { hp: 0 } }, "peer-b")).toBe(false);
     expect(foreignOpAllowed(d, { op: "token.remove", id: "mine" }, "peer-b")).toBe(false);
-    expect(foreignOpAllowed(d, { op: "token.move", id: "prop", x: 1, y: 1 }, "peer-b")).toBe(true);
+    expect(foreignOpAllowed(d, { op: "token.move", id: "npc", x: 1, y: 1 }, "peer-b")).toBe(true);
+  });
+
+  it("props are Curator scenery — players can't move, edit, or remove them", () => {
+    const d = fresh();
+    d.tokens.push({ ...tok("tree"), prop: true });
+    expect(foreignOpAllowed(d, { op: "token.move", id: "tree", x: 5, y: 5 }, "peer-a")).toBe(false);
+    expect(foreignOpAllowed(d, { op: "token.update", id: "tree", patch: { size: 4 } }, "peer-a")).toBe(false);
+    expect(foreignOpAllowed(d, { op: "token.remove", id: "tree" }, "peer-a")).toBe(false);
   });
 
   it("scene-building ops stay Curator-only, so a player's are refused", () => {

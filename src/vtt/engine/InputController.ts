@@ -114,9 +114,11 @@ export class InputController {
         return;
       }
     }
-    // select — tokens first, then lights, then walls
+    // select — tokens first, then lights, then walls. Props are Curator
+    // scenery: a player's click passes straight through them (no select, no
+    // drag), so the map furniture can't be rearranged by the party.
     const hit = v.tokens.pick(v.scene, w.x, w.y);
-    if (hit) {
+    if (hit && !(v.playerView && hit.prop)) {
       v.select({ kind: "token", id: hit.id });
       this.mode = "token";
       this.dragTokenId = hit.id;

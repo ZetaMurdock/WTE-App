@@ -98,6 +98,7 @@ export function useVttSync({ engineRef, sceneId, getScene, onSnapshot, onForeign
         const tok = engineRef.current?.scene?.data.tokens.find((t) => t.id === op.id);
         const hostId = roleRef.current === "host" ? net.selfId : peersRef.current.find((p) => p.role === "host")?.id ?? null;
         const fromIsHost = hostId != null && from === hostId;
+        if (tok?.prop && from !== net.selfId && !fromIsHost) return; // props are Curator scenery — players can't touch them
         if (tok?.owner && tok.owner !== from && from !== net.selfId && !fromIsHost) return; // unauthorized — drop the op
         // COLLISION defense-in-depth: a player's move whose path crosses a wall is
         // dropped here too (their client already reverts; this stops wall-hacks).
