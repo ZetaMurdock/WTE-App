@@ -311,7 +311,7 @@ export function InventoryBody({ speciesId, sizeId, equipment, weaponLoadout, gea
             <span>Slots {size.budget}</span>
             <span>Reach {size.reach === 0 ? "adjacent" : `${size.reach} ft`}</span>
             <span>Move {size.move} ft</span>
-            <span>Start HP {size.startHp}</span>
+            <span title="Your max HP is anchored on this — the class's base health before stats add anything">Base HP {size.startHp}</span>
           </div>
           <div className="size-readout">
             <span title="Added into the DHP pool">DHP {signedMod(size.dhpMod)}</span>

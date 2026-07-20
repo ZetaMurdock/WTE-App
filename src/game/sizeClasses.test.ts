@@ -11,6 +11,8 @@ import {
   sizeOf,
   rollSpecialty,
   rollAttribute,
+  rollDieMode,
+  rollDiceExpr,
   derivedMod,
   rankMult,
   SPEC_PENALTY,
@@ -67,6 +69,17 @@ describe("size modifiers reach the derived stats", () => {
     expect(huge.raw.dhp).toBe(mod.raw.dhp + 10); // +10 DHP into the pool
     expect(huge.ev).toBe(mod.ev - 5); // −5 evasion
     expect(huge.hpMax).toBeGreaterThan(mod.hpMax);
+  });
+
+  it("max HP is ANCHORED on the class's base health (Colossal starts from 90)", () => {
+    const m = computeDerived(attrs(), specs(), { sizeId: "moderate" });
+    const c = computeDerived(attrs(), specs(), { sizeId: "colossal" });
+    // Same stats → the HP gap is exactly the anchor gap plus the size DHP-pool term.
+    expect(c.hpMax - m.hpMax).toBe(90 - 25 + (Math.floor(c.raw.dhp / 2) - Math.floor(m.raw.dhp / 2)));
+    // And nobody's max HP ever sits below their class's base health.
+    for (const s of SIZE_CLASSES) {
+      expect(computeDerived(attrs(), specs(), { sizeId: s.key }).hpMax).toBeGreaterThanOrEqual(s.startHp);
+    }
   });
 
   it("Tiny never falls below the DHP floor of 5", () => {
@@ -150,6 +163,39 @@ describe("which die each check rolls", () => {
   it("a specialty AT or over 25 takes no penalty", () => {
     expect(specRollMod(SPEC_PENALTY_MIN)).toBe(rollMod(SPEC_PENALTY_MIN));
     expect(rollSpecialty("Balance", 25).formula).not.toContain(`- ${SPEC_PENALTY}`);
+  });
+});
+
+describe("advantage / disadvantage postures", () => {
+  it("advantage keeps the higher die, disadvantage the lower", () => {
+    for (let i = 0; i < 60; i++) {
+      const adv = rollDieMode(20, "adv");
+      expect(adv.rolls).toHaveLength(2);
+      expect(adv.roll).toBe(Math.max(...adv.rolls));
+      const dis = rollDieMode(20, "dis");
+      expect(dis.roll).toBe(Math.min(...dis.rolls));
+      const plain = rollDieMode(20, "normal");
+      expect(plain.rolls).toHaveLength(1);
+    }
+  });
+
+  it("the roll message names the posture and shows both dice", () => {
+    const adv = rollAttribute("Physical", 14, "adv");
+    expect(adv.formula).toContain("Advantage");
+    expect(adv.formula).toContain(adv.detail.rolls!.join("/"));
+    const dis = rollSpecialty("Willpower", 30, "dis");
+    expect(dis.formula).toContain("Disadvantage");
+    expect((dis.detail as { die: number }).die).toBe(40); // posture never changes the die
+    expect(rollAttribute("Physical", 14).formula).not.toContain("Advantage"); // normal stays clean
+  });
+
+  it("dice expressions roll the whole expression twice and keep high/low", () => {
+    for (let i = 0; i < 40; i++) {
+      const r = rollDiceExpr("Damage", "2d6+3", "dis")!;
+      const [a, b] = r.detail.rolls!;
+      expect(r.result).toBe(Math.min(a, b) + 3);
+      expect(r.formula).toContain("Disadvantage");
+    }
   });
 });
 

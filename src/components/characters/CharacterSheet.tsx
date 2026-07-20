@@ -428,7 +428,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                         <RollButton
                           className="roll-btn"
                           title={`Roll ${a.short}`}
-                          make={() => rollAttribute(`${a.short} Check`, eff[a.key])}
+                          make={(mode) => rollAttribute(`${a.short} Check`, eff[a.key], mode)}
                           onLocal={doRoll}
                         >
                           d20
@@ -464,7 +464,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                             value={sheet.specialties[s.key]}
                             onChange={(e) => setSpec(s.key, intOf(e.target.value))}
                           />
-                          <RollButton className="roll-btn" title={`Roll ${s.label}`} make={() => rollSpecialty(`${s.label} Check`, pts)} onLocal={doRoll}>
+                          <RollButton className="roll-btn" title={`Roll ${s.label}`} make={(mode) => rollSpecialty(`${s.label} Check`, pts, mode)} onLocal={doRoll}>
                             d40
                           </RollButton>
                         </div>

@@ -80,7 +80,7 @@ export function ActionsTable({ weapons, genus, ciphers, atk, phyMod, dexMod, par
               )
             ) : null}
             <div className="act-actions">
-              <RollButton className="roll-btn" make={() => rollToHit(`${w.name} attack`, hit)} onLocal={onRoll}>
+              <RollButton className="roll-btn" make={(mode) => rollToHit(`${w.name} attack`, hit, mode)} onLocal={onRoll}>
                 Roll d20 {signedMod(hit)}
               </RollButton>
             </div>
@@ -113,7 +113,7 @@ export function ActionsTable({ weapons, genus, ciphers, atk, phyMod, dexMod, par
             </div>
             <div className="act-actions">
               {a.ss > 0 ? <button className="ghost-btn" onClick={() => onSpend(a.ss)}>Use −{a.ss} SS</button> : null}
-              <RollButton className="roll-btn" make={() => rollGeneric(a.name)} onLocal={onRoll}>Roll d20</RollButton>
+              <RollButton className="roll-btn" make={(mode) => rollGeneric(a.name, mode)} onLocal={onRoll}>Roll d20</RollButton>
             </div>
           </div>
         )}

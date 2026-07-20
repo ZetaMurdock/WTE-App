@@ -869,7 +869,10 @@ export function computeDerived(
       if (ov != null && Number.isFinite(ov)) d[stat.key] = ov;
     }
   }
-  const hpMax = Math.max(0, Math.floor((raw.dhp / 2) * rankMult(rank)) + attrMod(a.end));
+  // HP is ANCHORED on the size class's starting HP (Moderate 25 … Colossal 90):
+  // a Colossal body starts at 90 base health before stats add anything.
+  const hpBase = (size ?? sizeOf("moderate")).startHp;
+  const hpMax = Math.max(0, hpBase + Math.floor((raw.dhp / 2) * rankMult(rank)) + attrMod(a.end));
   // Neuronal Capacity is a CORE total (it budgets equipment), but it also gets a
   // check modifier like every other derived stat — so `nc` stays the budget and
   // `ncMod` is what you add to an NC roll.
@@ -905,13 +908,26 @@ export function validateSheet(attrs: Attributes, specs: Specialties): SheetValid
 }
 
 // ── Rolls ────────────────────────────────────────────────────────────────
+/** Roll posture: advantage/disadvantage roll the die twice, keep high/low. */
+export type RollMode = "normal" | "adv" | "dis";
 export interface RollResult {
   formula: string;
   result: number;
-  detail: { die: number; roll: number; modifier: number; label: string };
+  detail: { die: number; roll: number; modifier: number; label: string; mode?: RollMode; rolls?: number[] };
 }
 export function rollDie(sides: number): number {
   return 1 + Math.floor(Math.random() * sides);
+}
+/** One posture-aware die: normal = one roll; adv/dis = two, keep high/low. */
+export function rollDieMode(sides: number, mode: RollMode): { roll: number; rolls: number[] } {
+  const a = rollDie(sides);
+  if (mode === "normal") return { roll: a, rolls: [a] };
+  const b = rollDie(sides);
+  return { roll: mode === "adv" ? Math.max(a, b) : Math.min(a, b), rolls: [a, b] };
+}
+/** " · Advantage (17/4)" — the message always names the posture rolled with. */
+function modeTag(mode: RollMode, rolls: number[]): string {
+  return mode === "normal" ? "" : ` · ${mode === "adv" ? "Advantage" : "Disadvantage"} (${rolls.join("/")})`;
 }
 function fmtMod(n: number): string {
   return n >= 0 ? `+ ${n}` : `- ${Math.abs(n)}`;
@@ -921,30 +937,30 @@ export function specRollMod(pts: number): number {
   return rollMod(pts) - (pts < SPEC_PENALTY_MIN ? SPEC_PENALTY : 0);
 }
 /** Attribute check: 1d20 + rollMod(score). */
-export function rollAttribute(label: string, score: number): RollResult {
-  const roll = rollDie(20);
+export function rollAttribute(label: string, score: number, mode: RollMode = "normal"): RollResult {
+  const { roll, rolls } = rollDieMode(20, mode);
   const mod = rollMod(score);
-  return { formula: `1d20 ${fmtMod(mod)}`, result: roll + mod, detail: { die: 20, roll, modifier: mod, label } };
+  return { formula: `1d20 ${fmtMod(mod)}${modeTag(mode, rolls)}`, result: roll + mod, detail: { die: 20, roll, modifier: mod, label, mode, rolls } };
 }
 /** Specialty check: 1d40 + rollMod(pts), with a flat −25 when the specialty has
  *  under 25 points. Specialties (and the Pressure Engine) roll d40; only
  *  ATTRIBUTE checks roll a d20. */
-export function rollSpecialty(label: string, pts: number): RollResult {
-  const roll = rollDie(40);
+export function rollSpecialty(label: string, pts: number, mode: RollMode = "normal"): RollResult {
+  const { roll, rolls } = rollDieMode(40, mode);
   const mod = rollMod(pts);
   const penalty = pts < SPEC_PENALTY_MIN ? SPEC_PENALTY : 0;
-  const formula = penalty ? `1d40 ${fmtMod(mod)} - ${SPEC_PENALTY}` : `1d40 ${fmtMod(mod)}`;
-  return { formula, result: roll + mod - penalty, detail: { die: 40, roll, modifier: mod - penalty, label } };
+  const formula = (penalty ? `1d40 ${fmtMod(mod)} - ${SPEC_PENALTY}` : `1d40 ${fmtMod(mod)}`) + modeTag(mode, rolls);
+  return { formula, result: roll + mod - penalty, detail: { die: 40, roll, modifier: mod - penalty, label, mode, rolls } };
 }
 /** Plain 1d20 assist roll (used when resolving an ability). */
-export function rollGeneric(label: string): RollResult {
-  const roll = rollDie(20);
-  return { formula: "1d20", result: roll, detail: { die: 20, roll, modifier: 0, label } };
+export function rollGeneric(label: string, mode: RollMode = "normal"): RollResult {
+  const { roll, rolls } = rollDieMode(20, mode);
+  return { formula: `1d20${modeTag(mode, rolls)}`, result: roll, detail: { die: 20, roll, modifier: 0, label, mode, rolls } };
 }
 // A d20 attack roll with an explicit to-hit modifier (weapon HIT = ATK + PHY/DEX mod).
-export function rollToHit(label: string, mod: number): RollResult {
-  const roll = rollDie(20);
-  return { formula: `1d20 ${fmtMod(mod)}`, result: roll + mod, detail: { die: 20, roll, modifier: mod, label } };
+export function rollToHit(label: string, mod: number, mode: RollMode = "normal"): RollResult {
+  const { roll, rolls } = rollDieMode(20, mode);
+  return { formula: `1d20 ${fmtMod(mod)}${modeTag(mode, rolls)}`, result: roll + mod, detail: { die: 20, roll, modifier: mod, label, mode, rolls } };
 }
 
 /** Parse a dice expression — "2d6+3", "d20", "3d8-1" (whitespace tolerant). */
@@ -963,14 +979,26 @@ export function parseDiceExpr(raw: string): { count: number; sides: number; mod:
 }
 
 /** Roll a freeform dice expression (the legacy sheet's dice-panel behavior) —
- *  null when the expression doesn't parse. */
-export function rollDiceExpr(label: string, raw: string): RollResult | null {
+ *  null when the expression doesn't parse. Advantage/disadvantage roll the
+ *  whole expression twice and keep the higher/lower total. */
+export function rollDiceExpr(label: string, raw: string, mode: RollMode = "normal"): RollResult | null {
   const p = parseDiceExpr(raw);
   if (!p) return null;
-  let sum = 0;
-  for (let i = 0; i < p.count; i++) sum += rollDie(p.sides);
-  const formula = `${p.count}d${p.sides}${p.mod > 0 ? "+" + p.mod : p.mod < 0 ? String(p.mod) : ""}`;
-  return { formula, result: sum + p.mod, detail: { die: p.sides, roll: sum, modifier: p.mod, label } };
+  const once = () => {
+    let sum = 0;
+    for (let i = 0; i < p.count; i++) sum += rollDie(p.sides);
+    return sum;
+  };
+  const a = once();
+  let sum = a;
+  const totals = [a];
+  if (mode !== "normal") {
+    const b = once();
+    totals.push(b);
+    sum = mode === "adv" ? Math.max(a, b) : Math.min(a, b);
+  }
+  const formula = `${p.count}d${p.sides}${p.mod > 0 ? "+" + p.mod : p.mod < 0 ? String(p.mod) : ""}${modeTag(mode, totals)}`;
+  return { formula, result: sum + p.mod, detail: { die: p.sides, roll: sum, modifier: p.mod, label, mode, rolls: totals } };
 }
 
 /** First dice expression found in free text ("deals 3d6 fire…" → "3d6"), for

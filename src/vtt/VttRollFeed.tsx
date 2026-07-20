@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { recentRolls, logRoll } from "../lib/rolls";
-import { rollDiceExpr, type RollResult } from "../game/wte";
+import { rollDiceExpr, type RollMode, type RollResult } from "../game/wte";
 import { useNet } from "../net/NetContext";
 import { addSessionRoll, getSessionRolls, hydrateSessionRolls, subscribeSessionRolls } from "./sync/rollSession";
 
@@ -69,14 +69,19 @@ export function VttRollFeed({ campaignId, lock, onClearLock, onClose }: Props) {
     [campaignId, net]
   );
 
-  function rollNow() {
-    const roll = rollDiceExpr(lock?.label ?? expr, expr);
+  // Shift-click = Advantage, ctrl/alt-click or right-click = Disadvantage —
+  // the roll message names the posture and shows both totals.
+  function rollNow(mode: RollMode = "normal") {
+    const roll = rollDiceExpr(lock?.label ?? expr, expr, mode);
     if (!roll) {
       setExprBad(true);
       return;
     }
     setExprBad(false);
     commit(roll);
+  }
+  function rollClick(e: React.MouseEvent) {
+    rollNow(e.shiftKey ? "adv" : e.ctrlKey || e.altKey ? "dis" : "normal");
   }
 
   return (
@@ -117,9 +122,17 @@ export function VttRollFeed({ campaignId, lock, onClearLock, onClose }: Props) {
           value={expr}
           placeholder="2d6+3"
           onChange={(e) => { setExpr(e.target.value); setExprBad(false); }}
-          onKeyDown={(e) => e.key === "Enter" && rollNow()}
+          onKeyDown={(e) => e.key === "Enter" && rollNow(e.shiftKey ? "adv" : e.ctrlKey || e.altKey ? "dis" : "normal")}
         />
-        <button className="primary-btn vtt2-roll-go" onClick={rollNow}>
+        <button
+          className="primary-btn vtt2-roll-go"
+          onClick={rollClick}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            rollNow("dis");
+          }}
+          title="Shift-click: Advantage · Right-click (or Ctrl-click): Disadvantage"
+        >
           Roll{lock ? " · " + lock.label : ""}
         </button>
       </div>

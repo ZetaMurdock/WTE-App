@@ -9,8 +9,9 @@ import {
   peBand,
   rankMult,
   rollMod,
-  rollDie,
+  rollDieMode,
   signedMod,
+  type RollMode,
   moralityMods,
   SPEC_PENALTY,
   SPEC_PENALTY_MIN,
@@ -65,7 +66,7 @@ export function PressureEngine({ attrs, specs, rank, morality, pressure, onPress
     setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   }
 
-  function resolve() {
+  function resolve(mode: RollMode = "normal") {
     const totals: number[] = [];
     const next = rows.map((r) => ({ ...r }));
     for (const r of next) {
@@ -73,14 +74,15 @@ export function PressureEngine({ attrs, specs, rank, morality, pressure, onPress
         r.out = "—";
         continue;
       }
-      const die = rollDie(40);
+      const { roll: die, rolls } = rollDieMode(40, mode);
       const specPts = specs[r.spec] || 0;
       const attrM = r.attr ? rollMod(attrs[r.attr] || 0) : 0;
       // Untrained specialties take the same flat −25 an ordinary specialty check does.
       const penalty = specPts < SPEC_PENALTY_MIN ? SPEC_PENALTY : 0;
       const tot = Math.round((die + specPts + attrM + complexity - penalty) * mult);
       totals.push(tot);
-      r.out = penalty ? `${tot} (d40=${die} −${SPEC_PENALTY})` : `${tot} (d40=${die})`;
+      const dieTxt = mode === "normal" ? `d40=${die}` : `d40=${die} of ${rolls.join("/")}`;
+      r.out = penalty ? `${tot} (${dieTxt} −${SPEC_PENALTY})` : `${tot} (${dieTxt})`;
     }
     setRows(next);
     if (totals.length === 0) return;
@@ -89,10 +91,11 @@ export function PressureEngine({ attrs, specs, rank, morality, pressure, onPress
     const diff = aav - pressure;
     const band = peBand(diff);
     setResult({ aav, cBonus, diff, band });
+    const modeTxt = mode === "normal" ? "" : mode === "adv" ? " · Advantage" : " · Disadvantage";
     onRoll({
-      formula: `PE resolve · ${totals.length} skill${totals.length === 1 ? "" : "s"}`,
+      formula: `PE resolve · ${totals.length} skill${totals.length === 1 ? "" : "s"}${modeTxt}`,
       result: aav,
-      detail: { die: 40, roll: aav, modifier: complexity, label: `Pressure — ${band.name}` },
+      detail: { die: 40, roll: aav, modifier: complexity, label: `Pressure — ${band.name}`, mode },
     });
   }
 
@@ -157,7 +160,15 @@ export function PressureEngine({ attrs, specs, rank, morality, pressure, onPress
       ))}
 
       <div className="act-actions" style={{ marginTop: 10 }}>
-        <button className="primary-btn" onClick={resolve}>
+        <button
+          className="primary-btn"
+          onClick={(e) => resolve(e.shiftKey ? "adv" : e.ctrlKey || e.altKey ? "dis" : "normal")}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            resolve("dis");
+          }}
+          title="Shift-click: Advantage · Right-click (or Ctrl-click): Disadvantage — every skill die rolls twice"
+        >
           Resolve roll
         </button>
         <button className="ghost-btn" onClick={clearRows}>
