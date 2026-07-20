@@ -19,16 +19,12 @@ describe("derived statistics table", () => {
     expect(computeDerived(zeroA(), { ...zeroS(), ctrl: 30 }, {}).raw.atk).toBe(base);
   });
 
-  it("Control feeds Movement, Synaptic Space and Action Density (Priority is out)", () => {
+  it("Control feeds Movement, Synaptic Space and Action Density", () => {
     const ctrl = computeDerived(zeroA(), { ...zeroS(), ctrl: 30 }, {}).raw;
-    const pri = computeDerived(zeroA(), { ...zeroS(), pri: 30 }, {}).raw;
     const base = computeDerived(zeroA(), zeroS(), {}).raw;
     expect(ctrl.mv).toBeGreaterThan(base.mv);
     expect(ctrl.ss).toBeGreaterThan(base.ss);
     expect(ctrl.ad).toBeGreaterThan(base.ad);
-    expect(pri.mv).toBe(base.mv);
-    expect(pri.ss).toBe(base.ss);
-    expect(pri.ad).toBe(base.ad);
   });
 
   it("Neuronal Capacity reads Perception; Influence reads Perception + Precision and is dragged by Weight", () => {

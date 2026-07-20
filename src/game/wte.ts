@@ -10,8 +10,8 @@ import speciesInnateData from "./data/speciesInnate.json";
 
 export type AttrKey = "phy" | "dex" | "end" | "ap" | "wis" | "cha" | "int";
 export type SpecKey =
-  | "ins" | "ver" | "bal" | "wt" | "pre" | "ctrl"
-  | "pri" | "wm" | "mf" | "per" | "adp" | "cun";
+  | "ins" | "bal" | "wt" | "pre" | "ctrl"
+  | "wm" | "mf" | "per" | "adp" | "cun";
 export type DerivedKey = "atk" | "dhp" | "mv" | "ss" | "ev" | "nc" | "rr" | "ad" | "inf" | "pr";
 
 export type Attributes = Record<AttrKey, number>;
@@ -30,12 +30,10 @@ export const ATTRIBUTES: { key: AttrKey; label: string; short: string; desc: str
 
 export const SPECIALTIES: { key: SpecKey; label: string; desc: string }[] = [
   { key: "ins", label: "Inspiration", desc: "Creativity, flash insights." },
-  { key: "ver", label: "Versatility", desc: "Adaptability in unfamiliar situations." },
   { key: "bal", label: "Balance", desc: "Poise, stabilization under pressure." },
   { key: "wt", label: "Weight", desc: "Kinetic force control, leverage." },
   { key: "pre", label: "Precision", desc: "Target acquisition, lockpicking, crits." },
   { key: "ctrl", label: "Control", desc: "Emotional restraint, piloting." },
-  { key: "pri", label: "Priority", desc: "Combat initiative optimization." },
   { key: "wm", label: "Weapon Mastery", desc: "Damage output, combat maneuvers." },
   { key: "mf", label: "Mental Fortitude", desc: "Resisting shock, stress, Eldritch decay." },
   { key: "per", label: "Perception", desc: "Notice hidden elements, traps, tracks." },
@@ -389,7 +387,7 @@ export function zeroAttributes(): Attributes {
   return { phy: 0, dex: 0, end: 0, ap: 0, wis: 0, cha: 0, int: 0 };
 }
 export function zeroSpecialties(): Specialties {
-  return { ins: 0, ver: 0, bal: 0, wt: 0, pre: 0, ctrl: 0, pri: 0, wm: 0, mf: 0, per: 0, adp: 0, cun: 0 };
+  return { ins: 0, bal: 0, wt: 0, pre: 0, ctrl: 0, wm: 0, mf: 0, per: 0, adp: 0, cun: 0 };
 }
 
 export function attrMod(score: number): number {
@@ -600,9 +598,9 @@ const STAT_ALIASES: Record<string, string> = {
   phy: "a:phy", strength: "a:phy", str: "a:phy", dex: "a:dex", dexterity: "a:dex", end: "a:end", endurance: "a:end",
   ap: "a:ap", "action priority": "a:ap", wis: "a:wis", wisdom: "a:wis", cha: "a:cha", con: "a:cha", charisma: "a:cha",
   int: "a:int", intelligence: "a:int",
-  inspiration: "s:ins", insp: "s:ins", ins: "s:ins", versatility: "s:ver", ver: "s:ver", balance: "s:bal", bal: "s:bal",
+  inspiration: "s:ins", insp: "s:ins", ins: "s:ins", balance: "s:bal", bal: "s:bal",
   weight: "s:wt", wt: "s:wt", precision: "s:pre", prec: "s:pre", pre: "s:pre", control: "s:ctrl", ctrl: "s:ctrl",
-  priority: "s:pri", pri: "s:pri", "wpn mastery": "s:wm", "weapon mastery": "s:wm", mastery: "s:wm", wm: "s:wm",
+  "wpn mastery": "s:wm", "weapon mastery": "s:wm", mastery: "s:wm", wm: "s:wm",
   "mental fort": "s:mf", "mental fortitude": "s:mf", fort: "s:mf", mf: "s:mf", perception: "s:per", per: "s:per",
   adaption: "s:adp", adaptation: "s:adp", adp: "s:adp", cunning: "s:cun", cun: "s:cun",
   attack: "d:atk", "attack power": "d:atk", atk: "d:atk", dhp: "d:dhp", "defensive hit points": "d:dhp", "def hit points": "d:dhp",

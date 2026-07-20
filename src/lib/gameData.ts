@@ -134,8 +134,8 @@ const ATTR_NAMES: Record<string, AttrKey> = {
   intelligence: "int", int: "int",
 };
 const SPEC_NAMES: Record<string, SpecKey> = {
-  inspiration: "ins", versatility: "ver", balance: "bal", weight: "wt", precision: "pre",
-  control: "ctrl", priority: "pri", "weapon mastery": "wm", "mental fortitude": "mf",
+  inspiration: "ins", balance: "bal", weight: "wt", precision: "pre",
+  control: "ctrl", "weapon mastery": "wm", "mental fortitude": "mf",
   perception: "per", adaptation: "adp", adaption: "adp", cunning: "cun",
 };
 
