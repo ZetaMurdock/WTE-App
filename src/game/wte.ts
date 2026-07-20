@@ -54,7 +54,7 @@ export const DERIVED: { key: DerivedKey; label: string; short: string }[] = [
   { key: "pr", label: "Perception Range", short: "PR" },
 ];
 
-export const SPEC_TOTAL = 225;
+export const SPEC_TOTAL = 200;
 export const SPEC_MAX = 75;
 export const RED_DIV = 3;
 export const ATTR_MIN = 0;
