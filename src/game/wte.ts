@@ -218,7 +218,7 @@ export interface Paradigm {
 export const PARADIGMS: Paradigm[] = [
   { id: "science", name: "Science", group: "Scientific", weapons: ["Hybrid", "Medium", "Kinetic"], domains: ["Neutral", "Elemental"] },
   { id: "simulation", name: "Simulation", group: "Scientific", weapons: ["Kinetic", "Hybrid"], domains: ["Kinetic", "Null"] },
-  { id: "remnant", name: "Remnant", group: "Esoteric & Survival", weapons: ["Kinetic", "Energy", "Hybrid"], domains: ["Kinetic", "Neutral"] },
+  { id: "remnant", name: "Remnant", group: "Esoteric & Survival", weapons: ["Kinetic", "Energy", "Hybrid"], domains: ["Null", "Neutral"] },
   { id: "cognition", name: "Cognition", group: "Esoteric & Survival", weapons: ["Energy", "Exotic", "Hybrid"], domains: ["Eldritch", "Null"] },
   { id: "evolution", name: "Evolution", group: "Esoteric & Survival", weapons: ["Energy", "Exotic", "Hybrid"], domains: ["Elemental", "Eldritch"] },
   { id: "warfare", name: "Warfare", group: "Tactical Combat", weapons: ["Hybrid", "Exotic", "Kinetic"], domains: ["Neutral", "Kinetic"] },
@@ -731,9 +731,13 @@ export function usableGenus(paradigmId: string | undefined, loadout: string[]): 
     return { source: "genus" as const, name, ss: a?.ss ?? 0, effect: a?.effect, range: a?.range, target: a?.target, activation: a?.activation };
   });
 }
+/** Ciphers replaced in the rules: saved loadouts holding the old name resolve
+ *  (and display) as the replacement, so nobody's character silently loses one. */
+const CIPHER_RENAMES: Record<string, string> = { ANIMATION: "SPYDER SPYDER" };
 export function usableCiphers(paradigmId: string | undefined, loadout: string[]): UsableAbility[] {
   const all = ciphersForParadigm(paradigmId);
-  return loadout.map((name) => {
+  return loadout.map((raw) => {
+    const name = CIPHER_RENAMES[raw] ?? raw;
     const a = all.find((x) => x.name === name);
     return { source: "cipher" as const, name, ss: a?.ss ?? 0, effect: a?.effect, activation: a?.type };
   });

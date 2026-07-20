@@ -362,11 +362,11 @@
       "effect": "Upon activation, the Cipher permanently links to the object it modifies, altering its internal structure to accommodate modular transformation. Each form functions autonomously, drawing on the user's energy or environmental reserves as needed. The Remnant Paradigm often equips field operatives with this modification due to its tactical flexibility."
     },
     {
-      "name": "ANIMATION",
+      "name": "SPYDER SPYDER",
       "ss": 25,
       "tier": "offline",
-      "type": "Prepared Action",
-      "effect": "The animated object actively assists its wielder, performing supportive or defensive tasks depending on its form and function — self-operating gloves, levitating weapons, responsive armor components, each acting as an extension of the Inquisitor's will. Though the object possesses no true sentience, its behavior exhibits a faint echo of personality derived from the Inquisitor's own emotional signature. Coordination improves with familiarity, forming an almost telepathic synchronization over time"
+      "type": "Bonus Action",
+      "effect": "Rank: Wanderer · Component: Inanimate Object. ACTIVE MODIFICATION — When embedded into an object, this Cipher grants it animated properties, awakening a limited, synthetic form of motion and intent. The object becomes partially autonomous, capable of executing simple actions in response to the Inquisitor's commands or instinctual needs, gaining the ability to apply Intrusion. EFFECT — The animated entity actively assists its wielder, performing supportive or defensive tasks. It has the unique ability to imbed itself into any Inanimate Object or Animate Subject. Once embedded, it establishes a direct Causal Connection with any active Cipher or Genus ability. Delay Activation: requires a DC 20 Control check — on a success, the activation of the connected Cipher or Genus is suspended and set to trigger automatically at any designated moment within a 1-Hour (ITT) window. Forceful Activation: automatically converts any failed roll associated with the connected capability into a Minimum Success; this forced resolution is delayed, executing immediately after the player's current turn ends in the Action Priority stack. Reactivation: bypasses standard cooling protocols to instantly reactivate any Cipher expended up to 2 turns prior to this usage."
     },
     {
       "name": "DEFLECTION",
