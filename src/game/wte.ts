@@ -832,16 +832,18 @@ export function computeDerived(
     return max - reductions;
   };
 
+  // THE 10 DERIVED STATISTICS — inputs / reduced-by per the published table
+  // (every reduction is −1 per 3 points, RED_DIV).
   const raw: Derived = {
-    atk: dv(a.phy + s.wt + s.ctrl, red(s.pre) + red(s.bal)),
-    dhp: dv(s.wt + a.end, red(s.adp) + red(s.cun)),
-    mv: dv(a.dex + a.ap + s.pri, red(s.wt) + red(s.pre)),
-    ss: dv(s.mf + a.int + s.adp, red(s.ver) + red(s.pri)),
+    atk: dv(a.phy + s.wt + s.wm, red(s.pre) + red(s.bal)),
+    dhp: dv(s.wt + a.end, red(s.bal) + red(s.pre)),
+    mv: dv(a.dex + a.ap + s.ctrl, red(s.wt) + red(s.pre)),
+    ss: dv(s.mf + a.int + s.ctrl, red(s.pre) + red(s.wm)),
     ev: dv(a.dex + s.bal + s.cun, red(s.wt) + red(s.mf)),
-    nc: dv(s.adp + s.mf + a.wis + s.ver, red(s.ctrl) + red(s.wm)),
+    nc: dv(s.adp + s.mf + a.wis + s.per, red(s.ctrl) + red(s.wm)),
     rr: dv(a.end + s.bal + s.adp, red(s.wt) + red(s.ctrl) + red(s.cun)),
-    ad: dv(a.ap + s.pre + s.cun + s.pri, red(s.wt) + red(s.mf)),
-    inf: dv(a.cha + s.cun + s.ins + s.ver, red(s.adp) + red(s.per)),
+    ad: dv(a.ap + s.pre + s.cun + s.ctrl, red(s.wt) + red(s.mf)),
+    inf: dv(a.cha + s.cun + s.per + s.pre, red(s.adp) + red(s.wt)),
     pr: dv(a.wis + s.per + s.cun + s.bal, red(s.mf)),
   };
   // Equipment MODS on derived stats feed the RAW pool (everything flows through raw).
