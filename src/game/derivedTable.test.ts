@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ATTR_KEYS, SPEC_KEYS, computeDerived, type Attributes, type Specialties } from "./wte";
+import { ATTR_KEYS, SPEC_KEYS, computeDerived, effectiveSpecialties, parseEquipMods, type Attributes, type Specialties } from "./wte";
 
 const zeroA = () => Object.fromEntries(ATTR_KEYS.map((k) => [k, 0])) as Attributes;
 const zeroS = () => Object.fromEntries(SPEC_KEYS.map((k) => [k, 0])) as Specialties;
@@ -36,6 +36,22 @@ describe("derived statistics table", () => {
     expect(pre.inf).toBeGreaterThan(base.inf);
     const wt = computeDerived(zeroA(), { ...zeroS(), wt: 30 }, {}).raw;
     expect(wt.inf).toBeLessThan(base.inf); // −1 per 3 pts of Weight
+  });
+
+  it("equipment/module specialty bonuses raise the effective value AND flow into derived", () => {
+    // A module written "Weight +9, Control +3" parses into specialty mods…
+    const mods = parseEquipMods("Weight +9, Control +3");
+    expect(mods.spec).toMatchObject({ wt: 9, ctrl: 3 });
+    // …which raise the shown effective specialty value…
+    expect(effectiveSpecialties(zeroS(), mods.spec).wt).toBe(9);
+    // …and land in the derived formulas exactly like trained points would.
+    const base = computeDerived(zeroA(), zeroS(), {}).raw;
+    const modded = computeDerived(zeroA(), zeroS(), { equip: mods }).raw;
+    const trained = computeDerived(zeroA(), { ...zeroS(), wt: 9, ctrl: 3 }, {}).raw;
+    expect(modded).toEqual(trained); // gear points ≡ trained points
+    expect(modded.atk).toBeGreaterThan(base.atk); // Weight feeds Attack Power
+    expect(modded.dhp).toBeGreaterThan(base.dhp); // and DHP
+    expect(modded.ev).toBeLessThan(base.ev); // and drags Evasion (−1 per 3)
   });
 
   it("every reduction runs at −1 per 3 points", () => {

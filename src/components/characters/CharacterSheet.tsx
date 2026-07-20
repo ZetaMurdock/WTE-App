@@ -352,7 +352,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
           speciesId={sheet.speciesId}
           rank={rank}
           background={sheet.background}
-          equipment={sheet.equipment}
+          equipMods={equip}
           sizeId={sheet.sizeId}
           exclude={["dhp", "mv", "ss"]}
           showHp={false}

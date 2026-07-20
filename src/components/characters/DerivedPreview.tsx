@@ -10,6 +10,7 @@ import {
   type Specialties,
   type Background,
   type EquipmentItem,
+  type EquipMods,
   type DerivedKey,
 } from "../../game/wte";
 
@@ -20,6 +21,10 @@ interface Props {
   rank?: number;
   background?: Background;
   equipment?: EquipmentItem[];
+  /** Fully merged equipment mods (manual gear + weapon/gear-loadout modules).
+   *  When given, this wins over `equipment` — the sheet passes it so module
+   *  bonuses to attributes/specialties translate into these derived numbers. */
+  equipMods?: EquipMods;
   sizeId?: string;
   /** Polarized Soul position — wires Process/Resonance mechanics into the preview. */
   morality?: number;
@@ -32,13 +37,13 @@ interface Props {
 // Live grid of the derived stats + max HP. Core stats (SS / NC / MV) are totals
 // (raw × rank); everything else is a MODIFIER from its raw pool. Negative values
 // (over-specialized builds) are highlighted as liabilities — no clamp.
-export function DerivedPreview({ attributes, specialties, speciesId, rank, background, equipment, sizeId, morality, exclude, showHp = true }: Props) {
+export function DerivedPreview({ attributes, specialties, speciesId, rank, background, equipment, equipMods, sizeId, morality, exclude, showHp = true }: Props) {
   const d = computeDerived(attributes, specialties, {
     speciesId,
     rank,
     bgBonuses: bgBonuses(background),
     bgSpec: bgSpecBonuses(background),
-    equip: aggregateEquip(equipment),
+    equip: equipMods ?? aggregateEquip(equipment),
     sizeId,
     morality,
   });
