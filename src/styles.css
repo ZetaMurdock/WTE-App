@@ -6208,6 +6208,35 @@ body.wte-dot-cursor * {
   color: var(--muted);
   font-style: italic;
 }
+/* Quick-creature form: type a stat block on the spot (Actors → Creatures). */
+.vtt2-quick-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  margin-bottom: 8px;
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.vtt2-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.vtt2-quick-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+}
+.vtt2-quick-grid input {
+  width: 100%;
+  min-width: 0;
+}
 .vtt2-linked {
   display: flex;
   align-items: center;
@@ -6749,15 +6778,6 @@ body.wte-dot-cursor * {
   border-radius: 5px;
   background: #0a1122;
   border: 1px solid var(--panel-line);
-}
-.vtt2-asset-3d {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-family: Consolas, monospace;
-  font-size: 10px;
-  letter-spacing: 1px;
-  color: var(--accent);
 }
 .vtt2-asset-main {
   flex: 1;

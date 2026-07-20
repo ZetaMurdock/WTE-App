@@ -1,6 +1,10 @@
 import { useState } from "react";
 import type { CharacterRecord } from "../lib/characters";
 import type { Creature } from "../models/codex";
+import type { QuickCreature } from "./data/quickCreatures";
+
+/** The stat keys the quick form offers — the common creature block. */
+const QUICK_STAT_KEYS = ["OFF", "DEF", "SPD", "WIL", "PHY", "INT"] as const;
 
 interface Props {
   characters: CharacterRecord[];
@@ -9,6 +13,11 @@ interface Props {
   creaturesLoading: boolean;
   /** Curator-only: spawn Codex creatures as linked tokens. */
   canSpawnCreatures: boolean;
+  /** Curator's on-the-spot stat blocks (saved per campaign). */
+  quickCreatures: QuickCreature[];
+  onSaveQuick: (qc: QuickCreature) => void;
+  onDeleteQuick: (id: string) => void;
+  onSpawnQuick: (qc: QuickCreature) => void;
   /** Characters other players have shared live into the room (netplay). */
   remoteChars: { id: string; name: string; owner: string }[];
   /** Connected players in the room (Curator side) + whether they've shared yet. */
@@ -37,6 +46,10 @@ export function VttActorsPanel({
   creatures,
   creaturesLoading,
   canSpawnCreatures,
+  quickCreatures,
+  onSaveQuick,
+  onDeleteQuick,
+  onSpawnQuick,
   remoteChars,
   roomPlayers = [],
   onRequestSheets,
@@ -49,9 +62,30 @@ export function VttActorsPanel({
 }: Props) {
   const [tab, setTab] = useState<"party" | "creatures">("party");
   const [filter, setFilter] = useState("");
-  const shownCreatures = filter.trim()
-    ? creatures.filter((c) => c.name.toLowerCase().includes(filter.trim().toLowerCase()))
-    : creatures;
+  // The quick-creature form: null = closed, a draft = open (existing id = editing).
+  const [draft, setDraft] = useState<QuickCreature | null>(null);
+  const q = filter.trim().toLowerCase();
+  const shownCreatures = q ? creatures.filter((c) => c.name.toLowerCase().includes(q)) : creatures;
+  const shownQuick = q ? quickCreatures.filter((c) => c.name.toLowerCase().includes(q)) : quickCreatures;
+
+  function newDraft(): QuickCreature {
+    return { id: `qc-${Date.now().toString(36)}`, name: "", hp: 10, size: 1 };
+  }
+  function setDraftStat(k: string, v: string) {
+    setDraft((d) => {
+      if (!d) return d;
+      const stats = { ...(d.stats ?? {}) };
+      const n = parseInt(v, 10);
+      if (Number.isFinite(n) && n !== 0) stats[k] = n;
+      else delete stats[k];
+      return { ...d, stats: Object.keys(stats).length ? stats : undefined };
+    });
+  }
+  function commitDraft() {
+    if (!draft || !draft.name.trim()) return;
+    onSaveQuick(draft);
+    setDraft(null);
+  }
 
   return (
     <div className="vtt2-actors">
@@ -150,19 +184,110 @@ export function VttActorsPanel({
         </>
       ) : (
         <>
-          <input
-            className="bg-select full"
-            style={{ marginBottom: 6 }}
-            placeholder="Filter creatures…"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          />
+          <div className="vtt2-asset-add-row" style={{ marginBottom: 6 }}>
+            <input
+              className="bg-select"
+              style={{ flex: 1 }}
+              placeholder="Filter creatures…"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            />
+            <button
+              className="chip"
+              onClick={() => setDraft(draft ? null : newDraft())}
+              title="Type a stat block on the spot — no Codex page needed. Saved to this campaign."
+            >
+              {draft ? "Cancel" : "New creature"}
+            </button>
+          </div>
+
+          {draft && (
+            <div className="vtt2-quick-form">
+              <input
+                className="bg-select full"
+                placeholder="Name"
+                autoFocus
+                value={draft.name}
+                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+              />
+              <div className="vtt2-quick-grid">
+                <label>
+                  HP
+                  <input className="bg-select" type="number" min={1} value={draft.hp} onChange={(e) => setDraft({ ...draft, hp: parseInt(e.target.value, 10) || 1 })} />
+                </label>
+                <label>
+                  DR
+                  <input className="bg-select" type="number" min={0} value={draft.dr ?? 0} onChange={(e) => setDraft({ ...draft, dr: parseInt(e.target.value, 10) || 0 })} />
+                </label>
+                <label>
+                  Size
+                  <input className="bg-select" type="number" min={1} max={6} value={draft.size ?? 1} onChange={(e) => setDraft({ ...draft, size: parseInt(e.target.value, 10) || 1 })} title="Token diameter in grid cells (1–6)" />
+                </label>
+              </div>
+              <div className="vtt2-quick-grid">
+                {QUICK_STAT_KEYS.map((k) => (
+                  <label key={k}>
+                    {k}
+                    <input className="bg-select" type="number" value={draft.stats?.[k] ?? ""} placeholder="—" onChange={(e) => setDraftStat(k, e.target.value)} />
+                  </label>
+                ))}
+              </div>
+              <input
+                className="bg-select full"
+                placeholder="Traits (one line — feeds ability rolls)"
+                value={draft.traits ?? ""}
+                onChange={(e) => setDraft({ ...draft, traits: e.target.value || undefined })}
+              />
+              <input
+                className="bg-select full"
+                placeholder="Notes (optional)"
+                value={draft.desc ?? ""}
+                onChange={(e) => setDraft({ ...draft, desc: e.target.value || undefined })}
+              />
+              <button className="primary-btn" onClick={commitDraft} disabled={!draft.name.trim()}>
+                Save to campaign
+              </button>
+            </div>
+          )}
+
+          {shownQuick.length > 0 && (
+            <>
+              <div className="vtt2-actor-group">Quick creatures</div>
+              <ul className="vtt2-actor-list">
+                {shownQuick.map((c) => (
+                  <li key={c.id} className="vtt2-actor-row">
+                    <span className="vtt2-actor-label">
+                      {c.name}
+                      <span className="vtt2-actor-sub">
+                        HP {c.hp}
+                        {c.dr ? ` · DR ${c.dr}` : ""}
+                        {(c.size ?? 1) > 1 ? ` · ${c.size} cells` : ""}
+                      </span>
+                    </span>
+                    <span style={{ display: "flex", gap: 4 }}>
+                      <button className="chip" onClick={() => setDraft({ ...c })} title="Edit this stat block">
+                        Edit
+                      </button>
+                      <button className="chip" onClick={() => onSpawnQuick(c)} title="Spawn as a token at the view centre">
+                        Spawn
+                      </button>
+                      <button className="icon-btn sm" onClick={() => onDeleteQuick(c.id)} title="Delete this quick creature">
+                        ✕
+                      </button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <div className="vtt2-actor-group">Codex</div>
+            </>
+          )}
+
           {creaturesLoading ? (
             <p className="list-empty" style={{ margin: "6px 0 10px" }}>Scanning the Codex…</p>
           ) : shownCreatures.length === 0 ? (
             <p className="list-empty" style={{ margin: "6px 0 10px" }}>
               {creatures.length === 0
-                ? "No creature pages in the Codex — author some (TYPE | Creature) and pull them."
+                ? "No creature pages in the Codex — author some (TYPE | Creature) and pull them, or press New creature to type a stat block right here."
                 : "No matches."}
             </p>
           ) : (

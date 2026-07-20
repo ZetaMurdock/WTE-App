@@ -122,9 +122,10 @@ export class TokenLayer {
       n.root.visible = op > 0.004;
       // Ground shadow: thrown AWAY from the nearest lit light and stretched the
       // farther that light is — a body standing in light reads as standing on
-      // something. No light nearby = a soft pool directly underneath.
+      // something. No light nearby = a soft pool directly underneath. Props lie
+      // ON the ground, so they cast none.
       n.shadow.clear();
-      {
+      if (!t.prop) {
         const lit = (scene.data.lights ?? []).filter((l) => lightFactor(l, realistic, now) > 0);
         let bx = 0;
         let by = 0;
@@ -174,11 +175,16 @@ export class TokenLayer {
               if (node.imgSrc !== img || !this.nodes.has(t.id)) return; // stale / removed
               const art = new Sprite(tex);
               art.anchor.set(0.5);
-              const mask = new Graphics();
-              node.body.addChild(mask, art);
-              art.mask = mask;
+              if (node.token.prop) {
+                // Props show the full rectangular PNG — no circular crop.
+                node.body.addChild(art);
+              } else {
+                const mask = new Graphics();
+                node.body.addChild(mask, art);
+                art.mask = mask;
+                node.artMask = mask;
+              }
               node.art = art;
-              node.artMask = mask;
               this.sizeArt(node, node.token, cell);
               node.disc.clear(); // the placeholder disc/outline retires the moment art lands
             })
@@ -203,7 +209,8 @@ export class TokenLayer {
         }
       }
 
-      n.label.text = t.name || "";
+      // Props are scenery — no floating name label.
+      n.label.text = t.prop ? "" : t.name || "";
       n.label.position.set(0, r + 4);
     }
 
@@ -226,7 +233,17 @@ export class TokenLayer {
   }
 
   private sizeArt(n: Node, t: VttToken, cell: number): void {
-    if (!n.art || !n.artMask) return;
+    if (!n.art) return;
+    if (t.prop) {
+      // Aspect-true: `size` sets the width in cells, height follows the image.
+      const w = (t.size || 1) * cell;
+      const tex = n.art.texture;
+      const aspect = tex.width > 0 ? tex.height / tex.width : 1;
+      n.art.width = w;
+      n.art.height = w * aspect;
+      return;
+    }
+    if (!n.artMask) return;
     const r = ((t.size || 1) * cell) / 2 - 5;
     n.art.width = r * 2;
     n.art.height = r * 2;

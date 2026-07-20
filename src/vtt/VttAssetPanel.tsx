@@ -11,25 +11,17 @@ interface Props {
   onDelete: (id: string) => void;
   onUseBackground: (uri: string | null) => void;
   onApplyToToken: (uri: string) => void;
-  /** Attach a GLB model asset to the selected token (3D view). */
-  onApplyModel: (uri: string) => void;
+  /** Place a prop (PNG map decoration) on the scene at the view centre. */
+  onPlaceProp: (name: string, uri: string) => void;
   onRefresh: () => void;
   onClose: () => void;
 }
 
-const MODEL_MAX_BYTES = 4 * 1024 * 1024; // keep scene JSON / P2P snapshots sane
-
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result));
-    r.onerror = () => reject(new Error("read failed"));
-    r.readAsDataURL(file);
-  });
-}
+const KIND_LABEL: Record<string, string> = { background: "Map", token: "Token art", prop: "Prop" };
 
 // VTT v2 (slice 11): campaign-scoped asset library. Assets are image URIs
-// (http(s):/data:/asset:) applied as scene backgrounds or token art.
+// (http(s):/data:/asset:) applied as scene backgrounds, token art, or placed
+// on the map as props (trees/crates/ruins — full PNGs, not circle-cropped).
 export function VttAssetPanel({
   assets,
   loading,
@@ -39,7 +31,7 @@ export function VttAssetPanel({
   onDelete,
   onUseBackground,
   onApplyToToken,
-  onApplyModel,
+  onPlaceProp,
   onRefresh,
   onClose,
 }: Props) {
@@ -53,13 +45,13 @@ export function VttAssetPanel({
   function submit() {
     const u = uri.trim();
     if (!u) return;
-    onAdd(kind, name.trim() || (kind === "token" ? "Token art" : kind === "model" ? "Model" : "Map"), u);
+    onAdd(kind, name.trim() || KIND_LABEL[kind] || "Map", u);
     setName("");
     setUri("");
   }
 
-  // Upload a file: images re-encode to PNG; GLB models store raw (size-capped).
-  // Added to the library under the selected kind, then applied immediately.
+  // Upload a file: images re-encode to PNG, added to the library under the
+  // selected kind, then applied immediately (props land on the map right away).
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = ""; // let the same file be re-picked later
@@ -67,24 +59,15 @@ export function VttAssetPanel({
     setBusy(true);
     setNote("");
     try {
-      let dataUrl: string;
-      if (kind === "model") {
-        if (file.size > MODEL_MAX_BYTES) {
-          setNote(`Model too large (${(file.size / 1048576).toFixed(1)} MB) — keep GLBs under 4 MB.`);
-          return;
-        }
-        dataUrl = await fileToDataUrl(file);
-      } else {
-        dataUrl = await fileToPngDataUrl(file);
-      }
-      const nm = name.trim() || file.name.replace(/\.[^.]+$/, "") || (kind === "token" ? "Token art" : kind === "model" ? "Model" : "Map");
+      const dataUrl = await fileToPngDataUrl(file);
+      const nm = name.trim() || file.name.replace(/\.[^.]+$/, "") || KIND_LABEL[kind] || "Map";
       onAdd(kind, nm, dataUrl);
       if (kind === "background") onUseBackground(dataUrl);
-      else if (kind === "model" && hasSelectedToken) onApplyModel(dataUrl);
+      else if (kind === "prop") onPlaceProp(nm, dataUrl);
       else if (kind === "token" && hasSelectedToken) onApplyToToken(dataUrl);
       setName("");
     } catch {
-      /* unreadable file — ignore */
+      setNote("Couldn't read that file — is it an image?");
     } finally {
       setBusy(false);
     }
@@ -111,13 +94,13 @@ export function VttAssetPanel({
           <select className="bg-select" value={kind} onChange={(e) => setKind(e.target.value as AssetKind)}>
             <option value="background">Map</option>
             <option value="token">Token</option>
-            <option value="model">3D Model</option>
+            <option value="prop">Prop</option>
           </select>
           <input className="bg-select" placeholder="Name (optional)" value={name} onChange={(e) => setName(e.target.value)} />
         </div>
-        <input ref={fileRef} type="file" accept={kind === "model" ? ".glb" : "image/*"} hidden onChange={onFile} />
+        <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
         <button className="vtt2-asset-upload" onClick={() => fileRef.current?.click()} disabled={busy}>
-          {busy ? "Importing…" : kind === "model" ? "Upload model (GLB, max 4 MB)" : `Upload ${kind === "token" ? "token art" : "background"} (PNG)`}
+          {busy ? "Importing…" : `Upload ${kind === "token" ? "token art" : kind === "prop" ? "prop" : "background"} (PNG)`}
         </button>
         {note && <p className="vtt2-actor-hint">{note}</p>}
         <div className="vtt2-asset-add-row">
@@ -146,11 +129,7 @@ export function VttAssetPanel({
         <ul className="vtt2-asset-list">
           {assets.map((a) => (
             <li key={a.id} className={"vtt2-asset-row" + (a.uri === currentBg ? " current" : "")}>
-              {a.kind === "model" ? (
-                <span className="vtt2-asset-thumb vtt2-asset-3d">GLB</span>
-              ) : (
-                <img className="vtt2-asset-thumb" src={a.uri} alt="" loading="lazy" />
-              )}
+              <img className="vtt2-asset-thumb" src={a.uri} alt="" loading="lazy" />
               <div className="vtt2-asset-main">
                 <span className="vtt2-asset-name" title={a.name}>
                   {a.name}
@@ -160,10 +139,14 @@ export function VttAssetPanel({
                     <button className="icon-btn sm" onClick={() => onUseBackground(a.uri)} title="Use as scene background">
                       Use BG
                     </button>
+                  ) : a.kind === "prop" ? (
+                    <button className="icon-btn sm" onClick={() => onPlaceProp(a.name, a.uri)} title="Place on the map at the view centre — drag, rotate, and resize it there">
+                      Place
+                    </button>
                   ) : (
                     <button
                       className="icon-btn sm"
-                      onClick={() => (a.kind === "model" ? onApplyModel(a.uri) : onApplyToToken(a.uri))}
+                      onClick={() => onApplyToToken(a.uri)}
                       disabled={!hasSelectedToken}
                       title={hasSelectedToken ? "Apply to the selected token" : "Select a token first"}
                     >

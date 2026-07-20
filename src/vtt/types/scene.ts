@@ -23,8 +23,10 @@ export interface VttToken {
   color: string;
   /** Token art (asset uri); falls back to the colour disc when unset. */
   img?: string | null;
-  /** 3D model (GLB asset uri) — rendered instead of the billboard in the 3D view. */
-  model?: string | null;
+  /** Map prop: a placed PNG (tree/crate/ruin) — full rectangular art, no disc,
+   *  no label, no circular mask. Rides the whole token pipeline (drag/rotate/
+   *  scale/sync) but reads as scenery, not an actor. */
+  prop?: boolean;
   /** Facing, degrees clockwise from up — set by the on-canvas rotate handle. */
   rotation?: number;
   /** Owning player (netplay peer id). Player fog reveals only from owned tokens. */

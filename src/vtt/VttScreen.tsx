@@ -45,6 +45,7 @@ import {
 import { characterToTokenSpec, creatureToTokenSpec, parseSpawnPayload } from "./data/actorSpawn";
 import { listCreatures, computeCreature } from "../lib/codex";
 import type { Creature } from "../models/codex";
+import { listQuickCreatures, saveQuickCreature, deleteQuickCreature, type QuickCreature } from "./data/quickCreatures";
 import { listAssets, addAsset, deleteAsset, type AssetKind, type VttAsset } from "./data/assetRepo";
 import { useVttSync } from "./sync/vttSync";
 import { applyOp, foreignOpAllowed, type VttOp } from "./sync/patches";
@@ -810,6 +811,28 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     setCreaturesLoading(false);
   }, []);
 
+  // Quick creatures: stat blocks the Curator types straight into the Actors
+  // panel (saved per campaign in localStorage — no Codex page needed).
+  const [quickCreatures, setQuickCreatures] = useState<QuickCreature[]>([]);
+  const qcCampaign = campaign?.id ?? "sandbox";
+  useEffect(() => {
+    setQuickCreatures(listQuickCreatures(qcCampaign));
+  }, [qcCampaign]);
+  function spawnQuick(qc: QuickCreature) {
+    engineRef.current?.spawnToken(
+      creatureToTokenSpec({
+        name: qc.name,
+        hp: qc.hp,
+        dr: qc.dr,
+        size: qc.size,
+        stats: qc.stats,
+        traits: qc.traits,
+        desc: qc.desc,
+        ts: Date.now(),
+      })
+    );
+  }
+
   useEffect(() => {
     void loadCharacters();
   }, [loadCharacters]);
@@ -872,8 +895,11 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
   function applyTokenArt(uri: string) {
     if (sel?.kind === "token") engineRef.current?.updateToken(sel.id, { img: uri });
   }
-  function applyTokenModel(uri: string) {
-    if (sel?.kind === "token") engineRef.current?.updateToken(sel.id, { model: uri });
+  /** Drop a prop (PNG map decoration) at the view centre — drag/rotate/resize
+   *  from there like any token, but it renders as the full image: no disc,
+   *  no label, no circular crop. */
+  function placeProp(name: string, uri: string) {
+    engineRef.current?.spawnToken({ name, img: uri, prop: true, size: 2, color: "#3a4150", visible: true });
   }
 
   // Codex creature spawns ride the legacy `wte-spawn-creature` channel. VTT v2
@@ -1114,6 +1140,10 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
           creatures={creatures}
           creaturesLoading={creaturesLoading}
           canSpawnCreatures={!asPlayer}
+          quickCreatures={quickCreatures}
+          onSaveQuick={(qc) => setQuickCreatures(saveQuickCreature(qcCampaign, qc))}
+          onDeleteQuick={(id) => setQuickCreatures(deleteQuickCreature(qcCampaign, id))}
+          onSpawnQuick={spawnQuick}
           remoteChars={
             asPlayer
               ? [] // only the Curator gets live control over other players' sheets
@@ -1163,7 +1193,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
           onDelete={(id) => void removeAsset(id)}
           onUseBackground={(uri) => engine?.setBackground(uri)}
           onApplyToToken={applyTokenArt}
-          onApplyModel={applyTokenModel}
+          onPlaceProp={placeProp}
           onRefresh={() => void loadAssets()}
           onClose={() => setLeftPanel(null)}
         />

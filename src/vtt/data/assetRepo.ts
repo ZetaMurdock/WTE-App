@@ -5,8 +5,10 @@ import { getDb, sqlAvailable } from "../../lib/db";
 import { newId } from "../types/scene";
 
 /** "blob" rows are internal scene-image storage (see sceneBlobs.ts) — content-
- *  addressed, hidden from the asset browser. */
-export type AssetKind = "background" | "token" | "model" | "sound" | "blob";
+ *  addressed, hidden from the asset browser. "prop" = PNG map decorations
+ *  placed on the scene (the 3D "model" kind is retired with the vaulted 3D view;
+ *  legacy model rows are dropped from lists). */
+export type AssetKind = "background" | "token" | "prop" | "sound" | "blob";
 
 export interface VttAsset {
   id: string;
@@ -30,7 +32,7 @@ function parse(r: Row): VttAsset {
   return {
     id: r.id,
     campaignId: r.campaign_id,
-    kind: (r.kind === "token" ? "token" : r.kind === "model" ? "model" : r.kind === "sound" ? "sound" : r.kind === "blob" ? "blob" : "background") as AssetKind,
+    kind: (r.kind === "token" ? "token" : r.kind === "prop" ? "prop" : r.kind === "sound" ? "sound" : r.kind === "blob" ? "blob" : "background") as AssetKind,
     name: r.name,
     uri: r.uri,
     createdAt: r.created_at,
@@ -41,7 +43,8 @@ export async function listAssets(campaignId: string): Promise<VttAsset[]> {
   if (!sqlAvailable()) return [];
   const db = await getDb();
   const rows = await db.select<Row[]>("SELECT * FROM assets WHERE campaign_id = $1 ORDER BY created_at DESC", [campaignId]);
-  return rows.map(parse);
+  // Legacy GLB rows from the vaulted 3D view have nothing to render — drop them.
+  return rows.filter((r) => r.kind !== "model").map(parse);
 }
 
 export async function addAsset(campaignId: string, kind: AssetKind, name: string, uri: string): Promise<VttAsset> {
