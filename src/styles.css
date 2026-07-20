@@ -5636,6 +5636,21 @@ body.wte-dot-cursor * {
   background: #d8b25a;
   border: 1px solid #04070d;
 }
+/* Scene pinned for the table — players stay here while the Curator roams. */
+.vtt2-rail-card.pinned {
+  border-color: #d8b25a;
+}
+.vtt2-rail-pin {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  color: #d8b25a;
+}
+/* Pin + audio dot both sit on the right edge — nudge the dot clear of the pin. */
+.vtt2-rail-card.pinned.has-audio::before {
+  right: 22px;
+}
 /* Character sheet opened as an overlay from inside the VTT (player/curator). */
 .vtt2-sheet-overlay {
   position: fixed;

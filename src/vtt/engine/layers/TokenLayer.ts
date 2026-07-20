@@ -152,8 +152,13 @@ export class TokenLayer {
       }
       n.body.rotation = (((t.rotation || 0) % 360) * Math.PI) / 180;
       n.disc.clear();
-      n.disc.circle(0, 0, r).fill(t.color || "#689a96");
-      n.disc.circle(0, 0, r).stroke({ width: 2, color: 0x04070d });
+      // Uploaded art stands alone — no colour disc and no outline ring behind
+      // it. The disc only draws while there is no art (or it's still loading,
+      // so a token never goes invisible mid-load).
+      if (!n.art) {
+        n.disc.circle(0, 0, r).fill(t.color || "#689a96");
+        n.disc.circle(0, 0, r).stroke({ width: 2, color: 0x04070d });
+      }
       if (t.id === selectedId) n.disc.circle(0, 0, r + 4).stroke({ width: 2, color: 0x7ecfca, alpha: 0.9 });
 
       // Token art: (re)load only when the uri changes; mask to a circle.
@@ -175,6 +180,7 @@ export class TokenLayer {
               node.art = art;
               node.artMask = mask;
               this.sizeArt(node, node.token, cell);
+              node.disc.clear(); // the placeholder disc/outline retires the moment art lands
             })
             .catch(() => {
               /* bad uri — keep the colour disc */

@@ -47,6 +47,7 @@ import { listCreatures, computeCreature } from "../lib/codex";
 import type { Creature } from "../models/codex";
 import { listAssets, addAsset, deleteAsset, type AssetKind, type VttAsset } from "./data/assetRepo";
 import { useVttSync } from "./sync/vttSync";
+import { applyOp, foreignOpAllowed, type VttOp } from "./sync/patches";
 import { fileToPngDataUrl } from "../lib/image";
 
 function fileToDataUrl(file: File): Promise<string> {
@@ -487,6 +488,75 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     engineRef.current?.select(null);
   }, []);
 
+  // ── Scene pinning ──────────────────────────────────────────────────────────
+  // The Curator can PIN a scene for the table: players stay on it (and keep
+  // playing there) while the Curator roams other scenes to prep. Player ops on
+  // the pinned scene land in a working copy here and persist, so nothing that
+  // happens while the Curator is away is lost.
+  const [pinnedSceneId, setPinnedSceneId] = useState<string | null>(null);
+  const pinnedRef = useRef<string | null>(null);
+  pinnedRef.current = pinnedSceneId;
+  /** Working copy of the pinned scene while the Curator is elsewhere. */
+  const pinnedLive = useRef<VttScene | null>(null);
+  const pinnedSaveTimer = useRef<number | undefined>(undefined);
+  /** Foreign ops apply in arrival order, even when the first must await a DB load. */
+  const pinnedQueue = useRef<Promise<void>>(Promise.resolve());
+
+  // Persist the working copy now and let it go (pin released / host returning).
+  const flushPinned = useCallback(async () => {
+    window.clearTimeout(pinnedSaveTimer.current);
+    const s = pinnedLive.current;
+    pinnedLive.current = null;
+    if (s) await reportSaveFailure(saveScene(s), "the scene");
+  }, []);
+
+  // A pin can't outlive its context: new campaign or a dropped room means
+  // nobody is being held anywhere any more.
+  useEffect(() => {
+    setPinnedSceneId(null);
+    pinnedRef.current = null;
+    void flushPinned();
+  }, [campaign, flushPinned]);
+  useEffect(() => {
+    if (net.status !== "connected" && pinnedRef.current) {
+      setPinnedSceneId(null);
+      pinnedRef.current = null;
+      void flushPinned();
+    }
+  }, [net.status, flushPinned]);
+
+  // Player activity on the PINNED scene while the Curator roams: those ops
+  // arrive scoped to a scene we aren't viewing. Apply them to the working copy
+  // under the same authorization the live receive path enforces, then debounce
+  // a save. (Fresh closure every render, so `net` is always current.)
+  function onForeignOp(sceneId: string, op: VttOp, from: string) {
+    if (net.status !== "connected" || net.role !== "host" || sceneId !== pinnedRef.current) return;
+    pinnedQueue.current = pinnedQueue.current.then(async () => {
+      if (sceneId !== pinnedRef.current) return; // unpinned while queued
+      // The host arrived on the pinned scene while this op waited — apply live.
+      const eng = engineRef.current;
+      if (eng?.scene?.id === sceneId) {
+        if (foreignOpAllowed(eng.scene.data, op, from)) eng.applyRemote(op);
+        return;
+      }
+      let s = pinnedLive.current;
+      if (!s || s.id !== sceneId) {
+        s = await getScene(sceneId).catch(() => null);
+        if (!s || sceneId !== pinnedRef.current) return;
+        pinnedLive.current = s;
+      }
+      // (The wall-collision defense is skipped here — the mover's own client
+      // enforces walls on the scene it is actually standing in.)
+      if (!foreignOpAllowed(s.data, op, from)) return;
+      if (!applyOp(s.data, op)) return;
+      window.clearTimeout(pinnedSaveTimer.current);
+      pinnedSaveTimer.current = window.setTimeout(() => {
+        const live = pinnedLive.current;
+        if (live) void reportSaveFailure(saveScene(live), "the scene");
+      }, 800);
+    });
+  }
+
   // P2P sync (slice 10). broadcastOp is wired to the engine's local-op emitter;
   // broadcastSnapshot pushes the whole scene on host switches / to late joiners.
   const sync = useVttSync({
@@ -494,6 +564,15 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     sceneId: scene?.id ?? null,
     getScene: () => engineRef.current?.scene ?? null,
     onSnapshot: adoptSnapshot,
+    onForeignOp,
+    // A late joiner belongs on the players' pinned scene, not wherever the
+    // Curator happens to be browsing. Freshest copy wins: the working copy if
+    // player ops have landed since the Curator left, else storage.
+    getLateJoinScene: async () => {
+      const pin = pinnedRef.current;
+      if (!pin || pin === (engineRef.current?.scene?.id ?? null)) return null;
+      return pinnedLive.current?.id === pin ? pinnedLive.current : await getScene(pin).catch(() => null);
+    },
   });
   const broadcastRef = useRef(sync.broadcastOp);
   broadcastRef.current = sync.broadcastOp;
@@ -565,13 +644,22 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     async (s: VttScene) => {
       if (campaign) await setActiveScene(campaign.id, s.id).catch(() => {});
       s.active = true;
+      // Returning to the pinned scene: the engine takes over the working copy,
+      // so retire it (its content is `s` itself when switchScene preferred it).
+      if (pinnedLive.current?.id === s.id) {
+        window.clearTimeout(pinnedSaveTimer.current);
+        pinnedLive.current = null;
+      }
       setScene(s);
       setSel(null);
       engineRef.current?.setScene(s);
       engineRef.current?.select(null);
       await reloadScenes();
-      // Push the new active scene to peers (covers the scene.switch case).
-      sync.broadcastSnapshot();
+      // Push the new active scene to peers (covers the scene.switch case) —
+      // UNLESS a different scene is pinned for the table: then the Curator is
+      // just roaming, and the players stay where they are.
+      const pin = pinnedRef.current;
+      if (!pin || s.id === pin) sync.broadcastSnapshot();
     },
     [campaign, reloadScenes, sync]
   );
@@ -584,7 +672,13 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     switchingRef.current = true;
     try {
       await flush();
-      const target = (await getScene(id).catch(() => null)) ?? scenes.find((s) => s.id === id) ?? null;
+      // The pinned scene's working copy is fresher than storage while player
+      // ops are still debouncing — never load a stale DB copy over it.
+      const target =
+        (pinnedLive.current?.id === id ? pinnedLive.current : null) ??
+        (await getScene(id).catch(() => null)) ??
+        scenes.find((s) => s.id === id) ??
+        null;
       if (target) await adopt(target);
     } finally {
       switchingRef.current = false;
@@ -638,12 +732,24 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     if (next && next.id !== scene?.id) void switchScene(next.id);
   }
 
-  // Curator pushes a scene to the whole table: switch to it (which broadcasts a
-  // snapshot to every player), and force a re-push when it is already active so
-  // this doubles as a "pull drifted players back to my scene" re-sync.
+  // Curator pushes a scene to the whole table AND PINS it there: every player
+  // jumps to it and STAYS on it even while the Curator roams other scenes to
+  // prep. Re-pinning the active scene doubles as a "pull drifted players back
+  // to my scene" re-sync.
   async function setActiveForEveryone(id: string) {
+    if (pinnedRef.current && pinnedRef.current !== id) await flushPinned(); // moving the pin: bank the old scene first
+    setPinnedSceneId(id);
+    pinnedRef.current = id;
     if (id !== scene?.id) await switchScene(id);
     else sync.broadcastSnapshot();
+  }
+
+  // Release the pin: the table follows the Curator again, starting right now.
+  async function releasePin() {
+    await flushPinned();
+    setPinnedSceneId(null);
+    pinnedRef.current = null;
+    sync.broadcastSnapshot(); // everyone joins the Curator's current scene
   }
 
   async function createScene() {
@@ -935,6 +1041,8 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
           onOpenSettings={() => setGridOpen(true)}
           onOpenSoundboard={() => setSoundboardOpen(true)}
           onSetActiveForEveryone={(id) => void setActiveForEveryone(id)}
+          pinnedId={pinnedSceneId}
+          onReleasePin={() => void releasePin()}
           playerCount={net.status === "connected" ? net.peers.length : 0}
         />
       )}

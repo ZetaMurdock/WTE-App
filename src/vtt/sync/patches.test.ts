@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { applyOp } from "./patches";
+import { applyOp, foreignOpAllowed } from "./patches";
 import { defaultSceneData, type VttSceneData, type VttToken } from "../types/scene";
 
 const tok = (id: string, x = 0, y = 0): VttToken => ({ id, name: id, x, y, size: 1, color: "#fff", hp: 10, visible: true });
@@ -105,5 +105,41 @@ describe("applyOp", () => {
   it("treats scene.switch as a no-op at this layer", () => {
     const d = fresh();
     expect(applyOp(d, { op: "scene.switch", sceneId: "s2" })).toBe(false);
+  });
+});
+
+// Scene pinning: while the Curator roams, players' ops on the pinned scene are
+// applied to the stored copy — under the same policy the live path enforces.
+describe("foreignOpAllowed (pinned-scene op policy)", () => {
+  it("owner-locked tokens obey their owner; unowned tokens stay free-for-all", () => {
+    const d = fresh();
+    d.tokens.push({ ...tok("mine"), owner: "peer-a" }, tok("prop"));
+    expect(foreignOpAllowed(d, { op: "token.move", id: "mine", x: 5, y: 5 }, "peer-a")).toBe(true);
+    expect(foreignOpAllowed(d, { op: "token.move", id: "mine", x: 5, y: 5 }, "peer-b")).toBe(false);
+    expect(foreignOpAllowed(d, { op: "token.update", id: "mine", patch: { hp: 0 } }, "peer-b")).toBe(false);
+    expect(foreignOpAllowed(d, { op: "token.remove", id: "mine" }, "peer-b")).toBe(false);
+    expect(foreignOpAllowed(d, { op: "token.move", id: "prop", x: 1, y: 1 }, "peer-b")).toBe(true);
+  });
+
+  it("scene-building ops stay Curator-only, so a player's are refused", () => {
+    const d = fresh();
+    expect(foreignOpAllowed(d, { op: "emitter.remove", id: "e1" }, "peer-a")).toBe(false);
+    expect(foreignOpAllowed(d, { op: "envfx.set", envFx: null }, "peer-a")).toBe(false);
+    expect(foreignOpAllowed(d, { op: "draw.allow", allow: true }, "peer-a")).toBe(false);
+    expect(foreignOpAllowed(d, { op: "draw.clear" }, "peer-a")).toBe(false);
+  });
+
+  it("a player's stroke lands only while drawing is enabled", () => {
+    const d = fresh();
+    const stroke = { id: "dr1", points: [0, 0, 5, 5], color: "#7ecfca", width: 3 };
+    expect(foreignOpAllowed(d, { op: "draw.add", drawing: stroke }, "peer-a")).toBe(true);
+    d.allowPlayerDraw = false;
+    expect(foreignOpAllowed(d, { op: "draw.add", drawing: stroke }, "peer-a")).toBe(false);
+  });
+
+  it("ordinary play ops pass through", () => {
+    const d = fresh();
+    expect(foreignOpAllowed(d, { op: "fog.reveal", cells: ["1,1"] }, "peer-a")).toBe(true);
+    expect(foreignOpAllowed(d, { op: "token.add", token: tok("summon") }, "peer-a")).toBe(true);
   });
 });

@@ -38,6 +38,22 @@ export type VttOp =
   | { op: "effect.remove"; id: string }
   | { op: "scene.switch"; sceneId: string };
 
+/** Authorization for an op arriving for a scene the host is NOT viewing
+ *  (scene pinning: players keep playing there while the Curator roams).
+ *  Mirrors the live receive path's player policy — owner-locked tokens obey
+ *  their owner, and scene-building ops stay Curator-only. Foreign ops only
+ *  ever come from players; a host never receives its own broadcasts. */
+export function foreignOpAllowed(d: VttSceneData, op: VttOp, from: string): boolean {
+  if (op.op === "token.move" || op.op === "token.update" || op.op === "token.remove") {
+    const tok = d.tokens.find((t) => t.id === op.id);
+    if (tok?.owner && tok.owner !== from) return false;
+  }
+  if (op.op === "emitter.add" || op.op === "emitter.update" || op.op === "emitter.remove" || op.op === "envfx.set") return false;
+  if (op.op === "draw.allow" || op.op === "draw.clear") return false;
+  if (op.op === "draw.add" && d.allowPlayerDraw === false) return false;
+  return true;
+}
+
 /** Apply an op to scene data in place. Scene-scoped only — `scene.switch` is
  *  handled a level up (it swaps the whole scene), so it's a no-op here. Returns
  *  true if the data changed. */

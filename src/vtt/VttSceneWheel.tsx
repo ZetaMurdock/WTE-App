@@ -16,8 +16,13 @@ interface Props {
   onOpenSettings: () => void;
   /** Open the per-scene soundboard (upload + play sound effects). */
   onOpenSoundboard: () => void;
-  /** Push this scene to every connected player as the active shared view. */
+  /** Push this scene to every connected player as the active shared view,
+   *  and PIN it: players stay there while the Curator roams other scenes. */
   onSetActiveForEveryone: (id: string) => void;
+  /** The scene currently pinned for the table (null = players follow the Curator). */
+  pinnedId: string | null;
+  /** Release the pin — the table follows the Curator again. */
+  onReleasePin: () => void;
   /** Number of connected players (0 when solo) — shows/labels the broadcast action. */
   playerCount: number;
 }
@@ -66,13 +71,18 @@ const IconX = () => (
     <path d="M4 4l8 8M12 4l-8 8" />
   </svg>
 );
+const IconPin = () => (
+  <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9.5 2l4.5 4.5-1.8.6-2.4 2.4-.4 3-2.4-2.4L3 14M6.6 9.7L4.2 7.3l3-.4 2.4-2.4.6-1.8" />
+  </svg>
+);
 
 // The Scene Rail (right edge, Curator-only): each scene is a BOX on a vertical
 // wheel — click to open it, right-click for that scene's tools, step with the
 // up/down buttons or the scroll wheel. Replaces the old tiny dots, whose hover
 // tooltip overlapped neighbouring dots and ate their clicks. The menu is
 // PORTALED to <body> so no transform/overflow ancestor can clip it.
-export function VttSceneWheel({ scenes, activeId, onSwitch, onStep, onSetBackground, onSetMusic, onClearMusic, onOpenSettings, onOpenSoundboard, onSetActiveForEveryone, playerCount }: Props) {
+export function VttSceneWheel({ scenes, activeId, onSwitch, onStep, onSetBackground, onSetMusic, onClearMusic, onOpenSettings, onOpenSoundboard, onSetActiveForEveryone, pinnedId, onReleasePin, playerCount }: Props) {
   const [open, setOpen] = useState(true);
   const [menu, setMenu] = useState<{ id: string; y: number } | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -135,14 +145,24 @@ export function VttSceneWheel({ scenes, activeId, onSwitch, onStep, onSetBackgro
         <button
           className="profile-row strong"
           onClick={() => { onSetActiveForEveryone(menu.id); setMenu(null); }}
-          title="Make this the active scene for the whole table — every connected player jumps to it"
+          title="Every connected player jumps to this scene and STAYS pinned to it — you stay free to open other scenes"
         >
           <IconBroadcast />
           <span>
-            {menu.id === activeId ? "Re-sync everyone to this scene" : "Set active for everyone"}
+            {menu.id === pinnedId ? "Re-sync everyone to this scene" : "Pin for everyone — players stay here"}
             {playerCount > 0 ? ` · ${playerCount} player${playerCount === 1 ? "" : "s"}` : ""}
           </span>
         </button>
+        {pinnedId != null && (
+          <button
+            className="profile-row"
+            onClick={() => { onReleasePin(); setMenu(null); }}
+            title="Unpin the table — players follow your scene again, starting with the one you're on now"
+          >
+            <IconX />
+            <span>Release pin — table follows you</span>
+          </button>
+        )}
         {menu.id !== activeId && (
           <button className="profile-row" onClick={() => { onSwitch(menu.id); setMenu(null); }}>
             <IconOpen />
@@ -196,16 +216,21 @@ export function VttSceneWheel({ scenes, activeId, onSwitch, onStep, onSetBackgro
             {scenes.map((s) => (
               <button
                 key={s.id}
-                className={"vtt2-rail-card" + (s.id === activeId ? " active" : "") + (s.data.audio ? " has-audio" : "")}
+                className={"vtt2-rail-card" + (s.id === activeId ? " active" : "") + (s.id === pinnedId ? " pinned" : "") + (s.data.audio ? " has-audio" : "")}
                 onClick={() => s.id !== activeId && onSwitch(s.id)}
                 onContextMenu={(e) => {
                   e.preventDefault();
                   setMenu({ id: s.id, y: e.clientY });
                 }}
-                title={`${s.name} — right-click for scene tools`}
+                title={`${s.name}${s.id === pinnedId ? " — pinned for the table" : ""} — right-click for scene tools`}
               >
                 <span className="vtt2-rail-init">{initials(s.name)}</span>
                 <span className="vtt2-rail-name">{s.name}</span>
+                {s.id === pinnedId && (
+                  <span className="vtt2-rail-pin" aria-label="Pinned for the table">
+                    <IconPin />
+                  </span>
+                )}
               </button>
             ))}
           </div>

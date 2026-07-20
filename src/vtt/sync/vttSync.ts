@@ -21,6 +21,13 @@ interface Opts {
   getScene: () => VttScene | null;
   /** Adopt a full scene pushed by a peer (host switch / late-join catch-up). */
   onSnapshot: (scene: VttScene) => void;
+  /** HOST + scene pinning: an op for a scene we are NOT currently viewing
+   *  (players still playing on the pinned scene while the Curator roams).
+   *  The handler applies it to the stored scene so nothing is lost. */
+  onForeignOp?: (sceneId: string, op: VttOp, from: string) => void;
+  /** The scene to hand a late joiner (the players' PINNED scene when the
+   *  Curator is off browsing another one). Null/undefined = current scene. */
+  getLateJoinScene?: () => Promise<VttScene | null>;
 }
 
 export interface VttSyncApi {
@@ -32,7 +39,7 @@ export interface VttSyncApi {
   broadcastSnapshot: (to?: string) => void;
 }
 
-export function useVttSync({ engineRef, sceneId, getScene, onSnapshot }: Opts): VttSyncApi {
+export function useVttSync({ engineRef, sceneId, getScene, onSnapshot, onForeignOp, getLateJoinScene }: Opts): VttSyncApi {
   const net = useNet();
   const rev = useRef(0);
   const sceneIdRef = useRef(sceneId);
@@ -41,6 +48,10 @@ export function useVttSync({ engineRef, sceneId, getScene, onSnapshot }: Opts): 
   getSceneRef.current = getScene;
   const onSnapRef = useRef(onSnapshot);
   onSnapRef.current = onSnapshot;
+  const onForeignRef = useRef(onForeignOp);
+  onForeignRef.current = onForeignOp;
+  const lateJoinRef = useRef(getLateJoinScene);
+  lateJoinRef.current = getLateJoinScene;
   const statusRef = useRef(net.status);
   statusRef.current = net.status;
 
@@ -73,7 +84,13 @@ export function useVttSync({ engineRef, sceneId, getScene, onSnapshot }: Opts): 
       const pm = m as PatchMsg;
       const op = pm.patch as VttOp;
       if (!op || typeof op.op !== "string" || op.op === "scene.switch") return; // scene changes come via snapshot
-      if (pm.scope && pm.scope !== sceneIdRef.current) return; // op is for a different scene
+      if (pm.scope && pm.scope !== sceneIdRef.current) {
+        // Not our live scene — but with scene pinning the HOST may be roaming
+        // while players keep playing on the pinned scene: hand those ops up so
+        // they land in the stored scene instead of vanishing.
+        onForeignRef.current?.(pm.scope, op, from);
+        return;
+      }
       // OWNED-token authorization: when a token declares an owner, only that
       // owner (or the host/Curator, or ourselves) may move/update/remove it.
       // Unowned tokens stay free-for-all, preserving table norms for NPC props.
@@ -124,9 +141,21 @@ export function useVttSync({ engineRef, sceneId, getScene, onSnapshot }: Opts): 
     const fresh = ids.filter((id) => !knownPeers.current.has(id));
     knownPeers.current = new Set(ids);
     if (net.status === "connected" && net.role === "host") {
-      for (const id of fresh) broadcastSnapshot(id);
+      for (const id of fresh) {
+        // Scene pinning: a late joiner belongs on the players' PINNED scene,
+        // not whatever the Curator happens to be browsing right now.
+        const special = lateJoinRef.current;
+        if (special) {
+          void special().then((scene) => {
+            if (scene) net.publish({ t: "snapshot", state: scene, rev: ++rev.current }, id);
+            else broadcastSnapshot(id);
+          });
+        } else {
+          broadcastSnapshot(id);
+        }
+      }
     }
-  }, [net.peers, net.role, net.status, broadcastSnapshot]);
+  }, [net.peers, net.role, net.status, broadcastSnapshot, net]);
 
   return { connected: net.status === "connected", peerCount: net.peers.length, broadcastOp, broadcastSnapshot };
 }
