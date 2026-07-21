@@ -1,6 +1,6 @@
 [package]
 name = "wte-app"
-version = "0.8.28"
+version = "0.8.29"
 description = "W.T.E — unified Character Sheet + VTT"
 authors = ["ZetaMurdock"]
 edition = "2021"

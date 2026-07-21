@@ -218,8 +218,8 @@ export const SPECIES: Species[] = [
   {
     id: "stygians", name: "Stygians", family: "Asternem", bonuses: { cha: 2, wis: 2 },
     innate: ["Interstitial Intrusion", "Engraving", "Parasitic Shadow", "Locked in Time"],
-    dom: 40, rec: 10, eminence: "Feral +20", innateSelect: 2,
-    note: "Shadow/void aberrants — highest Feral Eminence (+20); connected by the Stygian Hive.",
+    dom: 20, rec: 35, eminence: "Feral +20", innateSelect: 2,
+    note: "Shadow/void aberrants — lowest Dominance, highest Feral Eminence (+20); connected by the Stygian Hive. A Variant must be chosen.",
     variants: VARIANTS.stygians ?? [],
   },
 ];
@@ -627,6 +627,15 @@ const STAT_ALIASES: Record<string, string> = {
   "action density": "d:ad", density: "d:ad", ad: "d:ad", influence: "d:inf", inf: "d:inf", "perception range": "d:pr", range: "d:pr", pr: "d:pr",
 };
 
+/** Resolve a free-text stat name ("Endurance", "Inspiration", "Wisdom") to its
+ *  bucket + key, so ability text can be turned into the right roll. Null when
+ *  the word isn't a known attribute/specialty/derived stat. */
+export function resolveStatToken(name: string): { kind: "attr" | "spec" | "derived"; key: string } | null {
+  const ref = STAT_ALIASES[name.trim().toLowerCase().replace(/\s+/g, " ")];
+  if (!ref) return null;
+  return { kind: ref[0] === "a" ? "attr" : ref[0] === "s" ? "spec" : "derived", key: ref.slice(2) };
+}
+
 export interface EquipMods {
   attr: Partial<Record<AttrKey, number>>;
   spec: Partial<Record<SpecKey, number>>;
@@ -767,8 +776,17 @@ export function usableCiphers(paradigmId: string | undefined, loadout: string[])
     return { source: "cipher" as const, name, ss: a?.ss ?? 0, effect: a?.effect, activation: a?.type };
   });
 }
-export function usableRacial(speciesId?: string, variantName?: string, variantOption?: string): UsableAbility[] {
-  const out: UsableAbility[] = speciesInnate(speciesId).map((a) => ({ source: "racial" as const, name: a.name, ss: 0, effect: a.effect }));
+export function usableRacial(
+  speciesId?: string,
+  variantName?: string,
+  variantOption?: string,
+  /** The 2-of-4 chosen active innates (by name). Empty/undefined = all active
+   *  (legacy characters predate the choose-2-of-4 rule). */
+  innateChoice?: string[],
+): UsableAbility[] {
+  let innates = speciesInnate(speciesId);
+  if (innateChoice && innateChoice.length) innates = innates.filter((a) => innateChoice.includes(a.name));
+  const out: UsableAbility[] = innates.map((a) => ({ source: "racial" as const, name: a.name, ss: 0, effect: a.effect }));
   const variant = getSpecies(speciesId)?.variants.find((v) => v.name === variantName);
   if (variant) {
     variant.abilities.forEach((a) => out.push({ source: "racial", name: a.name, ss: 0, effect: a.effect }));
@@ -776,6 +794,12 @@ export function usableRacial(speciesId?: string, variantName?: string, variantOp
     if (opt) out.push({ source: "racial", name: opt.ability.name, ss: 0, effect: opt.ability.effect });
   }
   return out;
+}
+
+/** The 2 unselected innate abilities — the Incept-pool seeds. */
+export function inceptSeeds(speciesId?: string, innateChoice?: string[]): SpeciesVariantAbility[] {
+  if (!innateChoice || !innateChoice.length) return [];
+  return speciesInnate(speciesId).filter((a) => !innateChoice.includes(a.name));
 }
 
 /** Specialties with equipment bonuses folded in (used for rolls + mod boxes). */

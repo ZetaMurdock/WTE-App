@@ -166,7 +166,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   const species = getSpecies(sheet.speciesId);
   const paradigm = getParadigm(sheet.paradigmId);
   const equippedWeapons = weaponLoadout.map((n) => getWeapon(n)).filter((w): w is Weapon => !!w);
-  const racial = usableRacial(sheet.speciesId, sheet.variantName, sheet.variantOption);
+  const racial = usableRacial(sheet.speciesId, sheet.variantName, sheet.variantOption, sheet.innateChoice);
 
   function persist(next: CharacterRecord) {
     setRec(next);

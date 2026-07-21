@@ -146,19 +146,19 @@
   "stygians": [
     {
       "name": "Interstitial Intrusion",
-      "effect": "Passive"
+      "effect": "Passive · Target: Multi · Vector: Ambient · Duration: Sustained · Area: Zone of Influence (30-ft radius) · Resolution: Automatic on positioning. Whenever you position yourself physically between two objects or creatures within your Zone of Influence, you violently warp their local space, inflicting the Stinous condition. Under Stinous, physical geometry distorts unpredictably (solid walls spiral; biological targets appear massively bloated in some areas and emaciated in others). A Stinous target suffers a penalty to all checks and rolls equal to your Inspiration Modifier, and any action or attack they direct at a target other than you is reduced by this same modifier."
     },
     {
       "name": "Engraving",
-      "effect": "Passive"
+      "effect": "Passive trigger · Target: 1 Stinous creature or object · Vector: Gaze · Duration: Scene · Resolution: opposed Inspiration + Influence Check vs their Wisdom · Limit: one Engraving held at a time. When a creature or object afflicted with Stinous exits your Influence Range, win the opposed check to engrave your presence into their shadow. While engraved: teleport adjacent to them from their shadow as a Bonus Action, and execute any active Genus or Cipher ability using their shadow as the origin point of the effect."
     },
     {
       "name": "Parasitic Shadow",
-      "effect": "Active"
+      "effect": "Active (Standard Action) · Target: 1 Creature · Vector: Contact (shadow-touch; both in shadow) · Duration: Scene · Resolution: threshold trigger · Limit: one Parasitic Shadow active at a time; a threshold below 11 collapses at its first backfire. While standing in shadow, extend dark, entropic tendrils to touch the shadow of a target within melee range and declare a d20 threshold value (e.g., 15). Whenever that target makes a check or save where the natural d20 meets or exceeds your threshold, the action backfires: the roll fails, and you can redirect the full force, damage, or effect of that action onto any Stinous creature within your Influence Range."
     },
     {
-      "name": "Locked in time",
-      "effect": "Active"
+      "name": "Locked in Time",
+      "effect": "Active (Prepared Action) · Target: Multi (Stinous) · Vector: Ambient · Duration: Sustained · Area: Zone of Influence · Resolution: Wisdom Check vs your Inspiration DC + Inspiration Modifier. While positioned interstitially between two objects or creatures, you distort their temporal perception — linear time feels agonizingly elongated. To execute any action, an affected Stinous target must pass the check; on a failure, their Action Priority is suppressed, and any action or ability they attempt takes three times longer to resolve (consuming triple the normal AP cost or forcing them to accumulate 2 points of Fatigue)."
     }
   ]
 }

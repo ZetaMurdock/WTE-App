@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import type { CharacterRecord } from "../lib/characters";
-import { ATTRIBUTES, SPECIALTIES, rollMod, specRollMod, diceExprFromText, signedMod } from "../game/wte";
+import { ATTRIBUTES, SPECIALTIES, rollMod, specRollMod, diceExprFromText, signedMod, resolveStatToken } from "../game/wte";
+import type { CharacterSheet } from "../models/character";
+import { parseAbilityActions, type AbilityAction } from "../game/abilityActions";
 import { characterActionSet, type VttAbility } from "./data/characterAbilities";
 import { hasAoe, suggestedTemplate } from "./data/effectMeta";
 
@@ -35,6 +37,21 @@ function suggestedExpr(a: VttAbility): string | undefined {
   return a.meta.values[0]?.expr ?? diceExprFromText(a.effect) ?? undefined;
 }
 
+/** Resolve a parsed self-roll action to the character's actual armed roll:
+ *  attributes roll 1d20 + rollMod, specialties 1d40 + specRollMod. */
+function armSelf(action: AbilityAction, sheet: CharacterSheet): { label: string; expr: string } {
+  const ref = action.stat ? resolveStatToken(action.stat) : null;
+  if (ref?.kind === "attr") {
+    const mod = rollMod(sheet.attributes[ref.key as keyof typeof sheet.attributes] ?? 0);
+    return { label: action.label, expr: `1d20${modSuffix(mod)}` };
+  }
+  if (ref?.kind === "spec") {
+    const mod = specRollMod(sheet.specialties[ref.key as keyof typeof sheet.specialties] ?? 0);
+    return { label: action.label, expr: `1d40${modSuffix(mod)}` };
+  }
+  return { label: action.label, expr: action.expr ?? "1d20" };
+}
+
 // Left-dock Abilities panel: base rolls + specialties, weapon actions, the
 // slotted genus/cipher loadout, and racial abilities in a dropdown. NOTHING
 // auto-rolls: every button ARMS the dice tray with the right label + dice
@@ -56,6 +73,12 @@ export function VttAbilitiesPanel({ character, characters, onPickCharacter, onAr
   function Row({ a }: { a: VttAbility }) {
     const tag = aoeTag(a);
     const tmpl = tag ? suggestedTemplate(a.meta) : null;
+    // The ability "understanding" layer: buttons the effect text actually calls
+    // for (self checks, damage dice) plus a note of any target save + DC.
+    const actions = a.source === "action" ? [] : parseAbilityActions(a.effect);
+    const selfRolls = actions.filter((x) => x.kind === "self");
+    const dmgRolls = actions.filter((x) => x.kind === "damage");
+    const saves = actions.filter((x) => x.kind === "save");
     return (
       <li className="vtt2-abil-row">
         <div className="vtt2-abil-main">
@@ -70,6 +93,15 @@ export function VttAbilitiesPanel({ character, characters, onPickCharacter, onAr
           {tag && (
             <div className="vtt2-abil-aoe" title={tmpl ? `Suggests a ${tmpl.kind} (~${tmpl.cells} cells) — editable on place` : ""}>
               {tag}
+            </div>
+          )}
+          {saves.length > 0 && (
+            <div className="vtt2-abil-saves">
+              {saves.map((s, i) => (
+                <span key={i} className="vtt2-abil-savechip" title="The target makes this roll against your ability">
+                  vs {s.label}
+                </span>
+              ))}
             </div>
           )}
         </div>
@@ -90,9 +122,38 @@ export function VttAbilitiesPanel({ character, characters, onPickCharacter, onAr
             </button>
           </div>
         ) : (
-          <button className="chip" onClick={() => use(a)} title="Roll this ability">
-            Use
-          </button>
+          // Genus / cipher / racial: buttons the parser derived from the effect
+          // text — the character's own checks + each damage die — else a plain Use.
+          <div className="vtt2-abil-btns">
+            {selfRolls.map((s, i) => {
+              const armed = character ? armSelf(s, character.sheet) : { label: s.label, expr: s.expr ?? "1d20" };
+              return (
+                <button
+                  key={"s" + i}
+                  className="chip"
+                  onClick={() => { onArmRoll(`${a.name} — ${armed.label}`, armed.expr); onUseAbility(a); }}
+                  title={`Arm ${armed.expr}`}
+                >
+                  {s.label}
+                </button>
+              );
+            })}
+            {dmgRolls.map((d, i) => (
+              <button
+                key={"d" + i}
+                className="chip"
+                onClick={() => { onArmRoll(`${a.name} — ${d.label}`, d.expr); onUseAbility(a); }}
+                title={`Arm ${d.expr}`}
+              >
+                {d.label}
+              </button>
+            ))}
+            {selfRolls.length === 0 && dmgRolls.length === 0 && (
+              <button className="chip" onClick={() => use(a)} title="Roll this ability">
+                Use
+              </button>
+            )}
+          </div>
         )}
       </li>
     );

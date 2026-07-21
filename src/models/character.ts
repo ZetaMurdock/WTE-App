@@ -20,6 +20,10 @@ export interface CharacterSheet {
   variantName?: string;
   /** Chosen variant option label (e.g. Annunaki head shape). */
   variantOption?: string;
+  /** The 2 (of 4) species innate abilities chosen ACTIVE at creation, by name.
+   *  The 2 unselected become Incept-pool seeds. Empty/undefined = all active
+   *  (legacy characters made before the choose-2-of-4 rule). */
+  innateChoice?: string[];
   paradigmId?: string;
   /** Curator-managed rank 0..9. */
   rank?: number;

@@ -21,6 +21,7 @@ import {
   signedMod,
   getSpecies,
   getParadigm,
+  speciesInnate,
   type AttrKey,
   type SpecKey,
   type Attributes,
@@ -78,6 +79,16 @@ export function CharacterCreator({ campaignId, edit, onDone, onCancel }: Props) 
   const [speciesId, setSpeciesId] = useState<string | undefined>(es?.speciesId);
   const [variantName, setVariantName] = useState<string | undefined>(es?.variantName);
   const [variantOption, setVariantOption] = useState<string | undefined>(es?.variantOption);
+  // Legacy characters (made before the choose-2-of-4 rule) seed the first N
+  // innates as a sensible default the player can re-pick; fresh ones start empty.
+  const [innateChoice, setInnateChoice] = useState<string[]>(
+    es?.innateChoice ??
+      (es?.speciesId
+        ? speciesInnate(es.speciesId)
+            .slice(0, getSpecies(es.speciesId)?.innateSelect ?? 0)
+            .map((a) => a.name)
+        : [])
+  );
   const [paradigmId, setParadigmId] = useState<string | undefined>(es?.paradigmId);
   const [attributes, setAttributes] = useState<Attributes>(es ? { ...es.attributes } : zeroAttributes());
   const [specialties, setSpecialties] = useState<Specialties>(es ? { ...es.specialties } : zeroSpecialties());
@@ -131,7 +142,7 @@ export function CharacterCreator({ campaignId, edit, onDone, onCancel }: Props) 
 
   async function finish() {
     setSaving(true);
-    const fields = { attributes, specialties, speciesId, variantName, variantOption, paradigmId, portrait, background, sizeId, sector, morality, notes: backstory };
+    const fields = { attributes, specialties, speciesId, variantName, variantOption, innateChoice, paradigmId, portrait, background, sizeId, sector, morality, notes: backstory };
     try {
       if (edit) {
         // merge OVER the existing sheet — rank/loadouts/equipment/etc. survive
@@ -147,7 +158,11 @@ export function CharacterCreator({ campaignId, edit, onDone, onCancel }: Props) 
     }
   }
 
-  const canNext = step === 0 ? name.trim().length > 0 : true;
+  // Step 0 (Origin) gate: a name, and — once a species is picked — its variant
+  // (a Variant must be chosen) plus the full 2-of-4 innate selection.
+  const innateComplete = !species?.innateSelect || innateChoice.length === species.innateSelect;
+  const variantComplete = !species || species.variants.length === 0 || !!variantName;
+  const canNext = step === 0 ? name.trim().length > 0 && (!speciesId || (variantComplete && innateComplete)) : true;
   const isLast = step === STEPS.length - 1;
   // Jump to any step by clicking its tab — the only gate is a name on Identity.
   function goStep(i: number) {
@@ -299,6 +314,7 @@ export function CharacterCreator({ campaignId, edit, onDone, onCancel }: Props) 
                     setSpeciesId(sp.id);
                     setVariantName(undefined);
                     setVariantOption(undefined);
+                    setInnateChoice([]);
                   }}
                 >
                   <div className="pick-fam">{sp.family}</div>
@@ -321,6 +337,43 @@ export function CharacterCreator({ campaignId, edit, onDone, onCancel }: Props) 
                 </button>
               ))}
             </div>
+
+            {species && species.innateSelect && (() => {
+              const innates = speciesInnate(species.id);
+              const need = species.innateSelect;
+              const toggle = (name: string) =>
+                setInnateChoice((cur) =>
+                  cur.includes(name) ? cur.filter((n) => n !== name) : cur.length >= need ? cur : [...cur, name]
+                );
+              return (
+                <div className="variant-choose">
+                  <div className="aside-title">
+                    Choose {need} of {innates.length} innate abilities — the other {innates.length - need} become locked Incept seeds
+                    <span className={"points-inline" + (innateChoice.length === need ? "" : " over")} style={{ marginLeft: 8 }}>
+                      {innateChoice.length}/{need} chosen
+                    </span>
+                  </div>
+                  <div className="pick-grid">
+                    {innates.map((ab) => {
+                      const sel = innateChoice.includes(ab.name);
+                      const full = !sel && innateChoice.length >= need;
+                      return (
+                        <button
+                          key={ab.name}
+                          className={"pick-card innate-card" + (sel ? " selected" : "") + (full ? " dim" : "")}
+                          onClick={() => toggle(ab.name)}
+                          title={ab.effect}
+                        >
+                          <div className="pick-name">{ab.name}</div>
+                          <div className="pick-innate">{ab.effect.length > 160 ? ab.effect.slice(0, 158) + "…" : ab.effect}</div>
+                          <div className="innate-tag">{sel ? "ACTIVE" : full ? "—" : "Incept seed"}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
 
             {species && species.variants.length > 0 && (
               <div className="variant-choose">

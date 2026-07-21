@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SPECIES, getSpecies, speciesInnate, usableRacial } from "./wte";
+import { SPECIES, getSpecies, speciesInnate, usableRacial, inceptSeeds } from "./wte";
 
 describe("species catalog (rebuilt from the wiki pages)", () => {
   it("carries all nine species with genetics + eminence", () => {
@@ -49,5 +49,31 @@ describe("species catalog (rebuilt from the wiki pages)", () => {
         }
       }
     }
+  });
+
+  it("Stygians carry the full page: Dom 20 / Rec 35, four variants, real innate prose", () => {
+    expect(getSpecies("stygians")).toMatchObject({ dom: 20, rec: 35, eminence: "Feral +20" });
+    const styg = getSpecies("stygians")!;
+    expect(styg.variants.map((v) => v.name)).toEqual(["Xeno", "Greys", "Annunaki", "Sbeindlaer"]);
+    const innate = speciesInnate("stygians");
+    expect(innate.find((a) => a.name === "Interstitial Intrusion")?.effect).toContain("Stinous");
+    expect(innate.find((a) => a.name === "Locked in Time")?.effect).toContain("Inspiration");
+  });
+
+  it("choose-2-of-4: usableRacial keeps only the chosen innates + variant abilities", () => {
+    const chosen = ["Prodigal Mind", "Peak Evolution"];
+    const active = usableRacial("hyomen", "Neo-Humans", undefined, chosen);
+    const innateNames = active.filter((a) => ["Prodigal Mind", "Omen", "Indomitable Will", "Peak Evolution"].includes(a.name));
+    expect(innateNames.map((a) => a.name).sort()).toEqual(["Peak Evolution", "Prodigal Mind"]);
+    expect(active.some((a) => a.name === "Omen")).toBe(false); // unselected → not active
+    expect(active.some((a) => a.name === "Awakened Visualization")).toBe(true); // variant still granted
+    // The 2 unselected are the Incept seeds.
+    expect(inceptSeeds("hyomen", chosen).map((a) => a.name).sort()).toEqual(["Indomitable Will", "Omen"]);
+  });
+
+  it("no innateChoice = all four active (legacy characters unaffected)", () => {
+    const all = usableRacial("hyomen", undefined, undefined, undefined);
+    expect(all.filter((a) => a.source === "racial")).toHaveLength(4);
+    expect(inceptSeeds("hyomen", undefined)).toEqual([]);
   });
 });

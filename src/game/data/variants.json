@@ -312,80 +312,80 @@
   "stygians": [
     {
       "name": "Xeno",
-      "note": "Engineered Stygian offshoot for biological warfare — the 'Ghosts of Flesh'; a retractable proboscis extends up to 60 ft.",
+      "note": "Engineered Stygian offshoot for biological warfare — the 'Ghosts of Flesh'. Bipedal (tall, emaciated, serpentine) · Colossal (Lanky). Retractable inner proboscis/tongue extends up to 60 ft; excretes viscous black fluid on contact. Covertly allied with the N-T1 through the Deviants faction.",
       "abilities": [
         {
           "name": "Mutagenic Absorption",
-          "effect": "Excretes black viscous fluid on contact with living tissue, causing genetic destabilization and unpredictable mutations (extent by Curator ruling)."
+          "effect": "Target: 1 living creature · Vector: Contact · Duration: Instant · Resolution: Endurance save; extent by Curator ruling · Limit: once per scene per target. Excretes black viscous fluid on contact with living tissue, causing genetic destabilization and unpredictable mutations in the target. Caps: mutations are minor-to-hindering, never lethal, and never permanent without the target's player consenting."
         },
         {
           "name": "Freakish Nature",
-          "effect": "If the tongue/proboscis is severed, make an Adaptation Check vs a Curator DC; exceeding it regenerates the tongue into multiple tongues equal to half the check result."
+          "effect": "Self (Reaction) · Duration: Scene · Resolution: Adaptation Skill Check vs Curator-set DC. If the tongue/proboscis is severed, make the check: if the result exceeds the DC, the tongue regenerates — into multiple tongues equal to half the check result (cap: maximum 3), each able to hold or strike independently until the scene ends."
         }
       ]
     },
     {
       "name": "Greys",
-      "note": "Stygians tempered by the Doalith Dominion into peaceful, psychically enhanced beings; currently in mass psionic dormancy after contact with the Indrah.",
+      "note": "Stygians tempered by the Doalith Dominion into peaceful, psychically enhanced beings. Bipedal humanoid · Moderate (~5 ft). Pale grey skin; large reflective psionic eyes; intelligence far above baseline. Currently in mass psionic dormancy after contact with the Indrah consciousness.",
       "abilities": [
         {
           "name": "Telepathy",
-          "effect": "Communicate telepathically (bonus/prepared action, free out of combat); also telekinesis — move objects up to (2× Neuronal Capacity Mod + Control)."
+          "effect": "Target: Single or network · Vector: Gaze · Duration: Sustained · Resolution: Wisdom save (unwilling). Communicate telepathically as a bonus or prepared action (or freely outside combat). Also functions as telekinesis: move objects weighing up to (2 × Neuronal Capacity Modifier + Control stat) — never as a direct attack."
         },
         {
           "name": "Psionic Mold",
-          "effect": "Psionically reshape organic matter including your own body (muscle density, facial features, sealing wounds); extended use is draining."
+          "effect": "Target: Self or 1 organic form · Vector: Contact · Duration: Scene · Resolution: Automatic (self); Endurance save (others) · Limit: +1 Fatigue per use beyond the first each scene. Psionically reshape organic matter — including your own body: adjust muscle density, alter facial features, seal wounds (ends one Bleeding effect). Versatile for infiltration and healing; extended use is draining."
         }
       ]
     },
     {
       "name": "Annunaki",
-      "note": "Near-mythological species of uncertain lineage who walk between realities; head shape chosen at creation grants one additional ability. Melamic energy is not one of the 5 standard Genera.",
+      "note": "Near-mythological species of uncertain lineage who walk between realities; only faint Stygian genetic echoes. Bipedal · Moderate–Large (6–10 ft standard; rare outliers 12–15 ft). Head shape chosen at creation grants one additional ability. Melamic energy is not one of the 5 standard Genera.",
       "options": [
         {
           "label": "Humanoid Head",
           "ability": {
             "name": "Telepathy",
-            "effect": "Communicate telepathically and telekinetically, identical to the Greys' Telepathy."
+            "effect": "Identical mechanics to the Greys' Telepathy ability — telepathic comms and telekinesis (up to 2 × Neuronal Capacity Modifier + Control stat), never as a direct attack."
           }
         },
         {
           "label": "Elongated Head",
           "ability": {
             "name": "Precognition",
-            "effect": "Advantage on all AP rolls made against opponents of lower Neuronal Capacity Modifier."
+            "effect": "Precognitive vision — Advantage on all AP Rolls made against opponents of lower Neuronal Capacity Modifier."
           }
         },
         {
           "label": "Pointed Head",
           "ability": {
             "name": "Atomic Manipulation",
-            "effect": "Reshape matter by touch; usable once per hour."
+            "effect": "Reshape matter by touch; usable once per hour (cap: unattended objects, Small or smaller — never creatures or held gear)."
           }
         }
       ],
       "abilities": [
         {
           "name": "Melam Manifestation",
-          "effect": "Emit a Melamic Energy Field shield when attacked; if the attacker fails a Control Check vs the Annunaki's DC, the attack warps to a random spot within 10 ft. 1 free use/round, extra uses cost Synaptic Space."
+          "effect": "Self (Reaction) · Duration: Instant · Resolution: attacker's Control Skill Check vs the Annunaki's DC · Limit: 1 free use per round; additional uses cost Synaptic Space. Emit a Melamic Energy Field defensive shield when attacked. If the attacker fails the check, the attack warps to a random location within 10 feet of you or them (Curator rolls)."
         },
         {
           "name": "Ni Conjuration",
-          "effect": "Psionic command over a single element present in the environment; extent and scale by Curator discretion, one element at a time."
+          "effect": "Target: Area · Vector: Ambient · Duration: Sustained · Damage: the conjured element's standard type dice · Resolution: per conjured effect; scale per Curator discretion · Limit: one element at a time. Psionic command over a single element present in the current environment — shape, hurl, or wall it. Ni commands what exists; it does not create."
         }
       ]
     },
     {
       "name": "Sbeindlaer",
-      "note": "Descendants of the one who cast the 'Blight Night' — two skin layers: a controllable outer void layer and a highly blightful inner layer. DHP is a flat additive on the outer layer, integrated into their main health bar.",
+      "note": "Descendants of the one who cast the 'Blight Night'. Bipedal humanoid · Moderate (~5 ft). Two skin layers: a controllable outer black void layer (projectile/chitin, regenerates; usage 25% of max HP; range per tile × 2) and a highly blightful inner dark-grey layer. Unique: DHP is a flat additive on the outer layer, integrated into the main health bar.",
       "abilities": [
         {
           "name": "Unstable Blightness",
-          "effect": "Those who step into their shadows are rapidly decayed ((Control + Priority)/15 per turn) and absorbed to regenerate the outer layer; +1 blight per round, and at 8 stacks the target takes 1d100 and is incapacitated."
+          "effect": "Target: Multi · Vector: Ambient (your shadow) · Duration: Sustained · Damage: decay = (Control + Priority) ÷ 15 per turn, absorbed to regenerate your outer layer · Resolution: Endurance save halves that turn's decay. Those who step into your shadows are rapidly decayed and absorbed to regenerate a portion of your outer layer. Inflicts one blight stack per round of exposure, increasing additively by 1 per consecutive round. Upon reaching 8 stacks the blight ruptures: 3d10 Entropy and Incapacitated 1 round, then stacks reset to 4 (Incapacitated 1 hour of passive time outside combat)."
         },
         {
           "name": "Dream Eater",
-          "effect": "Using the outer layer or mind, invade the consciousness of the sleeping to harm their soul/mind, prolong slumber, or communicate."
+          "effect": "Target: 1 sleeping creature · Vector: Ambient (outer layer or mind) · Duration: Sustained · Damage: 1d8 Psychic or 1d10 Spirit per round · Resolution: Wisdom save each round ends the invasion. Invade the consciousness of those asleep: harm their soul/mind at the listed rate, prolong their slumber, or communicate within the dream. Caps: the target visibly dreams in distress — observers can wake them, ending the invasion; a target reduced below half HP by Dream Eater wakes automatically. It wounds; it never kills the sleeping."
         }
       ]
     }

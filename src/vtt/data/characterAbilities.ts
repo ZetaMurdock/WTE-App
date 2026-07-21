@@ -96,7 +96,7 @@ export function characterActionSet(rec: CharacterRecord): CharacterActionSet {
 
   const cipher = usableCiphers(s.paradigmId, s.cipherLoadout ?? []).map((a, i) => mk("cipher", a.name, i, { effect: a.effect, ss: a.ss ?? 0 }));
 
-  const racial = usableRacial(s.speciesId, s.variantName, s.variantOption).map((a, i) => mk("racial", a.name, i, { effect: a.effect }));
+  const racial = usableRacial(s.speciesId, s.variantName, s.variantOption, s.innateChoice).map((a, i) => mk("racial", a.name, i, { effect: a.effect }));
 
   return { actions, genus, cipher, racial };
 }
