@@ -1,34 +1,58 @@
 // Per-campaign rule switches the Curator owns. Stored in localStorage alongside
 // the desk and folders — lightweight table policy, no schema migration.
+//
+// These are LIVE budgets, not creation-time snapshots: every sheet in the vault
+// is measured against the current numbers, so lowering a cap immediately flags
+// the characters that no longer fit.
+
+import { SPEC_TOTAL } from "../game/wte";
 
 export interface CampaignRules {
-  /** Cap the SUM of a character's attributes at creation. Off by default:
-   *  attributes are rolled, so the budget only matters at tables that let
-   *  players type their own — and that is the Curator's call, not the app's. */
+  /** Cap the SUM of a character's attributes. Off by default: attributes are
+   *  rolled, so the budget only matters at tables that let players type their
+   *  own — and that is the Curator's call, not the app's. */
   attrBudget: boolean;
   /** The cap itself. Seven d20s average 73.5, so 70 is a slightly lean roll. */
   attrBudgetPoints: number;
+  /** Specialty points per character. Always enforced; the published rules say
+   *  200, but the Curator may run a leaner or richer table. */
+  specTotal: number;
 }
 
 /** Seven d20s average 73.5 — the default budget sits just under an average roll. */
 export const ATTR_BUDGET_DEFAULT = 70;
 export const ATTR_BUDGET_MIN = 7;
 export const ATTR_BUDGET_MAX = 140;
+/** A single specialty caps at 75, so ten of them is the useful ceiling. */
+export const SPEC_TOTAL_MIN = 10;
+export const SPEC_TOTAL_MAX = 750;
 
-export const DEFAULT_RULES: CampaignRules = { attrBudget: false, attrBudgetPoints: ATTR_BUDGET_DEFAULT };
+export const DEFAULT_RULES: CampaignRules = {
+  attrBudget: false,
+  attrBudgetPoints: ATTR_BUDGET_DEFAULT,
+  specTotal: SPEC_TOTAL,
+};
 
 const key = (campaignId: string) => `wte-campaign-rules:${campaignId}`;
+
+const clamp = (v: unknown, lo: number, hi: number, fallback: number) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.max(lo, Math.min(hi, Math.round(n))) : fallback;
+};
 
 /** Normalise anything read off disk — an older or hand-edited blob still boots. */
 export function parseRules(raw: unknown): CampaignRules {
   const o = (raw && typeof raw === "object" ? raw : {}) as Partial<CampaignRules>;
-  const pts = Number(o.attrBudgetPoints);
   return {
     attrBudget: o.attrBudget === true,
-    attrBudgetPoints: Number.isFinite(pts)
-      ? Math.max(ATTR_BUDGET_MIN, Math.min(ATTR_BUDGET_MAX, Math.round(pts)))
-      : ATTR_BUDGET_DEFAULT,
+    attrBudgetPoints: clamp(o.attrBudgetPoints, ATTR_BUDGET_MIN, ATTR_BUDGET_MAX, ATTR_BUDGET_DEFAULT),
+    specTotal: clamp(o.specTotal, SPEC_TOTAL_MIN, SPEC_TOTAL_MAX, SPEC_TOTAL),
   };
+}
+
+/** The caps to hand validateSheet / specialtyRemaining for this campaign. */
+export function sheetCaps(rules: CampaignRules): { specTotal: number; attrTotal?: number } {
+  return { specTotal: rules.specTotal, attrTotal: rules.attrBudget ? rules.attrBudgetPoints : undefined };
 }
 
 export function loadRules(campaignId: string): CampaignRules {

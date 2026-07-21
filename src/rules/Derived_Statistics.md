@@ -99,17 +99,23 @@ out-perform them on the stats they chose.
 
 ---
 
-### The Curator's attribute budget
+### Table Rules — the Curator's budgets
 
-Attributes are meant to be **rolled**: seven straight d20s, averaging 73 points
-across the sheet. The creator also allows manual entry, which means a table
-running that way can type a wall of 20s.
+Two budgets live in **Character Vault → Table Rules**, per campaign, Curator-only.
 
-A Curator who wants that closed can turn on an **attribute budget** in
-**Character Vault → Table Rules**: a cap on the *total* of all seven attributes,
-default 70. Characters built past the cap cannot be saved, and the creator shows
-the remaining points beside the attribute editor.
+**Specialty points.** The published rules give every character 200. A Curator can
+lower it for a grittier table or raise it for veterans; a single specialty still
+caps at 75 either way. This one is always in force — only the number moves.
 
-It is off by default and it is per-campaign. Rolled tables never need it;
-point-buy tables get a real budget to argue over. Existing characters are never
-retroactively invalidated.
+**Attribute budget.** Off by default. Attributes are meant to be **rolled** —
+seven straight d20s, averaging 73 across the sheet — but the creator also allows
+manual entry, so a table running that way can type a wall of 20s. Switch the
+budget on and the *total* of all seven is capped, default 70. Rolled tables never
+need it; point-buy tables get a real budget to argue over.
+
+**These budgets are live, not stamped at creation.** Every sheet in the vault is
+measured against the current numbers. Lower a cap and the characters that no
+longer fit are flagged on their cards and on their sheets — the Curator sees
+exactly who has to be rebuilt instead of quietly grandfathering a party that no
+longer follows its own table's rules. Nothing is deleted or auto-adjusted; the
+call stays with the Curator.

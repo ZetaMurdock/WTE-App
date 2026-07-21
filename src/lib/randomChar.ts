@@ -24,7 +24,8 @@ const NAME_A = ["Zephyr", "Kael", "Vesper", "Orin", "Nyx", "Cassian", "Lyra", "D
 const NAME_B = ["Voss", "Kane", "Rychar", "Halloway", "Vane", "Crowe", "Marrow", "Quill", "Stray", "Locke", "Ferro", "Wilde", "Grave", "Ozdemir", "Rell"];
 const rand = <T,>(a: T[]): T => a[Math.floor(Math.random() * a.length)];
 
-export function randomCharacter(): { name: string; sheet: CharacterSheet } {
+/** @param specTotal the table's specialty budget (defaults to the published 200). */
+export function randomCharacter(specTotal: number = SPEC_TOTAL): { name: string; sheet: CharacterSheet } {
   const species = rand(SPECIES);
   const paradigm = rand(PARADIGMS);
   const variant = species.variants.length ? rand(species.variants) : undefined;
@@ -35,8 +36,8 @@ export function randomCharacter(): { name: string; sheet: CharacterSheet } {
 
   // scatter the specialty pool, respecting the per-specialty cap
   const specialties = zeroSpecialties();
-  let pool = SPEC_TOTAL;
-  let guard = SPEC_TOTAL * 4;
+  let pool = specTotal;
+  let guard = specTotal * 4;
   while (pool > 0 && guard-- > 0) {
     const k = rand(SPEC_KEYS);
     if (specialties[k] < SPEC_MAX) {

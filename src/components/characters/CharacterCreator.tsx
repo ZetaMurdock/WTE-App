@@ -5,7 +5,6 @@ import {
   SPECIES,
   PARADIGMS,
   BACKGROUNDS,
-  SPEC_TOTAL,
   SPEC_MAX,
   ATTR_MIN,
   ATTR_MAX,
@@ -38,7 +37,7 @@ import {
 } from "../../game/wte";
 import type { CharacterSheet } from "../../models/character";
 import { createCharacter, updateCharacter, type CharacterRecord } from "../../lib/characters";
-import { attrBudgetState, loadRules } from "../../lib/campaignRules";
+import { attrBudgetState, loadRules, sheetCaps } from "../../lib/campaignRules";
 import { DerivedPreview } from "./DerivedPreview";
 import { AttributeRoller } from "./AttributeRoller";
 import { PortraitFrame } from "./PortraitFrame";
@@ -116,11 +115,12 @@ export function CharacterCreator({ campaignId, edit, onDone, onCancel }: Props) 
   const background: Background = bgFixed
     ? { name: bgName.trim() || selectedBg!.name, mode: selectedBg!.mode ?? bgMode, assign: [], attrBonus: selectedBg!.attrBonus, specBonus: selectedBg!.specBonus }
     : { name: bgName.trim() || undefined, mode: bgMode, assign: bgAssign };
-  const remaining = specialtyRemaining(specialties);
-  const validation = validateSheet(attributes, specialties);
-  // The Curator's attribute budget, if this table runs one. Read once per mount —
-  // it changes from the vault, which unmounts the creator anyway.
+  // The Curator's budgets for this table. Read once per mount — they change from
+  // the vault, which unmounts the creator anyway.
   const [rules] = useState(() => loadRules(campaignId));
+  const caps = sheetCaps(rules);
+  const remaining = specialtyRemaining(specialties, rules.specTotal);
+  const validation = validateSheet(attributes, specialties, caps);
   const budget = attrBudgetState(
     ATTRIBUTES.reduce((t, a) => t + (attributes[a.key] || 0), 0),
     rules
@@ -562,7 +562,7 @@ export function CharacterCreator({ campaignId, edit, onDone, onCancel }: Props) 
           <div className="wizard-split">
             <div className="stat-editor">
               <div className={"points-banner" + (remaining < 0 ? " over" : "")}>
-                {remaining >= 0 ? `${remaining} / ${SPEC_TOTAL} points remaining` : `Over budget by ${-remaining} points`}
+                {remaining >= 0 ? `${remaining} / ${rules.specTotal} points remaining` : `Over budget by ${-remaining} points`}
               </div>
               {SPECIALTIES.map((s) => (
                 <div className="stat-row" key={s.key}>
@@ -608,7 +608,7 @@ export function CharacterCreator({ campaignId, edit, onDone, onCancel }: Props) 
             <div className="review-row"><span>Sector</span><b>{getSector(sector) ? `${getSector(sector)!.name} · ${getSector(sector)!.epithet}` : "—"}</b></div>
             <div className="review-row"><span>Morality</span><b>{morality} · {moralityState(morality).label}</b></div>
             <div className="review-row"><span>Size</span><b>{sizeOf(sizeId, speciesId).label}{sizeId === "auto" ? " (species)" : ""}</b></div>
-            <div className="review-row"><span>Specialty points</span><b>{SPEC_TOTAL - remaining} / {SPEC_TOTAL}</b></div>
+            <div className="review-row"><span>Specialty points</span><b>{rules.specTotal - remaining} / {rules.specTotal}</b></div>
             {budget.enforced && (
               <div className="review-row"><span>Attribute points</span><b>{budget.spent} / {budget.cap}</b></div>
             )}
@@ -617,7 +617,6 @@ export function CharacterCreator({ campaignId, edit, onDone, onCancel }: Props) 
                 {validation.errors.map((err, i) => (
                   <li key={i}>{err}</li>
                 ))}
-                {budget.over && <li>Attributes total {budget.spent}; this campaign's budget is {budget.cap}.</li>}
               </ul>
             )}
             <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} background={background} morality={morality} />

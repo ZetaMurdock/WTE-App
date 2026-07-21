@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { Campaign } from "../../models/campaign";
 import { listCharacters, createCharacter, type CharacterRecord } from "../../lib/characters";
 import { randomCharacter } from "../../lib/randomChar";
+import { loadRules } from "../../lib/campaignRules";
 import { parseLegacySheet, scanLegacyStorage } from "../../lib/legacyImport";
 import { fromSharedCharacter } from "../../lib/charShare";
 import { isTauri } from "../../lib/tauri";
@@ -94,7 +95,7 @@ export function CharactersTab({ campaign, curator, onCharactersChanged }: Props)
       curator={curator}
       onNew={() => setView({ mode: "creator" })}
       onRandomize={async () => {
-        const { name, sheet } = randomCharacter();
+        const { name, sheet } = randomCharacter(loadRules(campaign.id).specTotal);
         const rec = await createCharacter(campaign.id, name, sheet);
         await reload();
         setView({ mode: "sheet", id: rec.id });

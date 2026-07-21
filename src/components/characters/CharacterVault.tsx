@@ -2,11 +2,12 @@ import { useMemo, useRef, useState } from "react";
 import type { Campaign } from "../../models/campaign";
 import type { CharacterRecord } from "../../lib/characters";
 import { deleteCharacter, updateCharacter, patchCharacterSheet } from "../../lib/characters";
-import { getSpecies, getParadigm } from "../../game/wte";
+import { getSpecies, getParadigm, validateSheet } from "../../game/wte";
 import { ConfirmButton } from "../ui/ConfirmButton";
 import { PortraitFrame } from "./PortraitFrame";
 import { CharacterNotes } from "./CharacterNotes";
 import { TableRules } from "./TableRules";
+import { loadRules, sheetCaps } from "../../lib/campaignRules";
 import { downloadCharacter } from "../../lib/charShare";
 import {
   type CharFolder,
@@ -46,6 +47,10 @@ export function CharacterVault({ campaign, characters, loading, curator, onNew, 
   const [selTag, setSelTag] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [notesFor, setNotesFor] = useState<CharacterRecord | null>(null);
+  // Table budgets are live — re-read whenever the rules dialog closes so cards
+  // re-flag immediately after the Curator moves a cap.
+  const [caps, setCaps] = useState(() => sheetCaps(loadRules(campaign.id)));
+  const overBudget = (c: CharacterRecord) => !validateSheet(c.sheet.attributes, c.sheet.specialties, caps).ok;
 
   const persistFolders = (next: CharFolder[]) => setFolders(saveFolders(campaign.id, next));
 
@@ -218,7 +223,15 @@ export function CharacterVault({ campaign, characters, loading, curator, onNew, 
         </div>
         </div>
       </div>
-      {rulesOpen && <TableRules campaignId={campaign.id} onClose={() => setRulesOpen(false)} />}
+      {rulesOpen && (
+        <TableRules
+          campaignId={campaign.id}
+          onClose={() => {
+            setCaps(sheetCaps(loadRules(campaign.id)));
+            setRulesOpen(false);
+          }}
+        />
+      )}
       <input ref={importRef} type="file" accept=".json,application/json" multiple hidden onChange={(e) => { const files = Array.from(e.target.files ?? []); e.target.value = ""; if (files.length) onImportFiles(files); }} />
 
       <div className="vault-body">
@@ -284,6 +297,11 @@ export function CharacterVault({ campaign, characters, loading, curator, onNew, 
                       <div className="char-name">{c.name}</div>
                       <div className="char-meta">{subtitle(c)}</div>
                       <div className="char-loc" title="Which area › place this character is filed under">in {pathLabel(folders, c.sheet.folderId)}</div>
+                      {overBudget(c) && (
+                        <div className="char-overbudget" title={validateSheet(c.sheet.attributes, c.sheet.specialties, caps).errors.join("\n")}>
+                          Over this table's budget
+                        </div>
+                      )}
                     </div>
                   </button>
                   <div className="char-tags">

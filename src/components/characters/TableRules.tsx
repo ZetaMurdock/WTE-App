@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
+import { SPEC_MAX, SPEC_TOTAL } from "../../game/wte";
 import {
   ATTR_BUDGET_MAX,
   ATTR_BUDGET_MIN,
+  SPEC_TOTAL_MAX,
+  SPEC_TOTAL_MIN,
   loadRules,
   saveRules,
   type CampaignRules,
@@ -37,6 +40,34 @@ export function TableRules({ campaignId, onClose }: Props) {
         </div>
 
         <div className="rule-block">
+          <div className="rule-toggle">Specialty points per character</div>
+          <p className="rule-note">
+            The published rules give every character {SPEC_TOTAL}. Lower it for a
+            grittier table, raise it for veterans. A single specialty still caps at
+            {" "}{SPEC_MAX}.
+          </p>
+          <div className="rule-field">
+            <span className="rule-field-label">Points</span>
+            <input
+              className="stat-input"
+              type="number"
+              min={SPEC_TOTAL_MIN}
+              max={SPEC_TOTAL_MAX}
+              value={rules.specTotal}
+              onChange={(e) => {
+                const v = parseInt(e.target.value, 10);
+                patch({ specTotal: Number.isFinite(v) ? v : rules.specTotal });
+              }}
+            />
+            {rules.specTotal !== SPEC_TOTAL && (
+              <button className="icon-btn xs" onClick={() => patch({ specTotal: SPEC_TOTAL })} title="Back to the published rules">
+                Reset to {SPEC_TOTAL}
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="rule-block">
           <label className="rule-toggle">
             <input type="checkbox" checked={rules.attrBudget} onChange={(e) => patch({ attrBudget: e.target.checked })} />
             <span>Enforce an attribute budget at creation</span>
@@ -67,8 +98,9 @@ export function TableRules({ campaignId, onClose }: Props) {
         </div>
 
         <p className="rule-foot">
-          This campaign only, and only for characters built from here on — existing
-          sheets are left alone.
+          These apply to this campaign only, and they are live: every sheet in the
+          vault is measured against the current numbers, so lowering a cap flags the
+          characters that no longer fit rather than quietly grandfathering them.
         </p>
       </div>
     </div>

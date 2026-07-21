@@ -977,22 +977,34 @@ export function computeDerived(
 export function specialtyTotal(specs: Specialties): number {
   return SPEC_KEYS.reduce((sum, k) => sum + (specs[k] || 0), 0);
 }
-export function specialtyRemaining(specs: Specialties): number {
-  return SPEC_TOTAL - specialtyTotal(specs);
+/** Points left, against the table's cap (the Curator may raise or lower it). */
+export function specialtyRemaining(specs: Specialties, specTotal: number = SPEC_TOTAL): number {
+  return specTotal - specialtyTotal(specs);
 }
 
 export interface SheetValidation {
   ok: boolean;
   errors: string[];
 }
-export function validateSheet(attrs: Attributes, specs: Specialties): SheetValidation {
+/** Budgets the Curator can move; omitted fields fall back to the published rules. */
+export interface SheetCaps {
+  specTotal?: number;
+  /** Cap on the SUM of the seven attributes; undefined = no cap (rolled table). */
+  attrTotal?: number;
+}
+export function validateSheet(attrs: Attributes, specs: Specialties, caps: SheetCaps = {}): SheetValidation {
+  const specTotal = caps.specTotal ?? SPEC_TOTAL;
   const errors: string[] = [];
   for (const a of ATTRIBUTES) {
     const v = attrs[a.key];
     if (v < ATTR_MIN || v > ATTR_MAX) errors.push(`${a.short} must be between ${ATTR_MIN} and ${ATTR_MAX}.`);
   }
+  if (caps.attrTotal != null) {
+    const at = ATTRIBUTES.reduce((sum, a) => sum + (attrs[a.key] || 0), 0);
+    if (at > caps.attrTotal) errors.push(`Attributes use ${at}/${caps.attrTotal} points (over by ${at - caps.attrTotal}).`);
+  }
   const total = specialtyTotal(specs);
-  if (total > SPEC_TOTAL) errors.push(`Specialties use ${total}/${SPEC_TOTAL} points (over by ${total - SPEC_TOTAL}).`);
+  if (total > specTotal) errors.push(`Specialties use ${total}/${specTotal} points (over by ${total - specTotal}).`);
   for (const sp of SPECIALTIES) {
     const v = specs[sp.key] || 0;
     if (v > SPEC_MAX) errors.push(`${sp.label} exceeds the ${SPEC_MAX}-point cap.`);

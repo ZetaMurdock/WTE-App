@@ -58,6 +58,7 @@ import { NegotiationPanel } from "./NegotiationPanel";
 import { getWeapon, loadoutMods, loadoutNC, weaponSlotsUsed, WEAPON_SLOTS } from "../../lib/codex";
 import type { Weapon } from "../../models/codex";
 import { useNet } from "../../net/NetContext";
+import { loadRules, sheetCaps } from "../../lib/campaignRules";
 import { RollButton } from "./RollButton";
 
 interface Props {
@@ -137,7 +138,10 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   for (const [k, v] of Object.entries(soulMods.spec)) specPlusSoul[k as SpecKey] = (specPlusSoul[k as SpecKey] || 0) + (v || 0);
   for (const [k, v] of Object.entries(bgSpecBonuses(sheet.background))) specPlusSoul[k as SpecKey] = (specPlusSoul[k as SpecKey] || 0) + (v || 0);
   const effSpec = effectiveSpecialties(sheet.specialties, specPlusSoul);
-  const remaining = specialtyRemaining(sheet.specialties);
+  // Live table budgets — a Curator who lowers a cap flags every sheet that no
+  // longer fits, rather than grandfathering builds nobody can rebuild.
+  const caps = sheetCaps(loadRules(campaignId));
+  const remaining = specialtyRemaining(sheet.specialties, caps.specTotal);
   const derived = computeDerived(sheet.attributes, sheet.specialties, {
     speciesId: sheet.speciesId,
     rank,
@@ -164,7 +168,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   const maxNC = derived.nc;
   const ncUsed = loadoutNC(weaponLoadout, gearLoadout);
   const slotsUsed = weaponSlotsUsed(weaponLoadout);
-  const validation = validateSheet(sheet.attributes, sheet.specialties);
+  const validation = validateSheet(sheet.attributes, sheet.specialties, caps);
   const species = getSpecies(sheet.speciesId);
   const paradigm = getParadigm(sheet.paradigmId);
   const equippedWeapons = weaponLoadout.map((n) => getWeapon(n)).filter((w): w is Weapon => !!w);
