@@ -40,6 +40,8 @@ export interface CharacterSheet {
   eminence?: number;
   /** Pressure Engine — current PE/BP 0..200 (default 50). */
   pressure?: number;
+  /** Negotiation Engine — the client currently across the table. */
+  negotiation?: { client?: string; resistance?: number; eminenceReq?: number };
   equipment?: EquipmentItem[];
   /** Selected genus / cipher ability names (loadout, capped by rank slots). */
   genusLoadout?: string[];

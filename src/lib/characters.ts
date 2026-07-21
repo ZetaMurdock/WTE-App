@@ -50,6 +50,7 @@ function parseSheet(raw: string | null): CharacterSheet {
       gearLoadout: Array.isArray(p.gearLoadout) ? p.gearLoadout : [],
       ssSpent: typeof p.ssSpent === "number" ? p.ssSpent : 0,
       notes: p.notes || "",
+      negotiation: p.negotiation && typeof p.negotiation === "object" ? p.negotiation : undefined,
       folderId: p.folderId ?? null,
       tags: Array.isArray(p.tags) ? p.tags : [],
       notesMd: typeof p.notesMd === "string" ? p.notesMd : "",

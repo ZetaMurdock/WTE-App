@@ -1166,6 +1166,12 @@ body.wte-dot-cursor * {
 .pe-state.tense { color: #d8b25a; border-color: #d8b25a; }
 .pe-state.critical { color: #c07030; border-color: #c07030; animation: pe-pulse 1.6s ease-in-out infinite; }
 .pe-state.catastrophic { color: #c25b4a; border-color: #c25b4a; animation: pe-pulse 0.8s ease-in-out infinite; }
+/* Negotiation Engine — how the room reads, from Accord to Sealed. */
+.pe-state.accord { color: #6f9a68; border-color: #6f9a68; }
+.pe-state.receptive { color: #689a96; border-color: #689a96; }
+.pe-state.guarded { color: #d8b25a; border-color: #d8b25a; }
+.pe-state.resistant { color: #c07030; border-color: #c07030; }
+.pe-state.sealed { color: #c25b4a; border-color: #c25b4a; animation: pe-pulse 1.6s ease-in-out infinite; }
 @keyframes pe-pulse {
   0%, 100% { box-shadow: 0 0 0 rgba(194, 91, 74, 0); }
   50% { box-shadow: 0 0 12px rgba(194, 91, 74, 0.5); }

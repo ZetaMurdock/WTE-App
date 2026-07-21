@@ -54,6 +54,7 @@ import { WeaponsBody, InventoryBody } from "./EquipmentPanel";
 import { AbilitiesBody } from "./AbilitiesPanel";
 import { ActionsTable } from "./ActionsTable";
 import { PressureEngine } from "./PressureEngine";
+import { NegotiationPanel } from "./NegotiationPanel";
 import { getWeapon, loadoutMods, loadoutNC, weaponSlotsUsed, WEAPON_SLOTS } from "../../lib/codex";
 import type { Weapon } from "../../models/codex";
 import { useNet } from "../../net/NetContext";
@@ -67,11 +68,12 @@ interface Props {
   onChanged: () => void;
 }
 
-type SheetTab = "stats" | "actions" | "pressure" | "inventory" | "loadout" | "bio";
+type SheetTab = "stats" | "actions" | "pressure" | "diplomacy" | "inventory" | "loadout" | "bio";
 const SHEET_TABS: { id: SheetTab; label: string }[] = [
   { id: "stats", label: "Stats" },
   { id: "actions", label: "Actions" },
   { id: "pressure", label: "Pressure" },
+  { id: "diplomacy", label: "Diplomacy" },
   { id: "inventory", label: "Inventory" },
   { id: "loadout", label: "Loadout" },
   { id: "bio", label: "Bio" },
@@ -557,6 +559,20 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                 pressure={net.status === "connected" ? net.bp : sheet.pressure ?? PE_DEFAULT}
                 onPressure={net.status === "connected" ? net.setSharedBp : setPressure}
                 shared={net.status === "connected"}
+                onRoll={doRoll}
+              />
+            )}
+
+            {tab === "diplomacy" && (
+              <NegotiationPanel
+                attrs={eff}
+                specs={effSpec}
+                rank={rank}
+                morality={sheet.morality}
+                influenceMod={derived.inf}
+                eminence={sheet.eminence ?? 0}
+                client={sheet.negotiation ?? {}}
+                onClient={(next) => persist({ ...rec!, sheet: { ...sheet, negotiation: next } })}
                 onRoll={doRoll}
               />
             )}
