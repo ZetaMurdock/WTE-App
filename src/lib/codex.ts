@@ -54,7 +54,7 @@ export function getEquipment(name: string): Equipment | undefined {
 }
 
 // A weapon is ranged if its range/profile names "ranged" or a distance over 5 ft (melee otherwise).
-// Drives the to-hit stat: ranged uses DEX, melee uses PHY.
+// Drives the to-hit stat: ranged uses DEX, melee uses STR.
 export function isRangedWeapon(w: { range?: string; baseAttack?: string }): boolean {
   const r = `${w.range || ""} ${w.baseAttack || ""}`;
   if (/\bmelee\b/i.test(r)) return false;

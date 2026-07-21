@@ -7,7 +7,7 @@ Inquisitors in WTE are drawn from three primary families: **Humanity**, **Omenit
 ### Humanity
 The most populous and adaptable species.
 *   **Hyomen:** Highly versatile, balanced. Innate: *Prodigal Mind, Indecisive Body, Indomitable Will, Peak Evolution*.
-*   **Voaulton:** Heavy physical and cybernetic integration (+2 PHY, +2 END). Innate: *Chemical Mastery, Robotic Integration, Adaptive Analysis, Energetic Synergy*.
+*   **Voaulton:** Heavy physical and cybernetic integration (+2 STR, +2 END). Innate: *Chemical Mastery, Robotic Integration, Adaptive Analysis, Energetic Synergy*.
 *   **Mirga:** Psychological mimics (+2 INT, +2 AP). Innate: *Perfect Mimicry, Mimetic Adaptation, Illusory Disguise, Emotional Mimicry*.
 
 ---

@@ -55,14 +55,17 @@ function slug(s: string): string {
 function csv(v?: string): string[] {
   return (v || "").split(/[,;·]/).map((s) => s.trim()).filter(Boolean);
 }
-/** "PHY +2, END +2" or "+2 PHY" pairs → attribute bonus map. */
+/** "STR +2, END +2" or "+2 STR" pairs → attribute bonus map.
+ *  PHY is still accepted — it was this attribute's name until v0.8.37, and older
+ *  Codex pages and homebrew packs are full of it. */
 function parseBonuses(v?: string): Partial<Record<AttrKey, number>> {
   const out: Partial<Record<AttrKey, number>> = {};
   if (!v || /^(none|—|-)$/i.test(v.trim())) return out;
-  const re = /(phy|dex|end|ap|wis|cha|int)\s*([+-]?\d+)|([+-]\d+)\s*(phy|dex|end|ap|wis|cha|int)/gi;
+  const re = /(str|phy|dex|end|ap|wis|cha|int)\s*([+-]?\d+)|([+-]\d+)\s*(str|phy|dex|end|ap|wis|cha|int)/gi;
   let m: RegExpExecArray | null;
   while ((m = re.exec(v))) {
-    const key = (m[1] || m[4]).toLowerCase() as AttrKey;
+    const tok = (m[1] || m[4]).toLowerCase();
+    const key = (tok === "str" ? "phy" : tok) as AttrKey;
     const n = parseInt(m[2] || m[3], 10);
     if (ATTRS.includes(key) && Number.isFinite(n)) out[key] = n;
   }

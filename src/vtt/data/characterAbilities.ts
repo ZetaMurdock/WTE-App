@@ -61,7 +61,7 @@ function mk(
   };
 }
 
-// Weapon to-hit mirrors the character sheet's ActionsTable: atk + PHY (melee) or
+// Weapon to-hit mirrors the character sheet's ActionsTable: atk + STR (melee) or
 // DEX (ranged) modifier, with the same effective-attribute + equipment stack.
 function deriveHits(rec: CharacterRecord): { atk: number; phyMod: number; dexMod: number } {
   const s = rec.sheet;

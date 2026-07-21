@@ -19,7 +19,8 @@ export type Specialties = Record<SpecKey, number>;
 export type Derived = Record<DerivedKey, number>;
 
 export const ATTRIBUTES: { key: AttrKey; label: string; short: string; desc: string }[] = [
-  { key: "phy", label: "Physical", short: "PHY", desc: "Strength, muscle, melee damage." },
+  // Key stays `phy` — it is on every saved sheet. Only the display name moved.
+  { key: "phy", label: "Strength", short: "STR", desc: "Muscle, lifting capacity, melee damage." },
   { key: "dex", label: "Dexterity", short: "DEX", desc: "Speed, reflexes, ranged accuracy." },
   { key: "end", label: "Endurance", short: "END", desc: "Health scaling, stamina, toxin resistance." },
   { key: "ap", label: "Action Priority", short: "AP", desc: "Tactical awareness, turn order." },
@@ -1063,7 +1064,7 @@ export function rollGeneric(label: string, mode: RollMode = "normal"): RollResul
   const { roll, rolls } = rollDieMode(20, mode);
   return { formula: `1d20${modeTag(mode, rolls)}`, result: roll, detail: { die: 20, roll, modifier: 0, label, mode, rolls } };
 }
-// A d20 attack roll with an explicit to-hit modifier (weapon HIT = ATK + PHY/DEX mod).
+// A d20 attack roll with an explicit to-hit modifier (weapon HIT = ATK + STR/DEX mod).
 export function rollToHit(label: string, mod: number, mode: RollMode = "normal"): RollResult {
   const { roll, rolls } = rollDieMode(20, mode);
   return { formula: `1d20 ${fmtMod(mod)}${modeTag(mode, rolls)}`, result: roll + mod, detail: { die: 20, roll, modifier: mod, label, mode, rolls } };

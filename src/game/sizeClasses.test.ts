@@ -134,7 +134,7 @@ describe("auto size falls back to the species default", () => {
 describe("which die each check rolls", () => {
   it("ATTRIBUTES are the only d20 — 1d20 + rollMod, never a penalty", () => {
     for (let i = 0; i < 30; i++) {
-      const r = rollAttribute("Physical", 14);
+      const r = rollAttribute("Strength", 14);
       expect(r.formula).toBe(`1d20 + ${rollMod(14)}`);
       expect((r.detail as { die: number }).die).toBe(20);
       expect(r.result).toBeGreaterThanOrEqual(1 + rollMod(14));
@@ -180,13 +180,13 @@ describe("advantage / disadvantage postures", () => {
   });
 
   it("the roll message names the posture and shows both dice", () => {
-    const adv = rollAttribute("Physical", 14, "adv");
+    const adv = rollAttribute("Strength", 14, "adv");
     expect(adv.formula).toContain("Advantage");
     expect(adv.formula).toContain(adv.detail.rolls!.join("/"));
     const dis = rollSpecialty("Willpower", 30, "dis");
     expect(dis.formula).toContain("Disadvantage");
     expect((dis.detail as { die: number }).die).toBe(40); // posture never changes the die
-    expect(rollAttribute("Physical", 14).formula).not.toContain("Advantage"); // normal stays clean
+    expect(rollAttribute("Strength", 14).formula).not.toContain("Advantage"); // normal stays clean
   });
 
   it("dice expressions roll the whole expression twice and keep high/low", () => {

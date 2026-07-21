@@ -85,7 +85,7 @@ What this creature is and where it's found.
 | Type | Species |
 | Name | New Species |
 | Family | Humanity |
-| Bonuses | PHY +2, END +1 |
+| Bonuses | STR +2, END +1 |
 | Innate | Darkvision |
 | Size | medium |
 

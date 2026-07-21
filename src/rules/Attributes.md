@@ -6,7 +6,7 @@ Every Inquisitor is defined by seven primary attributes. Checks are resolved by 
 
 ### The Seven Attributes
 
-1.  **PHY (Physical / Strength):** Measures physical power, muscle mass, lifting capacity, and melee weapon damage modifiers.
+1.  **STR (Strength):** Measures physical power, muscle mass, lifting capacity, and melee weapon damage modifiers. *(Written PHY before v0.8.37 — same attribute, same saved data.)*
 2.  **DEX (Dexterity):** Dictates speed, coordination, precision reflexes, dodging, and ranged weapon accuracy.
 3.  **END (Endurance):** Determines health pool scaling, stamina, resistance to toxins, and physical fatigue.
 4.  **AP (Action Priority):** Influences tactical awareness, reflexes, and the order of turn resolutions during combat rounds.
