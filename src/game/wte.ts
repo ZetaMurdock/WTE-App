@@ -882,18 +882,22 @@ export function computeDerived(
   };
 
   // THE 10 DERIVED STATISTICS — inputs / reduced-by per the published table
-  // (every reduction is −1 per 3 points, RED_DIV).
+  // (every reduction is −1 per 3 points, RED_DIV). Each ATTRIBUTE also drags its
+  // natural opposite so no attribute is pure upside — the dichotomy web:
+  //   STR→EV (force vs finesse) · DEX→DHP (finesse vs mass) · END→MV (mass vs speed)
+  //   AP→RR (twitch vs rest) · WIS→AD (deliberation vs frenzy) · CHA→PR (projection
+  //   vs observation) · INT→ATK (brains vs brawn). SS/NC/INF keep no attr reducer.
   const raw: Derived = {
-    atk: dv(a.phy + s.wt + s.wm, red(s.pre) + red(s.bal)),
-    dhp: dv(s.wt + a.end, red(s.bal) + red(s.pre)),
-    mv: dv(a.dex + a.ap + s.ctrl, red(s.wt) + red(s.pre)),
+    atk: dv(a.phy + s.wt + s.wm, red(s.pre) + red(s.bal) + red(a.int)),
+    dhp: dv(s.wt + a.end, red(s.bal) + red(s.pre) + red(a.dex)),
+    mv: dv(a.dex + a.ap + s.ctrl, red(s.wt) + red(s.pre) + red(a.end)),
     ss: dv(s.mf + a.int + s.ctrl, red(s.pre) + red(s.wm)),
-    ev: dv(a.dex + s.bal + s.cun, red(s.wt) + red(s.mf)),
+    ev: dv(a.dex + s.bal + s.cun, red(s.wt) + red(s.mf) + red(a.phy)),
     nc: dv(s.adp + s.mf + a.wis + s.per, red(s.ctrl) + red(s.wm)),
-    rr: dv(a.end + s.bal + s.adp, red(s.wt) + red(s.ctrl) + red(s.cun)),
-    ad: dv(a.ap + s.pre + s.cun + s.ctrl, red(s.wt) + red(s.mf)),
+    rr: dv(a.end + s.bal + s.adp, red(s.wt) + red(s.ctrl) + red(s.cun) + red(a.ap)),
+    ad: dv(a.ap + s.pre + s.cun + s.ctrl, red(s.wt) + red(s.mf) + red(a.wis)),
     inf: dv(a.cha + s.cun + s.per + s.pre, red(s.adp) + red(s.wt)),
-    pr: dv(a.wis + s.per + s.cun + s.bal, red(s.mf)),
+    pr: dv(a.wis + s.per + s.cun + s.bal, red(s.mf) + red(a.cha)),
   };
   // Equipment MODS on derived stats feed the RAW pool (everything flows through raw).
   const ed = opts.equip?.derived;

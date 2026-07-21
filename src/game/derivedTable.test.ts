@@ -54,6 +54,32 @@ describe("derived statistics table", () => {
     expect(modded.ev).toBeLessThan(base.ev); // and drags Evasion (−1 per 3)
   });
 
+  it("each attribute drags its opposite derived stat (the dichotomy web)", () => {
+    const base = computeDerived(zeroA(), zeroS(), {}).raw;
+    // A single attribute at 30 → −10 to exactly its opposite, nothing it feeds.
+    const drag = (attr: string): Partial<Record<keyof typeof base, number>> => {
+      const r = computeDerived({ ...zeroA(), [attr]: 30 }, zeroS(), {}).raw;
+      const out: Record<string, number> = {};
+      for (const k of Object.keys(base) as (keyof typeof base)[]) out[k] = r[k] - base[k];
+      return out;
+    };
+    expect(drag("int").atk).toBe(-10); // Intelligence → Attack Power
+    expect(drag("dex").dhp).toBe(-10); // Dexterity → DHP
+    expect(drag("end").mv).toBeLessThan(0); // Endurance → Movement (END also FEEDS dhp/rr, so those rise)
+    expect(drag("phy").ev).toBe(-10); // Strength → Evasion
+    expect(drag("ap").rr).toBeLessThan(0); // Action Priority → Recovery Rate
+    expect(drag("wis").ad).toBe(-10); // Wisdom → Action Density
+    expect(drag("cha").pr).toBe(-10); // Charisma → Perception Range
+  });
+
+  it("no attribute reduces a derived stat it also feeds", () => {
+    const base = computeDerived(zeroA(), zeroS(), {}).raw;
+    // Strength feeds ATK and drags EV — ATK must not fall when STR rises.
+    const str = computeDerived({ ...zeroA(), phy: 30 }, zeroS(), {}).raw;
+    expect(str.atk).toBeGreaterThan(base.atk);
+    expect(str.ev).toBeLessThan(base.ev);
+  });
+
   it("every reduction runs at −1 per 3 points", () => {
     // DHP with 30 Balance loses exactly 10 off the unreduced value.
     const a = { ...zeroA(), end: 20 };
