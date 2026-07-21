@@ -54,4 +54,11 @@ export interface CharacterSheet {
   /** Manual derived-stat overrides (Curator-sanctioned) — replace computed values. */
   derivedOverrides?: Partial<Record<DerivedKey, number>> & { hpMax?: number; ncMod?: number };
   notes?: string;
+  // ── Vault organization ──────────────────────────────────────────────────────
+  /** Which vault folder this entry lives in (null/undefined = the vault root). */
+  folderId?: string | null;
+  /** Free-form tags — the player/Curator names them (NPC, Creature, Boss, Ally…). */
+  tags?: string[];
+  /** Full-Markdown notes attached to the character (lore, session log, secrets). */
+  notesMd?: string;
 }

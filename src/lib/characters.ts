@@ -50,6 +50,9 @@ function parseSheet(raw: string | null): CharacterSheet {
       gearLoadout: Array.isArray(p.gearLoadout) ? p.gearLoadout : [],
       ssSpent: typeof p.ssSpent === "number" ? p.ssSpent : 0,
       notes: p.notes || "",
+      folderId: p.folderId ?? null,
+      tags: Array.isArray(p.tags) ? p.tags : [],
+      notesMd: typeof p.notesMd === "string" ? p.notesMd : "",
     };
   } catch {
     return emptySheet();
@@ -147,6 +150,15 @@ export async function updateCharacter(
 export async function deleteCharacter(id: string): Promise<void> {
   const db = await getDb();
   await db.execute("DELETE FROM characters WHERE id = $1", [id]);
+}
+
+/** Merge a partial sheet change into a character (folder move, tags, notes) —
+ *  loads, patches, and persists the whole sheet. Returns false if not found. */
+export async function patchCharacterSheet(id: string, patch: Partial<CharacterSheet>): Promise<boolean> {
+  const rec = await getCharacter(id);
+  if (!rec) return false;
+  await updateCharacter(id, { sheet: { ...rec.sheet, ...patch } });
+  return true;
 }
 
 /** Insert-or-replace a full record by id — used to apply a character pushed over

@@ -3,6 +3,7 @@ import type { Campaign } from "../../models/campaign";
 import { listCharacters, createCharacter, type CharacterRecord } from "../../lib/characters";
 import { randomCharacter } from "../../lib/randomChar";
 import { parseLegacySheet, scanLegacyStorage } from "../../lib/legacyImport";
+import { fromSharedCharacter } from "../../lib/charShare";
 import { isTauri } from "../../lib/tauri";
 import { CharacterVault } from "./CharacterVault";
 import { CharacterCreator } from "./CharacterCreator";
@@ -102,13 +103,16 @@ export function CharactersTab({ campaign, curator, onCharactersChanged }: Props)
         let lastId: string | null = null;
         for (const f of files) {
           try {
-            const { name, sheet } = parseLegacySheet(JSON.parse(await f.text()));
+            const parsed = JSON.parse(await f.text());
+            // Native shared-character export first, then the legacy sheet format.
+            const shared = fromSharedCharacter(parsed);
+            const { name, sheet } = shared ?? parseLegacySheet(parsed);
             lastId = (await createCharacter(campaign.id, name, sheet)).id;
           } catch {
             failed.push(f.name);
           }
         }
-        if (failed.length) alert("Couldn't import: " + failed.join(", ") + "\n(Expecting the old sheet's exported .json.)");
+        if (failed.length) alert("Couldn't import: " + failed.join(", ") + "\n(Expecting a shared .wte-character.json or the old sheet's exported .json.)");
         await reload();
         if (lastId && files.length === 1) setView({ mode: "sheet", id: lastId });
       }}
