@@ -15,6 +15,7 @@ import {
   renameFolder,
   removeFolder,
   descendantIds,
+  pathLabel,
 } from "../../lib/charFolders";
 
 interface Props {
@@ -62,6 +63,20 @@ export function CharacterVault({ campaign, characters, loading, onNew, onRandomi
     }
     return characters.filter((c) => scope(c) && (!selTag || (c.sheet.tags ?? []).includes(selTag)));
   }, [characters, folders, sel, selTag]);
+
+  // Flat, tree-ordered folder list with full "Area › Place" labels for the move
+  // dropdown — so two same-named places in different areas are distinguishable.
+  const folderOptions = useMemo(() => {
+    const out: { id: string; label: string }[] = [];
+    const walk = (parentId: string | null) => {
+      for (const f of folders.filter((x) => x.parentId === parentId)) {
+        out.push({ id: f.id, label: pathLabel(folders, f.id) });
+        walk(f.id);
+      }
+    };
+    walk(null);
+    return out;
+  }, [folders]);
 
   const countIn = (id: Sel) => {
     if (id === "all") return characters.length;
@@ -119,9 +134,26 @@ export function CharacterVault({ campaign, characters, loading, onNew, onRandomi
     return [getSpecies(c.sheet.speciesId)?.name, getParadigm(c.sheet.paradigmId)?.name].filter(Boolean).join(" · ") || "No species / paradigm set";
   }
 
-  // recursive folder tree row
+  // A character leaf inside the tree — clicking opens it, so the Curator can walk
+  // Area → Place → the actual person the way the wiki tree does.
+  function CharLeaf({ c, depth }: { c: CharacterRecord; depth: number }) {
+    return (
+      <li>
+        <div className="vault-tree-row leaf" style={{ paddingLeft: 8 + depth * 14 }}>
+          <span className="vault-tree-caret" style={{ visibility: "hidden" }} />
+          <button className="vault-tree-name char" onClick={() => onOpen(c.id)} title={`Open ${c.name}`}>
+            <span className="vault-leaf-dot" aria-hidden />{c.name}
+          </button>
+        </div>
+      </li>
+    );
+  }
+
+  // recursive folder tree row — child folders AND the characters filed here
   function FolderNode({ f, depth }: { f: CharFolder; depth: number }) {
     const children = folders.filter((x) => x.parentId === f.id);
+    const here = characters.filter((c) => c.sheet.folderId === f.id);
+    const hasContent = children.length > 0 || here.length > 0;
     const isOpen = expanded.has(f.id);
     return (
       <li>
@@ -129,7 +161,7 @@ export function CharacterVault({ campaign, characters, loading, onNew, onRandomi
           <button
             className="vault-tree-caret"
             onClick={() => setExpanded((s) => { const n = new Set(s); n.has(f.id) ? n.delete(f.id) : n.add(f.id); return n; })}
-            style={{ visibility: children.length ? "visible" : "hidden" }}
+            style={{ visibility: hasContent ? "visible" : "hidden" }}
           >
             {isOpen ? "▾" : "▸"}
           </button>
@@ -137,12 +169,17 @@ export function CharacterVault({ campaign, characters, loading, onNew, onRandomi
             {f.name} <span className="vault-tree-count">{countIn(f.id)}</span>
           </button>
           <span className="vault-tree-tools">
-            <button className="icon-btn xs" title="New sub-folder" onClick={() => newFolder(f.id)}>+</button>
+            <button className="icon-btn xs" title="New place inside" onClick={() => newFolder(f.id)}>+</button>
             <button className="icon-btn xs" title="Rename" onClick={() => renameFolderPrompt(f)}>✎</button>
             <button className="icon-btn xs" title="Delete folder" onClick={() => deleteFolderConfirm(f)}>✕</button>
           </span>
         </div>
-        {isOpen && children.length > 0 && <ul className="vault-tree-sub">{children.map((c) => <FolderNode key={c.id} f={c} depth={depth + 1} />)}</ul>}
+        {isOpen && hasContent && (
+          <ul className="vault-tree-sub">
+            {children.map((c) => <FolderNode key={c.id} f={c} depth={depth + 1} />)}
+            {here.map((c) => <CharLeaf key={c.id} c={c} depth={depth + 1} />)}
+          </ul>
+        )}
       </li>
     );
   }
@@ -186,12 +223,25 @@ export function CharacterVault({ campaign, characters, loading, onNew, onRandomi
               </div>
             </li>
             {roots.map((f) => <FolderNode key={f.id} f={f} depth={0} />)}
-            <li>
-              <div className={"vault-tree-row" + (sel === "unfiled" ? " active" : "")} style={{ paddingLeft: 8 }}>
-                <span className="vault-tree-caret" style={{ visibility: "hidden" }} />
-                <button className="vault-tree-name" onClick={() => setSel("unfiled")}>Unfiled <span className="vault-tree-count">{countIn("unfiled")}</span></button>
-              </div>
-            </li>
+            {(() => {
+              const unfiled = characters.filter((c) => !c.sheet.folderId);
+              const open = expanded.has("__unfiled__");
+              return (
+                <li>
+                  <div className={"vault-tree-row" + (sel === "unfiled" ? " active" : "")} style={{ paddingLeft: 8 }}>
+                    <button
+                      className="vault-tree-caret"
+                      onClick={() => setExpanded((s) => { const n = new Set(s); n.has("__unfiled__") ? n.delete("__unfiled__") : n.add("__unfiled__"); return n; })}
+                      style={{ visibility: unfiled.length ? "visible" : "hidden" }}
+                    >
+                      {open ? "▾" : "▸"}
+                    </button>
+                    <button className="vault-tree-name" onClick={() => setSel("unfiled")}>Unfiled <span className="vault-tree-count">{unfiled.length}</span></button>
+                  </div>
+                  {open && unfiled.length > 0 && <ul className="vault-tree-sub">{unfiled.map((c) => <CharLeaf key={c.id} c={c} depth={1} />)}</ul>}
+                </li>
+              );
+            })()}
           </ul>
 
           {allTags.length > 0 && (
@@ -221,6 +271,7 @@ export function CharacterVault({ campaign, characters, loading, onNew, onRandomi
                     <div className="char-open-text">
                       <div className="char-name">{c.name}</div>
                       <div className="char-meta">{subtitle(c)}</div>
+                      <div className="char-loc" title="Which area › place this character is filed under">in {pathLabel(folders, c.sheet.folderId)}</div>
                     </div>
                   </button>
                   <div className="char-tags">
@@ -238,12 +289,12 @@ export function CharacterVault({ campaign, characters, loading, onNew, onRandomi
                     <ConfirmButton label="Delete" confirmLabel="Delete forever" title="Delete this character" onConfirm={() => void handleDelete(c)} />
                     <select
                       className="char-move"
-                      title="Move to folder"
+                      title="Move to an area › place"
                       value={c.sheet.folderId ?? ""}
                       onChange={(e) => void moveTo(c, e.target.value || null)}
                     >
                       <option value="">Unfiled</option>
-                      {folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+                      {folderOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
                     </select>
                   </div>
                 </div>

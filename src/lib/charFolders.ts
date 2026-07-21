@@ -61,6 +61,27 @@ export function removeFolder(list: CharFolder[], id: string): { list: CharFolder
   return { list: list.filter((f) => !removed.includes(f.id)), removed };
 }
 
+/** The ancestor chain root→leaf for a folder (e.g. [Dominions, Uni 1]). Empty
+ *  for null/unknown ids. Cycle-guarded. */
+export function folderPath(list: CharFolder[], id: string | null | undefined): CharFolder[] {
+  const byId = new Map(list.map((f) => [f.id, f]));
+  const out: CharFolder[] = [];
+  const seen = new Set<string>();
+  let cur = id ? byId.get(id) : undefined;
+  while (cur && !seen.has(cur.id)) {
+    seen.add(cur.id);
+    out.unshift(cur);
+    cur = cur.parentId ? byId.get(cur.parentId) : undefined;
+  }
+  return out;
+}
+
+/** "Area › Place" location label for a folder id (or "Unfiled" when none). */
+export function pathLabel(list: CharFolder[], id: string | null | undefined, sep = " › "): string {
+  const path = folderPath(list, id);
+  return path.length ? path.map((f) => f.name).join(sep) : "Unfiled";
+}
+
 // ── localStorage wrappers ────────────────────────────────────────────────────
 
 const key = (campaignId: string) => `wte-char-folders:${campaignId}`;
