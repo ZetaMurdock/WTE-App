@@ -52,3 +52,46 @@ Inputs: Charisma, Cunning, Perception, Precision · Reduced by: Adaptation, Weig
 
 **10. Perception Range** — detection range, awareness, and identifying hidden or obscured targets.
 Inputs: Wisdom, Perception, Cunning, Balance · Reduced by: Mental Fortitude, **Charisma** (projection vs observation)
+
+---
+
+### Compensation — what a lacking attribute pays back
+
+The dichotomy runs both ways. An attribute **at 10 or above** does nothing but
+drag its opposite. An attribute **below 10** pays its opposite back:
+
+$$\text{Compensation} = \left\lfloor \frac{10 - \text{Attribute}}{6} \times \text{Rank Multiplier} \right\rfloor$$
+
+Two rules make this a build decision instead of a free lunch:
+
+*   **It accrues at half the reduction rate.** Reductions run −1 per 3 points;
+    compensation runs +1 per 6 points below the pivot. Weakness never pays as
+    well as strength costs.
+*   **It is gated on training.** You collect nothing unless you are **trained
+    (25+)** in a specialty that feeds the receiving stat. A dumped attribute
+    with nothing invested opposite it is simply a dumped attribute.
+
+| Attribute | Pays into | Requires training in |
+|---|---|---|
+| Strength | Evasion | Balance *or* Cunning |
+| Dexterity | Defensive HP | Weight |
+| Endurance | Movement | Control |
+| Action Priority | Recovery Rate | Balance *or* Adaptation |
+| Wisdom | Action Density | Precision, Cunning *or* Control |
+| Charisma | Perception Range | Perception, Cunning *or* Balance |
+| Intelligence | Attack Power | Weight *or* Weapon Mastery |
+
+Compensation lands on the **check**, not the raw pool. A ±2 swing in a raw pool
+is invisible at every rank — the conversion moves in blocks of 15 — so the only
+place a shaped build can actually feel its payback is the modifier itself.
+
+**Why the gate matters.** Pushing a contributing specialty from 24 to 25 changes
+your raw pool by one point, which on its own changes your modifier by nothing at
+all. With the gate open it is worth a full point of the receiving stat, at every
+rank. That single point is the difference between a number on a sheet and a
+number at the table.
+
+**A wall of 20s is not a build.** High attributes keep their full drag. Seven
+20s carry the heaviest reduction burden in the system and collect no
+compensation anywhere — a character shaped around what they are *for* will
+out-perform them on the stats they chose.

@@ -857,6 +857,32 @@ export interface DerivedOpts {
   /** Curator-sanctioned manual overrides — replace the computed value outright. */
   overrides?: Partial<Derived> & { hpMax?: number; ncMod?: number };
 }
+/** Attribute value at which compensation begins (below this you are "lacking"). */
+export const ATTR_PIVOT = 10;
+/** Compensation accrues at HALF the reduction rate (RED_DIV 3 → 6). */
+export const COMP_DIV = RED_DIV * 2;
+
+/** The compensation web: a LOW attribute pays back into the stat it opposes —
+ *  but only for a character actually trained in that stat. High attributes keep
+ *  their full drag, so a wall of 20s is still the most taxed build on the table. */
+export const ATTR_COMPENSATION: { attr: AttrKey; stat: DerivedKey; specs: SpecKey[] }[] = [
+  { attr: "phy", stat: "ev", specs: ["bal", "cun"] },
+  { attr: "dex", stat: "dhp", specs: ["wt"] },
+  { attr: "end", stat: "mv", specs: ["ctrl"] },
+  { attr: "ap", stat: "rr", specs: ["bal", "adp"] },
+  { attr: "wis", stat: "ad", specs: ["pre", "cun", "ctrl"] },
+  { attr: "cha", stat: "pr", specs: ["per", "cun", "bal"] },
+  { attr: "int", stat: "atk", specs: ["wt", "wm"] },
+];
+
+/** What a lacking attribute pays back, scaled by rank so it stays legible at 9.
+ *  Zero unless the character is TRAINED (≥ SPEC_PENALTY_MIN) in a contributing
+ *  specialty — dumping alone never pays, you must spend into the other side. */
+export function attrCompensation(attrVal: number, trained: boolean, rank = 0): number {
+  if (!trained || attrVal >= ATTR_PIVOT) return 0;
+  return Math.floor(((ATTR_PIVOT - attrVal) / COMP_DIV) * rankMult(rank));
+}
+
 export function computeDerived(
   attrsIn: Attributes,
   specsIn: Specialties,
@@ -911,6 +937,13 @@ export function computeDerived(
     d[stat.key] = CORE_DERIVED.has(stat.key)
       ? Math.round(raw[stat.key] * rankMult(rank))
       : derivedMod(raw[stat.key], rank);
+  }
+  // Compensation lands on the CHECK, not the raw pool — a ±2 raw swing is
+  // invisible at every rank (the block conversion moves in 15s), so paying a
+  // shaped build back at the modifier is the only place it can be felt.
+  for (const c of ATTR_COMPENSATION) {
+    const trained = c.specs.some((k) => (s[k] || 0) >= SPEC_PENALTY_MIN);
+    d[c.stat] += attrCompensation(a[c.attr], trained, rank);
   }
   // Size Evasion modifier applies to the CHECK (post-conversion), per the AAV rule.
   if (size?.evMod) d.ev += size.evMod;
