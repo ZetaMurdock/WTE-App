@@ -729,9 +729,18 @@ export function usableGenus(paradigmId: string | undefined, loadout: string[]): 
     return { source: "genus" as const, name, ss: a?.ss ?? 0, effect: a?.effect, range: a?.range, target: a?.target, activation: a?.activation };
   });
 }
-/** Ciphers replaced in the rules: saved loadouts holding the old name resolve
- *  (and display) as the replacement, so nobody's character silently loses one. */
-const CIPHER_RENAMES: Record<string, string> = { ANIMATION: "SPYDER SPYDER" };
+/** Ciphers replaced or respelled in the rules: saved loadouts holding the old
+ *  name resolve (and display) as the replacement, so nobody's character
+ *  silently loses one. */
+const CIPHER_RENAMES: Record<string, string> = {
+  ANIMATION: "SPYDER",
+  "SPYDER SPYDER": "SPYDER",
+  STABLIZE: "STABILIZE",
+  BIPARTION: "BIPARTITION",
+  ARTHIMETIC: "ARITHMETIC",
+  DIFUSE: "DIFFUSE",
+  AUTHORATATIVE: "AUTHORITATIVE",
+};
 export function usableCiphers(paradigmId: string | undefined, loadout: string[]): UsableAbility[] {
   const all = ciphersForParadigm(paradigmId);
   return loadout.map((raw) => {
