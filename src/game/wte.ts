@@ -859,8 +859,10 @@ export interface DerivedOpts {
 }
 /** Attribute value at which compensation begins (below this you are "lacking"). */
 export const ATTR_PIVOT = 10;
-/** Compensation accrues at HALF the reduction rate (RED_DIV 3 → 6). */
-export const COMP_DIV = RED_DIV * 2;
+/** Compensation accrues at +1 per 4 points below the pivot — below the −1-per-3
+ *  reduction rate (weakness never pays as well as strength costs), but loud
+ *  enough that a deep dump is worth +2 and grows with rank. */
+export const COMP_DIV = 4;
 
 /** The compensation web: a LOW attribute pays back into the stat it opposes —
  *  but only for a character actually trained in that stat. High attributes keep

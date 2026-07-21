@@ -38,6 +38,7 @@ import {
 } from "../../game/wte";
 import type { CharacterSheet } from "../../models/character";
 import { createCharacter, updateCharacter, type CharacterRecord } from "../../lib/characters";
+import { attrBudgetState, loadRules } from "../../lib/campaignRules";
 import { DerivedPreview } from "./DerivedPreview";
 import { AttributeRoller } from "./AttributeRoller";
 import { PortraitFrame } from "./PortraitFrame";
@@ -117,6 +118,13 @@ export function CharacterCreator({ campaignId, edit, onDone, onCancel }: Props) 
     : { name: bgName.trim() || undefined, mode: bgMode, assign: bgAssign };
   const remaining = specialtyRemaining(specialties);
   const validation = validateSheet(attributes, specialties);
+  // The Curator's attribute budget, if this table runs one. Read once per mount —
+  // it changes from the vault, which unmounts the creator anyway.
+  const [rules] = useState(() => loadRules(campaignId));
+  const budget = attrBudgetState(
+    ATTRIBUTES.reduce((t, a) => t + (attributes[a.key] || 0), 0),
+    rules
+  );
   const species = getSpecies(speciesId);
   const selectedVariant = species?.variants.find((v) => v.name === variantName);
   const paradigm = getParadigm(paradigmId);
@@ -163,6 +171,7 @@ export function CharacterCreator({ campaignId, edit, onDone, onCancel }: Props) 
   const innateComplete = !species?.innateSelect || innateChoice.length === species.innateSelect;
   const variantComplete = !species || species.variants.length === 0 || !!variantName;
   const canNext = step === 0 ? name.trim().length > 0 && (!speciesId || (variantComplete && innateComplete)) : true;
+  const canFinish = validation.ok && !budget.over;
   const isLast = step === STEPS.length - 1;
   // Jump to any step by clicking its tab — the only gate is a name on Identity.
   function goStep(i: number) {
@@ -509,6 +518,13 @@ export function CharacterCreator({ campaignId, edit, onDone, onCancel }: Props) 
                   Roll &amp; assign
                 </button>
               </div>
+              {budget.enforced && (
+                <div className={"points-banner" + (budget.over ? " over" : "")} title="This table's Curator caps total attribute points">
+                  {budget.over
+                    ? `Over the Curator's attribute budget by ${-budget.remaining} points`
+                    : `${budget.remaining} / ${budget.cap} attribute points remaining`}
+                </div>
+              )}
               {attrMode === "manual" ? (
                 <div className="stat-editor">
                   {ATTRIBUTES.map((a) => (
@@ -593,15 +609,19 @@ export function CharacterCreator({ campaignId, edit, onDone, onCancel }: Props) 
             <div className="review-row"><span>Morality</span><b>{morality} · {moralityState(morality).label}</b></div>
             <div className="review-row"><span>Size</span><b>{sizeOf(sizeId, speciesId).label}{sizeId === "auto" ? " (species)" : ""}</b></div>
             <div className="review-row"><span>Specialty points</span><b>{SPEC_TOTAL - remaining} / {SPEC_TOTAL}</b></div>
-            {!validation.ok && (
+            {budget.enforced && (
+              <div className="review-row"><span>Attribute points</span><b>{budget.spent} / {budget.cap}</b></div>
+            )}
+            {!canFinish && (
               <ul className="validation-list">
                 {validation.errors.map((err, i) => (
                   <li key={i}>{err}</li>
                 ))}
+                {budget.over && <li>Attributes total {budget.spent}; this campaign's budget is {budget.cap}.</li>}
               </ul>
             )}
             <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} background={background} morality={morality} />
-            <button className="primary-btn full mt" disabled={saving || !validation.ok} onClick={finish}>
+            <button className="primary-btn full mt" disabled={saving || !canFinish} onClick={finish}>
               {saving ? "Saving…" : edit ? "Save changes" : "Create character"}
             </button>
           </div>
@@ -620,9 +640,9 @@ export function CharacterCreator({ campaignId, edit, onDone, onCancel }: Props) 
       )}
       {isLast ? (
         <button
-          className={"edge-nav right finish" + (saving || !validation.ok ? " off" : "")}
-          title={validation.ok ? "Create character" : "Finish the required steps first"}
-          onClick={() => !saving && validation.ok && finish()}
+          className={"edge-nav right finish" + (saving || !canFinish ? " off" : "")}
+          title={canFinish ? "Create character" : "Finish the required steps first"}
+          onClick={() => !saving && canFinish && finish()}
         >
           <span className="edge-line" aria-hidden />
           <span className="edge-orb" aria-hidden />

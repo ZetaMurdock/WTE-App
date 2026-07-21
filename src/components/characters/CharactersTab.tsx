@@ -91,6 +91,7 @@ export function CharactersTab({ campaign, curator, onCharactersChanged }: Props)
       campaign={campaign}
       characters={characters}
       loading={loading}
+      curator={curator}
       onNew={() => setView({ mode: "creator" })}
       onRandomize={async () => {
         const { name, sheet } = randomCharacter();

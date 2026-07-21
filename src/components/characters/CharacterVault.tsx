@@ -6,6 +6,7 @@ import { getSpecies, getParadigm } from "../../game/wte";
 import { ConfirmButton } from "../ui/ConfirmButton";
 import { PortraitFrame } from "./PortraitFrame";
 import { CharacterNotes } from "./CharacterNotes";
+import { TableRules } from "./TableRules";
 import { downloadCharacter } from "../../lib/charShare";
 import {
   type CharFolder,
@@ -22,6 +23,8 @@ interface Props {
   campaign: Campaign;
   characters: CharacterRecord[];
   loading: boolean;
+  /** Only the Curator sets table rules. */
+  curator: boolean;
   onNew: () => void;
   onRandomize: () => void;
   onImportFiles: (files: File[]) => void;
@@ -35,8 +38,9 @@ interface Props {
 const SUGGESTED_TAGS = ["PC", "NPC", "Ally", "Creature", "Boss", "Faction"];
 type Sel = "all" | "unfiled" | string;
 
-export function CharacterVault({ campaign, characters, loading, onNew, onRandomize, onImportFiles, onMigrateLegacy, onOpen, onEditInCreator, onChanged }: Props) {
+export function CharacterVault({ campaign, characters, loading, curator, onNew, onRandomize, onImportFiles, onMigrateLegacy, onOpen, onEditInCreator, onChanged }: Props) {
   const importRef = useRef<HTMLInputElement>(null);
+  const [rulesOpen, setRulesOpen] = useState(false);
   const [folders, setFolders] = useState<CharFolder[]>(() => listFolders(campaign.id));
   const [sel, setSel] = useState<Sel>("all");
   const [selTag, setSelTag] = useState<string | null>(null);
@@ -193,6 +197,12 @@ export function CharacterVault({ campaign, characters, loading, onNew, onRandomi
           <div className="dash-eyebrow">{campaign.name}</div>
           <h1 className="dash-title">Character Vault</h1>
         </div>
+        <div className="vault-head-actions">
+          {curator && (
+            <button className="icon-btn" onClick={() => setRulesOpen(true)} title="House rules for this campaign">
+              Table Rules
+            </button>
+          )}
         <div className="vault-new-wrap">
           <button className="vault-new" onClick={onNew}>
             <span className="vault-new-plus" aria-hidden>+</span>
@@ -206,7 +216,9 @@ export function CharacterVault({ campaign, characters, loading, onNew, onRandomi
             <button onClick={onMigrateLegacy} title="Copy characters the old sheet saved on this computer into the vault"><span className="vault-menu-ico" aria-hidden>⇉</span>Migrate legacy sheet characters</button>
           </div>
         </div>
+        </div>
       </div>
+      {rulesOpen && <TableRules campaignId={campaign.id} onClose={() => setRulesOpen(false)} />}
       <input ref={importRef} type="file" accept=".json,application/json" multiple hidden onChange={(e) => { const files = Array.from(e.target.files ?? []); e.target.value = ""; if (files.length) onImportFiles(files); }} />
 
       <div className="vault-body">

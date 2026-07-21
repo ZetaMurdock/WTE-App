@@ -60,13 +60,14 @@ Inputs: Wisdom, Perception, Cunning, Balance · Reduced by: Mental Fortitude, **
 The dichotomy runs both ways. An attribute **at 10 or above** does nothing but
 drag its opposite. An attribute **below 10** pays its opposite back:
 
-$$\text{Compensation} = \left\lfloor \frac{10 - \text{Attribute}}{6} \times \text{Rank Multiplier} \right\rfloor$$
+$$\text{Compensation} = \left\lfloor \frac{10 - \text{Attribute}}{4} \times \text{Rank Multiplier} \right\rfloor$$
 
 Two rules make this a build decision instead of a free lunch:
 
-*   **It accrues at half the reduction rate.** Reductions run −1 per 3 points;
-    compensation runs +1 per 6 points below the pivot. Weakness never pays as
-    well as strength costs.
+*   **It accrues slower than the drag.** Reductions run −1 per 3 points;
+    compensation runs +1 per 4 points below the pivot. Weakness never pays as
+    well as strength costs — but a gutted attribute is worth a solid +2, and
+    that grows to +3 by rank 9.
 *   **It is gated on training.** You collect nothing unless you are **trained
     (25+)** in a specialty that feeds the receiving stat. A dumped attribute
     with nothing invested opposite it is simply a dumped attribute.
@@ -87,11 +88,28 @@ place a shaped build can actually feel its payback is the modifier itself.
 
 **Why the gate matters.** Pushing a contributing specialty from 24 to 25 changes
 your raw pool by one point, which on its own changes your modifier by nothing at
-all. With the gate open it is worth a full point of the receiving stat, at every
-rank. That single point is the difference between a number on a sheet and a
-number at the table.
+all. With the gate open that same point unlocks the whole compensation — up to
++3 on the receiving stat. One specialty point is the difference between a number
+on a sheet and a number at the table.
 
 **A wall of 20s is not a build.** High attributes keep their full drag. Seven
 20s carry the heaviest reduction burden in the system and collect no
 compensation anywhere — a character shaped around what they are *for* will
 out-perform them on the stats they chose.
+
+---
+
+### The Curator's attribute budget
+
+Attributes are meant to be **rolled**: seven straight d20s, averaging 73 points
+across the sheet. The creator also allows manual entry, which means a table
+running that way can type a wall of 20s.
+
+A Curator who wants that closed can turn on an **attribute budget** in
+**Character Vault → Table Rules**: a cap on the *total* of all seven attributes,
+default 70. Characters built past the cap cannot be saved, and the creator shows
+the remaining points beside the attribute editor.
+
+It is off by default and it is per-campaign. Rolled tables never need it;
+point-buy tables get a real budget to argue over. Existing characters are never
+retroactively invalidated.

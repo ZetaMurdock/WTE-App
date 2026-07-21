@@ -7275,3 +7275,67 @@ body.wte-dot-cursor * {
   color: var(--accent);
   opacity: 0.85;
 }
+
+/* ── Curator table rules ── */
+.vault-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.table-rules {
+  width: min(560px, 92vw);
+  max-height: 86vh;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.rule-block {
+  padding: 12px 0 4px;
+  border-top: 1px solid var(--panel-line);
+}
+.rule-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.rule-toggle input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.rule-note {
+  margin: 6px 0 0 23px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.rule-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 0 23px;
+  flex-wrap: wrap;
+}
+.rule-field-label {
+  font-size: 12px;
+  font-weight: 600;
+}
+.rule-field .stat-input {
+  width: 84px;
+}
+.rule-hint,
+.rule-foot {
+  font-size: 11px;
+  color: var(--muted);
+}
+.rule-foot {
+  margin: 14px 0 2px;
+  padding-top: 10px;
+  border-top: 1px solid var(--panel-line);
+  line-height: 1.5;
+}

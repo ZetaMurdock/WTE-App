@@ -25,13 +25,14 @@ describe("attribute compensation — the gated seesaw", () => {
   });
 
   it("pays a trained character, and the payment grows with rank", () => {
-    expect(attrCompensation(1, true, 0)).toBe(1);
-    expect(attrCompensation(1, true, 9)).toBe(2);
+    expect(attrCompensation(1, true, 0)).toBe(2);
+    expect(attrCompensation(1, true, 9)).toBe(3);
   });
 
-  it("accrues at HALF the reduction rate — 6 points below the pivot per +1", () => {
-    expect(attrCompensation(5, true, 0)).toBe(0); // 5 short → nothing yet
-    expect(attrCompensation(4, true, 0)).toBe(1); // 6 short → +1
+  it("accrues below the reduction rate — 4 points under the pivot per +1", () => {
+    expect(attrCompensation(7, true, 0)).toBe(0); // 3 short → nothing yet
+    expect(attrCompensation(6, true, 0)).toBe(1); // 4 short → +1
+    expect(attrCompensation(2, true, 0)).toBe(2); // 8 short → +2
   });
 
   it("leaves the high side untouched: a wall of 20s carries its full drag", () => {
