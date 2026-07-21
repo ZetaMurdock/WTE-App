@@ -2,43 +2,43 @@
   "hyomen": [
     {
       "name": "Bio-Engineered Hyomen",
-      "note": "Lab-designed Hyomen iteration optimized for endurance and adaptive anatomy.",
+      "note": "Lab-designed Hyomen iteration optimized for endurance and adaptive anatomy. Bipedal/Quadrupedal · Small–Moderate. Born at biological age 23; semi-hive consciousness; cannot be force-bred — each is individually engineered.",
       "abilities": [
         {
           "name": "Enhanced Strength",
-          "effect": "Add half your current Ode Level (rounded down) to all Strength-based rolls"
+          "effect": "Passive (Self) · Automatic. Add half your current Neuronal Capacity Modifier to all Strength-based rolls."
         },
         {
           "name": "Enhanced Anatomy",
-          "effect": "Gain Advantage on all Adaptation Rolls; once per scene, may force a success on one Adaptation Roll -- the following roll is automatically halved"
+          "effect": "Self · Instant · Automatic · Limit: forced success 1/scene. Gain Advantage on all Adaptation Rolls. Once per scene you may force one to succeed, but your following roll is halved after rolling."
         }
       ]
     },
     {
       "name": "Spatians",
-      "note": "Void-born Hyomen evolved for life in the vacuum of space. Each limb beyond 4 grants +1 Bonus Action per turn.",
+      "note": "Void-born Hyomen evolved for life in the vacuum of space. Bipedal/Quadrupedal/Octopodal (4–8 limbs) · Moderate–Large. Breathe in open vacuum; enlarged skin pores act as biological propulsion in zero-gravity; each limb beyond 4 grants +1 Bonus Action per turn. The only known species to consistently evade the Nigraldi.",
       "abilities": [
         {
           "name": "Space Modulation",
-          "effect": "On AP Check failure, shrink to Small size to gain Advantage on the next DEX-based roll. Usable twice per encounter per extra limb beyond 4"
+          "effect": "Self (Reaction) · Duration: 1 roll · Automatic · Limit: twice per encounter per limb beyond 4. On an AP Check failure, shrink to Small size classification and gain Advantage on your next Dexterity-based roll."
         },
         {
           "name": "Evolved Body",
-          "effect": "Convert incoming non-critical damage to a damage type of your choice once per round"
+          "effect": "Self (Reaction) · Instant · Automatic. Convert incoming non-critical damage to a damage type of your choice before resistances apply. Cap: Supernatural-family damage cannot be converted."
         }
       ]
     },
     {
       "name": "Neo-Humans",
-      "note": "Retain 80% of the original human genome. The most politically powerful Hyomen variant. Cannot be subjugated by the Nigraldi.",
+      "note": "Retain 80% of the original human genome — the most politically powerful Hyomen variant. Bipedal · Moderate. Cannot be subjugated: no Nigraldi override vector exists in their genome.",
       "abilities": [
         {
           "name": "Awakened Visualization",
-          "effect": "Passively see, sense, and consciously manipulate magnetic fields in the environment"
+          "effect": "Passive, with Active triggers (Standard, Bonus, or Reaction) · Target: Field within 45 ft · Vector: Gaze/Ambient · Duration: Sustained · Resolution: related checks at Advantage, scaling with proximity. Passively sense and see magnetic and electromagnetic fields using your Perception Range Modifier; manipulate any magnetic field within a 45-foot radius. Transfer: apply a magnetic field to a target or surface that does not naturally possess one. Inverse: reverse the polarities and vector directions of an active field; magnitude governed by your Neuronal Capacity Modifier. Reshape: redefine a field's scale and geometry by inputting a designated Imaginary Number (IN) value — the field begins as a 1×1×1 cell; expanding it by 1 cell in any direction costs 5 ÷ Rank Multiplier."
         },
         {
           "name": "Genetic Control",
-          "effect": "Activate latent genetic mutations within own biology; effect lasts 1 hour; specific mutations determined by Curator discretion"
+          "effect": "Passive, with Active trigger (Standard, Bonus, or Reaction) · Target: Self · Duration: 1 Hour · Resolution: Curator review. Undergo a rapid physiological shift to activate latent, temporary genetic mutations within your own biology. Mutation Capacity: sustain up to (Recovery Rate Modifier × Rank Multiplier, rounded down) mutations simultaneously. Specific mutations and their physical capabilities are determined by Curator discretion."
         }
       ]
     }
@@ -46,86 +46,131 @@
   "voaulton": [
     {
       "name": "Droid",
-      "note": "Fully synthetic descendants of the Voaulton. All organic parasitic instincts removed. Builders of the Mundus Machines.",
+      "note": "Fully synthetic descendants of the Voaulton — all organic parasitic instincts removed. Bipedal/Quadrupedal/Hybrid · Moderate–Large. Builders of the Mundus Machines; actively feared by the Nigraldi.",
       "abilities": [
         {
           "name": "Modulation",
-          "effect": "Instantaneously restructure physical form within current control parameters and security clearance tier as a Bonus Action"
+          "effect": "Self (Active) · Duration: Sustained · Automatic. Instantaneously restructure your physical form within control parameters and current security clearance tier. Each restructure is a Bonus Action; clearance disputes go to the Curator."
         },
         {
           "name": "EMP",
-          "effect": "Redirect incoming damage as an electromagnetic pulse outward in a 40-foot radius; 1 free use per encounter; additional uses cost Synaptic Space or sacrifice modular limbs"
+          "effect": "Target: Area · Vector: Burst · Instant · Area: Radius 40 ft · Resolution: Endurance save (machines/electronics) · Limit: 1 free use per encounter. Redirect incoming damage outward as an electromagnetic pulse: unshielded machines and Grade 1–2 electronics in radius (attacker included) fail until the end of next round. Additional uses cost Synaptic Space or sacrifice modular limbs."
         }
       ]
     },
     {
       "name": "Cyborg",
-      "note": "The Father Species. Organic-machine hybrid; parasitic ancestry sublimated into a healing and teaching role.",
+      "note": "The 'Father Species' — organic-machine hybrid; parasitic ancestry sublimated into a healing and teaching role. Bipedal · Small–Moderate. Key figures in Northern Territories infrastructure; politically vulnerable for their Tauron lineage.",
       "abilities": [
         {
           "name": "Hacking",
-          "effect": "When struck by a physical attack, force the attacker next action to automatically backfire; usable once per round per individual creature"
+          "effect": "Target: 1 Creature · Vector: Reaction to being struck · Instant · Resolution: Automatic on qualifying trigger · Limit: once per round per individual creature. When struck by a physical attack, force the attacker's next action to automatically backfire. The malfunction stays within that action's own scope, Curator-narrated."
         },
         {
           "name": "Circuit Transfiguration",
-          "effect": "Merge with any connected technology; issue one of three commands to the merged system: Halt, Detonate, or Redirect"
+          "effect": "Target: 1 connected system · Vector: Contact · Instant · Resolution: contested by secured systems (operator's Control) · Limit: one command per merge. Merge with any connected technology and issue one command to the merged system: Halt, Detonate (its own listed yield, never more than 3d10), or Redirect."
         }
       ]
     },
     {
       "name": "N-T1 (Novus-Tauron)",
+      "note": "Accursed remnants of the original Tauron species, despised universally. Bipedal/Quadrupedal · Moderate (arms and legs can extend to double length). External nervous system visible as crimson streaks; bio-node cluster at the neck. Covertly allied with the Xeno through the Deviants faction.",
       "abilities": [
         {
           "name": "Forced Control",
-          "effect": "On physical contact, force an Action Priority roll; on success choose Nerve Grapple (STR save vs restraint) or Neural Override (target Adaptation check or fall under limited command)."
+          "effect": "Target: 1 Creature · Vector: Contact · Duration: 1 round · Resolution: forced AP Roll, then Strength Save or Adaptation Check · Limit: once per round; a target that resists is immune for the scene. On physical contact, initiate a forced AP Roll (even if one already occurred). On success choose: Nerve Grapple — restraint; the target makes a Strength Save to break free (Anchored (Soft) until it does) — or Neural Override — behavioral control; the target makes an Adaptation Check to resist commands, gaining the Subjugated condition on failure (capped control per the Hyomen conditions), scope per Curator discretion."
         },
         {
           "name": "Elongation",
-          "effect": "Stretch a limb up to double its length to strike/interact within 40 ft, up to twice per two-turn cycle; −1 Action Priority per 10 ft."
+          "effect": "Self (Active) · Instant · Automatic · Limit: twice per 2-turn cycle. Extend any limb up to double its base length, reaching up to 40 feet. Each 10 feet extended beyond base reach costs −1 AP on the associated roll."
         }
       ]
     }
   ],
   "mirga": [
     {
-      "name": "Pariacite",
-      "note": "A body of millions, each segment acting on its own — 2 modular body segments, each independent and parasitic.",
+      "name": "Chimera",
+      "note": "Forced evolutionary iteration of the Mirga — modular, segmented, massively adaptable. Bipedal through Amoeboid · Moderate to Colossal by configuration. 15 modular body segments: 2 face, 1 neck, 2 torso, 4 legs, 6 arms — each independent.",
       "abilities": [
         {
-          "name": "Hostile Subsumtion",
-          "effect": "On contact with a biological lifeform, force an Adaptation Check (DC 25); on failure you meld with them, on a critical failure take a piece and transform into them — 5 times per encounter."
+          "name": "Multicellular Sentience",
+          "effect": "Self (Active) · Duration: 2 full turns · Automatic. Detach any or all body segments intentionally; each detached piece gains its own Standard Action while the main body retains 1 Bonus Action. Detached pieces disintegrate and fully reform after 2 full turns. Cap: while 3+ segments are detached, your Dodge is at Disadvantage — a scattered body defends poorly."
+        },
+        {
+          "name": "Modularity",
+          "effect": "Self (Active) · Duration: Sustained · Automatic · Limit: 8 times per hour. Transform any segment into any observed object — organic or inorganic. Never a specific creature's likeness (that is Perfect Mimicry's lane)."
+        }
+      ]
+    },
+    {
+      "name": "Pariacite",
+      "note": "Your body is one of millions, each acting on its own — and in some cases biologically owning the others. Bipedal through Amoeboid · Moderate to Colossal. 2 modular body segments: each half of the body is independent and parasitic — built on Supercells.",
+      "abilities": [
+        {
+          "name": "Hostile Subsumption",
+          "effect": "Target: 1 biological life form · Vector: Contact · Duration: Sustained · Resolution: Adaption Check, DC 25. On contact, force the check: on a failure you may meld with them — attached and riding their frame; both of you count as Anchored (Soft) until they win the re-check at the end of each of their turns. On a Critical Failure you take a piece of them, gaining their form as a transformation usable 5 times per encounter. Cap: melding never grants control of the host — Subjugated caps apply."
         },
         {
           "name": "Modular Transformation",
-          "effect": "Transform any segment into any observed object."
+          "effect": "Self (Active) · Duration: Sustained · Automatic. Transform either body segment into any observed object."
         }
       ]
     },
     {
       "name": "Matarilia",
-      "note": "The variant most exploited for creating new materials — 15 modular body segments (2 face, 1 neck, 2 torso, 4 legs, 6 arms).",
+      "note": "The variant most exploited for its ability to create new materials. Bipedal · Moderate. 15 modular body segments. Created to protect the Mirga — mass-producing elements for spatial shielding and experimental use.",
       "abilities": [
         {
           "name": "Multi Material",
-          "effect": "Transform any segment into that material; materials combine into new ones but cannot exist outside your body for more than 3 minutes of active time."
+          "effect": "Self (Active) · Duration: Sustained (external limit: 3 minutes of Active time) · Automatic. Transform any of your segments into a chosen material; materials may be combined within your body to form new composite materials. No created material can exist outside your body for more than 3 minutes of Active time."
         },
         {
           "name": "Material Create",
-          "effect": "Transform a segment into an object of that material, or create that object from the composite material (must contain the original material)."
+          "effect": "Target: Objects · Vector: Contact · Duration: Until-Broken (3-minute external limit) · Automatic. Transform any segment into an object of your material, or create an object of a composite material — the composite must contain the original material. External persistence obeys the 3-minute Active-time limit."
         }
       ]
     },
     {
       "name": "Scnial",
-      "note": "Genetic stealers pioneered by the Nigraldi to infiltrate other species — perfect mimics who can steal dormant Incepts.",
+      "note": "Genetic stealers pioneered by the Nigraldi for infiltration — able to steal Incepts, but only dormant ones. Bipedal through Amoeboid · Moderate to Colossal. Organs can exist outside the body, generate encapsulated spaces, and pilot the main body remotely. Never to be trusted.",
       "abilities": [
         {
           "name": "Genetic Stealer",
-          "effect": "Grab a biological/animate being and roll a d20 to sift their Incepts (dormant ones are harder); roll Adaptation vs their Neuronal Capacity + Adaptation Mod to steal an Incept, yours until used (max 6 times)."
+          "effect": "Target: 1 biological/animate being · Vector: Contact (grab) · Instant · Resolution: d20 sift, then Adaption vs target's Neuronal Capacity + Adaption Modifier · Limit: one stolen Incept held at a time. Grab on and roll a d20 to sift through their Incepts — the more dormant the Incept, the harder it is to steal. Win the follow-up contest and the dormant Incept is yours until it has been used a maximum of 6 times, after which it returns to its owner's pool. Only dormant/unmanifested Incepts — never an active, manifested one."
         },
         {
           "name": "Permeation",
-          "effect": "A willing creature grants Genome access; implant yourself for up to an encounter to create and inhabit a new form, gaining half their Incepts and refreshing Genetic Stealer uses."
+          "effect": "Target: 1 willing creature · Vector: Contact · Duration: up to 1 encounter · Resolution: Automatic (willing). A willing creature can give you access to their Genome; implant yourself inside it, and if you stay the maximum duration of an entire encounter, you can create a new form from their body and inhabit it, gaining half of their Incepts while wearing that form. Combining that form with your main form refreshes the usage count of any Incept stolen from them with Genetic Stealer back to 6."
+        }
+      ]
+    }
+  ],
+  "oriyu": [
+    {
+      "name": "Radiant",
+      "note": "Oriyu whose energy field reached critical luminescence — living energy conduits past the threshold between organism and construct. Bipedal (energy corona) · Moderate. Condensed Energy Cores; constantly emit light, visible even in full darkness.",
+      "abilities": [
+        {
+          "name": "Radiant Cascade",
+          "effect": "Target: Multi · Vector: Burst · Instant · Area: Radius 30 ft · Resolution: END Check or Disadvantage on next roll · Limit: twice per encounter. As a Standard Action, emit a blinding burst of energy: all targets in range make an END Check or suffer Disadvantage on their next roll."
+        },
+        {
+          "name": "Overload Absorption",
+          "effect": "Self (Reaction) · Instant · Automatic · Limit: one absorption per round; max 3 Charges held; unspent Charges fade at scene's end. Absorb any energy-based attack: take no damage, storing 50% of its damage as an Overload Charge. As a Bonus Action, release a Charge at one target within 60 ft — dealing the other 50%."
+        }
+      ]
+    },
+    {
+      "name": "Nullified Oriyu",
+      "note": "Oriyu whose energy affinity inverted — zones of energy absence. Bipedal (translucent skin, dark vein-lines) · Moderate. Do not age; do not die naturally. Nomads with no terrestrial attachments; frequently misclassified as Null Genus users.",
+      "abilities": [
+        {
+          "name": "Energy Absence Aura",
+          "effect": "Passive · Target/Area: nearby · Vector: Ambient · Always · Automatic. Passively suppresses nearby Genus energies at a low ambient level. In hybrid offspring, this may manifest as reduced Genus energy output or unusual resistance to energy-based effects."
+        },
+        {
+          "name": "Null Field",
+          "effect": "Target: Area · Vector: Ambient · Duration: until end of scene — or until the Nullified Oriyu takes damage · Area: Radius 20 ft · Limit: one Field at a time. As a Standard Action, create a zone of energy suppression: all Genus-based abilities within the zone cost double Synaptic Space or AP to activate."
         }
       ]
     }
@@ -133,29 +178,29 @@
   "insectoid": [
     {
       "name": "Archnida",
-      "note": "Insectoid who have undergone convergent evolution toward arachnid morphology -- multi-limbed, web-spinning predators whose biology prioritizes trap-setting and ",
+      "note": "Genetic splice of spider, insect, bear, and human DNA — created as weapons of war; partially reclaimed after Tauron-87. Bipedal through Polypedal · Large–Colossal (7–16 ft, average 10). Neck-to-ground mandibles; hollow arm chambers with retractable diamond-hard inner limbs.",
       "abilities": [
         {
-          "name": "Web Snare",
-          "effect": "As a Standard Action, launch webbing at a target within 40ft -- they make DEX Check (DC 10 + DEX modifier) or are Restrained until they break free with a PHY Check (DC 12) as their Standard Action"
+          "name": "Bursting Fracture",
+          "effect": "Target: 1 Creature · Vector: Strike · Instant · Resolution: Endurance Check · Limit: once per turn. On a successful attack, the target must make an Endurance Check. Failure = an immediate follow-up attack is triggered automatically. The follow-up cannot itself trigger Bursting Fracture."
         },
         {
-          "name": "Ceiling Stalk",
-          "effect": "Move across vertical surfaces and ceilings at full speed; gain Advantage on attack rolls against targets below you"
+          "name": "Unnerving Presence",
+          "effect": "Target: Multi · Vector: Ambient · Duration: 1 round · Area: determined proximity · Resolution: d20 + Size Modifier (+2 per 2 ft of height above 7 ft) · Limit: once per scene, on reveal or first melee closure. All creatures within the determined proximity roll against your presence; the result's margin sets which Disadvantage is imposed — light (next check), moderate (all checks vs you this round), or severe (Feared 1 round)."
         }
       ]
     },
     {
       "name": "Cerioisk",
-      "note": "Born during the Witching Moon from the fusion of a dying Seed's essence and a decaying Kinba body. Do not age. Do not die naturally. Only the act of sealing can",
+      "note": "Born during the Witching Moon from a dying Seed's essence fused with a decaying Kinba body — 'the death that learns'. Bipedal, evolving multi-limbed through Cocoon Phases · Moderate–Large (1.8–3.5 m). Do not age or die naturally; only sealing halts them. Existential-tier threat classification.",
       "abilities": [
         {
           "name": "Augo Consumption",
-          "effect": "Absorb the Augo Gland of any creature that possesses one; every 10th Gland absorbed triggers a Cocoon Phase: the Cerioisk enters dormancy and emerges with adaptive traits and an increase to all core stats"
+          "effect": "Target: 1 creature possessing an Augo Gland · Vector: Contact · Instant · Automatic. Absorb the Augo Gland of any creature that possesses one. Every 10th Gland absorbed triggers a Cocoon Phase: the Cerioisk enters dormancy and emerges with adaptive traits and an increase to all core stats. Cap: +1 per stat per Cocoon Phase, and Phases resolve during Downtime — the death that learns still has to sleep."
         },
         {
           "name": "Corruptive Reproduction",
-          "effect": "When a creature with an Augo Gland is fully consumed, a new Cerioisk is produced from the digested remains over 1d6 in-universe days"
+          "effect": "Target: 1 consumed gland-bearer · Vector: Contact · Duration: Clock (one Downtime) · Automatic. When a creature with an Augo Gland is consumed by a Cerioisk, a new Cerioisk is produced from the digested remains. It is Curator-run — kin rather than servant — and matures over one Downtime."
         }
       ]
     }
@@ -163,29 +208,29 @@
   "subdermin": [
     {
       "name": "Fractine",
-      "note": "SubDermin whose subsurface integration has reached the point of near-crystalline internal structure. Their bodies process minerals and geological compounds as p",
+      "note": "Crystalline beings born from Alteria's mineral-rich geodes fused with SubDermin bio-energies. Bipedal (crystalline quadrupedal brace under duress) · Moderate–Large. Diamond-like, self-repairing crystalline structure. Culture values endurance above all.",
       "abilities": [
         {
-          "name": "Crystal Armor",
-          "effect": "As a Bonus Action, harden crystalline deposits into external plating; gain +3 to all damage resistance rolls for 3 rounds; plating shatters if you take more than 20 damage in a single hit"
+          "name": "Diamond Form",
+          "effect": "Self (Reaction) · Duration: 1 round · Automatic · Limit: once per scene. Enter a near-impervious crystalline physical state: resistant to kinetic and elemental damage types, reflecting a portion (1d6) of received damage back at the attacker. While in the state your movement is 0."
         },
         {
-          "name": "Seismic Pulse",
-          "effect": "Slam the ground as a Standard Action; all creatures within 20ft make END Check (DC 11) or fall Prone; creatures already Prone take 2d8 bludgeoning damage"
+          "name": "Crystal Manipulation",
+          "effect": "Target: Objects / Area · Vector: Contact · Duration: Sustained (combat projections) or permanent (built structures) · Automatic. Form barriers, weapons, or structures from surrounding crystal matter; combat projections are temporary, while structures given sufficient uninterrupted time become permanent. Crystal constructs follow object rules — demolition applies."
         }
       ]
     },
     {
       "name": "Construct",
-      "note": "SubDermin who have replaced significant portions of their biological mass with self-engineered mechanical systems. Not cyborgs by external modification -- Const",
+      "note": "SubDermin's most catastrophic experiment — condensed life energy housed in composite alloy and Barion matter. Bipedal · Always Large. Endures sun-surface temperatures; survives catastrophic damage; may inherit emotional bleed from consumed source souls. Interitus Enmortem weapons are the sole known counter.",
       "abilities": [
         {
-          "name": "Module Swap",
-          "effect": "During Downtime, replace one mechanical component with a specialized module; each module provides a specific mechanical bonus (Director assigns module list); you may have up to 3 modules active simultaneously"
+          "name": "Physical Fracture",
+          "effect": "Target: 1 Creature · Vector: Strike · Instant · Damage: equal to the first hit's damage · Resolution: Endurance Check ends the Anchor · Limit: once per round. On a successful physical attack, a second amplified strike triggers automatically, dealing damage equal to the first hit. If the second strike's total exceeds the target's combined defensive and offensive power, the target becomes Anchored — forced prone, unable to reposition until passing an Endurance Check."
         },
         {
-          "name": "Emergency Repair",
-          "effect": "As a Bonus Action, spend a mechanical component charge to restore 2d8 HP; usable twice per encounter; requires salvage materials to recharge between encounters"
+          "name": "Pressuring Advance",
+          "effect": "Target: Multi · Vector: Wave · Instant · Area: Radius 50 ft of the destination point · Resolution: Balance Check and Endurance Save · Limit: once per scene. Bonus Action: move at half speed in a burst. All creatures within 50 feet of the destination point must make both checks or suffer stagger (Staggered, pushed 10 ft)."
         }
       ]
     }
@@ -193,15 +238,73 @@
   "inderi": [
     {
       "name": "AI'N",
-      "note": "Inderi who have undergone full digital transcendence -- their consciousness now exists primarily as data architecture, with physical form maintained as a second",
+      "note": "Beings of pure mental and spiritual data, born from the Implosion of the First Universe and given form under Protocol Evangeline. No fixed form — inhabit machinery, data streams, and minds; manifested form is Small. Forcibly integrated into vessels (T-BM001) by Indrah; documentation expunged; believed extinct.",
       "abilities": [
         {
-          "name": "Remote Instance",
-          "effect": "Project a digital copy of your consciousness into any networked system within 300ft; the instance can access, read, and manipulate data remotely while your body remains stationary; lasts until dismissed or the network co"
+          "name": "Dilation",
+          "effect": "Self (Reaction) · Instant · Automatic · Limit: once per round. On failing an AP Check, slow perceived time for incoming attacks; gain Advantage on the next roll made in response."
         },
         {
-          "name": "Predictive Algorithm",
-          "effect": "At the start of combat, calculate threat vectors; gain Advantage on Action Priority for the first 3 rounds and cannot be Surprised"
+          "name": "Replication",
+          "effect": "Target: 1 remembered object, construct, or being · Vector: Gaze · Duration: Clock (once per 2 in-universe hours) · Resolution: the target of replication contests with a Control + Inspiration Skill Check against the AI'N's DC; the process cannot fail on the AI'N's side. Manifest a flawless 1:1 replica of any remembered object, construct, or being — only the target's contest can degrade the copy. Caps: a replicated being is an inert, mindless shell — data has no soul to copy; Ciphers, charges, and DNA-locks never replicate."
+        }
+      ]
+    }
+  ],
+  "seraph": [
+    {
+      "name": "Fallen Seraph",
+      "note": "Seraph stripped of their Antimatter Wings through exile, sacrifice, or catastrophic conflict — relentless terrestrial combatants. Bipedal (glowing wing-scar tissue) · Moderate (6'2\"–7'0\"). Divine Scar (recessive): antimatter burns that faintly illuminate under stress. Spatial Acuity (dominant): Seraph spatial awareness remains intact.",
+      "abilities": [
+        {
+          "name": "Scar Beam",
+          "effect": "Target: 1 Creature · Vector: Wave (Line 60 ft) · Instant · Damage: Antimatter equal to (Int + Neuronal Capacity Modifier) · Resolution: Dexterity save, half · Limit: three times per encounter. Fire concentrated antimatter from the severed wing-stumps in a precise 60-ft beam. Requires no additional action when incorporated into a Standard Action attack."
+        },
+        {
+          "name": "Grounded Insight",
+          "effect": "Passive (Self) · Always · Area: 60 ft · Automatic. Permanent Advantage on tactical and terrain rolls within 60 feet. Ground-level environments are always treated as familiar terrain."
+        }
+      ]
+    },
+    {
+      "name": "Ardent Seraph",
+      "note": "Seraph whose continual manipulation of space fractured their own existence — flickering across overlapping coordinates while drawing reality toward them. Bipedal (intermittently multi-positional) · Moderate–Large (apparent size fluctuates). Spatial Bleed (recessive): may awaken elsewhere from unconsciousness. Dimensional Sensitivity (dominant): exceptional awareness of dimensional seams.",
+      "abilities": [
+        {
+          "name": "Fracture Point",
+          "effect": "Self · Duration: until the encounter ends · Automatic · Limit: maximum three active anchors; one teleport per round. Place invisible spatial anchors within 60 feet as a Free Action. Teleport to any active anchor as a Bonus Action."
+        },
+        {
+          "name": "Reality Pull",
+          "effect": "Target: Creatures or Objects within 30 ft · Vector: Gaze · Instant · Resolution: unwilling targets make a Strength Save against the Ardent Seraph's Control DC. Pull creatures or objects within 30 feet directly adjacent. Objects up to Large size move automatically."
+        }
+      ]
+    },
+    {
+      "name": "Oris",
+      "note": "The culmination of the once-Orialia and the new Seraph. Bipedal · Tiny or Colossal. Always surrounded by Stardust — used for mobility, moving with it and flying at half Movement Speed.",
+      "abilities": [
+        {
+          "name": "Localized Pocket",
+          "effect": "At Will — Out of Combat / Reaction / Bonus Action · Vector: Anchor · Duration: Sustained · Automatic · Limit: one Phenomenon stored at a time; stored Phenomena fade at scene's end; you cannot Store an effect whose Synaptic cost exceeds your Control stat. While not in active combat, generate a Localized Pocket Space that any part of your body may enter. Upon entering, choose one: Connect — link the Pocket Space to a second space within 65 feet of you. Store — absorb the effect of a Phenomenon that was targeted at you, holding it within the Pocket Space for later use. Redirect — release a stored Phenomenon outward through any other Localized Pocket Space within 50 feet of you. Store and Redirect may each be triggered as a Reaction or a Bonus Action."
+        },
+        {
+          "name": "Stardust Resurgence",
+          "effect": "Target: 1 Creature · Vector: Strike · Instant · Damage: automatic follow-up attack at +5 damage · Resolution: Automatic when thresholds are met · Limit: once per round. When you make an attack, you may generate Stardust to trigger an automatic follow-up attack dealing +5 damage — only if your Attack Power and Neuronal Capacity are both higher than the target's corresponding values. If your Action Priority and Evasion each exceed the target's by more than 10 points, this may instead be triggered as a Reaction in place of your normal attack action."
+        }
+      ]
+    },
+    {
+      "name": "Riftwalkers",
+      "note": "Seraphs who closely resemble their branch's origins — descendants of a greater plane who venture into the mirror realm and bring forth its unstable energy. Bipedal · Moderate (~5 ft). They passively teleport with every step (no mechanical effect). A rare sight in the light of day.",
+      "abilities": [
+        {
+          "name": "Portalweave",
+          "effect": "Self (Active) · Duration: Special · Automatic · Limit: once per round. Open a controlled, lingering portal and enter a rift into a sub-realm of our own; within it, energy fluctuates so frequently that perception is heightened — as if time stopped in the outside world. You may move up to your max movement; any action or exhausting that movement ends this ability and leaves another portal behind at your exit. While inside, the outside world is truly un-interactable — no attacking out, no scouting through barriers you could not otherwise pass."
+        },
+        {
+          "name": "Anti-Matter Discharge",
+          "effect": "Target: Single / Line · Vector: Wave (Line 50 ft) · Instant · Damage: 2d10 Antimatter · Resolution: Dexterity save, half · Limit: twice per encounter. Any connecting portals can emit energy from the dimension they are from: shoot a beam up to 50 feet from an open portal, or channel it between two connected portals. Can be used after exiting a portal, or while placing one down with Portalweave."
         }
       ]
     }
@@ -283,94 +386,6 @@
         {
           "name": "Dream Eater",
           "effect": "Using the outer layer or mind, invade the consciousness of the sleeping to harm their soul/mind, prolong slumber, or communicate."
-        }
-      ]
-    }
-  ],
-  "oriyu": [
-    {
-      "name": "Radiant",
-      "note": "Energy field reached critical luminescence — a living energy conduit that glows constantly even in full darkness.",
-      "abilities": [
-        {
-          "name": "Radiant Cascade",
-          "effect": "Emit a blinding burst of energy in a 30-ft radius as a Standard Action; all targets make an END Check or suffer Disadvantage on their next roll; twice per encounter."
-        },
-        {
-          "name": "Overload Absorption",
-          "effect": "Absorb any energy-based attack (take no damage); store 50% as an Overload Charge (max 3); release as a Bonus Action dealing the stored damage to one target within 60 ft."
-        }
-      ]
-    },
-    {
-      "name": "Nullified Oriyu",
-      "note": "Energy affinity inverted into anti-energy — they create zones of energy absence. Rare, feared, often misclassified as Null Genus users; do not age or die naturally.",
-      "abilities": [
-        {
-          "name": "Energy Absence Aura",
-          "effect": "Passively suppresses nearby Genus energies at a low ambient level; hybrids may show reduced Genus output or resistance to energy effects."
-        },
-        {
-          "name": "Null Field",
-          "effect": "Create a 20-ft zone of energy suppression as a Standard Action; Genus abilities inside cost double Synaptic Space or AP; lasts until end of scene or until the Nullified Oriyu takes damage."
-        }
-      ]
-    }
-  ],
-  "seraph": [
-    {
-      "name": "Fallen Seraph",
-      "note": "Seraph stripped of their Antimatter Wings by exile, sacrifice, or catastrophe — relentless terrestrial combatants who retain spatial mastery.",
-      "abilities": [
-        {
-          "name": "Scar Beam",
-          "effect": "Fire concentrated antimatter from the severed wing-stumps in a 60-ft beam for Antimatter Damage equal to (Int + Neuronal Capacity Mod); three times per encounter, no extra action when part of a Standard Action attack."
-        },
-        {
-          "name": "Grounded Insight",
-          "effect": "Permanent Advantage on tactical and terrain rolls within 60 ft; ground-level environments are always treated as familiar terrain."
-        }
-      ]
-    },
-    {
-      "name": "Ardent Seraph",
-      "note": "Space manipulation fractured their existence — they flicker across overlapping coordinates while drawing reality toward them.",
-      "abilities": [
-        {
-          "name": "Fracture Point",
-          "effect": "Place invisible spatial anchors within 60 ft as a Free Action; teleport to any active anchor as a Bonus Action; up to three anchors lasting until the encounter ends."
-        },
-        {
-          "name": "Reality Pull",
-          "effect": "Pull creatures or objects within 30 ft directly adjacent; unwilling targets make a PHY Check vs the Ardent Seraph's CON; objects up to Large move automatically."
-        }
-      ]
-    },
-    {
-      "name": "Oris",
-      "note": "The culmination of the old Orialia and the new Seraph — always surrounded by Stardust used for mobility and flight.",
-      "abilities": [
-        {
-          "name": "Localized Pocket",
-          "effect": "Out of combat, generate a Localized Pocket Space: Connect (link to a space within 65 ft), Store (absorb a Phenomenon aimed at you), or Redirect (release a stored Phenomenon through another pocket within 50 ft). Store/Redirect can each trigger as a Reaction or Bonus Action."
-        },
-        {
-          "name": "Stardust Resurgence",
-          "effect": "On an attack, generate Stardust for an automatic +5-damage follow-up if your Attack Power and Neuronal Capacity both exceed the target's; if AP and Evasion each exceed by 10+, it may trigger as a Reaction."
-        }
-      ]
-    },
-    {
-      "name": "Riftwalkers",
-      "note": "Descendants of a greater plane who can briefly enter the mirror-realm to draw out unstable energy; they passively teleport as they move.",
-      "abilities": [
-        {
-          "name": "Portalweave",
-          "effect": "Open a controlled lingering portal into a sub-realm where energy fluctuates and perception heightens; move up to max movement, any action or full move ends it and leaves another portal behind."
-        },
-        {
-          "name": "Anti-Matter Discharge",
-          "effect": "Twice per encounter, connecting portals emit dimensional energy — a beam up to 50 ft, or between two linked portals; usable after exiting or while placing a portal with Portalweave."
         }
       ]
     }

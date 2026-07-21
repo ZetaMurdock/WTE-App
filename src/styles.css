@@ -1398,6 +1398,13 @@ body.wte-dot-cursor * {
   color: var(--ink);
   margin-bottom: 6px;
 }
+.pick-genetics {
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: var(--accent);
+  margin-bottom: 6px;
+  font-family: Consolas, monospace;
+}
 .pick-innate {
   font-size: 11px;
   color: var(--muted);

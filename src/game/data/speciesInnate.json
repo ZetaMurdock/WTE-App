@@ -2,111 +2,145 @@
   "hyomen": [
     {
       "name": "Prodigal Mind",
-      "effect": "Cognitive adaptability; broad skill application across diverse fields"
+      "effect": "Passive (Self) · Permanent · Automatic. Witnessing the activation of any Varna 10 or more times permanently unlocks that Varna path for you. You simultaneously develop a personal Variant of the Varna you have witnessed most frequently (built with the Curator on the same power budget)."
     },
     {
-      "name": "Indecisive Body",
-      "effect": "Physical versatility; no locked body configuration — adapts to any role"
+      "name": "Omen",
+      "effect": "Active (Standard, Bonus, or Reaction) · Target: 1 Creature · Vector: Contact · Duration: Scene · Resolution: Automatic — the application cannot be countered, negated, or nullified · Limit: one Omen active at a time. Your touch marks the target with an inescapable causal thread, applying the Omen condition. Nothing prevents the application — the counterplay lives inside the condition itself: while Omen-marked, the bearer's causality is claimed; the marker may, once, either convert one of the bearer's rolls into a Clash against the marker's Wisdom, or collect the Omen when the bearer fails any save, gaining Advantage on their next contest against the bearer. The thread is perceivable by Divination; the condition (never its application) ends at scene's end or when collected."
     },
     {
       "name": "Indomitable Will",
-      "effect": "Mental resilience; resistance to psychic and emotional compulsion"
+      "effect": "Passive (Self) · Always · Automatic. You gain Advantage on Wisdom and Mental Fortitude checks made against a creature. The potency of this advantage scales directly with your Rank Multiplier."
     },
     {
       "name": "Peak Evolution",
-      "effect": "Access to the widest range of Backgrounds and Asymmetry paths of any species"
+      "effect": "Target: Self, then chain · Vector: Contact-range chain · Duration: Instant · Resolution: Adaption checks · Limit: force-success 1/scene; the full chain 1/Downtime. Upon failing an Adaption check, you may force an automatic success and overpower the roll. Cascade Effect: immediately force one creature in your vicinity to make the identical Adaption check. Control Loop: if it fails, it must immediately succeed against your raw Adaption Specialty or gain the Subjugated condition (capped control: the controller directs movement and Standard Actions; the subject never harms itself, never spends its own Synaptic Space unwillingly, re-checks at the end of each of its turns and whenever it takes damage; always ends when the scene ends). Cloning Tumor: while Subjugated by this chain, the target's tissue violently mutates, seeding an organic tumor that sheds and matures over 3 In-game (ITT) days into a loyal, fully autonomous clone of that creature. One clone per creature, ever; the clone is a Curator-run person, not a puppet."
     }
   ],
   "voaulton": [
     {
       "name": "Chemical Mastery",
-      "effect": "Advanced biochemical manipulation and resistance"
+      "effect": "Target: Self / 1 Creature or Object · Vector: Contact · Duration: Instant · Resolution: Control check for synthesis · Limit: one dose per scene. Advanced biochemical manipulation and resistance: you identify compounds on contact and gain Advantage on saves against Poison and Acid. Once per scene, synthesize one field dose from available matter — antidote, irritant, or catalyst (Curator adjudicates within those bounds)."
     },
     {
       "name": "Robotic Integration",
-      "effect": "Natural affinity for machine-bonding and technological augmentation"
+      "effect": "Passive (Self) · Always · Automatic. Natural affinity for machine-bonding and technological augmentation: powered gear you wear counts as part of your body, and you interface with unsecured technology by touch. Once per round, one gear-based roll gains +2."
     },
     {
       "name": "Adaptive Analysis",
-      "effect": "Rapid environmental and tactical threat assessment"
+      "effect": "Passive (Self) · Always · Automatic · Limit: one true question per scene. Rapid environmental and tactical threat assessment: +2 on checks to read terrain, mechanisms, or formations. Once per scene, ask the Curator one true tactical question about a threat you can observe."
     },
     {
       "name": "Energetic Synergy",
-      "effect": "Synchronize personal energy output with external power systems"
+      "effect": "Self (Bonus Action) · Duration: 1 round · Automatic. Synchronize personal energy output with an external power system in reach: your next ability activation this round costs −1 Synaptic Space (−2 when drawing from a Grade 2+ source)."
     }
   ],
   "mirga": [
     {
       "name": "Perfect Mimicry",
-      "effect": "Flawless replication of observed biological and physical traits"
+      "effect": "Self (Active) · Duration: Sustained · Resolution: Control check for supernatural/mechanical traits. Flawless replication of observed biological and physical traits — appearance, mannerisms, voice. Supernatural or mechanical traits replicate cosmetically unless the check succeeds."
     },
     {
       "name": "Mimetic Adaptation",
-      "effect": "Automatically adapt mimicked form in response to environmental pressures"
+      "effect": "Passive (Self) · Duration: Sustained · Automatic. Your mimicked form automatically adapts to environmental pressures — gills in water, insulation in cold — without a conscious shift. Each auto-adaptation is visible and carries its obvious drawback."
     },
     {
       "name": "Illusory Disguise",
-      "effect": "Project false appearances beyond physical mimicry — includes aura, energy signature, and perceived identity"
+      "effect": "Self (Active) · Duration: Scene · Resolution: contested by close inspection (Perception/Insight). Project false appearances beyond physical mimicry — including aura, energy signature, and perceived identity. Detection-class abilities read your projected identity unless the inspector wins the contest."
     },
     {
       "name": "Emotional Mimicry",
-      "effect": "Mirror and broadcast the emotional states of nearby creatures; can stabilize or destabilize group morale"
+      "effect": "Target: Multi (nearby creatures) · Vector: Ambient · Duration: Sustained · Resolution: Wisdom save to shrug the broadcast · Limit: one mode active at a time. Mirror and broadcast the emotional states of nearby creatures: stabilize group morale (allies gain +1 on Feared saves) or destabilize it (chosen creatures save or suffer −1 on their next contest). Never outright compels behavior."
     }
   ],
-  "oriyu": [],
+  "oriyu": [
+    {
+      "name": "Vesul Enkludtiu",
+      "effect": "Passive · Target/Area: Immediate Zone · Vector: Ambient · Duration: Sustained · Resolution: S-Stability trigger. Your physical presence exerts a continuous, subconscious gravitational pressure on the local metric, allowing you to selectively compress spatial structures: halve the Volume (V) of any active energy effect in your immediate zone to double its Density (D). The Enanstnivou (Pinched) Condition: targets caught within the compacted space immediately gain Enanstnivou, imposing a hard −0.25 penalty to S-Stability. A target whose Stability drops below 1.0 is forced to roll on the Chaos Table or face a catastrophic Backlash."
+    },
+    {
+      "name": "Vesul Exovertntiu",
+      "effect": "Passive Reaction · Trigger: any incoming energy-based attack, automatic · Resolution: opposed Control + Inspiration check vs the attacker's roll. By inducing saddle curvature (negative metric curvature) in the local area, you bend space-time to deflect incoming strikes along non-Euclidean paths. A successful check nullifies the incoming damage and converts the attack's Imaginary Number (IN) value into Ves-traktiu (Metric Tension), stored as a resource. Storage Cap: maximum Ves-traktiu held equals your Raw Control Stat (Control 16 → 16 units)."
+    },
+    {
+      "name": "Unravel Spacia",
+      "effect": "Active · Range/Area: Self (horizon) · Duration: 1 round · Damage: 3d10 Force on collapse · Automatic. Loosen the metric of space around yourself, projecting a Ves-lymn (Metric Horizon) of extreme spatial expansion: local Volume tends toward infinity, the Density of any energy within falls to zero, and all energy-based damage within the horizon is completely nullified. The Law of Origin: energy must always exist within physical space — when the effect resolves, the Enigma vacuum collapses the void: everything adjacent to the horizon (you included) takes the listed collapse damage. The collapse deals its listed damage only — it never deletes creatures or their gear; unattended objects inside may be lost."
+    },
+    {
+      "name": "Dyn Formn",
+      "effect": "Active · Range/Area: Single Target / Area · Vector: Burst · Duration: Instant · Damage: E = (ING × D × V) ÷ TG · Resolution: Endurance Save vs Prone (Pinched targets). Release your stored Ves-traktiu, causing space to violently and instantaneously snap back to flat equilibrium; the energy output (E) of the snap follows the listed high-velocity formula. Secondary Effect: the instant re-flattening is physically jarring — any targets currently Enanstnivou (Pinched) must succeed on an Endurance Save or be knocked prone as space collapses back."
+    }
+  ],
   "insectoid": [
     {
       "name": "Regenerative Limbs",
-      "effect": "Lost or damaged limbs regrow over time; rate scales with health state"
+      "effect": "Self · Duration: Clock · Automatic. Lost or damaged limbs regrow over time, at a rate scaling with your health state: above half HP, a limb returns in one Downtime; below half, two. Regrowing limbs work at −1 until whole."
     },
     {
       "name": "Eyeless",
-      "effect": "Navigate through non-visual sensory systems (vibration, electromagnetic, chemical); immune to vision-based attacks and illusions"
+      "effect": "Passive (Self) · Always · Automatic. Navigate through non-visual sensory systems — vibration, electromagnetic, chemical — out to 30 ft. Immune to vision-based attacks and illusions; Gaze Vectors cannot target you."
     },
     {
       "name": "Reflexive Assurance",
-      "effect": "Automatic reaction to perceived threats without conscious deliberation"
+      "effect": "Passive (Self, Reaction) · Duration: Instant · Automatic. Automatic reaction to perceived threats without conscious deliberation: +5 on Action Priority-based DC checks, and once per round you may take a Reaction even while Surprised or Stagnant."
     },
     {
       "name": "Peak Evolution",
-      "effect": "Access to a broad range of Asymmetry evolution paths"
+      "effect": "Passive (Self) · Permanent · Automatic. Your genome holds open a broad range of Asymmetry evolution paths: whenever the Director compiles an Asymmetry pool for you, one additional candidate of your choice from your species/variant list is always eligible. Cocoon-class and mutation-class Incepts manifest for you at one step lower Resonance cost."
     }
   ],
   "subdermin": [
     {
       "name": "Forsaken Touch",
-      "effect": "Physical contact has a degrading or corrosive effect on matter; precise control requires training"
+      "effect": "Target: 1 Creature or Object · Vector: Contact · Duration: Instant · Damage: 1d10 Entropy (untrained); unattended objects take demolition · Resolution: Endurance save, half. Physical contact has a degrading or corrosive effect on matter. Precise control requires training — until a Curator-recognized discipline milestone, you cannot choose to suppress it against things you touch barehanded."
     },
     {
       "name": "Radioactive Anatomy",
-      "effect": "Internal biology emits low-level radiation; provides passive area deterrence and interacts uniquely with certain energy types"
+      "effect": "Target/Area: nearby · Vector: Ambient · Always · Automatic. Internal biology emits low-level radiation: a passive area deterrent (creatures ending 2+ consecutive turns adjacent gain 1 Irradiated stack) that interacts uniquely with certain energy types — your Energetic-family Genus effects gain +1 per die. Detectors always find you."
     },
     {
       "name": "Terrestrial Knowledge",
-      "effect": "Innate deep awareness of geological and subterranean environments; cannot become lost underground"
+      "effect": "Passive (Self) · Always · Automatic. Innate deep awareness of geological and subterranean environments — you cannot become lost underground. Tremor, void, and structural weakness within 30 ft of a surface you touch are simply known to you."
     },
     {
       "name": "Living Planet Merge",
-      "effect": "Temporary physical integration with planetary matter — merge with stone, earth, or natural underground formations"
+      "effect": "Self · Vector: Contact · Duration: Sustained · Automatic. Temporary physical integration with planetary matter — merge with stone, earth, or natural underground formations, moving through them at half speed while merged. You perceive through the material; attacking or being forcibly extracted ends the merge."
     }
   ],
-  "inderi": [],
+  "inderi": [
+    {
+      "name": "Eldritch Physiology",
+      "effect": "Passive (Self) · Always · Automatic. Body functions on Eldritch energy rather than biological processes: immune to effects that target biology — Poison, Pathogenic, and biological-targeting abilities. What sustains you also marks you — Divination reads you as a phenomenon, not a person."
+    },
+    {
+      "name": "Enhanced Regeneration",
+      "effect": "Passive (Self) · Duration: Clock · Automatic. Accelerated healing well beyond other species: regenerate significant damage over short rests (1d10 HP per short rest; one Wound may close per full rest without treatment)."
+    },
+    {
+      "name": "Perfect Reflex Calibration",
+      "effect": "Passive (Self) · Always · Automatic. Reaction speed calibrated to near-perfect levels — virtually never caught fully off-guard: roll Action Priority with Advantage, and Surprised/Stagnant states never deny you your Reaction."
+    },
+    {
+      "name": "True Eye of Solitude",
+      "effect": "Self (Active) · Duration: Sustained (unmoving focus) · Resolution: contested by the concealment's owner. Perceive truth through isolation and stillness: while fully focused, you see through concealment, illusion, and false identity in your line of sight. Each broken veil is announced only to you."
+    }
+  ],
   "seraph": [
     {
       "name": "Antimatter Wings",
-      "effect": "Wings composed of antimatter; provide flight capability with destructive potential on contact"
+      "effect": "Passive (Self) · Vector: Contact · Always · Damage: 1d8 Antimatter on contact · Automatic. Wings composed of antimatter: flight capability with destructive potential on contact — creatures and organic matter touching them take the listed damage, and terrain you brush is visibly scarred."
     },
     {
       "name": "Dance of Displacement",
-      "effect": "Short-range reality displacement; blink between positions with minimal tell"
+      "effect": "Self (Active) · Duration: Instant · Automatic · Limit: once per round; a second blink in the same round costs +1 Fatigue. Short-range reality displacement: blink between positions within 15 ft with minimal tell."
     },
     {
       "name": "Spatial Rupture",
-      "effect": "Tear the spatial fabric of an area; creates localized instability affecting movement and targeting"
+      "effect": "Target: Area · Vector: Ambient · Duration: 2 rounds · Area: Radius 10 ft · Resolution: Dexterity save when moving through · Limit: one rupture at a time. Tear the spatial fabric of an area: localized instability where movement costs double and Projectile Vectors deflect (attacks through the rupture suffer Disadvantage)."
     },
     {
       "name": "Distant Vision",
-      "effect": "Perceive across extraordinary distances without physical relocation; primary intelligence-gathering capability"
+      "effect": "Self (Active) · Duration: Sustained · Automatic. Perceive across extraordinary distances without physical relocation — the species' primary intelligence-gathering capability. Rapid viewpoint-hopping costs an AP check or you return Staggered."
     }
   ],
   "stygians": [

@@ -145,62 +145,80 @@ export interface Species {
   bonuses: Partial<Record<AttrKey, number>>;
   innate: string[];
   note?: string;
-  /** Named lineage variants that grant extra abilities (from the legacy SPECIES_DATA). */
+  /** Genetic Dominance / Recessiveness — how strongly traits assert in hybrids. */
+  dom?: number;
+  rec?: number;
+  /** Institutional Eminence Nature signature, e.g. "Civilized +30". */
+  eminence?: string;
+  /** Every species now chooses 2 of 4 innates active; the rest seed the Incept Pool. */
+  innateSelect?: number;
+  /** Named lineage variants that grant extra abilities (from the baked variants data). */
   variants: SpeciesVariant[];
 }
-// Base species data; `variants` are pulled from the baked Codex data (src/game/data/variants.json).
+// Base species data; `variants` + innate effects come from the baked Codex data
+// (src/game/data/variants.json, speciesInnate.json). Every species selects 2 of 4
+// innate abilities active; the unselected pair seeds the Incept Pool.
 export const SPECIES: Species[] = [
   {
     id: "hyomen", name: "Hyomen", family: "Humanity", bonuses: {},
-    innate: ["Prodigal Mind", "Indecisive Body", "Indomitable Will", "Peak Evolution"],
-    note: "Balanced — specialize by choice.",
+    innate: ["Prodigal Mind", "Omen", "Indomitable Will", "Peak Evolution"],
+    dom: 45, rec: 10, eminence: "Civilized +30", innateSelect: 2,
+    note: "The baseline humanoid — high Dominance; a Variant must be chosen.",
     variants: VARIANTS.hyomen ?? [],
   },
   {
     id: "voaulton", name: "Voaulton", family: "Humanity", bonuses: { phy: 2, end: 2 },
     innate: ["Chemical Mastery", "Robotic Integration", "Adaptive Analysis", "Energetic Synergy"],
-    note: "Physical & cybernetic integration.",
+    dom: 45, rec: 5, eminence: "Civilized +20 / Feral +5", innateSelect: 2,
+    note: "Technologically integrated; machine-symbiosis lineage — a Variant must be chosen.",
     variants: VARIANTS.voaulton ?? [],
   },
   {
     id: "mirga", name: "Mirga", family: "Humanity", bonuses: { int: 2, ap: 2 },
     innate: ["Perfect Mimicry", "Mimetic Adaptation", "Illusory Disguise", "Emotional Mimicry"],
-    note: "Psychological mimics.",
+    dom: 20, rec: 15, eminence: "Civilized +10", innateSelect: 2,
+    note: "Defined entirely by mimicry — unpredictable hybrids; a Variant must be chosen.",
     variants: VARIANTS.mirga ?? [],
   },
   {
     id: "oriyu", name: "Oriyu", family: "Omenity", bonuses: {},
-    innate: ["Energy Manipulation", "Energy Absorption", "Energy Projection", "Energy Shielding"],
-    note: "Variable by lineage — assign stats manually.",
+    innate: ["Vesul Enkludtiu", "Vesul Exovertntiu", "Unravel Spacia", "Dyn Formn"],
+    dom: 40, rec: 10, eminence: "Civilized +20 / Feral +5", innateSelect: 2,
+    note: "Energy-attuned; a closed metric loop (compress → deflect → expand → release). A Variant must be chosen.",
     variants: VARIANTS.oriyu ?? [],
   },
   {
     id: "insectoid", name: "Insectoid", family: "Omenity", bonuses: { end: 2, cha: 2 },
-    innate: ["Regenerative Limbs", "Eyeless (non-visual senses)", "Reflexive Assurance", "Peak Evolution"],
-    note: "Carapaced survivors.",
+    innate: ["Regenerative Limbs", "Eyeless", "Reflexive Assurance", "Peak Evolution"],
+    dom: 24, rec: 40, eminence: "Civilized +15", innateSelect: 2,
+    note: "Multi-form chitinous survivors — highest Recessiveness; a Variant must be chosen.",
     variants: VARIANTS.insectoid ?? [],
   },
   {
     id: "subdermin", name: "SubDermin", family: "Omenity", bonuses: { end: 2, dex: 2 },
     innate: ["Forsaken Touch", "Radioactive Anatomy", "Terrestrial Knowledge", "Living Planet Merge"],
-    note: "Crystalline, terrestrial anomalies.",
+    dom: 30, rec: 20, eminence: "Feral +10 / Civilized +10", innateSelect: 2,
+    note: "Underground-dwelling; between Humanity and Omenity. A Variant must be chosen.",
     variants: VARIANTS.subdermin ?? [],
   },
   {
     id: "inderi", name: "Inderi", family: "Asternem", bonuses: { wis: 2, int: 2 },
     innate: ["Eldritch Physiology", "Enhanced Regeneration", "Perfect Reflex Calibration", "True Eye of Solitude"],
-    note: "Choose 2 of 4 active — the other 2 become locked Inceptions.",
+    dom: 40, rec: 5, eminence: "Civilized +35", innateSelect: 2,
+    note: "Primordial pioneers of Incept Selection — unselected pair enters the Incept Pool at FULL Dominance. A Variant must be chosen.",
     variants: VARIANTS.inderi ?? [],
   },
   {
     id: "seraph", name: "Seraph", family: "Asternem", bonuses: { dex: 2, wis: 2 },
     innate: ["Antimatter Wings", "Dance of Displacement", "Spatial Rupture", "Distant Vision"],
-    note: "Spatial flyers.",
+    dom: 45, rec: 5, eminence: "Civilized +40", innateSelect: 2,
+    note: "Divine-origin spatial masters — the highest Civilized Eminence in the game. A Variant must be chosen.",
     variants: VARIANTS.seraph ?? [],
   },
   {
     id: "stygians", name: "Stygians", family: "Asternem", bonuses: { cha: 2, wis: 2 },
     innate: ["Interstitial Intrusion", "Engraving", "Parasitic Shadow", "Locked in Time"],
+    dom: 40, rec: 10, eminence: "Feral +20", innateSelect: 2,
     note: "Shadow/void aberrants — highest Feral Eminence (+20); connected by the Stygian Hive.",
     variants: VARIANTS.stygians ?? [],
   },

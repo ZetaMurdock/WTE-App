@@ -308,7 +308,16 @@ export function CharacterCreator({ campaignId, edit, onDone, onCancel }: Props) 
                       ? Object.entries(sp.bonuses).map(([k, v]) => `+${v} ${k.toUpperCase()}`).join(", ")
                       : "No fixed bonus"}
                   </div>
-                  <div className="pick-innate">{sp.innate.join(" · ")}</div>
+                  {(sp.dom != null || sp.eminence) && (
+                    <div className="pick-genetics">
+                      {sp.dom != null ? `Dom ${sp.dom} · Rec ${sp.rec}` : ""}
+                      {sp.eminence ? ` · ${sp.eminence}` : ""}
+                    </div>
+                  )}
+                  <div className="pick-innate">
+                    {sp.innateSelect ? `Choose ${sp.innateSelect} of ${sp.innate.length}: ` : ""}
+                    {sp.innate.join(" · ")}
+                  </div>
                 </button>
               ))}
             </div>
