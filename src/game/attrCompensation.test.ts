@@ -5,6 +5,7 @@ import {
   ATTR_PIVOT,
   SPEC_KEYS,
   attrCompensation,
+  poolCompensation,
   computeDerived,
   type Attributes,
   type Specialties,
@@ -67,5 +68,52 @@ describe("attribute compensation — the gated seesaw", () => {
     expect(ATTR_COMPENSATION).toHaveLength(7);
     expect(new Set(ATTR_COMPENSATION.map((c) => c.attr)).size).toBe(7);
     expect(new Set(ATTR_COMPENSATION.map((c) => c.stat)).size).toBe(7);
+  });
+});
+
+describe("proportional pool compensation — the Curator's table rule", () => {
+  const trainedSpecs = { ...zeroS(), wt: 30, bal: 30, cun: 30, ctrl: 25, adp: 25, pre: 25, per: 25, wm: 10 };
+
+  it("is off unless the rule is on — the flat number is what every old sheet used", () => {
+    const a = { ...zeroA(), dex: 0, end: 0, phy: 10, ap: 10, wis: 10, cha: 10, int: 10 };
+    const flat = computeDerived(a, trainedSpecs, { rank: 9 });
+    const prop = computeDerived(a, trainedSpecs, { rank: 9, poolCompensation: true });
+    expect(prop.dhp).toBeGreaterThan(flat.dhp);
+    expect(prop.mv).toBeGreaterThan(flat.mv);
+  });
+
+  it("leaves the five MODIFIER routes exactly as they were", () => {
+    const a = { ...zeroA(), phy: 0, ap: 0, wis: 0, cha: 0, int: 0, dex: 10, end: 10 };
+    const flat = computeDerived(a, trainedSpecs, { rank: 9 });
+    const prop = computeDerived(a, trainedSpecs, { rank: 9, poolCompensation: true });
+    for (const k of ["ev", "rr", "ad", "pr", "atk"] as const) expect(prop[k]).toBe(flat[k]);
+  });
+
+  it("pays a SHARE, so it stays proportionate whatever the pool is worth", () => {
+    // Same dumped Dexterity, two very different Weight investments -> very
+    // different DHP pools. The flat rule pays both the same; this one does not.
+    const a = { ...zeroA(), dex: 0, end: 10, phy: 10, ap: 10, wis: 10, cha: 10, int: 10 };
+    const lean = computeDerived(a, { ...zeroS(), wt: 25 }, { rank: 9, poolCompensation: true });
+    const heavy = computeDerived(a, { ...zeroS(), wt: 75 }, { rank: 9, poolCompensation: true });
+    const leanFlat = computeDerived(a, { ...zeroS(), wt: 25 }, { rank: 9 });
+    const heavyFlat = computeDerived(a, { ...zeroS(), wt: 75 }, { rank: 9 });
+    expect(heavyFlat.dhp - heavy.dhp).not.toBe(leanFlat.dhp - lean.dhp); // flat pays equally, share does not
+    const leanPct = (lean.dhp - (leanFlat.dhp - 4)) / (leanFlat.dhp - 4);
+    const heavyPct = (heavy.dhp - (heavyFlat.dhp - 4)) / (heavyFlat.dhp - 4);
+    expect(Math.abs(leanPct - heavyPct)).toBeLessThan(0.02); // same SHARE of each pool
+  });
+
+  it("pays nothing when there is nothing to pay — the gate still rules", () => {
+    const a = { ...zeroA(), dex: 0, end: 0 };
+    const untrained = computeDerived(a, { ...zeroS(), wt: 24, ctrl: 24 }, { rank: 9, poolCompensation: true });
+    const flat = computeDerived(a, { ...zeroS(), wt: 24, ctrl: 24 }, { rank: 9 });
+    expect(untrained.dhp).toBe(flat.dhp);
+    expect(untrained.mv).toBe(flat.mv);
+  });
+
+  it("poolCompensation() is 5% of the pool per point of pay", () => {
+    expect(poolCompensation(60, 4)).toBe(12);
+    expect(poolCompensation(160, 4)).toBe(32);
+    expect(poolCompensation(60, 0)).toBe(0);
   });
 });

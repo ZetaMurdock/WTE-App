@@ -857,6 +857,9 @@ export interface DerivedOpts {
   morality?: number;
   /** Curator-sanctioned manual overrides — replace the computed value outright. */
   overrides?: Partial<Derived> & { hpMax?: number; ncMod?: number };
+  /** Table rule: pay compensation on the four CORE pools PROPORTIONALLY instead
+   *  of flat. Off by default — see POOL_COMP_RATE for why it exists. */
+  poolCompensation?: boolean;
 }
 /** Attribute value at which compensation begins (below this you are "lacking"). */
 export const ATTR_PIVOT = 10;
@@ -884,6 +887,17 @@ export const ATTR_COMPENSATION: { attr: AttrKey; stat: DerivedKey; specs: SpecKe
 export function attrCompensation(attrVal: number, trained: boolean, rank = 0): number {
   if (!trained || attrVal >= ATTR_PIVOT) return 0;
   return Math.floor(((ATTR_PIVOT - attrVal) / COMP_DIV) * rankMult(rank));
+}
+
+/** A pool and a check modifier are not the same currency. A flat +4 is 80% of an
+ *  Attack Power of 5 and 6% of a DHP of 61 — so five of the seven compensation
+ *  routes land hard and two (dex→DHP, end→Movement) vanish into the noise.
+ *  Under the `poolCompensation` table rule the CORE pools are instead paid a
+ *  SHARE of themselves — 5% per point of compensation, which puts them in the
+ *  same 10–25% band the modifier routes already occupy, at any pool size. */
+export const POOL_COMP_RATE = 0.05;
+export function poolCompensation(poolValue: number, pay: number): number {
+  return Math.round(poolValue * POOL_COMP_RATE * pay);
 }
 
 export function computeDerived(
@@ -946,7 +960,10 @@ export function computeDerived(
   // shaped build back at the modifier is the only place it can be felt.
   for (const c of ATTR_COMPENSATION) {
     const trained = c.specs.some((k) => (s[k] || 0) >= SPEC_PENALTY_MIN);
-    d[c.stat] += attrCompensation(a[c.attr], trained, rank);
+    const pay = attrCompensation(a[c.attr], trained, rank);
+    if (!pay) continue;
+    d[c.stat] +=
+      opts.poolCompensation && CORE_DERIVED.has(c.stat) ? poolCompensation(d[c.stat], pay) : pay;
   }
   // Size Evasion modifier applies to the CHECK (post-conversion), per the AAV rule.
   if (size?.evMod) d.ev += size.evMod;

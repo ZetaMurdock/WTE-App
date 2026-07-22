@@ -10,6 +10,7 @@ import {
   bgBonuses,
 } from "../../game/wte";
 import { loadoutMods } from "../../lib/codex";
+import { derivedRules } from "../../lib/campaignRules";
 import { TOKEN_COLORS, type VttToken } from "../types/scene";
 
 /** WTE size class → token diameter in grid cells. */
@@ -44,6 +45,7 @@ export function characterToTokenSpec(rec: CharacterRecord): Partial<VttToken> {
     equip,
     sizeId: sheet.sizeId,
     overrides: sheet.derivedOverrides,
+    ...derivedRules(rec.campaignId),
   });
   const hpMax = Math.max(1, derived.hpMax);
   return {

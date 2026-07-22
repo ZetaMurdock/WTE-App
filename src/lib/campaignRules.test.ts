@@ -10,6 +10,7 @@ import {
 } from "../game/wte";
 import {
   ATTR_BUDGET_DEFAULT,
+  DEFAULT_RULES,
   ATTR_BUDGET_MAX,
   ATTR_BUDGET_MIN,
   SPEC_TOTAL_MAX,
@@ -39,8 +40,8 @@ describe("campaign rules", () => {
   });
 
   it("round-trips per campaign without leaking between tables", () => {
-    saveRules("c1", { attrBudget: true, attrBudgetPoints: 65, specTotal: 160 });
-    expect(loadRules("c1")).toEqual({ attrBudget: true, attrBudgetPoints: 65, specTotal: 160 });
+    saveRules("c1", { ...DEFAULT_RULES, attrBudget: true, attrBudgetPoints: 65, specTotal: 160 });
+    expect(loadRules("c1")).toEqual({ ...DEFAULT_RULES, attrBudget: true, attrBudgetPoints: 65, specTotal: 160 });
     expect(loadRules("c2").attrBudget).toBe(false);
   });
 
@@ -84,10 +85,10 @@ describe("campaign rules", () => {
   });
 
   it("reports the budget state the creator shows", () => {
-    const on = { attrBudget: true, attrBudgetPoints: 70, specTotal: SPEC_TOTAL };
+    const on = { ...DEFAULT_RULES, attrBudget: true, attrBudgetPoints: 70 };
     expect(attrBudgetState(64, on)).toMatchObject({ enforced: true, remaining: 6, over: false });
     expect(attrBudgetState(71, on)).toMatchObject({ remaining: -1, over: true });
     // 140 attribute points is only "over" when the Curator turned the rule on.
-    expect(attrBudgetState(140, { attrBudget: false, attrBudgetPoints: 70, specTotal: SPEC_TOTAL }).over).toBe(false);
+    expect(attrBudgetState(140, { ...DEFAULT_RULES, attrBudgetPoints: 70 }).over).toBe(false);
   });
 });

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { SPEC_MAX, SPEC_TOTAL } from "../../game/wte";
+import { POOL_COMP_RATE, SPEC_MAX, SPEC_TOTAL } from "../../game/wte";
 import {
   ATTR_BUDGET_MAX,
   ATTR_BUDGET_MIN,
@@ -95,6 +95,27 @@ export function TableRules({ campaignId, onClose }: Props) {
               <span className="rule-hint">70 is a slightly lean roll · 140 is seven 20s</span>
             </div>
           )}
+        </div>
+
+        <div className="rule-block">
+          <label className="rule-toggle">
+            <input type="checkbox" checked={rules.poolCompensation} onChange={(e) => patch({ poolCompensation: e.target.checked })} />
+            <span>Proportional compensation on the core pools</span>
+          </label>
+          <p className="rule-note">
+            When an attribute below 10 pays its dichotomy partner back, five of the
+            seven routes land on a check modifier and two — Dexterity into DHP and
+            Endurance into Movement — land on a pool. A flat +4 is most of a small
+            Attack Power and almost nothing on a Defensive Hit Point total, so those
+            two routes are effectively silent. Switch this on and the pools are paid
+            a share of themselves instead ({Math.round(POOL_COMP_RATE * 100)}% per point),
+            which puts them in the same band as the other five at any pool size.
+          </p>
+          <p className="rule-note">
+            This is a straight buff to characters who dumped Dexterity or Endurance
+            and trained the opposite side. Off by default, because every existing
+            sheet was built under the flat version.
+          </p>
         </div>
 
         <p className="rule-foot">

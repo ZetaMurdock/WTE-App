@@ -485,7 +485,7 @@ export function CharacterCreator({ campaignId, edit, onDone, onCancel }: Props) 
             </div>
             <div className="wizard-aside">
               <div className="aside-title">Derived preview</div>
-              <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} background={background} sizeId={sizeId} morality={morality} />
+              <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} background={background} sizeId={sizeId} morality={morality} poolCompensation={rules.poolCompensation} />
             </div>
           </div>
         )}
@@ -553,7 +553,7 @@ export function CharacterCreator({ campaignId, edit, onDone, onCancel }: Props) 
             </div>
             <div className="wizard-aside">
               <div className="aside-title">Derived preview</div>
-              <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} background={background} morality={morality} />
+              <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} background={background} morality={morality} poolCompensation={rules.poolCompensation} />
             </div>
           </div>
         )}
@@ -585,7 +585,7 @@ export function CharacterCreator({ campaignId, edit, onDone, onCancel }: Props) 
             </div>
             <div className="wizard-aside">
               <div className="aside-title">Derived preview</div>
-              <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} background={background} morality={morality} />
+              <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} background={background} morality={morality} poolCompensation={rules.poolCompensation} />
             </div>
           </div>
         )}
@@ -619,7 +619,7 @@ export function CharacterCreator({ campaignId, edit, onDone, onCancel }: Props) 
                 ))}
               </ul>
             )}
-            <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} background={background} morality={morality} />
+            <DerivedPreview attributes={attributes} specialties={specialties} speciesId={speciesId} background={background} morality={morality} poolCompensation={rules.poolCompensation} />
             <button className="primary-btn full mt" disabled={saving || !canFinish} onClick={finish}>
               {saving ? "Saving…" : edit ? "Save changes" : "Create character"}
             </button>

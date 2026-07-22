@@ -58,7 +58,7 @@ import { NegotiationPanel } from "./NegotiationPanel";
 import { getWeapon, loadoutMods, loadoutNC, weaponSlotsUsed, WEAPON_SLOTS } from "../../lib/codex";
 import type { Weapon } from "../../models/codex";
 import { useNet } from "../../net/NetContext";
-import { loadRules, sheetCaps } from "../../lib/campaignRules";
+import { loadRules, sheetCaps, type CampaignRules } from "../../lib/campaignRules";
 import { RollButton } from "./RollButton";
 
 interface Props {
@@ -140,7 +140,8 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   const effSpec = effectiveSpecialties(sheet.specialties, specPlusSoul);
   // Live table budgets — a Curator who lowers a cap flags every sheet that no
   // longer fits, rather than grandfathering builds nobody can rebuild.
-  const caps = sheetCaps(loadRules(campaignId));
+  const rules: CampaignRules = loadRules(campaignId);
+  const caps = sheetCaps(rules);
   const remaining = specialtyRemaining(sheet.specialties, caps.specTotal);
   const derived = computeDerived(sheet.attributes, sheet.specialties, {
     speciesId: sheet.speciesId,
@@ -151,6 +152,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
     sizeId: sheet.sizeId,
     morality: sheet.morality,
     overrides: sheet.derivedOverrides,
+    poolCompensation: rules.poolCompensation,
   });
   // Same, minus equipment/loadout — so vitals can show the gear contribution.
   const derivedBase = computeDerived(sheet.attributes, sheet.specialties, {
@@ -160,6 +162,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
     bgSpec: bgSpecBonuses(sheet.background),
     sizeId: sheet.sizeId,
     morality: sheet.morality,
+    poolCompensation: rules.poolCompensation,
   });
   const maxSS = derived.ss;
   const ssSpent = sheet.ssSpent ?? 0;

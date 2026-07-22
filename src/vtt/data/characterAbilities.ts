@@ -15,6 +15,7 @@ import {
   rollMod,
 } from "../../game/wte";
 import { getWeapon, loadoutMods, isRangedWeapon } from "../../lib/codex";
+import { derivedRules } from "../../lib/campaignRules";
 import { parseEffectMeta, type EffectMeta } from "./effectMeta";
 
 export type AbilitySource = "action" | "genus" | "cipher" | "racial";
@@ -78,6 +79,7 @@ function deriveHits(rec: CharacterRecord): { atk: number; phyMod: number; dexMod
     sizeId: s.sizeId,
     morality: s.morality,
     overrides: s.derivedOverrides,
+    ...derivedRules(rec.campaignId),
   });
   return { atk: derived.atk, phyMod: rollMod(eff.phy), dexMod: rollMod(eff.dex) };
 }

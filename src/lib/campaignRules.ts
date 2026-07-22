@@ -17,6 +17,10 @@ export interface CampaignRules {
   /** Specialty points per character. Always enforced; the published rules say
    *  200, but the Curator may run a leaner or richer table. */
   specTotal: number;
+  /** Pay attribute compensation on the four CORE pools as a SHARE of the pool
+   *  rather than a flat number. Off by default: it is a real buff to shaped
+   *  builds, and the flat version is what every existing sheet was built under. */
+  poolCompensation: boolean;
 }
 
 /** Seven d20s average 73.5 — the default budget sits just under an average roll. */
@@ -31,6 +35,7 @@ export const DEFAULT_RULES: CampaignRules = {
   attrBudget: false,
   attrBudgetPoints: ATTR_BUDGET_DEFAULT,
   specTotal: SPEC_TOTAL,
+  poolCompensation: false,
 };
 
 const key = (campaignId: string) => `wte-campaign-rules:${campaignId}`;
@@ -47,7 +52,14 @@ export function parseRules(raw: unknown): CampaignRules {
     attrBudget: o.attrBudget === true,
     attrBudgetPoints: clamp(o.attrBudgetPoints, ATTR_BUDGET_MIN, ATTR_BUDGET_MAX, ATTR_BUDGET_DEFAULT),
     specTotal: clamp(o.specTotal, SPEC_TOTAL_MIN, SPEC_TOTAL_MAX, SPEC_TOTAL),
+    poolCompensation: o.poolCompensation === true,
   };
+}
+
+/** The rules computeDerived needs, for a character in this campaign. Null id
+ *  (an unfiled or shared character) simply gets the published defaults. */
+export function derivedRules(campaignId: string | null | undefined): { poolCompensation: boolean } {
+  return { poolCompensation: campaignId ? loadRules(campaignId).poolCompensation : false };
 }
 
 /** The caps to hand validateSheet / specialtyRemaining for this campaign. */

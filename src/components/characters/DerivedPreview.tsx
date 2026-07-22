@@ -32,12 +32,14 @@ interface Props {
   exclude?: DerivedKey[];
   /** Show the Max Health cell (default true). */
   showHp?: boolean;
+  /** Table rule: proportional compensation on the CORE pools. */
+  poolCompensation?: boolean;
 }
 
 // Live grid of the derived stats + max HP. Core stats (SS / NC / MV) are totals
 // (raw × rank); everything else is a MODIFIER from its raw pool. Negative values
 // (over-specialized builds) are highlighted as liabilities — no clamp.
-export function DerivedPreview({ attributes, specialties, speciesId, rank, background, equipment, equipMods, sizeId, morality, exclude, showHp = true }: Props) {
+export function DerivedPreview({ attributes, specialties, speciesId, rank, background, equipment, equipMods, sizeId, morality, exclude, showHp = true, poolCompensation }: Props) {
   const d = computeDerived(attributes, specialties, {
     speciesId,
     rank,
@@ -46,6 +48,7 @@ export function DerivedPreview({ attributes, specialties, speciesId, rank, backg
     equip: equipMods ?? aggregateEquip(equipment),
     sizeId,
     morality,
+    poolCompensation,
   });
   const skip = new Set(exclude ?? []);
   return (

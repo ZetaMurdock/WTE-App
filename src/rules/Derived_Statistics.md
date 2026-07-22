@@ -99,9 +99,9 @@ out-perform them on the stats they chose.
 
 ---
 
-### Table Rules — the Curator's budgets
+### Table Rules — the Curator's switches
 
-Two budgets live in **Character Vault → Table Rules**, per campaign, Curator-only.
+These live in **Character Vault → Table Rules**, per campaign, Curator-only.
 
 **Specialty points.** The published rules give every character 200. A Curator can
 lower it for a grittier table or raise it for veterans; a single specialty still
@@ -113,7 +113,24 @@ manual entry, so a table running that way can type a wall of 20s. Switch the
 budget on and the *total* of all seven is capped, default 70. Rolled tables never
 need it; point-buy tables get a real budget to argue over.
 
-**These budgets are live, not stamped at creation.** Every sheet in the vault is
+**Proportional compensation on the core pools.** Off by default. Compensation is
+paid as a flat number, but the ten stats are not one currency: six are check
+modifiers and four are pools. Five of the seven compensation routes land on a
+modifier, where +4 is a large fraction of the number. The other two — **Dexterity
+into DHP** and **Endurance into Movement** — land on a pool of 60 or 160, where
++4 disappears.
+
+Switch this on and those two are paid a **share of the pool instead — 5% per
+point of compensation**, which puts them in the same 10–25% band the other five
+already occupy, at any pool size. A rank-9 character who dumped Dexterity to 0
+and trained Weight hard goes from +4 DHP to +12 on a pool of 61, or +32 on a pool
+of 161.
+
+It is a straight buff to characters built around a dumped Dexterity or Endurance,
+which is why it is off by default: every sheet made before this switch existed was
+built under the flat rule.
+
+**These switches are live, not stamped at creation.** Every sheet in the vault is
 measured against the current numbers. Lower a cap and the characters that no
 longer fit are flagged on their cards and on their sheets — the Curator sees
 exactly who has to be rebuilt instead of quietly grandfathering a party that no
