@@ -57,6 +57,13 @@ export async function installUpdate(update: WteUpdate): Promise<void> {
 // ── Google account (beta) ────────────────────────────────────────────────
 const DEFAULT_OAUTH_CLIENT_ID =
   "147593598636-a8gn087e5oj75ikglcpvkl65u687gkal.apps.googleusercontent.com";
+// The Desktop client secret is injected at BUILD time by CI (VITE_GOOGLE_CLIENT_SECRET,
+// from a GitHub Actions secret) so a shipped user never has to paste one. For a
+// Google "Desktop app" client this value is not a true secret — Google embeds it
+// in installed apps by design — but the repo is public, so it is injected rather
+// than committed. Empty in a plain dev build; the sign-in flow then falls back to
+// a one-time prompt for developers / custom-project users only.
+const DEFAULT_OAUTH_CLIENT_SECRET = import.meta.env.VITE_GOOGLE_CLIENT_SECRET ?? "";
 
 // The built-in shared-library project, so publishing works out of the box for
 // everyone with no setup. A Firebase web config/apiKey is a PUBLIC client
@@ -96,6 +103,9 @@ function getOAuth(): any {
   }
   o = o || {};
   if (!o.clientId) o.clientId = DEFAULT_OAUTH_CLIENT_ID;
+  // A build-injected secret means shipped users never see the prompt below; a
+  // secret the user pasted for their own project (stored in wte-oauth) wins.
+  if (!o.clientSecret && DEFAULT_OAUTH_CLIENT_SECRET) o.clientSecret = DEFAULT_OAUTH_CLIENT_SECRET;
   return o;
 }
 
@@ -191,8 +201,29 @@ export async function signInWithGoogle(): Promise<AuthUser | null> {
     return res.user as AuthUser;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (e: any) {
+    const code: string = (e && e.code) || "";
     let msg = e && e.message ? e.message : String(e);
-    // a token-exchange/client error usually means a wrong secret → clear it so the next try re-prompts
+    // Firebase rejects the id_token when the OAuth client isn't recognised by the
+    // Firebase project. Our Desktop client lives in a different Google project, so
+    // it must be safelisted — this is a console setting, not a user error.
+    if (code === "auth/invalid-credential" || /invalid.?credential/i.test(msg)) {
+      throw new Error(
+        "Google approved you, but the shared library's Firebase project rejected the sign-in.\n\n" +
+          "Fix (one time, in the Firebase console for project codexlib-b81bf):\n" +
+          "Authentication → Sign-in method → Google → \"Safelist client IDs from external projects\" → add the desktop client ID ending in ...687gkal.\n\n" +
+          "Until then, publishing still works anonymously; only the named Google account is unavailable."
+      );
+    }
+    // Consent screen still in Testing → only safelisted test users may sign in.
+    if (/access_denied|not been verified|test user|consent/i.test(msg)) {
+      throw new Error(
+        "Google refused the sign-in: the app's OAuth consent screen is in Testing mode, so only listed test users may sign in.\n\n" +
+          "Publish the consent screen (Google Cloud → APIs & Services → OAuth consent screen → Publish app), or add this account under Test users."
+      );
+    }
+    // A token-exchange/client error means a wrong secret → clear it so the next try
+    // re-prompts. In a shipped build the secret is build-injected, so this only
+    // reaches developers or custom-project users.
     if (/token exchange|rejected the token|invalid_client|401/i.test(msg)) {
       try {
         const o = getOAuth();
@@ -202,7 +233,7 @@ export async function signInWithGoogle(): Promise<AuthUser | null> {
         /* ignore */
       }
       msg +=
-        "\n\nThe saved client secret was cleared — click Sign in again to re-enter it. Make sure it is the *Client secret* of the SAME Desktop OAuth client whose ID ends in ...687gkal.";
+        "\n\nThe saved client secret was cleared — sign in again to re-enter it. Use the *Client secret* of the SAME Desktop OAuth client whose ID ends in ...687gkal.";
     }
     throw new Error(msg);
   }
