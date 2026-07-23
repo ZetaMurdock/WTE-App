@@ -109,6 +109,26 @@ function getOAuth(): any {
   return o;
 }
 
+// Firebase resolves the persisted user ASYNCHRONOUSLY — `auth().currentUser` is
+// null until the first onAuthStateChanged fires. Anything that acts on "am I
+// signed in?" at boot (e.g. the anonymous-DB fallback) must await this first, or
+// it races the restore and can clobber a real session with an anonymous one.
+let __wteAuthReady: Promise<void> | null = null;
+function authReady(): Promise<void> {
+  if (__wteAuthReady) return __wteAuthReady;
+  __wteAuthReady = new Promise<void>((resolve) => {
+    try {
+      const unsub = window.firebase.auth().onAuthStateChanged(() => {
+        unsub();
+        resolve();
+      });
+    } catch {
+      resolve();
+    }
+  });
+  return __wteAuthReady;
+}
+
 function b64url(bytes: Uint8Array): string {
   let s = "";
   for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
@@ -127,10 +147,19 @@ function ensureFirebase(cfg: any): Promise<void> {
       document.head.appendChild(s);
     }
     load("https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js", () => {
-      load("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js", () => {
+      load("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js", async () => {
         try {
           const fb = window.firebase;
           if (!fb.apps.length) fb.initializeApp(cfg);
+          // Keep the session across restarts. LOCAL is the browser default, but a
+          // webview can resolve it to in-memory if the probe is unlucky — set it
+          // explicitly, and BEFORE we resolve so every later sign-in writes under
+          // it. Non-fatal if the probe fails; the default still applies.
+          try {
+            await fb.auth().setPersistence(fb.auth.Auth.Persistence.LOCAL);
+          } catch {
+            /* older shim / probe failure — fall back to default */
+          }
           res();
         } catch (e) {
           rej(e as Error);
@@ -321,8 +350,14 @@ export function firebaseDb(): Promise<any> {
     // Publishing needs SOME auth (rules: ".write": "auth != null" while the
     // library is unclaimed). Fall back to an anonymous session when the user
     // hasn't signed in with Google — reads are public either way.
+    //
+    // Wait for Firebase to finish loading the persisted session FIRST. Without
+    // this, a boot-time DB call (e.g. autoRefreshPulledPages) sees currentUser
+    // null, signs in anonymously, and overwrites the restored Google session —
+    // which is why signed-in users were being logged out on every launch.
     try {
       const auth = window.firebase.auth();
+      await authReady();
       if (!auth.currentUser) await auth.signInAnonymously();
     } catch {
       /* anonymous sign-in unavailable — reads still work; writes surface their own error */
