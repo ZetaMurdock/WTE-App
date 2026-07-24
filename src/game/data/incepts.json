@@ -1,0 +1,488 @@
+{
+  "hyomen": {
+    "blurb": "The Incept pool for the Hyomen species. Used during Director Splitting to unlock latent ancestral potential. Hyomen Inceptions reflect their defining nature: adaptability, specialization, and indomitable will.",
+    "incepts": [
+      {
+        "name": "Imperfect Resistance",
+        "dominance": 40,
+        "recessiveness": 25,
+        "weight": "Light",
+        "effect": "Hyomen possess an incomplete but broad defensive adaptation.\nGain Resistance to all non-physical damage types (elemental, arcane, radiation, soul).\nThis resistance does not apply to purely physical or True damage.\nroll a d6 That roll multiplied by amount of Incepts you have turned into a a Decimal Plus your rank multiplier for instance you have two Incepts 2.0 plus your rank multiplier so 1.75 so the final number will be Multiplied by 3.75"
+      },
+      {
+        "name": "Prodigy",
+        "dominance": 30,
+        "recessiveness": 15,
+        "weight": "Light",
+        "effect": "You demonstrate exceptional instinctive mastery.\nGain +4 to all specialty.\nApplies to Cipher activation, progression checks, and Cipher-specific challenges."
+      },
+      {
+        "name": "Focused Specialization",
+        "dominance": 10,
+        "recessiveness": 5,
+        "weight": "Light",
+        "effect": "Your expertise sharpens where mastery already exists.\nAny skill with a +4 or higher modifier gains an additional +2 bonus.\nOn a Critical Failure with one of these skills, you may reroll the check and take the new result."
+      },
+      {
+        "name": "Weapon Specialist",
+        "dominance": 25,
+        "recessiveness": 15,
+        "weight": "Medium",
+        "effect": "Your craftsmanship and technique are unmatched.\nAll weapons wielded by you gain a +10 bonus to its damage ."
+      },
+      {
+        "name": "Sanction",
+        "dominance": 15,
+        "recessiveness": 10,
+        "weight": "Medium",
+        "effect": "You turn momentum into dominance.\nIf you move toward a creature and your available movement exceeds theirs: gain Advantage on Action Priority.\nOn a successful attack during this movement:\nTarget gains Disadvantage on Dexterity Saving Throws.\nTarget suffers Disadvantage on Balance Checks until the end of their next turn."
+      },
+      {
+        "name": "Environmental Protection",
+        "dominance": 15,
+        "recessiveness": 10,
+        "weight": "Light",
+        "effect": "Your body resists hostile environments.\nAll environmental damage is reduced by 10 + Endurance Modifier.\nIf wearing protective gear: damage reduced by Defensive Hit Points minus Endurance Modifier (Director sets minimum).\nif you're a Spatian you can grab onto another biological creature and give them the ability to Survive in the vacuum of space"
+      },
+      {
+        "name": "Creative Expertise",
+        "dominance": 10,
+        "recessiveness": 20,
+        "weight": "Light",
+        "effect": "Your intellect thrives in problem-solving and invention.\nGain +4 to all Intelligence-based DCs you set.\nGain Advantage on all skills with a +17 or higher modifier."
+      },
+      {
+        "name": "Talent Holder",
+        "dominance": 20,
+        "recessiveness": 15,
+        "weight": "Light",
+        "effect": "Your latent potential attracts asymmetry.\nGain a 1D100 or 50 chance to obtain a extra SF point whenever you rank up."
+      },
+      {
+        "name": "Archetype Connoisseur",
+        "dominance": 10,
+        "recessiveness": 30,
+        "weight": "Medium",
+        "effect": "You study Archetypes as expressions of identity rather than limitation.\nSelect one additional Cipher beyond normal limits.\nGain 1 Online Cipher of your choice."
+      },
+      {
+        "name": "Imperfect Perfection",
+        "dominance": 25,
+        "recessiveness": 40,
+        "weight": "Light",
+        "effect": "Failure bends toward success in your presence.\nuse 3 dice on negative roll result is converted into a positive value.\nThe converted value scales for minimal success -- it becomes the lowest possible successful result rather than a failure.\nThis does not guarantee critical success."
+      },
+      {
+        "name": "Indomitable Spirit",
+        "dominance": 5,
+        "recessiveness": 30,
+        "weight": "Medium",
+        "effect": "Your will refuses collapse.\nWhen reduced to 25 HP or fewer, enter Adrenaline Rush: all damage you deal is doubled.\nOnce per encounter, just before Health would reach 0: make an immediate final attack.\nIf this attack deals damage equal to or greater than half the target maximum health, remain standing at 1 HP instead of falling."
+      }
+    ]
+  },
+  "voaulton": {
+    "blurb": "The Incept pool for the Voaulton species. Used during Director Splitting to unlock latent ancestral potential. Voaulton Inceptions reflect their dual nature: pathogenic mastery, neurochemical synthesis, technological integration, and parasitic legacy.",
+    "incepts": [
+      {
+        "name": "Pathogenic Retaliation",
+        "dominance": 25,
+        "recessiveness": 5,
+        "weight": "Medium",
+        "effect": "Your biology weaponizes infection and resistance simultaneously.\nGain 5% Resistance to all non-physical damage.\nGain 50% Resistance to Pathogenic Damage.\nAll Physical Attacks additionally deal +2d12 Pathogenic Damage.\nThis damage counts as Augmented Damage and may interact with disease, infection, or corrosion effects at Director discretion."
+      },
+      {
+        "name": "Parasitic Synthesis",
+        "dominance": 25,
+        "recessiveness": 45,
+        "weight": "Medium",
+        "effect": "You subsume another entity function through invasive synthesis.\nRoll Intelligence Check (DC 10). On success, latch onto an Organic Creature or Inorganic Construct.\nThe target must succeed on a Wisdom Saving Throw (DC 13).\nOn failure: temporarily take control of the target (Director determines duration and limitations).\nImmediately gain surface-level information about the target and one Archetype Skill of the target choosing.\nThe gained skill may be used as a Prepared Action and is lost immediately after use.\nRequires 3 hours of Downtime before reuse."
+      },
+      {
+        "name": "Energy Assimilation",
+        "dominance": 15,
+        "recessiveness": 20,
+        "weight": "Light",
+        "effect": "You convert hostile energy into survivability.\nWhen hit by an energy-based attack (Fire, Cold, Lightning, Radiant, Necrotic): use your Reaction to gain Temporary HP equal to half the damage dealt.\nUsable once per Downtime. Temporary HP gained this way does not stack."
+      },
+      {
+        "name": "Neurochemical Surge",
+        "dominance": 25,
+        "recessiveness": 5,
+        "weight": "Light",
+        "effect": "You forcibly flood your system with optimized neurochemistry.\nOnce per Encounter, activate a Neurochemical Surge. Roll 1d4 to determine the effect (lasts 3 turns):\nd4\tSurge Type\tEffect\n1\tDopamine Surge\t+10 Strength and Dexterity\n2\tSerotonin Surge\tRegenerate 1d20 HP per turn\n3\tAdrenaline Surge\t+6 to all attack rolls and damage\n4\tOxytocin Surge\t+5 to all Opportunity Rolls and immunity to Fear\nEffects cannot be rerolled or extended unless altered by another Incept or Wryde effect."
+      },
+      {
+        "name": "Chemical Assimilation",
+        "dominance": 25,
+        "recessiveness": 40,
+        "weight": "Medium",
+        "effect": "You absorb and analyze external chemical compounds.\nBy physical contact or ingestion: attempt to assimilate a chemical (1 Action + Intelligence Check).\nDC determined by Director based on rarity, stability, complexity, or toxicity.\nSuccessfully assimilated chemicals may be stored, replicated, or used as components for other Incepts or effects."
+      },
+      {
+        "name": "Neurochemical Generation",
+        "dominance": 25,
+        "recessiveness": 50,
+        "weight": "Medium",
+        "effect": "Your advanced neural architecture synthesizes internal compounds.\nGenerate neurochemicals internally without external sources.\nGenerated compounds synthesized within the brain; stored in specialized reservoirs in your robotic exoskeleton.\nNeurochemicals may be expended to fuel other Incepts, used for enhancement, or altered via Wryde Mutation."
+      }
+    ]
+  },
+  "mirga": {
+    "blurb": "The Incept pool for the Mirga species. Used during Director Splitting to unlock latent ancestral potential. Mirga Inceptions reflect their core identity: transformation, identity theft, hive-self division, and the fracturing of singular existence.",
+    "incepts": [
+      {
+        "name": "Perfect Mimic",
+        "dominance": 40,
+        "recessiveness": 25,
+        "weight": "Medium",
+        "effect": "You flawlessly replicate another being.\nUse a Bonus Action to begin transformation into a creature you have previously seen.\nThe transformation completes after 3 minutes.\nThe form is visually, anatomically, and biologically identical unless otherwise restricted by the Director.\nEquipment and supernatural traits are not copied unless granted by another Incept.",
+        "memory": "The Mirga may maintain up to four (4) fixed transformations at any time. This Incept occupies 4 of 4 transformation slots."
+      },
+      {
+        "name": "Piece Shifting",
+        "dominance": 10,
+        "recessiveness": 20,
+        "weight": "Medium",
+        "effect": "You reshape fragments of yourself into external forms.\nUse 1 Action to alter a specific aspect of your body into an object you have previously observed.\nThe transformation completes after 2 minutes.\nThe created object is a perfect replica in form and function, though it remains biologically linked unless detached.",
+        "memory": "You may transform a portion of your body into a flawless replica of any object you have seen."
+      },
+      {
+        "name": "Life Creation",
+        "dominance": 10,
+        "recessiveness": 35,
+        "weight": "Heavy",
+        "effect": "You create living extensions of yourself.\nUse a Bonus Action to sever a portion of your body and form a creature companion.\nThe created being: possesses a soul, is loyal and under your control, and shares thematic traits with you (Director discretion).\nThe creature first action is a Free Action upon creation.\nPermanent Cost: You permanently lose 10% of your maximum HP per creature created.",
+        "memory": "You remove a piece of yourself and grant it autonomy, identity, and a soul."
+      },
+      {
+        "name": "Hive Mind",
+        "dominance": 1,
+        "recessiveness": 15,
+        "weight": "Heavy",
+        "effect": "Your consciousness fractures across multiple forms.\nDivide yourself into multiple bodies, each fully controllable.\nEach body shares your stats, skills, and abilities and acts independently on the action economy.\nShared Damage: All damage taken by any body is divided evenly across all active bodies.\nIf one body is destroyed, its remaining health is redistributed among the others.",
+        "memory": "Your body ceases to be singular, becoming a collective organism."
+      },
+      {
+        "name": "Bodysnatcher",
+        "dominance": 2,
+        "recessiveness": 15,
+        "weight": "Light",
+        "effect": "After killing a creature you can take its Body as Genetic Baseline\nUpon successful body theft: increase your lowest stat and divide that stat by 2 and then add the target lowest stat to it.\nThe stolen body becomes your new baseline form unless otherwise stated.",
+        "memory": "You claim bodies as vessels of progress."
+      },
+      {
+        "name": "Identity Theft",
+        "dominance": 1,
+        "recessiveness": 15,
+        "weight": "Light",
+        "effect": "You steal fragments of supernatural identity.\nWhen transformed into another creature: access SF they possess in any Genus that you can Focus as yours so if they have SF 4 for reflect and you have a SF 1 you can use the SF 4.\nUsable twice per Downtime.",
+        "memory": "You refine mimicry beyond appearance -- into capability."
+      },
+      {
+        "name": "Shared Senses",
+        "dominance": 2,
+        "recessiveness": 15,
+        "weight": "Light",
+        "effect": "Your awareness multiplies with each form you control.\nWhile above 50% of your maximum HP: gain +10 to Perception and Insight checks per active body.\nSensory data is shared instantly between all bodies.",
+        "memory": "All bodies act as a unified sensory network."
+      }
+    ]
+  },
+  "oriyu": {
+    "blurb": "The Incept pool for the Oriyu species. Used during Director Splitting to unlock latent ancestral potential. Oriyu Inceptions reflect their Nexus energy identity: absorption, conversion, permanent empowerment, and the dangers of uncontrolled energy amplification.",
+    "incepts": [
+      {
+        "name": "Nexus Reconstruction",
+        "dominance": 20,
+        "recessiveness": 15,
+        "weight": "Medium",
+        "effect": "Whenever you are required to roll any stat-based check, you may choose to substitute the governing modifier with either your Control Modifier or Intelligence Modifier. This choice is made per roll, before the dice are rolled."
+      },
+      {
+        "name": "Energy Absorption",
+        "dominance": 10,
+        "recessiveness": 5,
+        "weight": "Medium",
+        "effect": "Action: Absorb ambient energy from your surroundings.\nYour next 5 actions gain: +3 bonus to rolls and +4d10 Radiant Damage added to damage rolls.\nEffects expire once all 5 empowered actions are used."
+      },
+      {
+        "name": "Nexus Charge",
+        "dominance": 15,
+        "recessiveness": 30,
+        "weight": "Heavy",
+        "effect": "Target a creature within 60 feet whose Neuronal Capacity modifier is lower than yours.\nDrain their life force through the Nexus, permanently empowering yourself.\nGain +2 to all stats each time this succeeds. Caps at +12 with a standard Nexus.\nAfter reaching +12, an Upgraded Nexus is required, allowing the cap to increase up to +20.\nEach creature may only be drained once (Director discretion for exceptions)."
+      },
+      {
+        "name": "Energetic Movement",
+        "dominance": 15,
+        "recessiveness": 20,
+        "weight": "Medium",
+        "effect": "Gain +30 bonus to all movement values.\nImmediately gain one free True Opportunity Attack, usable before the end of your current turn."
+      },
+      {
+        "name": "Nexus Enlargement",
+        "dominance": 5,
+        "recessiveness": 15,
+        "weight": "Heavy",
+        "effect": "Action: Enter an Enlarged Nexus State.\nWhile enlarged: all attacks gain +1d40 Crushing Damage with significant physical weight and impact (environmental and knockback effects at Director discretion).\nDrawback: -30 to Action Priority and Priority while this state persists.\nThe state ends when dismissed or when combat concludes."
+      }
+    ]
+  },
+  "insectoid": {
+    "blurb": "The Incept pool for the Insectoid species. Used during Director Splitting to unlock latent ancestral potential. Insectoid Inceptions reflect their biological core: exoskeletal adaptation, sensory mastery, accelerated regeneration, and evolving chitin architecture.",
+    "incepts": [
+      {
+        "name": "Chitin Reformation",
+        "dominance": 30,
+        "recessiveness": 15,
+        "weight": "Light",
+        "effect": "Your exoskeleton does not just heal -- it upgrades under pressure.\nWhen you take physical damage that exceeds 15% of your maximum HP in a single hit:\nYour chitin hardens in the struck location.\nGain Resistance to that damage type until the end of the encounter.\nThis effect can apply to up to 3 different damage types simultaneously."
+      },
+      {
+        "name": "Sensory Override",
+        "dominance": 20,
+        "recessiveness": 10,
+        "weight": "Light",
+        "effect": "Your non-visual senses push beyond biological limits.\nExtend non-visual detection radius to 60 feet.\nWithin this range: perceive the exact position and movement speed of all creatures, even through walls or total concealment.\nTargeting rolls against creatures within range cannot suffer Disadvantage from environmental conditions (darkness, fog, invisibility)."
+      },
+      {
+        "name": "Rapid Regeneration",
+        "dominance": 15,
+        "recessiveness": 25,
+        "weight": "Medium",
+        "effect": "Your regenerative capacity accelerates to an extreme rate.\nLost limbs regenerate in 1 turn (not 1 Short Rest).\nAt the start of each turn, if below half health: recover END modifier in HP from auto-repair.\nOnce per encounter, when you would be reduced to 0 HP: immediately regenerate 1d20 + END modifier HP instead."
+      },
+      {
+        "name": "Compound Evolution",
+        "dominance": 10,
+        "recessiveness": 35,
+        "weight": "Medium",
+        "effect": "You apply evolutionary pressure to your own exoskeletal structure in real time.\nAt the start of each encounter, select one Innate Ability to activate at doubled effectiveness for that encounter.\nAny Asymmetry earned through Peak Evolution may be activated once per scene at no Synaptic Space cost."
+      },
+      {
+        "name": "Swarm Anatomy",
+        "dominance": 5,
+        "recessiveness": 40,
+        "weight": "Heavy",
+        "effect": "Your body ceases to be a single organism -- it becomes a coordinated collective.\nOnce per scene, fragment into swarm state: your body disperses into thousands of chitinous fragments.\nWhile in swarm state:\nImmune to single-target attacks.\nMay move through any gap larger than 1 inch.\nEach turn, deal ADA modifier in True damage to every creature you pass through.\nReforming costs 1 Standard Action."
+      }
+    ]
+  },
+  "subdermin": {
+    "blurb": "The Incept pool for the SubDermin species. Used during Director Splitting to unlock latent ancestral potential. SubDermin Inceptions reflect their geological and radiation-based identity: imbuement, damage transference, earth-shaping, and radioactive manipulation.",
+    "incepts": [
+      {
+        "name": "Imbue",
+        "dominance": 10,
+        "recessiveness": 15,
+        "weight": "Light",
+        "effect": "You infuse physical actions with altered energy.\nWhenever you take a physical action or attack: choose to add one damage type of your choice (elemental, radiation, soul, etc.) in addition to normal damage.\nYou may change the chosen damage type each time you use this effect."
+      },
+      {
+        "name": "Siphon",
+        "dominance": 10,
+        "recessiveness": 15,
+        "weight": "Medium",
+        "effect": "You absorb incoming force and repurpose it.\nWhen you react to an attack or effect (Opportunity Actions, Action Priority, Dexterity Saving Throws):\nMitigate the incoming effect.\nHalf of the damage prevented is converted into stored energy.\nStored energy may be spent as: Advantage on a saving throw or roll for yourself, or half the stored value granted to an ally within Director-approved range.\nStored energy dissipates at the end of the scene if unused."
+      },
+      {
+        "name": "Redistribute",
+        "dominance": 25,
+        "recessiveness": 30,
+        "weight": "Medium",
+        "effect": "You reroute damage instead of simply enduring it.\nWhen you take damage: redirect either half or a quarter of the damage to another valid target or effect (Director discretion).\nRedirected damage gains bonus damage equal to your Weight Modifier.\nDamage not redirected affects you normally."
+      },
+      {
+        "name": "Earth Mold",
+        "dominance": 5,
+        "recessiveness": 25,
+        "weight": "Medium",
+        "effect": "You manipulate terrain through force of will.\nUse 1 Action to shape or alter earth within 15 feet of you.\nFor every two SF levels you possess: increase the effective range by half your Neuronal Capacity Modifier plus your Control Modifier.\nThe earth may be reshaped, displaced, compacted, or excavated within reason."
+      },
+      {
+        "name": "Radioactive Emergence",
+        "dominance": 5,
+        "recessiveness": 35,
+        "weight": "Medium",
+        "effect": "You generate unstable radioactive matter.\nCreate a radioactive object in the form of a sphere, Small or Tiny in size.\nThe material emits radiation appropriate to its density and instability (Director-defined effects)."
+      },
+      {
+        "name": "Radioactive Transference",
+        "dominance": 35,
+        "recessiveness": 10,
+        "weight": "Medium",
+        "effect": "You relocate and concentrate radioactive energy.\nUse 1 Action to transfer radiation from one object to another.\nThe target object must be the same size or up to two Size categories larger than the source.\nAs radiation density increases: creatures gain increased effective Hit Points; objects gain increased mass, density, and resistance to destruction.\nExcessive radiation may produce secondary effects at Director discretion."
+      }
+    ]
+  },
+  "inderi": {
+    "blurb": "The Incept pool for the Inderi species. Used during Director Splitting to unlock latent ancestral potential. Inderi Inceptions reflect their primordial cognitive-void identity: mental singularity, eldritch perception, temporal manipulation, and consciousness projection. The Inderi are the only species whose players choose which Inceptions are Active versus held as latent potential.",
+    "incepts": [
+      {
+        "name": "Damage Negation",
+        "dominance": 25,
+        "recessiveness": 10,
+        "weight": "Medium",
+        "effect": "You possess extreme resilience to overwhelming force.\nGain +4 to all Endurance Saving Throws.\nIncrease your Mental Fortitude DC by +6.\nWhen a single damage instance exceeds 25-45% of your Maximum HP (Director determines threshold): roll your Mental Fortitude DC -- the incoming damage is divided by the roll result (rounded down). Applied after resistances, before health loss.\nDoes not apply to True Damage or Director-designated absolute effects."
+      },
+      {
+        "name": "Mental Singularity",
+        "dominance": 5,
+        "recessiveness": 15,
+        "weight": "Medium",
+        "effect": "Your mind collapses probability during combat clashes.\nWhen an Opportunity Attack situation occurs involving an Action Priority Contest -- regardless of whether you win or lose:\nRoll Wisdom + Intelligence + Mental Fortitude (combined total must be 18 or higher).\nOn success: perform a True Opportunity Attack, then roll Intelligence Check (DC 11).\nOn success of that check: replicate the triggering enemy attack once, using your own stats.\nTriggers once per Clock."
+      },
+      {
+        "name": "Eldritch Mind",
+        "dominance": 25,
+        "recessiveness": 15,
+        "weight": "Light",
+        "effect": "Your cognition operates beyond mortal constraints.\nGain +2 to all Intelligence and Wisdom DC-based checks.\nMental attacks targeting you suffer -3 to their rolls.\nGain Advantage on Mental Fortitude Checks against creatures with a lower Ode Level than you."
+      },
+      {
+        "name": "Mirrored Awareness",
+        "dominance": 10,
+        "recessiveness": 5,
+        "weight": "Light",
+        "effect": "At the end of each round (after all Actors have acted):\nReroll one failed Action Priority or Priority check.\nIf the reroll succeeds: your next successful attack deals +1d12 True Damage.\nThis bonus damage expires if unused before your next turn ends."
+      },
+      {
+        "name": "Neuronal Mirrors",
+        "dominance": 30,
+        "recessiveness": 20,
+        "weight": "Light",
+        "effect": "By empathic neural entanglement, as a Reaction, roll Wisdom (DC 12). On success, choose a creature within 50 ft:\nEither transfer 50% of the damage they just took to yourself, or\nAbsorb 50% of the healing they receive.\nTransferred damage cannot be reduced again by mitigation effects.\nOnce per turn."
+      },
+      {
+        "name": "Perfect Void",
+        "dominance": 10,
+        "recessiveness": 30,
+        "weight": "Light",
+        "effect": "When you fail an Action Priority or Priority roll:\nRoll 1d20. On a result of 10 or higher: you phase through the triggering attack, taking no damage.\nYou gain the Winded condition until the end of your next turn."
+      },
+      {
+        "name": "Eldritch Horror",
+        "dominance": 5,
+        "recessiveness": 30,
+        "weight": "Medium",
+        "effect": "Your presence induces primal terror.\nCreatures with lower Action Priority than you suffer -15 to all non-attack rolls while targeting you.\nCreatures of a lower Level than you are Frightened:\nThey flinch when acting against you.\nThey have Disadvantage on Dexterity Saving Throws.\nTheir Movement Speed is doubled (panic response)."
+      },
+      {
+        "name": "Unrivaled Essence",
+        "dominance": 10,
+        "recessiveness": 40,
+        "weight": "Medium",
+        "effect": "Your mirror neurons consume identity itself.\nConstantly analyze nearby creatures -- for each roll type, scale effects based on the highest affinity creature present.\nWhen you kill a creature: absorb their brain (or equivalent) and record their Lowest Investment Stat or Skill.\nWhen you roll at Disadvantage: add the absorbed value to the roll, then subtract the original creature modifier from the final result.\nOnly one absorbed profile may apply per roll."
+      },
+      {
+        "name": "Quantum Reflection",
+        "dominance": 5,
+        "recessiveness": 30,
+        "weight": "Medium",
+        "effect": "Roll Intelligence (DC 25) to activate. On success, create a Temporal Distortion Field (30 ft radius) for 3 rounds:\nYou and allies inside: gain +1 Action per round.\nEnemies inside: act at Disadvantage, subtract your Intelligence Modifier from their rolls, must roll Wisdom (DC 20) at the start of each round or be Stunned for that round.\nCooldown: Once per 3 Downtimes (each Downtime = 1 hour Active/Passive Time, or 15-30 minutes at Director ruling)."
+      },
+      {
+        "name": "Mirrored Vision",
+        "dominance": 2,
+        "recessiveness": 35,
+        "weight": "Medium",
+        "effect": "You project your Mental Scape into another creature.\nOn success: the target is locked out of their body for the duration.\nYou may: speak through them, perceive through their senses, and control physical actions (Director adjudicates resistance).\nYou may permanently inscribe your presence into a creature mind.\nAt will: link all inscribed targets into a Hive Mind with yourself as the central control node, gaining vision and awareness through all linked minds.\nRisk: If your body is disrupted while projected, severe backlash occurs (Director discretion)."
+      }
+    ]
+  },
+  "seraph": {
+    "blurb": "The Incept pool for the Seraph species. Used during Director Splitting to unlock latent ancestral potential. Seraph Inceptions reflect their divine spatial identity: displacement mastery, antimatter channels, dimensional perception, and the weight of celestial authority.",
+    "incepts": [
+      {
+        "name": "Spatial Anchor",
+        "dominance": 30,
+        "recessiveness": 10,
+        "weight": "Light",
+        "effect": "You imprint your position into the fabric of local space.\nOnce per encounter, place an invisible Spatial Anchor at your current location (Free Action).\nAt any point this encounter: teleport back to this anchor as a Bonus Action -- regardless of distance or obstacles.\nWhile the anchor exists: gain +1 die on all ADA rolls -- the certainty of return sharpens focus."
+      },
+      {
+        "name": "Antimatter Resonance",
+        "dominance": 25,
+        "recessiveness": 15,
+        "weight": "Medium",
+        "effect": "Your antimatter wings (or residual antimatter, for Fallen Seraph) respond to nearby energy threats.\nWhen an energy-based attack deals damage to you: your antimatter field retaliates automatically -- all creatures within 10 ft take CON modifier in antimatter damage (Free Action, no per-encounter limit).\nAdditionally: your wing-contact damage (or Scar Beam for Fallen) permanently increases by +1d8."
+      },
+      {
+        "name": "Distant Authority",
+        "dominance": 20,
+        "recessiveness": 10,
+        "weight": "Light",
+        "effect": "Your Distant Vision extends into intelligence-gathering superiority.\nDistant Vision range increases to 3 miles in clear conditions.\nOnce per scene: designate a creature you observe through Distant Vision. For the rest of that scene, gain Advantage on all rolls made against that creature.\nShare observed information telepathically with any ally in line-of-sight (Free Action)."
+      },
+      {
+        "name": "Reality Fold",
+        "dominance": 10,
+        "recessiveness": 25,
+        "weight": "Medium",
+        "effect": "You bend local space into permanent strategic advantage.\nSpatial Rupture movement penalty becomes triple movement cost instead of double.\nAny creature that exits the Rupture zone must succeed ADA Check (DC 12 + CON modifier) or immediately return to where they entered -- spatial topology snaps them back.\nSpatial Rupture is now usable twice per encounter."
+      },
+      {
+        "name": "Displacement Cascade",
+        "dominance": 5,
+        "recessiveness": 35,
+        "weight": "Heavy",
+        "effect": "Your Dance of Displacement fractures into a cascade of spatial breaches.\nDance of Displacement may now be used up to 4 times per encounter.\nEach use after the first creates a visible spatial echo at the departure point -- functioning as a decoy that draws one attack before dissipating.\nIf you displace into a position occupied by an enemy: they are automatically displaced 10ft in a random direction (no save)."
+      },
+      {
+        "name": "Seraphic Mandate",
+        "dominance": 2,
+        "recessiveness": 45,
+        "weight": "Heavy",
+        "effect": "The full weight of Seraph authority manifests as divine compulsion.\nOnce per Long Rest: declare a Seraphic Mandate -- a single directive spoken to all creatures within 60 ft.\nCreatures of lower Ode Level must make a CON Check (DC 15 + CON modifier) or be compelled to follow the mandate for 1 scene.\nCreatures of equal or higher Ode Level are not compelled but must make the check or suffer Disadvantage on all rolls against you for that scene.\nThe mandate must be a single achievable action or behavioral directive."
+      }
+    ]
+  },
+  "stygians": {
+    "blurb": "The Incept pool for the Stygians species. Used during Director Splitting to unlock latent ancestral potential. Stygian Inceptions reflect their shadow-hive identity: Fear accumulation, shadow-network abilities, minion conjuration, and the Hive evolutionary engine.",
+    "incepts": [
+      {
+        "name": "Shadowing Aura",
+        "dominance": 30,
+        "recessiveness": 15,
+        "weight": "Light",
+        "effect": "While you are within dim light or darkness, you become extremely difficult to detect.\nCreatures attempting to perceive or locate you must succeed on a Perception Skill Check against your Dexterity Modifier + Inspiration Skill Roll.\nWhile undetected: all attacks against you are made at Disadvantage -- applying to Action Priority contests, the attack roll, and any chained effects.\nThis effect ends if you are fully revealed by light, forced exposure, or a successful detection roll."
+      },
+      {
+        "name": "Shadow Fracture",
+        "dominance": 10,
+        "recessiveness": 25,
+        "weight": "Light",
+        "effect": "As a Bonus Action, strike your own shadow, causing the attack to emerge from any connected shadow within range.\nChoose a creature whose shadow you can perceive. The attack manifests from their shadow and deals: 2d12 True Damage + 1d10 Necrotic Damage.\nOnce a creature shadow has been compromised, they gain Fear Points.\nPer Fear Point: all positive rolls suffer -1; your attacks against them gain a Universal -1; you gain +1 to Dexterity and Cunning Checks; you gain +1 to Dexterity Saving Throws.\nFear persists until removed by an external effect or rest mechanic."
+      },
+      {
+        "name": "Shadow Shift",
+        "dominance": 15,
+        "recessiveness": 25,
+        "weight": "Medium",
+        "effect": "You gain +10% damage while this Incept is active.\nAs a Bonus Action, teleport to any shadow within 65 feet, provided the target creature has at least 1 Fear Point.\nThe target immediately loses 1 Fear Point.\nIf the target sees you appear: they gain an Opportunity Attack.\nIf the target does not see you: you gain a True Opportunity Attack against them.\nThis teleportation occurs between Active and Passive Time, ignoring standard movement restrictions."
+      },
+      {
+        "name": "Genetic Virulition",
+        "dominance": 5,
+        "recessiveness": 5,
+        "weight": "Medium",
+        "effect": "During your turn or during the Downtime of a creature within 50 feet -- if they are within shadows -- absorb them into the darkness, forming a Hulking Mass (the Hive).\nHive Effects: All Hive-connected creatures gain Advantage on all rolls while within 10 feet of the Hive. At night or within shadows: gain additional +1 to all rolls. All Hive creatures deal +10% damage. Any creature you slay is automatically absorbed into the Hive.\nHive Evolution: For every sentient, soulful creature absorbed: create 2 Lower Creatures. Each soulful creature allows you to upgrade 1 Lower Creature. Upgraded Lower Creatures gain: one random or named action and level/damage scaling at half your level."
+      },
+      {
+        "name": "Minion Conjuration",
+        "dominance": 5,
+        "recessiveness": 10,
+        "weight": "Medium",
+        "effect": "Summon Swarm: Once per scene, conjure 100 Lesser Stygian Minions from nearby shadows. Minions persist until dismissed, slain, or separated from you for more than 2 minutes of Passive Time.\nEndless Reinforcements: If a minion is slain within 10 feet of a shadow: expend a Prepared Action to regenerate it instantly.\nShadow Spawning: When you kill a creature, as a Bonus Action, attempt to recreate it as a Lower Stygian (DC = 3 + your level). On success, it joins the Hive.\nEvolutionary Surge: For each soulful creature slain, one Lower Stygian may evolve into a Greater Stygian. The Greater Stygian gains one unique ability of your choosing and one Asymmetry from any of your Domains (Wryde selection allowed and encouraged)."
+      },
+      {
+        "name": "Shadow Hive Link",
+        "dominance": 5,
+        "recessiveness": 5,
+        "weight": "Heavy",
+        "effect": "All Hive-connected creatures gain access to the Shadow Link.\nShadow Link Properties:\nHive members may send abilities through shadows and share powers regardless of distance, provided they are Hive-linked.\nAs a Bonus Action: call upon one ability known by another Hive member.\nHive Ability Rules:\nEach Hive creature has: unique personal abilities and Hive-Created Abilities tailored to the collective.\nOnly souled creatures can generate Hive abilities.\nActivate up to 2 Hive abilities per turn.\nActivate 1 additional Hive ability during another Hive creature Active Time if they are within 50 feet."
+      }
+    ]
+  }
+}

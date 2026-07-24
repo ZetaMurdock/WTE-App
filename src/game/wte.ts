@@ -7,6 +7,7 @@ import genusData from "./data/genus.json";
 import cipherData from "./data/ciphers.json";
 import variantsData from "./data/variants.json";
 import speciesInnateData from "./data/speciesInnate.json";
+import inceptData from "./data/incepts.json";
 
 export type AttrKey = "phy" | "dex" | "end" | "ap" | "wis" | "cha" | "int";
 export type SpecKey =
@@ -801,6 +802,47 @@ export function usableRacial(
 export function inceptSeeds(speciesId?: string, innateChoice?: string[]): SpeciesVariantAbility[] {
   if (!innateChoice || !innateChoice.length) return [];
   return speciesInnate(speciesId).filter((a) => !innateChoice.includes(a.name));
+}
+
+// ── Incepts ──────────────────────────────────────────────────────────────────
+// A species' latent ancestral potential, unlocked during Director Splitting by
+// spending Synaptic Focus (see synapticFocus.ts — INCEPT_FOCUS_COST each).
+export interface Incept {
+  name: string;
+  /** How strongly the trait asserts in hybrids — same axis as Species.dom/rec. */
+  dominance: number;
+  recessiveness: number;
+  /** Light / Medium / Heavy. Currently descriptive: every incept costs the same. */
+  weight: string;
+  /** Mirga incepts carry a Memory line describing the transformation cost. */
+  memory?: string;
+  effect: string;
+}
+export interface InceptPool {
+  blurb: string;
+  incepts: Incept[];
+}
+const INCEPT_DATA = inceptData as Record<string, InceptPool>;
+
+/** The named Incept pool for a species (empty when unknown). */
+export function inceptsForSpecies(speciesId?: string): Incept[] {
+  return INCEPT_DATA[speciesId || ""]?.incepts ?? [];
+}
+/** The pool's flavour paragraph, for the Codex/sheet header. */
+export function inceptPoolBlurb(speciesId?: string): string {
+  return INCEPT_DATA[speciesId || ""]?.blurb ?? "";
+}
+/** One incept by name within a species. */
+export function getIncept(speciesId: string | undefined, name: string): Incept | undefined {
+  return inceptsForSpecies(speciesId).find((i) => i.name.toLowerCase() === name.toLowerCase());
+}
+/** Every incept name a character could unlock: the species pool PLUS the two
+ *  innates they declined at creation, which seed the pool (Inderi enter theirs
+ *  at full Dominance — see the species note). */
+export function inceptPool(speciesId?: string, innateChoice?: string[]): string[] {
+  const named = inceptsForSpecies(speciesId).map((i) => i.name);
+  const seeds = inceptSeeds(speciesId, innateChoice).map((a) => a.name);
+  return [...named, ...seeds.filter((n) => !named.some((m) => m.toLowerCase() === n.toLowerCase()))];
 }
 
 /** Specialties with equipment bonuses folded in (used for rolls + mod boxes). */
