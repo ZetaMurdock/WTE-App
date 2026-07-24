@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SPECIES, getIncept, inceptPool, inceptPoolBlurb, inceptsForSpecies } from "./wte";
+import { SPECIES, getIncept, inceptPool, inceptPoolBlurb, inceptsForSpecies, wrydeTier, wrydeTierFor } from "./wte";
 import { INCEPT_FOCUS_COST, focusBudget, unlockIncept, emptySpend } from "./synapticFocus";
 
 describe("incept pools", () => {
@@ -21,13 +21,19 @@ describe("incept pools", () => {
   });
 
   it("every incept is well-formed", () => {
-    for (const s of SPECIES) {
-      for (const i of inceptsForSpecies(s.id)) {
-        expect(i.name.trim(), `${s.id} name`).not.toBe("");
-        expect(Number.isFinite(i.dominance), `${i.name} dominance`).toBe(true);
-        expect(Number.isFinite(i.recessiveness), `${i.name} recessiveness`).toBe(true);
+    for (const sp of SPECIES) {
+      for (const i of inceptsForSpecies(sp.id)) {
+        expect(i.name.trim(), `${sp.id} name`).not.toBe("");
         expect(["Light", "Medium", "Heavy"], `${i.name} weight`).toContain(i.weight);
         expect(i.effect.length, `${i.name} effect`).toBeGreaterThan(20);
+      }
+    }
+  });
+
+  it("no longer carries Dominance / Recessiveness — retired from the model", () => {
+    for (const sp of SPECIES) {
+      for (const i of inceptsForSpecies(sp.id)) {
+        expect(Object.keys(i).sort()).toEqual(i.memory ? ["effect", "memory", "name", "weight"] : ["effect", "name", "weight"]);
       }
     }
   });
@@ -46,22 +52,17 @@ describe("incept pools", () => {
     }
   });
 
-  it("spot-checks the author's exact numbers", () => {
-    // The capstone: lowest dominance, highest recessiveness in the Seraph pool.
-    const mandate = getIncept("seraph", "Seraphic Mandate")!;
-    expect([mandate.dominance, mandate.recessiveness, mandate.weight]).toEqual([2, 45, "Heavy"]);
-    // The most dominant incepts in the game, both at 40.
-    expect(getIncept("hyomen", "Imperfect Resistance")!.dominance).toBe(40);
-    expect(getIncept("mirga", "Perfect Mimic")!.dominance).toBe(40);
-    // Stygian entry trait.
-    expect(getIncept("stygians", "Shadowing Aura")!.recessiveness).toBe(15);
+  it("spot-checks the author's Weight Classes", () => {
+    expect(getIncept("seraph", "Seraphic Mandate")!.weight).toBe("Heavy");
+    expect(getIncept("seraph", "Spatial Anchor")!.weight).toBe("Light");
+    expect(getIncept("stygians", "Shadow Hive Link")!.weight).toBe("Heavy");
+    expect(getIncept("insectoid", "Swarm Anatomy")!.weight).toBe("Heavy");
   });
 
-  it("keeps the author's wording verbatim, typos included", () => {
-    // These read as errors but are the author's text — "fixing" them silently
-    // would desync the app from the wiki.
-    expect(getIncept("hyomen", "Imperfect Resistance")!.effect).toContain("a a Decimal");
-    expect(getIncept("hyomen", "Weapon Specialist")!.effect).toContain("its damage");
+  it("reads as corrected prose — the typos were intentionally cleaned up", () => {
+    expect(getIncept("hyomen", "Imperfect Resistance")!.effect).not.toContain("a a Decimal");
+    expect(getIncept("hyomen", "Weapon Specialist")!.effect).not.toContain("damage .");
+    expect(getIncept("stygians", "Shadow Fracture")!.effect).toContain("creature's shadow");
   });
 
   it("preserves the three Synaptic Focus cross-references", () => {
@@ -115,5 +116,31 @@ describe("incepts against the Focus budget", () => {
     let s = emptySpend();
     for (const i of pool) s = unlockIncept(s, i.name, 9);
     expect(s.incepts.length).toBe(10); // 30 budget / 3 = 10, the eleventh is refused
+  });
+});
+
+describe("Wryde tiers — Weight Class sets how chaotic the mutation is", () => {
+  it("scales Light -> Medium -> Heavy", () => {
+    expect(wrydeTier("Light").tier).toBe(1);
+    expect(wrydeTier("Medium").tier).toBe(2);
+    expect(wrydeTier("Heavy").tier).toBe(3);
+    expect(wrydeTier("Heavy").label).toBe("Chaotic");
+  });
+
+  it("falls back to the calmest tier on junk rather than throwing", () => {
+    expect(wrydeTier(undefined).tier).toBe(1);
+    expect(wrydeTier("nonsense").tier).toBe(1);
+  });
+
+  it("a character's Wryde tier is set by their HEAVIEST unlocked incept", () => {
+    // Spatial Anchor is Light; Seraphic Mandate is Heavy.
+    expect(wrydeTierFor("seraph", ["Spatial Anchor"]).tier).toBe(1);
+    expect(wrydeTierFor("seraph", ["Spatial Anchor", "Antimatter Resonance"]).tier).toBe(2);
+    expect(wrydeTierFor("seraph", ["Spatial Anchor", "Seraphic Mandate"]).tier).toBe(3);
+  });
+
+  it("an unlocked-nothing character sits at the calmest tier", () => {
+    expect(wrydeTierFor("seraph", []).tier).toBe(1);
+    expect(wrydeTierFor("seraph", ["Not A Real Incept"]).tier).toBe(1);
   });
 });

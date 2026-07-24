@@ -17,6 +17,10 @@ import {
   raiseGenus,
   relockIncept,
   unlockIncept,
+  talentHolderBonus,
+  focusBudgetWith,
+  totalFocusSpent,
+  effectiveFocus,
   type FocusSpend,
 } from "./synapticFocus";
 
@@ -161,5 +165,45 @@ describe("genus vs genus", () => {
     }
     expect(apexWins).toBeGreaterThan(145);
     expect(apexWins).toBeLessThan(200);
+  });
+});
+
+describe("incept hooks into the Focus economy", () => {
+  it("Talent Holder pays out on a d100 of 50 or better", () => {
+    expect(talentHolderBonus(49)).toBe(0);
+    expect(talentHolderBonus(50)).toBe(1);
+    expect(talentHolderBonus(100)).toBe(1);
+    expect(talentHolderBonus(1)).toBe(0);
+  });
+
+  it("Talent Holder's bonus points ride on top of the rank budget", () => {
+    expect(focusBudgetWith(9)).toBe(focusBudget(9));
+    expect(focusBudgetWith(9, 4)).toBe(34);
+    expect(focusBudgetWith(9, -2)).toBe(30); // nonsense is ignored, never subtracts
+  });
+
+  it("Earth Mold reads TOTAL Focus spent, genus and incepts alike", () => {
+    const s = spend({ Reflect: 4, Solidify: 2 }, ["Whisper"]);
+    expect(totalFocusSpent(s)).toBe(9); // 6 on genus + 3 on the incept
+    expect(Math.floor(totalFocusSpent(s) / 2)).toBe(4); // "for every two SF levels"
+  });
+
+  it("Identity Theft lets a Mirga contest with the Focus they borrowed", () => {
+    const side = (label: string, focus: number, borrowedFocus?: number) => ({
+      label, focus, control: 40, rank: 0, borrowedFocus,
+    });
+    // Reflect at Focus 1 loses to a Focus 4 Elemental...
+    expect(focusContest(side("Reflect", 1), side("Chain Reaction", 4)).winner).toBe("b");
+    // ...but wearing a face that knows Reflect at 4, it is a stand-off (goes to the roll).
+    const stolen = focusContest(side("Reflect", 1, 4), side("Chain Reaction", 4));
+    expect(stolen.byFocus).toBe(false);
+    // And against a weaker Elemental the borrowed Focus wins outright.
+    expect(focusContest(side("Reflect", 1, 4), side("Solidify", 2)).winner).toBe("a");
+  });
+
+  it("a borrowed Focus never makes you worse than your own", () => {
+    expect(effectiveFocus({ label: "x", focus: 3, control: 0, rank: 0, borrowedFocus: 1 })).toBe(3);
+    expect(effectiveFocus({ label: "x", focus: 1, control: 0, rank: 0, borrowedFocus: 4 })).toBe(4);
+    expect(effectiveFocus({ label: "x", focus: 2, control: 0, rank: 0 })).toBe(2);
   });
 });

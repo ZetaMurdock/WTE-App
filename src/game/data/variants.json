@@ -249,6 +249,20 @@
           "effect": "Target: 1 remembered object, construct, or being · Vector: Gaze · Duration: Clock (once per 2 in-universe hours) · Resolution: the target of replication contests with a Control + Inspiration Skill Check against the AI'N's DC; the process cannot fail on the AI'N's side. Manifest a flawless 1:1 replica of any remembered object, construct, or being — only the target's contest can degrade the copy. Caps: a replicated being is an inert, mindless shell — data has no soul to copy; Ciphers, charges, and DNA-locks never replicate."
         }
       ]
+    },
+    {
+      "name": "Aeor",
+      "note": "Little is known about the Aeor beyond that they began appearing from different parts of the Multiverse and slowly integrated. They are small and resemble the imps of mystical tales, yet genetic testing shows they descend from all sorts of different species. They are theorised to come from the Great Conscientia — that an Inderi's deep desire for freedom led to their creation. Because of how the Inderi work, the Aeor tend to permeate as energy unless locked down, so the catalyst keeping them here has permeated throughout the Weave, solidifying them. Bipedal; Tiny to Small. They can enlarge parts of their body — not physically, but energetically, surging their atoms with tense energy in a controlled manner so they can project energy constructs from designated parts of the body, though never the entire body, for long periods.",
+      "abilities": [
+        {
+          "name": "Tru",
+          "effect": "Type: Self (Standard) · Duration: Instant · Resolution: Automatic · Limit: once per turn. During any action, spend a Bonus Action to inflict another extension of that action, described through their projected form. The projected form has double the movement of the standard creature but half the reach."
+        },
+        {
+          "name": "Induction",
+          "effect": "Target: 1 remembered object, construct, or being · Vector: Gaze · Duration: until cancelled · Resolution: Automatic. The Aeor destabilises structures — the energy around them, not the physical structure itself. Any energy entering their ZOL (40 feet rather than the standard 30) can be contested, forcing a Control Check that must beat the Aeor's DC. On a failure the energy is rendered unstable and they are blasted back, up to half the reach of the Aeor's projected energy form."
+        }
+      ]
     }
   ],
   "seraph": [

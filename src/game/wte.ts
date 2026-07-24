@@ -807,16 +807,39 @@ export function inceptSeeds(speciesId?: string, innateChoice?: string[]): Specie
 // ── Incepts ──────────────────────────────────────────────────────────────────
 // A species' latent ancestral potential, unlocked during Director Splitting by
 // spending Synaptic Focus (see synapticFocus.ts — INCEPT_FOCUS_COST each).
+export type InceptWeight = "Light" | "Medium" | "Heavy";
 export interface Incept {
   name: string;
-  /** How strongly the trait asserts in hybrids — same axis as Species.dom/rec. */
-  dominance: number;
-  recessiveness: number;
-  /** Light / Medium / Heavy. Currently descriptive: every incept costs the same. */
-  weight: string;
+  /** Weight Class sets the KIND of Wryde an incept throws: the heavier the
+   *  incept, the more chaotic its mutation. See wrydeTier(). */
+  weight: InceptWeight;
   /** Mirga incepts carry a Memory line describing the transformation cost. */
   memory?: string;
   effect: string;
+}
+
+/** Wryde chaos tiers, indexed by an incept's Weight Class. A heavier incept
+ *  draws from a wilder table when Incept Drift fires (see the Polarized Soul —
+ *  the Revelation Snap rolls d100 on the Wryde Mutation Table). */
+export const WRYDE_TIERS: { weight: InceptWeight; tier: number; label: string; note: string }[] = [
+  { weight: "Light", tier: 1, label: "Stable", note: "Predictable mutations — the body bends without breaking." },
+  { weight: "Medium", tier: 2, label: "Volatile", note: "Mutations wander; expression is no longer reliable." },
+  { weight: "Heavy", tier: 3, label: "Chaotic", note: "The wildest Wrydes — a heavy incept warps whatever carries it." },
+];
+export function wrydeTier(weight: InceptWeight | string | undefined): { tier: number; label: string; note: string } {
+  const w = WRYDE_TIERS.find((t) => t.weight === weight) ?? WRYDE_TIERS[0];
+  return { tier: w.tier, label: w.label, note: w.note };
+}
+/** The heaviest Wryde tier a character carries, across every unlocked incept —
+ *  what the Curator rolls on when Incept Drift fires. */
+export function wrydeTierFor(speciesId: string | undefined, unlocked: string[]): { tier: number; label: string; note: string } {
+  let worst = WRYDE_TIERS[0];
+  for (const name of unlocked) {
+    const inc = getIncept(speciesId, name);
+    const t = WRYDE_TIERS.find((x) => x.weight === inc?.weight);
+    if (t && t.tier > worst.tier) worst = t;
+  }
+  return { tier: worst.tier, label: worst.label, note: worst.note };
 }
 export interface InceptPool {
   blurb: string;

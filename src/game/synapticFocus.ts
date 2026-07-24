@@ -64,6 +64,28 @@ export function focusRemaining(rank: number, s: FocusSpend): number {
   return focusBudget(rank) - focusSpent(s);
 }
 
+/** Total Focus a character has actually committed. This is the figure incepts
+ *  read when they scale off "SF levels you possess" — e.g. SubDermin's Earth
+ *  Mold, which extends its range for every two levels spent. */
+export function totalFocusSpent(s: FocusSpend): number {
+  return focusSpent(s);
+}
+
+/** Hyomen's Talent Holder: "a 1D100 or 50 chance to obtain a extra SF point
+ *  whenever you rank up" — a d100 landing on 50 or better grants one bonus
+ *  point. Returns the points gained by a single rank-up (0 or 1).
+ *  Pass a roll to make it testable; omit to roll. */
+export const TALENT_HOLDER_DC = 50;
+export function talentHolderBonus(roll?: number): number {
+  const d100 = roll ?? 1 + Math.floor(Math.random() * 100);
+  return d100 >= TALENT_HOLDER_DC ? 1 : 0;
+}
+
+/** Budget including any bonus points banked from Talent Holder rank-ups. */
+export function focusBudgetWith(rank: number, bonusPoints = 0): number {
+  return focusBudget(rank) + Math.max(0, Math.trunc(bonusPoints) || 0);
+}
+
 /** Focus invested in one ability (0 when unknown). */
 export function genusFocus(s: FocusSpend, name: string): number {
   return s.genus[name] || 0;
@@ -132,6 +154,16 @@ export interface ContestSide {
   /** Control specialty points, for the tie-break roll. */
   control: number;
   rank: number;
+  /** Mirga's Identity Theft: while transformed you may use the Focus the target
+   *  possesses in a Genus instead of your own ("if they have SF 4 for Reflect and
+   *  you have SF 1 you can use the SF 4"). Set this to the borrowed value; since
+   *  the incept says you MAY use it, the better of the two applies. */
+  borrowedFocus?: number;
+}
+
+/** The Focus a side actually brings — its own, or a borrowed one if higher. */
+export function effectiveFocus(side: ContestSide): number {
+  return Math.max(side.focus, side.borrowedFocus ?? 0);
 }
 
 export interface ContestResult {
@@ -160,15 +192,17 @@ export function contestRoll(side: ContestSide, mode: RollMode = "normal"): numbe
 /** Resolve one genus used against another. Higher Synaptic Focus wins outright;
  *  equal Focus goes to contested Control × rank multiplier. */
 export function focusContest(a: ContestSide, b: ContestSide, mode: RollMode = "normal"): ContestResult {
-  if (a.focus !== b.focus) {
-    const winner = a.focus > b.focus ? "a" : "b";
+  const af = effectiveFocus(a);
+  const bf = effectiveFocus(b);
+  if (af !== bf) {
+    const winner = af > bf ? "a" : "b";
     return {
       winner,
       byFocus: true,
       note:
         winner === "a"
-          ? `${a.label} (Focus ${a.focus}) overpowers ${b.label} (Focus ${b.focus}).`
-          : `${b.label} (Focus ${b.focus}) is too strongly focused — ${a.label} (Focus ${a.focus}) fails.`,
+          ? `${a.label} (Focus ${af}) overpowers ${b.label} (Focus ${bf}).`
+          : `${b.label} (Focus ${bf}) is too strongly focused — ${a.label} (Focus ${af}) fails.`,
     };
   }
   const aTotal = contestRoll(a, mode);
@@ -180,7 +214,7 @@ export function focusContest(a: ContestSide, b: ContestSide, mode: RollMode = "n
     aTotal,
     bTotal,
     note:
-      `Focus ${a.focus} both ways — contested Control: ` +
+      `Focus ${af} both ways — contested Control: ` +
       `${a.label} ${aTotal} vs ${b.label} ${bTotal}. ` +
       (aTotal === bTotal ? `Tied, so ${b.label} holds.` : `${winner === "a" ? a.label : b.label} wins.`),
   };
