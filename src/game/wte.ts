@@ -810,6 +810,10 @@ export interface UsableAbility {
   focus?: number;
   /** The domain it came from, for grouping and SNR. */
   domain?: string;
+  /** Authored Classification — what the ability IS, when it deals no damage. */
+  classification?: string | null;
+  /** Original SS string when the cost is variable ("8 SS (+2/round)"). */
+  ssNote?: string | null;
 }
 
 /** Genus a character can actually use. `loadout` is the list of names they know —
@@ -844,6 +848,8 @@ export function usableGenus(
       activation: a?.activation,
       focus: focus?.[name],
       domain: g?.domain,
+      classification: a?.classification,
+      ssNote: a?.ssNote,
     };
   });
 }

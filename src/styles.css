@@ -3480,7 +3480,7 @@ body.wte-dot-cursor * {
 .act-head,
 .act-row {
   display: grid;
-  grid-template-columns: 1.7fr 0.7fr 0.5fr 0.9fr 1.3fr;
+  grid-template-columns: 1.7fr 0.7fr 0.4fr 1fr 0.55fr 1.2fr;
   gap: 0 10px;
   align-items: center;
 }
@@ -7448,4 +7448,148 @@ body.wte-dot-cursor * {
 }
 .rank-val.over {
   color: #d05a44;
+}
+.act-cost {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* A non-damaging ability names what it IS (its Classification) — muted so the
+   column still reads as "damage or nothing" at a glance. */
+.act-dmg.kindly {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: italic;
+}
+.resolve-switch {
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.resolve-hint {
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* ── Modular bio bubbles ── */
+.bio-bubbles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.bio-bubble {
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  padding: 7px 10px 9px;
+}
+.bio-bubble.k-counter {
+  border-left: 3px solid var(--accent);
+}
+.bio-bubble-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  min-height: 18px;
+}
+.bio-bubble-label,
+.bio-bubble-label-edit {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+.bio-bubble-label:not(:disabled) {
+  cursor: pointer;
+}
+.bio-bubble-label:not(:disabled):hover {
+  color: var(--accent);
+}
+.bio-bubble-label-edit {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12px;
+  color: var(--ink);
+  border-bottom: 1px solid var(--accent);
+}
+.bio-bubble-tools {
+  display: inline-flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.bio-bubble:hover .bio-bubble-tools,
+.bio-bubble:focus-within .bio-bubble-tools {
+  opacity: 1;
+}
+.bio-bubble-value {
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid transparent;
+  color: var(--ink);
+  font-family: Georgia, serif;
+  font-size: 15px;
+  padding: 2px 0 0;
+}
+.bio-bubble-value:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
+}
+.bio-counter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding-top: 2px;
+}
+.bio-counter-val {
+  font-size: 19px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.bio-add {
+  margin-top: 10px;
+}
+.bio-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  max-width: 460px;
+}
+.bio-add-label {
+  background: var(--bg);
+  border: 1px solid var(--panel-line);
+  border-radius: 4px;
+  color: var(--ink);
+  font-family: Georgia, serif;
+  font-size: 13px;
+  padding: 7px 9px;
+}
+.bio-add-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.incept-memory {
+  color: var(--muted);
+  font-size: 12px;
 }

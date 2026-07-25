@@ -5,6 +5,7 @@ import type { Character, CharacterSheet } from "../models/character";
 import { getDb, sqlAvailable } from "./db";
 import { zeroAttributes, zeroSpecialties } from "../game/wte";
 import { migrateLoadout, parseSpend } from "../game/synapticFocus";
+import { parseBioFields } from "./bioFields";
 
 interface CharacterRow {
   id: string;
@@ -50,6 +51,7 @@ function parseSheet(raw: string | null): CharacterSheet {
       // Focus is the source of truth for genus. A sheet written before the
       // rework has no focusSpend, so seed it from the old flat loadout at
       // Focus 1 each — within budget, never silently upgraded.
+      bioFields: parseBioFields(p.bioFields),
       focusSpend: p.focusSpend
         ? parseSpend(p.focusSpend)
         : migrateLoadout(Array.isArray(p.genusLoadout) ? p.genusLoadout : [], typeof p.rank === "number" ? p.rank : 0),

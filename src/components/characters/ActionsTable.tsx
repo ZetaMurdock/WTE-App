@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { rollToHit, rollGeneric, signedMod, type UsableAbility, type RollResult } from "../../game/wte";
+import { averageDamage, summarizeDamage } from "../../game/abilityDamage";
 import { isRangedWeapon, weaponDomainsMet } from "../../lib/codex";
 import type { Weapon } from "../../models/codex";
 import { RollButton } from "./RollButton";
@@ -64,6 +65,7 @@ export function ActionsTable({ weapons, genus, ciphers, atk, phyMod, dexMod, par
           <span className="act-range">{w.range || (isRangedWeapon(w) ? "Ranged" : "5 ft")}</span>
           <span className="act-hit">{signedMod(hit)}</span>
           <span className="act-dmg">{w.damage || "—"}</span>
+          <span className="act-cost">—</span>
           <span className="act-notes">{w.effect || "—"}</span>
         </button>
         {expanded && (
@@ -92,16 +94,26 @@ export function ActionsTable({ weapons, genus, ciphers, atk, phyMod, dexMod, par
 
   function abilityRow(a: UsableAbility, cat: Cat, key: string) {
     const expanded = open === key;
+    // The Damage column shows what the ability DEALS, read out of its effect
+    // text — it used to show the SS cost, which reads as "Lark deals 5 damage".
+    const dmg = summarizeDamage(a.effect, a.classification);
     return (
       <div className={"act-row-wrap" + (expanded ? " open" : "")} key={key}>
         <button className="act-row" onClick={() => toggle(key)}>
           <span className="act-name">
             <span className="act-title">{a.name}</span>
-            <span className="act-sub">{cat === "genus" ? "Genus" : "Cipher"}{a.ss ? " · " + a.ss + " SS" : ""}</span>
+            <span className="act-sub">
+              {cat === "genus" ? "Genus" : "Cipher"}
+              {a.domain ? " · " + a.domain : ""}
+              {a.focus ? " · Focus " + a.focus : ""}
+            </span>
           </span>
           <span className="act-range">{a.range || "Self"}</span>
           <span className="act-hit">—</span>
-          <span className="act-dmg">{a.ss ? a.ss + " SS" : "—"}</span>
+          <span className={"act-dmg" + (dmg.none ? " kindly" : "")} title={dmg.none ? "Deals no damage" : `Average ${averageDamage(dmg)}`}>
+            {dmg.label}
+          </span>
+          <span className="act-cost">{a.ssNote || (a.ss ? a.ss + " SS" : "—")}</span>
           <span className="act-notes">{a.effect || "—"}</span>
         </button>
         {expanded && (
@@ -139,7 +151,7 @@ export function ActionsTable({ weapons, genus, ciphers, atk, phyMod, dexMod, par
       ) : (
         <>
           <div className="act-head">
-            <span>Name</span><span>Range</span><span>Hit</span><span>Damage</span><span>Notes</span>
+            <span>Name</span><span>Range</span><span>Hit</span><span>Damage</span><span>Cost</span><span>Notes</span>
           </div>
           {shown.map((r) => (r.kind === "weapon" ? weaponRow(r.w, r.key) : abilityRow(r.a, r.cat, r.key)))}
         </>

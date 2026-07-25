@@ -49,6 +49,8 @@ export interface CharacterSheet {
    *  pre-Focus sheets migrate cleanly and nothing silently loses data. */
   genusLoadout?: string[];
   cipherLoadout?: string[];
+  /** Player-defined bio fields — age, favourite food, a tally of something. */
+  bioFields?: { id: string; label: string; value: string; kind: "text" | "number" | "counter" }[];
   /** Synaptic Focus spend: genus name → Focus 1…4, plus unlocked Incept names.
    *  Focus IS access — see game/synapticFocus.ts. */
   focusSpend?: { genus: Record<string, number>; incepts: string[] };

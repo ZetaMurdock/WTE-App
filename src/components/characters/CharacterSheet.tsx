@@ -34,6 +34,9 @@ import {
   usableGenus,
   usableCiphers,
   usableRacial,
+  getIncept,
+  wrydeTier,
+  wrydeTierFor,
   rollAttribute,
   rollSpecialty,
   DERIVED,
@@ -67,6 +70,8 @@ import {
   type FocusSpend,
 } from "../../game/synapticFocus";
 import { RollButton } from "./RollButton";
+import { BioFields } from "./BioFields";
+import { parseBioFields, type BioField } from "../../lib/bioFields";
 
 interface Props {
   characterId: string;
@@ -76,12 +81,11 @@ interface Props {
   onChanged: () => void;
 }
 
-type SheetTab = "stats" | "actions" | "pressure" | "diplomacy" | "inventory" | "loadout" | "bio";
+type SheetTab = "stats" | "actions" | "resolve" | "inventory" | "loadout" | "bio";
 const SHEET_TABS: { id: SheetTab; label: string }[] = [
   { id: "stats", label: "Stats" },
   { id: "actions", label: "Actions" },
-  { id: "pressure", label: "Pressure" },
-  { id: "diplomacy", label: "Diplomacy" },
+  { id: "resolve", label: "Resolve" },
   { id: "inventory", label: "Inventory" },
   { id: "loadout", label: "Loadout" },
   { id: "bio", label: "Bio" },
@@ -95,6 +99,7 @@ function intOf(v: string): number {
 export function CharacterSheet({ characterId, campaignId, curator, onBack, onChanged }: Props) {
   const [rec, setRec] = useState<CharacterRecord | null>(null);
   const [tab, setTab] = useState<SheetTab>("stats");
+  const [resolveMode, setResolveMode] = useState<"pressure" | "diplomacy">("pressure");
   const { items: feedItems, push: pushFeed } = useRollFeed();
   const net = useNet();
   const saveTimer = useRef<number | undefined>(undefined);
@@ -185,6 +190,10 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   const paradigm = getParadigm(sheet.paradigmId);
   const equippedWeapons = weaponLoadout.map((n) => getWeapon(n)).filter((w): w is Weapon => !!w);
   const racial = usableRacial(sheet.speciesId, sheet.variantName, sheet.variantOption, sheet.innateChoice);
+  // Only the Incepts this character actually unlocked, with their Wryde weight.
+  const unlockedIncepts = spend.incepts.map((n) => getIncept(sheet.speciesId, n)).filter((i): i is NonNullable<typeof i> => !!i);
+  const sheetWryde = wrydeTierFor(sheet.speciesId, spend.incepts);
+  const bioFields = parseBioFields(sheet.bioFields);
 
   function persist(next: CharacterRecord) {
     setRec(next);
@@ -205,6 +214,9 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   }
   function setRank(v: number) {
     persist({ ...rec!, sheet: { ...sheet, rank: Math.max(0, Math.min(RANK_MAX, v)) } });
+  }
+  function setBioFields(next: BioField[]) {
+    persist({ ...rec!, sheet: { ...sheet, bioFields: next } });
   }
   function setNotes(v: string) {
     persist({ ...rec!, sheet: { ...sheet, notes: v } });
@@ -573,31 +585,54 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
               />
             )}
 
-            {tab === "pressure" && (
-              <PressureEngine
-                attrs={eff}
-                specs={effSpec}
-                rank={rank}
-                morality={sheet.morality}
-                pressure={net.status === "connected" ? net.bp : sheet.pressure ?? PE_DEFAULT}
-                onPressure={net.status === "connected" ? net.setSharedBp : setPressure}
-                shared={net.status === "connected"}
-                onRoll={doRoll}
-              />
-            )}
-
-            {tab === "diplomacy" && (
-              <NegotiationPanel
-                attrs={eff}
-                specs={effSpec}
-                rank={rank}
-                morality={sheet.morality}
-                influenceMod={derived.inf}
-                eminence={sheet.eminence ?? 0}
-                client={sheet.negotiation ?? {}}
-                onClient={(next) => persist({ ...rec!, sheet: { ...sheet, negotiation: next } })}
-                onRoll={doRoll}
-              />
+            {/* Pressure and Negotiation run the same chassis — a situation vs a
+                person — so they live on one tab, switched rather than separate. */}
+            {tab === "resolve" && (
+              <>
+                <div className="chip-row resolve-switch">
+                  <button
+                    className={"chip" + (resolveMode === "pressure" ? " active" : "")}
+                    onClick={() => setResolveMode("pressure")}
+                  >
+                    Pressure
+                  </button>
+                  <button
+                    className={"chip" + (resolveMode === "diplomacy" ? " active" : "")}
+                    onClick={() => setResolveMode("diplomacy")}
+                  >
+                    Diplomacy
+                  </button>
+                  <span className="resolve-hint">
+                    {resolveMode === "pressure"
+                      ? "A situation pushing back — multi-skill AAV vs Pressure."
+                      : "A person pushing back — the same chassis, plus Influence and Eminence."}
+                  </span>
+                </div>
+                {resolveMode === "pressure" ? (
+                  <PressureEngine
+                    attrs={eff}
+                    specs={effSpec}
+                    rank={rank}
+                    morality={sheet.morality}
+                    pressure={net.status === "connected" ? net.bp : sheet.pressure ?? PE_DEFAULT}
+                    onPressure={net.status === "connected" ? net.setSharedBp : setPressure}
+                    shared={net.status === "connected"}
+                    onRoll={doRoll}
+                  />
+                ) : (
+                  <NegotiationPanel
+                    attrs={eff}
+                    specs={effSpec}
+                    rank={rank}
+                    morality={sheet.morality}
+                    influenceMod={derived.inf}
+                    eminence={sheet.eminence ?? 0}
+                    client={sheet.negotiation ?? {}}
+                    onClient={(next) => persist({ ...rec!, sheet: { ...sheet, negotiation: next } })}
+                    onRoll={doRoll}
+                  />
+                )}
+              </>
             )}
 
             {tab === "inventory" && (
@@ -646,31 +681,66 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
               </div>
             )}
 
+            {/* Bio shows only what THIS character actually has — no empty
+                scaffolding for things they never took. */}
             {tab === "bio" && (
               <>
-                <div className="panel-title">Features &amp; Traits</div>
-                {racial.length ? (
-                  <ul className="variant-abilities">
-                    {racial.map((a, i) => (
-                      <li key={i}>
-                        <b>{a.name}</b>
-                        {a.effect ? ` — ${a.effect}` : ""}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="list-empty">No innate features.</p>
+                {racial.length > 0 && (
+                  <>
+                    <div className="panel-title">
+                      Innate Features{" "}
+                      <span className="load-badge">
+                        {racial.length}
+                        {species ? " · " + species.name : ""}
+                      </span>
+                    </div>
+                    <ul className="variant-abilities">
+                      {racial.map((a, i) => (
+                        <li key={i}>
+                          <b>{a.name}</b>
+                          {a.effect ? ` — ${a.effect}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
                 )}
+
+                {unlockedIncepts.length > 0 && (
+                  <>
+                    <div className="panel-title mt">
+                      Incepts <span className="load-badge">{unlockedIncepts.length} · Wryde {sheetWryde.label}</span>
+                    </div>
+                    <ul className="variant-abilities">
+                      {unlockedIncepts.map((i) => (
+                        <li key={i.name}>
+                          <b>{i.name}</b>
+                          <span className={"wryde-badge t" + wrydeTier(i.weight).tier}>{i.weight}</span>
+                          {i.memory ? <em className="incept-memory"> {i.memory}</em> : null}
+                          {i.effect ? ` — ${i.effect}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+
+                <div className="panel-title mt">Personal Details</div>
+                <BioFields fields={bioFields} onChange={setBioFields} />
+
                 <div className="bio-grid mt">
-                  <div>
-                    <div className="panel-title">Species Variants</div>
-                    <SpeciesVariantsBody
-                      speciesId={sheet.speciesId}
-                      selected={sheet.variantName}
-                      curator={curator}
-                      onSelect={setVariant}
-                    />
-                  </div>
+                  {species && species.variants.length > 0 && (
+                    <div>
+                      <div className="panel-title">
+                        {species.name} Variants{" "}
+                        {sheet.variantName && <span className="load-badge">{sheet.variantName}</span>}
+                      </div>
+                      <SpeciesVariantsBody
+                        speciesId={sheet.speciesId}
+                        selected={sheet.variantName}
+                        curator={curator}
+                        onSelect={setVariant}
+                      />
+                    </div>
+                  )}
                   <div>
                     <div className="panel-title">Notes</div>
                     <textarea
@@ -681,6 +751,12 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                     />
                   </div>
                 </div>
+
+                {!species && racial.length === 0 && (
+                  <p className="list-empty mt">
+                    Choose a species to see innate features, variants and an Incept pool.
+                  </p>
+                )}
               </>
             )}
           </div>
