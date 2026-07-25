@@ -826,6 +826,79 @@ export const WRYDE_TIERS: { weight: InceptWeight; tier: number; label: string; n
   { weight: "Medium", tier: 2, label: "Volatile", note: "Mutations wander; expression is no longer reliable." },
   { weight: "Heavy", tier: 3, label: "Chaotic", note: "The wildest Wrydes — a heavy incept warps whatever carries it." },
 ];
+/** The Wryde Mutation Table. Whenever an Incept manifests it produces a Wryde —
+ *  a visible, behavioural or sensory alteration on the CHARACTER only; a Wryde
+ *  never alters the external world. The type is fixed the moment the Incept is
+ *  gained.
+ *
+ *  NOTE: the published percentages total WRYDE_TABLE_PCT (95), not 100 — d100
+ *  results 96–100 have no outcome. Until that gap is closed by the author,
+ *  rollWryde() re-rolls those five results, which preserves every listed
+ *  probability in exact proportion rather than inventing an eighth outcome. */
+export interface WrydeMutation {
+  name: string;
+  /** Published probability, as written. */
+  pct: number;
+  desc: string;
+}
+export const WRYDE_MUTATIONS: WrydeMutation[] = [
+  { name: "Stagnant", pct: 40, desc: "Cosmetic and stable; does not evolve or change over time." },
+  { name: "Radioactive", pct: 15, desc: "Emits pressure, heat, energy, or discomfort without environmental alteration." },
+  { name: "Growth", pct: 20, desc: "Evolves slowly as more Incepts are gained." },
+  { name: "Mental Fog", pct: 10, desc: "Causes cognitive interference, intrusive thoughts, or perceptual distortion." },
+  { name: "Harder Anatomy", pct: 5, desc: "Physical structure toughens or densifies." },
+  { name: "Sentient", pct: 3, desc: "The mutation possesses awareness or limited intent." },
+  { name: "Corrupt", pct: 2, desc: "Dangerous, malformed, or unstable — may carry risk to the character." },
+];
+export const WRYDE_TABLE_PCT = WRYDE_MUTATIONS.reduce((t, m) => t + m.pct, 0);
+
+/** Heavier incepts throw wilder Wrydes by rolling the table MORE THAN ONCE and
+ *  keeping the most chaotic result — the table is ordered benign → dangerous.
+ *
+ *  A flat roll bonus was tried first and is the wrong shape: clamping at the end
+ *  of a 95-point table drains Stagnant straight into Corrupt (23% at Heavy) and
+ *  never moves the middle. Keep-the-worst escalates smoothly instead — Stagnant
+ *  42%→18%→7.5%, Corrupt 2.1%→4.2%→6.2%, and every band between rises. */
+export const WRYDE_WEIGHT_ROLLS: Record<InceptWeight, number> = { Light: 1, Medium: 2, Heavy: 3 };
+
+/** Resolve one roll (1…WRYDE_TABLE_PCT) to its mutation. */
+export function wrydeAt(roll: number): WrydeMutation {
+  let c = 0;
+  for (const m of WRYDE_MUTATIONS) {
+    c += m.pct;
+    if (roll <= c) return m;
+  }
+  return WRYDE_MUTATIONS[WRYDE_MUTATIONS.length - 1];
+}
+
+/** One d100 landing inside the published band — the dead 96–100 is re-rolled. */
+function wrydeD100(): number {
+  for (let i = 0; i < 50; i++) {
+    const r = 1 + Math.floor(Math.random() * 100);
+    if (r <= WRYDE_TABLE_PCT) return r;
+  }
+  return WRYDE_TABLE_PCT;
+}
+
+/** Roll the Wryde an incept of this Weight Class manifests. Pass explicit rolls
+ *  to make it deterministic; omit to roll. */
+export function rollWryde(weight: InceptWeight | string | undefined, rolls?: number[]): WrydeMutation {
+  const n = WRYDE_WEIGHT_ROLLS[weight as InceptWeight] ?? 1;
+  const drawn = rolls?.length ? rolls : Array.from({ length: n }, () => wrydeD100());
+  // Most chaotic = furthest down the table.
+  let worst = WRYDE_MUTATIONS[0];
+  let worstIdx = -1;
+  for (const r of drawn) {
+    const m = wrydeAt(Math.max(1, Math.min(WRYDE_TABLE_PCT, r)));
+    const idx = WRYDE_MUTATIONS.indexOf(m);
+    if (idx > worstIdx) {
+      worstIdx = idx;
+      worst = m;
+    }
+  }
+  return worst;
+}
+
 export function wrydeTier(weight: InceptWeight | string | undefined): { tier: number; label: string; note: string } {
   const w = WRYDE_TIERS.find((t) => t.weight === weight) ?? WRYDE_TIERS[0];
   return { tier: w.tier, label: w.label, note: w.note };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SPECIES, getIncept, inceptPool, inceptPoolBlurb, inceptsForSpecies, wrydeTier, wrydeTierFor } from "./wte";
+import { SPECIES, getIncept, inceptPool, inceptPoolBlurb, inceptsForSpecies, wrydeTier, wrydeTierFor, WRYDE_MUTATIONS, WRYDE_TABLE_PCT, WRYDE_WEIGHT_ROLLS, wrydeAt, rollWryde } from "./wte";
 import { INCEPT_FOCUS_COST, focusBudget, unlockIncept, emptySpend } from "./synapticFocus";
 
 describe("incept pools", () => {
@@ -142,5 +142,65 @@ describe("Wryde tiers — Weight Class sets how chaotic the mutation is", () => 
   it("an unlocked-nothing character sits at the calmest tier", () => {
     expect(wrydeTierFor("seraph", []).tier).toBe(1);
     expect(wrydeTierFor("seraph", ["Not A Real Incept"]).tier).toBe(1);
+  });
+});
+
+describe("the Wryde Mutation Table", () => {
+  it("carries the seven published types with their exact percentages", () => {
+    expect(WRYDE_MUTATIONS.map((m) => [m.name, m.pct])).toEqual([
+      ["Stagnant", 40], ["Radioactive", 15], ["Growth", 20], ["Mental Fog", 10],
+      ["Harder Anatomy", 5], ["Sentient", 3], ["Corrupt", 2],
+    ]);
+  });
+
+  it("sums to 95, NOT 100 — the published table has a five-point gap", () => {
+    // Pinning the author's numbers as written. If the gap is closed later this
+    // test is the reminder that rollWryde's re-roll band changes with it.
+    expect(WRYDE_TABLE_PCT).toBe(95);
+  });
+
+  it("maps rolls to the right band", () => {
+    expect(wrydeAt(1).name).toBe("Stagnant");
+    expect(wrydeAt(40).name).toBe("Stagnant");
+    expect(wrydeAt(41).name).toBe("Radioactive");
+    expect(wrydeAt(55).name).toBe("Radioactive");
+    expect(wrydeAt(56).name).toBe("Growth");
+    expect(wrydeAt(75).name).toBe("Growth");
+    expect(wrydeAt(85).name).toBe("Mental Fog");
+    expect(wrydeAt(90).name).toBe("Harder Anatomy");
+    expect(wrydeAt(93).name).toBe("Sentient");
+    expect(wrydeAt(94).name).toBe("Corrupt");
+    expect(wrydeAt(95).name).toBe("Corrupt");
+  });
+
+  it("rolls once for Light, twice for Medium, three times for Heavy", () => {
+    expect(WRYDE_WEIGHT_ROLLS).toEqual({ Light: 1, Medium: 2, Heavy: 3 });
+  });
+
+  it("keeps the MOST chaotic of the rolls", () => {
+    // 1 = Stagnant, 94 = Corrupt. Order of the rolls must not matter.
+    expect(rollWryde("Heavy", [1, 94, 1]).name).toBe("Corrupt");
+    expect(rollWryde("Heavy", [94, 1, 1]).name).toBe("Corrupt");
+    expect(rollWryde("Medium", [1, 60]).name).toBe("Growth");
+    expect(rollWryde("Light", [1]).name).toBe("Stagnant");
+  });
+
+  it("clamps a nonsense roll instead of falling off the table", () => {
+    expect(rollWryde("Light", [0]).name).toBe("Stagnant");
+    expect(rollWryde("Light", [999]).name).toBe("Corrupt");
+    expect(rollWryde("not-a-weight", [50]).name).toBe("Radioactive");
+  });
+
+  it("escalates with weight — a Heavy incept rarely sits cosmetic", () => {
+    const share = (w: string) => {
+      let stagnant = 0;
+      for (let i = 0; i < 4000; i++) if (rollWryde(w).name === "Stagnant") stagnant++;
+      return stagnant / 4000;
+    };
+    const light = share("Light");
+    const heavy = share("Heavy");
+    expect(light).toBeGreaterThan(0.34); // ~42%
+    expect(heavy).toBeLessThan(0.13); // ~7.5%
+    expect(heavy).toBeLessThan(light);
   });
 });
