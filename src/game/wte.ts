@@ -61,6 +61,19 @@ export const SPEC_MAX = 75;
 export const RED_DIV = 3;
 export const ATTR_MIN = 0;
 export const ATTR_MAX = 20;
+
+/** Zone of Influence — the threat radius every hostile creature exerts, in feet.
+ *  Movement in W.T.E is not grid-based: it is measured through threat, proximity
+ *  and narrative positioning. Outside the ZoI movement is free; inside it,
+ *  entering, leaving or repositioning may trigger a Reaction Check. Gear,
+ *  weapons and species innates all quote this number, so it lives here.
+ *  Some creatures widen it — an Inderi Aeor projects 40. */
+export const ZOI_RADIUS = 30;
+/** True when a distance (feet) sits inside a creature's Zone of Influence. */
+export function inZoneOfInfluence(distanceFt: number, radiusFt: number = ZOI_RADIUS): boolean {
+  return distanceFt < radiusFt;
+}
+
 /** An untrained specialty (< SPEC_PENALTY_MIN points) takes a flat SPEC_PENALTY
  *  hit. This balances the d40 spread specialty checks roll on — ATTRIBUTES roll
  *  a d20 and never take it. */

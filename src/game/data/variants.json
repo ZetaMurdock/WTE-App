@@ -260,7 +260,7 @@
         },
         {
           "name": "Induction",
-          "effect": "Target: 1 remembered object, construct, or being · Vector: Gaze · Duration: until cancelled · Resolution: Automatic. The Aeor destabilises structures — the energy around them, not the physical structure itself. Any energy entering their ZOL (40 feet rather than the standard 30) can be contested, forcing a Control Check that must beat the Aeor's DC. On a failure the energy is rendered unstable and they are blasted back, up to half the reach of the Aeor's projected energy form."
+          "effect": "Target: 1 remembered object, construct, or being · Vector: Gaze · Duration: until cancelled · Resolution: Automatic. The Aeor destabilises structures — the energy around them, not the physical structure itself. Any energy entering their Zone of Influence — 40 feet for an Aeor, rather than the standard 30 — can be contested, forcing a Control Check that must beat the Aeor's DC. On a failure the energy is rendered unstable and they are blasted back, up to half the reach of the Aeor's projected energy form."
         }
       ]
     }
