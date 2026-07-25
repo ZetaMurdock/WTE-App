@@ -43,9 +43,15 @@ export interface CharacterSheet {
   /** Negotiation Engine — the client currently across the table. */
   negotiation?: { client?: string; resistance?: number; eminenceReq?: number };
   equipment?: EquipmentItem[];
-  /** Selected genus / cipher ability names (loadout, capped by rank slots). */
+  /** Cipher ability names (loadout, capped by rank slots).
+   *  genusLoadout is LEGACY as of the Synaptic Focus rework — focusSpend.genus is
+   *  now the source of truth for which genus a character knows. It is retained so
+   *  pre-Focus sheets migrate cleanly and nothing silently loses data. */
   genusLoadout?: string[];
   cipherLoadout?: string[];
+  /** Synaptic Focus spend: genus name → Focus 1…4, plus unlocked Incept names.
+   *  Focus IS access — see game/synapticFocus.ts. */
+  focusSpend?: { genus: Record<string, number>; incepts: string[] };
   /** Equipped weapon / gear names from the baked Codex catalogs. */
   weaponLoadout?: string[];
   gearLoadout?: string[];

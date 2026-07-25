@@ -247,12 +247,17 @@ export interface Paradigm {
   domains: string[];
 }
 export const PARADIGMS: Paradigm[] = [
+  // Domains mirror each Genus page's "Paradigm Access" block, with one deliberate
+  // exception: the Kinetic domain was reworked into PHOTONIC, so simulation and
+  // warfare follow it across — but REMNANT keeps Null + Neutral per its own rework
+  // (v0.8.21). The Photonic page lists Remnant; that mention is a leftover and the
+  // Remnant rework wins. See remnant.test.ts.
   { id: "science", name: "Science", group: "Scientific", weapons: ["Hybrid", "Medium", "Kinetic"], domains: ["Neutral", "Elemental"] },
-  { id: "simulation", name: "Simulation", group: "Scientific", weapons: ["Kinetic", "Hybrid"], domains: ["Kinetic", "Null"] },
+  { id: "simulation", name: "Simulation", group: "Scientific", weapons: ["Kinetic", "Hybrid"], domains: ["Photonic", "Null"] },
   { id: "remnant", name: "Remnant", group: "Esoteric & Survival", weapons: ["Kinetic", "Energy", "Hybrid"], domains: ["Null", "Neutral"] },
   { id: "cognition", name: "Cognition", group: "Esoteric & Survival", weapons: ["Energy", "Exotic", "Hybrid"], domains: ["Eldritch", "Null"] },
   { id: "evolution", name: "Evolution", group: "Esoteric & Survival", weapons: ["Energy", "Exotic", "Hybrid"], domains: ["Elemental", "Eldritch"] },
-  { id: "warfare", name: "Warfare", group: "Tactical Combat", weapons: ["Hybrid", "Exotic", "Kinetic"], domains: ["Neutral", "Kinetic"] },
+  { id: "warfare", name: "Warfare", group: "Tactical Combat", weapons: ["Hybrid", "Exotic", "Kinetic"], domains: ["Neutral", "Photonic"] },
 ];
 
 // ── Data-driven registry (Codex pull) ────────────────────────────────────────
@@ -710,6 +715,26 @@ export interface GenusAbility {
   activation?: string | null;
   range?: string | null;
   target?: string | null;
+  /** "Emission / Trans-modification" etc. */
+  classification?: string | null;
+  /** Original SS string when the cost is variable or compound ("8 SS (+2/round)"). */
+  ssNote?: string | null;
+  /** Usage limit as written — including "Once per Synaptic Focus". */
+  limit?: string | null;
+}
+
+/** Standard Null Ruling posture. Null resolves BEFORE Reactions can be declared;
+ *  Photonic is faster still (anti-SNR); everything else runs in initiative. */
+export type SnrPosture = "none" | "applies" | "anti";
+export interface GenusDomain {
+  identity: string;
+  /** Paradigm ids that may access this domain. */
+  paradigmAccess: string[];
+  snr: SnrPosture;
+  snrNote: string;
+  quote: string;
+  blurb: string;
+  abilities: GenusAbility[];
 }
 export interface CipherAbility {
   name: string;
@@ -718,8 +743,27 @@ export interface CipherAbility {
   type?: string | null;
   effect?: string | null;
 }
-const GENUS_DATA = genusData as Record<string, GenusAbility[]>;
+const GENUS_DOMAINS = genusData as Record<string, GenusDomain>;
+const GENUS_DATA: Record<string, GenusAbility[]> = Object.fromEntries(
+  Object.entries(GENUS_DOMAINS).map(([d, v]) => [d, v.abilities])
+);
 const CIPHER_DATA = cipherData as Record<string, CipherAbility[]>;
+
+/** Every energy domain, in Codex order. */
+export const GENUS_DOMAIN_NAMES = Object.keys(GENUS_DOMAINS);
+export function getGenusDomain(domain: string): GenusDomain | undefined {
+  return GENUS_DOMAINS[domain];
+}
+/** The domain an ability belongs to (first match wins; names are unique). */
+export function domainOfGenus(name: string): string | undefined {
+  const n = name.toLowerCase();
+  return GENUS_DOMAIN_NAMES.find((d) => GENUS_DATA[d].some((a) => a.name.toLowerCase() === n));
+}
+/** SNR posture for one ability, via its domain. */
+export function snrOfGenus(name: string): SnrPosture {
+  const d = domainOfGenus(name);
+  return d ? GENUS_DOMAINS[d].snr : "none";
+}
 
 /** Merge baked abilities with pulled-page ones (page entries override by name). */
 function mergeAbilities<T extends { name: string }>(base: T[], page: T[]): T[] {
@@ -753,7 +797,7 @@ export function speciesInnate(speciesId?: string): SpeciesVariantAbility[] {
   return (getSpecies(speciesId)?.innate || []).map((name) => ({ name, effect: "" }));
 }
 
-export type AbilitySource = "genus" | "cipher" | "racial";
+export type AbilitySource = "genus" | "cipher" | "racial" | "incept";
 export interface UsableAbility {
   source: AbilitySource;
   name: string;
@@ -762,13 +806,45 @@ export interface UsableAbility {
   range?: string | null;
   target?: string | null;
   activation?: string | null;
+  /** Synaptic Focus invested in this genus (1…4). Decides genus-vs-genus. */
+  focus?: number;
+  /** The domain it came from, for grouping and SNR. */
+  domain?: string;
 }
 
-export function usableGenus(paradigmId: string | undefined, loadout: string[]): UsableAbility[] {
-  const all = genusForParadigm(paradigmId).flatMap((g) => g.abilities);
+/** Genus a character can actually use. `loadout` is the list of names they know —
+ *  under the Focus rework that is knownGenus(focusSpend), not the legacy flat
+ *  loadout. Pass `focus` so each row carries the Focus that settles contests. */
+export function usableGenus(
+  paradigmId: string | undefined,
+  loadout: string[],
+  focus?: Record<string, number>
+): UsableAbility[] {
+  const groups = genusForParadigm(paradigmId);
   return loadout.map((name) => {
-    const a = all.find((x) => x.name === name);
-    return { source: "genus" as const, name, ss: a?.ss ?? 0, effect: a?.effect, range: a?.range, target: a?.target, activation: a?.activation };
+    let g = groups.find((grp) => grp.abilities.some((x) => x.name === name));
+    let a = g?.abilities.find((x) => x.name === name);
+    // A genus already invested in but no longer inside this paradigm's domains
+    // (domain access shifted with the Genus rework) still resolves in full rather
+    // than blanking to a nameless 0-SS row on someone's sheet.
+    if (!a) {
+      const d = domainOfGenus(name);
+      if (d) {
+        a = GENUS_DATA[d].find((x) => x.name.toLowerCase() === name.toLowerCase());
+        g = a ? { domain: d, abilities: GENUS_DATA[d] } : g;
+      }
+    }
+    return {
+      source: "genus" as const,
+      name,
+      ss: a?.ss ?? 0,
+      effect: a?.effect,
+      range: a?.range,
+      target: a?.target,
+      activation: a?.activation,
+      focus: focus?.[name],
+      domain: g?.domain,
+    };
   });
 }
 /** Ciphers replaced or respelled in the rules: saved loadouts holding the old

@@ -20,7 +20,6 @@ import {
   specRollMod,
   signedMod,
   rankMult,
-  genusSlots,
   cipherSlots,
   specialtyRemaining,
   validateSheet,
@@ -59,6 +58,14 @@ import { getWeapon, loadoutMods, loadoutNC, weaponSlotsUsed, WEAPON_SLOTS } from
 import type { Weapon } from "../../models/codex";
 import { useNet } from "../../net/NetContext";
 import { loadRules, sheetCaps, type CampaignRules } from "../../lib/campaignRules";
+import {
+  FOCUS_PER_RANK,
+  focusBudget,
+  focusRemaining,
+  knownGenus,
+  parseSpend,
+  type FocusSpend,
+} from "../../game/synapticFocus";
 import { RollButton } from "./RollButton";
 
 interface Props {
@@ -126,8 +133,10 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   const rank = sheet.rank ?? 0;
   const weaponLoadout = sheet.weaponLoadout ?? [];
   const gearLoadout = sheet.gearLoadout ?? [];
-  const genusLoadout = sheet.genusLoadout ?? [];
   const cipherLoadout = sheet.cipherLoadout ?? [];
+  // Focus is the source of truth for genus; parseSheet migrates legacy loadouts.
+  const spend = parseSpend(sheet.focusSpend);
+  const knownGenusNames = knownGenus(spend);
   const equip = mergeMods(aggregateEquip(sheet.equipment), loadoutMods(weaponLoadout, gearLoadout));
   // Soul mechanics fold into the shown effective values (Process: +3 INT / +3 Control).
   const soulMods = moralityMods(sheet.morality);
@@ -237,8 +246,10 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   function setGear(names: string[]) {
     persist({ ...rec!, sheet: { ...sheet, gearLoadout: names } });
   }
-  function setGenus(names: string[]) {
-    persist({ ...rec!, sheet: { ...sheet, genusLoadout: names } });
+  function setSpend(next: FocusSpend) {
+    // genusLoadout is kept in step so the VTT, exports and any legacy reader
+    // still see a flat list of what this character knows.
+    persist({ ...rec!, sheet: { ...sheet, focusSpend: next, genusLoadout: knownGenus(next) } });
   }
   function setCiphers(names: string[]) {
     persist({ ...rec!, sheet: { ...sheet, cipherLoadout: names } });
@@ -345,7 +356,12 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
           />
         </div>
         <div className="rank-item"><span className="rank-lbl">HP mult</span><span className="rank-val">×{rankMult(rank).toFixed(2)}</span></div>
-        <div className="rank-item"><span className="rank-lbl">Genus slots</span><span className="rank-val">{genusSlots(rank)}</span></div>
+        <div className="rank-item" title={`${FOCUS_PER_RANK} Synaptic Focus per rank; spent on Genus and Incepts`}>
+          <span className="rank-lbl">Focus left</span>
+          <span className={"rank-val" + (focusRemaining(rank, spend, sheet.speciesId) < 0 ? " over" : "")}>
+            {focusRemaining(rank, spend, sheet.speciesId)} / {focusBudget(rank)}
+          </span>
+        </div>
         <div className="rank-item"><span className="rank-lbl">Cipher slots</span><span className="rank-val">{cipherSlots(rank)}</span></div>
         <span className="rank-spacer" />
         {curator && <span className="curator-flag on">Curator Mode</span>}
@@ -545,7 +561,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
             {tab === "actions" && (
               <ActionsTable
                 weapons={equippedWeapons}
-                genus={usableGenus(sheet.paradigmId, genusLoadout)}
+                genus={usableGenus(sheet.paradigmId, knownGenusNames, spend.genus)}
                 ciphers={usableCiphers(sheet.paradigmId, cipherLoadout)}
                 atk={derived.atk}
                 phyMod={rollMod(eff.phy)}
@@ -618,10 +634,12 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                   <div className="panel-title">Genus &amp; Ciphers</div>
                   <AbilitiesBody
                     paradigmId={sheet.paradigmId}
+                    speciesId={sheet.speciesId}
+                    innateChoice={sheet.innateChoice}
                     rank={rank}
-                    genusLoadout={genusLoadout}
+                    spend={spend}
                     cipherLoadout={cipherLoadout}
-                    onGenus={setGenus}
+                    onSpend={setSpend}
                     onCiphers={setCiphers}
                   />
                 </div>

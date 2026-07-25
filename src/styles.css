@@ -7345,3 +7345,107 @@ body.wte-dot-cursor * {
   font-weight: 600;
   color: #d05a44;
 }
+
+/* ── Synaptic Focus investment (Genus + Incepts share one pool) ── */
+.focus-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+}
+.focus-bar.over {
+  border-left-color: #d05a44;
+}
+.focus-bar-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.focus-bar-label {
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.focus-bar-val {
+  font-size: 18px;
+  font-weight: 700;
+}
+.focus-bar.over .focus-bar-val {
+  color: #d05a44;
+}
+.focus-bar-of {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.focus-bar-meta {
+  font-size: 11px;
+  color: var(--muted);
+}
+.focus-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg);
+  border: 1px solid var(--panel-line);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-family: Georgia, serif;
+  font-size: 13px;
+}
+.focus-row.known {
+  border-color: var(--accent);
+}
+.focus-row-name {
+  flex: 1;
+  min-width: 0;
+}
+.focus-pips {
+  display: inline-flex;
+  gap: 3px;
+}
+.focus-pip {
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--panel-line);
+  border-radius: 50%;
+}
+.focus-pip.on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.focus-btns {
+  display: inline-flex;
+  gap: 3px;
+}
+.icon-btn.xs.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.wryde-badge {
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  padding: 1px 6px;
+  color: var(--muted);
+}
+.wryde-badge.t2 {
+  color: #c8a070;
+  border-color: #806020;
+}
+.wryde-badge.t3 {
+  color: #d05a44;
+  border-color: #b03020;
+}
+.rank-val.over {
+  color: #d05a44;
+}

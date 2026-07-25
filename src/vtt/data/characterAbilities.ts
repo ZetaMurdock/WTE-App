@@ -16,6 +16,7 @@ import {
 } from "../../game/wte";
 import { getWeapon, loadoutMods, isRangedWeapon } from "../../lib/codex";
 import { derivedRules } from "../../lib/campaignRules";
+import { knownGenus, parseSpend } from "../../game/synapticFocus";
 import { parseEffectMeta, type EffectMeta } from "./effectMeta";
 
 export type AbilitySource = "action" | "genus" | "cipher" | "racial";
@@ -93,8 +94,15 @@ export function characterActionSet(rec: CharacterRecord): CharacterActionSet {
     .filter((w): w is NonNullable<typeof w> => !!w)
     .map((w, i) => mk("action", w.name, i, { effect: w.effect, range: w.range, hit: atk + (isRangedWeapon(w) ? dexMod : phyMod), damage: w.damage }));
 
-  // Only what the character has SLOTTED — their loadout — not the full paradigm set.
-  const genus = usableGenus(s.paradigmId, s.genusLoadout ?? []).map((a, i) => mk("genus", a.name, i, { effect: a.effect, range: a.range, target: a.target, ss: a.ss ?? 0 }));
+  // Only what the character actually KNOWS — the genus they invested Synaptic
+  // Focus in — not the full paradigm set. Falls back to the legacy flat loadout
+  // for any sheet that predates the Focus rework and hasn't been migrated yet.
+  const spend = parseSpend(s.focusSpend);
+  const known = knownGenus(spend);
+  const genusNames = known.length ? known : s.genusLoadout ?? [];
+  const genus = usableGenus(s.paradigmId, genusNames, spend.genus).map((a, i) =>
+    mk("genus", a.name, i, { effect: a.effect, range: a.range, target: a.target, ss: a.ss ?? 0 })
+  );
 
   const cipher = usableCiphers(s.paradigmId, s.cipherLoadout ?? []).map((a, i) => mk("cipher", a.name, i, { effect: a.effect, ss: a.ss ?? 0 }));
 

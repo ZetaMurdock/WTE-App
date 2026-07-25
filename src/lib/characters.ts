@@ -4,6 +4,7 @@
 import type { Character, CharacterSheet } from "../models/character";
 import { getDb, sqlAvailable } from "./db";
 import { zeroAttributes, zeroSpecialties } from "../game/wte";
+import { migrateLoadout, parseSpend } from "../game/synapticFocus";
 
 interface CharacterRow {
   id: string;
@@ -46,6 +47,12 @@ function parseSheet(raw: string | null): CharacterSheet {
       equipment: Array.isArray(p.equipment) ? p.equipment : [],
       genusLoadout: Array.isArray(p.genusLoadout) ? p.genusLoadout : [],
       cipherLoadout: Array.isArray(p.cipherLoadout) ? p.cipherLoadout : [],
+      // Focus is the source of truth for genus. A sheet written before the
+      // rework has no focusSpend, so seed it from the old flat loadout at
+      // Focus 1 each — within budget, never silently upgraded.
+      focusSpend: p.focusSpend
+        ? parseSpend(p.focusSpend)
+        : migrateLoadout(Array.isArray(p.genusLoadout) ? p.genusLoadout : [], typeof p.rank === "number" ? p.rank : 0),
       weaponLoadout: Array.isArray(p.weaponLoadout) ? p.weaponLoadout : [],
       gearLoadout: Array.isArray(p.gearLoadout) ? p.gearLoadout : [],
       ssSpent: typeof p.ssSpent === "number" ? p.ssSpent : 0,
