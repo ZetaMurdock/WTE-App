@@ -4,8 +4,10 @@
 //   • GENUS  — 1 point = +1 Focus on a specific ability, to a cap of 4. Focus IS
 //     access: you know exactly the genus you have invested in, which replaces the
 //     old flat genusSlots(5 + rank) allowance.
-//   • INCEPT — a flat INCEPT_FOCUS_COST to unlock. Costing the same as taking one
-//     genus from 1 to 4 is deliberate: an incept is a maxed genus you didn't take.
+//   • INCEPT — priced by Weight Class. Light and Medium cost INCEPT_FOCUS_COST,
+//     the same as taking one genus from 1 to 4: an incept is a maxed genus you
+//     didn't take. A HEAVY incept costs more still, because it also drags the
+//     character's Wryde into the chaotic tier.
 //
 // Focus is per ABILITY, not per domain. Per-domain would be degenerate — five
 // domains at 4 each is 20 points, maxed by rank 6, and every character ends up
@@ -14,15 +16,22 @@
 // Focus also settles genus-vs-genus: the higher Focus wins outright (a Reflect
 // with less Focus than the Elemental it meets simply fails). Equal Focus goes to
 // a contested Control roll scaled by rank.
-import { rankMult, rollSpecialty, type RollMode } from "./wte";
+import { getIncept, rankMult, rollSpecialty, type RollMode } from "./wte";
 
 /** Points granted per rank. Rank 0 is included, so a fresh character starts with
  *  one spend to make — 3 points, i.e. one genus at Focus 3 or a single incept. */
 export const FOCUS_PER_RANK = 3;
 /** A single genus ability tops out here; further points are wasted. */
 export const GENUS_FOCUS_MAX = 4;
-/** Flat cost to unlock one incept — equal to raising a genus from 1 to 4. */
+/** Baseline cost to unlock one incept — equal to raising a genus from 1 to 4. */
 export const INCEPT_FOCUS_COST = 3;
+/** Weight Class sets the price. Light and Medium hold the baseline; a Heavy
+ *  incept costs 5 — MORE than maxing a genus outright — because it also drags
+ *  the character's Wryde into the chaotic tier (see wrydeTier in wte.ts). */
+export const INCEPT_COST_BY_WEIGHT: Record<string, number> = { Light: 3, Medium: 3, Heavy: 5 };
+export function inceptCost(weight?: string): number {
+  return INCEPT_COST_BY_WEIGHT[weight ?? ""] ?? INCEPT_FOCUS_COST;
+}
 
 /** What a character has bought. Genus maps ability name → Focus (1…4). */
 export interface FocusSpend {
@@ -55,20 +64,28 @@ export function focusBudget(rank: number): number {
   return (r + 1) * FOCUS_PER_RANK;
 }
 
-export function focusSpent(s: FocusSpend): number {
-  const onGenus = Object.values(s.genus).reduce((t, v) => t + v, 0);
-  return onGenus + s.incepts.length * INCEPT_FOCUS_COST;
+/** What one unlocked incept costs this character. Weight lives in the incept
+ *  data, not on the sheet, so a sheet can never desync from the rules — pass the
+ *  species and it is looked up. Without one, everything bills at the baseline. */
+export function costOfIncept(name: string, speciesId?: string): number {
+  return inceptCost(getIncept(speciesId, name)?.weight);
 }
 
-export function focusRemaining(rank: number, s: FocusSpend): number {
-  return focusBudget(rank) - focusSpent(s);
+export function focusSpent(s: FocusSpend, speciesId?: string): number {
+  const onGenus = Object.values(s.genus).reduce((t, v) => t + v, 0);
+  const onIncepts = s.incepts.reduce((t, n) => t + costOfIncept(n, speciesId), 0);
+  return onGenus + onIncepts;
+}
+
+export function focusRemaining(rank: number, s: FocusSpend, speciesId?: string): number {
+  return focusBudget(rank) - focusSpent(s, speciesId);
 }
 
 /** Total Focus a character has actually committed. This is the figure incepts
  *  read when they scale off "SF levels you possess" — e.g. SubDermin's Earth
  *  Mold, which extends its range for every two levels spent. */
-export function totalFocusSpent(s: FocusSpend): number {
-  return focusSpent(s);
+export function totalFocusSpent(s: FocusSpend, speciesId?: string): number {
+  return focusSpent(s, speciesId);
 }
 
 /** Hyomen's Talent Holder: "a 1D100 or 50 chance to obtain a extra SF point
@@ -99,10 +116,10 @@ export function knownGenus(s: FocusSpend): string[] {
 
 /** Raise one genus by a point. Returns the SAME object when the move is illegal
  *  (at the cap, or not enough Focus left) so callers can detect a no-op. */
-export function raiseGenus(s: FocusSpend, name: string, rank: number): FocusSpend {
+export function raiseGenus(s: FocusSpend, name: string, rank: number, speciesId?: string): FocusSpend {
   const cur = genusFocus(s, name);
   if (cur >= GENUS_FOCUS_MAX) return s;
-  if (focusRemaining(rank, s) < 1) return s;
+  if (focusRemaining(rank, s, speciesId) < 1) return s;
   return { ...s, genus: { ...s.genus, [name]: cur + 1 } };
 }
 
@@ -116,12 +133,12 @@ export function lowerGenus(s: FocusSpend, name: string): FocusSpend {
   return { ...s, genus };
 }
 
-export function canUnlockIncept(s: FocusSpend, name: string, rank: number): boolean {
-  return !s.incepts.includes(name) && focusRemaining(rank, s) >= INCEPT_FOCUS_COST;
+export function canUnlockIncept(s: FocusSpend, name: string, rank: number, speciesId?: string): boolean {
+  return !s.incepts.includes(name) && focusRemaining(rank, s, speciesId) >= costOfIncept(name, speciesId);
 }
 
-export function unlockIncept(s: FocusSpend, name: string, rank: number): FocusSpend {
-  if (!canUnlockIncept(s, name, rank)) return s;
+export function unlockIncept(s: FocusSpend, name: string, rank: number, speciesId?: string): FocusSpend {
+  if (!canUnlockIncept(s, name, rank, speciesId)) return s;
   return { ...s, incepts: [...s.incepts, name] };
 }
 

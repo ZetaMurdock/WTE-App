@@ -831,10 +831,10 @@ export const WRYDE_TIERS: { weight: InceptWeight; tier: number; label: string; n
  *  never alters the external world. The type is fixed the moment the Incept is
  *  gained.
  *
- *  NOTE: the published percentages total WRYDE_TABLE_PCT (95), not 100 — d100
- *  results 96–100 have no outcome. Until that gap is closed by the author,
- *  rollWryde() re-rolls those five results, which preserves every listed
- *  probability in exact proportion rather than inventing an eighth outcome. */
+ *  The first draft of this table totalled 95%, leaving d100 96–100 with no
+ *  outcome. The gap was closed into CORRUPT (2% → 7%), so the tail is now a real
+ *  threat rather than a curiosity — at Heavy, where the table is rolled three
+ *  times, Corrupt lands about one time in five. */
 export interface WrydeMutation {
   name: string;
   /** Published probability, as written. */
@@ -848,7 +848,7 @@ export const WRYDE_MUTATIONS: WrydeMutation[] = [
   { name: "Mental Fog", pct: 10, desc: "Causes cognitive interference, intrusive thoughts, or perceptual distortion." },
   { name: "Harder Anatomy", pct: 5, desc: "Physical structure toughens or densifies." },
   { name: "Sentient", pct: 3, desc: "The mutation possesses awareness or limited intent." },
-  { name: "Corrupt", pct: 2, desc: "Dangerous, malformed, or unstable — may carry risk to the character." },
+  { name: "Corrupt", pct: 7, desc: "Dangerous, malformed, or unstable — may carry risk to the character." },
 ];
 export const WRYDE_TABLE_PCT = WRYDE_MUTATIONS.reduce((t, m) => t + m.pct, 0);
 

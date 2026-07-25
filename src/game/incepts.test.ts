@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SPECIES, getIncept, inceptPool, inceptPoolBlurb, inceptsForSpecies, wrydeTier, wrydeTierFor, WRYDE_MUTATIONS, WRYDE_TABLE_PCT, WRYDE_WEIGHT_ROLLS, wrydeAt, rollWryde } from "./wte";
-import { INCEPT_FOCUS_COST, focusBudget, unlockIncept, emptySpend } from "./synapticFocus";
+import { INCEPT_FOCUS_COST, GENUS_FOCUS_MAX, focusBudget, focusSpent, focusRemaining, inceptCost, costOfIncept, unlockIncept, emptySpend } from "./synapticFocus";
 
 describe("incept pools", () => {
   it("every species has a pool, and nothing is orphaned", () => {
@@ -102,20 +102,44 @@ describe("incepts against the Focus budget", () => {
     expect(unlockIncept(s, "Reality Fold", 0)).toBe(s);
   });
 
-  it("a rank-9 Seraph could unlock their entire six-incept pool with points to spare", () => {
-    const pool = inceptsForSpecies("seraph");
-    let s = emptySpend();
-    for (const i of pool) s = unlockIncept(s, i.name, 9);
-    expect(s.incepts).toHaveLength(6);
-    expect(focusBudget(9) - 6 * INCEPT_FOCUS_COST).toBe(12); // 12 left for genus
+  it("prices an incept by its Weight Class", () => {
+    expect(inceptCost("Light")).toBe(3);
+    expect(inceptCost("Medium")).toBe(3);
+    expect(inceptCost("Heavy")).toBe(5);
+    expect(inceptCost(undefined)).toBe(INCEPT_FOCUS_COST); // unknown bills at baseline
+    // Looked up from the data, so a sheet can never disagree with the rules.
+    expect(costOfIncept("Seraphic Mandate", "seraph")).toBe(5); // Heavy
+    expect(costOfIncept("Spatial Anchor", "seraph")).toBe(3); // Light
   });
 
-  it("Hyomen's eleven cost more than the rank-9 budget allows", () => {
-    const pool = inceptsForSpecies("hyomen");
-    expect(pool.length * INCEPT_FOCUS_COST).toBeGreaterThan(focusBudget(9));
+  it("a rank-9 Seraph can still take their whole pool — the two Heavies bite", () => {
+    const pool = inceptsForSpecies("seraph");
     let s = emptySpend();
-    for (const i of pool) s = unlockIncept(s, i.name, 9);
-    expect(s.incepts.length).toBe(10); // 30 budget / 3 = 10, the eleventh is refused
+    for (const i of pool) s = unlockIncept(s, i.name, 9, "seraph");
+    expect(s.incepts).toHaveLength(6);
+    // 2 Light + 2 Medium + 2 Heavy = 3+3+3+3+5+5 = 22, not the old flat 18.
+    expect(focusSpent(s, "seraph")).toBe(22);
+    expect(focusRemaining(9, s, "seraph")).toBe(8); // 8 left for genus, was 12
+  });
+
+  it("Heavy incepts cost more than maxing a genus outright", () => {
+    expect(costOfIncept("Seraphic Mandate", "seraph")).toBeGreaterThan(GENUS_FOCUS_MAX);
+  });
+
+  it("a rank-0 character cannot afford a Heavy incept at all", () => {
+    expect(focusBudget(0)).toBe(3);
+    const s = unlockIncept(emptySpend(), "Seraphic Mandate", 0, "seraph");
+    expect(s.incepts).toEqual([]); // needs 5, has 3
+    // ...but a Light one is exactly affordable.
+    expect(unlockIncept(emptySpend(), "Spatial Anchor", 0, "seraph").incepts).toEqual(["Spatial Anchor"]);
+  });
+
+  it("Hyomen's eleven still overrun the budget — all Light and Medium, no Heavies", () => {
+    const pool = inceptsForSpecies("hyomen");
+    expect(pool.every((i) => i.weight !== "Heavy")).toBe(true);
+    let s = emptySpend();
+    for (const i of pool) s = unlockIncept(s, i.name, 9, "hyomen");
+    expect(s.incepts.length).toBe(10); // 33 needed, 30 available
   });
 });
 
@@ -149,14 +173,13 @@ describe("the Wryde Mutation Table", () => {
   it("carries the seven published types with their exact percentages", () => {
     expect(WRYDE_MUTATIONS.map((m) => [m.name, m.pct])).toEqual([
       ["Stagnant", 40], ["Radioactive", 15], ["Growth", 20], ["Mental Fog", 10],
-      ["Harder Anatomy", 5], ["Sentient", 3], ["Corrupt", 2],
+      ["Harder Anatomy", 5], ["Sentient", 3], ["Corrupt", 7],
     ]);
   });
 
-  it("sums to 95, NOT 100 — the published table has a five-point gap", () => {
-    // Pinning the author's numbers as written. If the gap is closed later this
-    // test is the reminder that rollWryde's re-roll band changes with it.
-    expect(WRYDE_TABLE_PCT).toBe(95);
+  it("totals exactly 100 — the original 5-point gap was folded into Corrupt", () => {
+    expect(WRYDE_TABLE_PCT).toBe(100);
+    expect(WRYDE_MUTATIONS.find((m) => m.name === "Corrupt")!.pct).toBe(7);
   });
 
   it("maps rolls to the right band", () => {
@@ -170,7 +193,7 @@ describe("the Wryde Mutation Table", () => {
     expect(wrydeAt(90).name).toBe("Harder Anatomy");
     expect(wrydeAt(93).name).toBe("Sentient");
     expect(wrydeAt(94).name).toBe("Corrupt");
-    expect(wrydeAt(95).name).toBe("Corrupt");
+    expect(wrydeAt(100).name).toBe("Corrupt");
   });
 
   it("rolls once for Light, twice for Medium, three times for Heavy", () => {
@@ -199,8 +222,8 @@ describe("the Wryde Mutation Table", () => {
     };
     const light = share("Light");
     const heavy = share("Heavy");
-    expect(light).toBeGreaterThan(0.34); // ~42%
-    expect(heavy).toBeLessThan(0.13); // ~7.5%
+    expect(light).toBeGreaterThan(0.33); // ~40%
+    expect(heavy).toBeLessThan(0.12); // ~6.4%
     expect(heavy).toBeLessThan(light);
   });
 });
