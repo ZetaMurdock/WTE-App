@@ -4,7 +4,9 @@ import { Dashboard } from "./components/Dashboard";
 import { ToolFrame } from "./components/ToolFrame";
 import { CharactersTab } from "./components/characters/CharactersTab";
 import { LobbyView } from "./components/LobbyView";
+import { PlayerCampaign } from "./components/PlayerCampaign";
 import { NetProvider } from "./net/NetContext";
+import { CampaignAnnouncer } from "./net/CampaignAnnouncer";
 import { CodexBrowser } from "./components/codex/CodexBrowser";
 import { VttScreen } from "./vtt/VttScreen";
 import { Boundary } from "./components/ui/Boundary";
@@ -274,6 +276,7 @@ export default function App() {
 
   return (
     <NetProvider>
+    <CampaignAnnouncer campaign={activeCampaign} curator={curator} />
     <div className="app">
       {wallpaper && <div className="app-wallpaper" style={{ backgroundImage: `url(${wallpaper})` }} />}
       <CursorDot enabled={dotCursor} />
@@ -323,6 +326,12 @@ export default function App() {
             <CharactersTab campaign={activeCampaign} curator={curator} onCharactersChanged={bumpChars} />
           </div>
         )}
+        {activeTab === "table" && (
+          <Boundary label="Table">
+            <PlayerCampaign />
+          </Boundary>
+        )}
+
         {activeTab === "lobby" && (
           <div className="view-scroll">
             <LobbyView />

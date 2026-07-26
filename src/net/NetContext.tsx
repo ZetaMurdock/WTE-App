@@ -8,6 +8,7 @@ import { NetSession } from "./session";
 import { getNetConfig, buildIceServers } from "./netconfig";
 import { advertise, unadvertise, myPeerId, myPeerName } from "./discovery";
 import { listSavedRooms, upsertSavedRoom } from "./savedRooms";
+import { getTableLink, saveTableLink, type TableLink } from "./activeTable";
 import type { NetMessage, NetMessageType, Peer } from "./protocol";
 import type { DeskNote } from "../lib/campaignDesk";
 
@@ -42,6 +43,13 @@ interface NetApi {
   /** Table info shown on saved-room cards (host sets; syncs to the room). */
   nextSession: string;
   setNextSession(v: string): void;
+  /** The table this client is linked to — the Curator's campaign, and which of
+   *  my characters is in use here. Null until a host announces one. */
+  table: TableLink | null;
+  /** Host only: tell the room which campaign this table is. */
+  announceCampaign(id: string, name: string): void;
+  /** Set the character I am playing at this table. */
+  setInUseCharacter(charId: string | null): void;
 }
 
 const Ctx = createContext<NetApi | null>(null);
@@ -120,6 +128,8 @@ export function NetProvider({ children }: { children: ReactNode }) {
   // Room lock + shared table info (next session), persisted per saved room.
   const [locked, setLockedState] = useState(false);
   const [nextSession, setNextSessionState] = useState("");
+  const [table, setTable] = useState<TableLink | null>(null);
+  const campaignRef = useRef<{ id: string; name: string } | null>(null);
   const roomRef = useRef(room);
   roomRef.current = room;
   const roleRef = useRef(role);
@@ -133,8 +143,27 @@ export function NetProvider({ children }: { children: ReactNode }) {
   const setNextSession = useCallback((v: string) => {
     setNextSessionState(v);
     if (roomRef.current) upsertSavedRoom({ code: roomRef.current, nextSession: v });
-    if (roleRef.current === "host") sessionRef.current?.publish({ t: "room-info", nextSession: v });
+    if (roleRef.current === "host")
+      sessionRef.current?.publish({ t: "room-info", nextSession: v, campaignId: campaignRef.current?.id, campaignName: campaignRef.current?.name });
   }, []);
+  /** Host: name this table's campaign, and tell the room. Also stored locally so
+   *  the Curator's own Player-view reads the same link everyone else sees. */
+  const announceCampaign = useCallback((id: string, name: string) => {
+    if (!id) return;
+    campaignRef.current = { id, name };
+    if (roomRef.current) setTable(saveTableLink({ room: roomRef.current, campaignId: id, campaignName: name }));
+    if (roleRef.current === "host") {
+      sessionRef.current?.publish({ t: "room-info", nextSession: nextSessionRef.current, campaignId: id, campaignName: name });
+    }
+  }, []);
+
+  /** Which of MY characters I am playing at this table. Local only — the Curator
+   *  learns it from the party summary the sheet already publishes. */
+  const setInUseCharacter = useCallback((charId: string | null) => {
+    if (!roomRef.current) return;
+    setTable(saveTableLink({ room: roomRef.current, inUseCharacterId: charId ?? "" }));
+  }, []);
+
   useEffect(() => {
     // The host said no: surface it and drop the half-open transport.
     return subscribe("room-locked", () => {
@@ -149,6 +178,11 @@ export function NetProvider({ children }: { children: ReactNode }) {
       const info = m as Extract<NetMessage, { t: "room-info" }>;
       setNextSessionState(info.nextSession ?? "");
       if (roomRef.current) upsertSavedRoom({ code: roomRef.current, nextSession: info.nextSession ?? "" });
+      // The Curator named their campaign — point this client at it and remember
+      // the link, so rejoining restores the character I was playing.
+      if (roomRef.current && info.campaignId) {
+        setTable(saveTableLink({ room: roomRef.current, campaignId: info.campaignId, campaignName: info.campaignName ?? "" }));
+      }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -200,6 +234,7 @@ export function NetProvider({ children }: { children: ReactNode }) {
         upsertSavedRoom({ code: c, role: asRole });
         const saved = listSavedRooms().find((r) => r.code === c);
         setNextSessionState(saved?.nextSession ?? "");
+        setTable(getTableLink(c));
         setLockedState(false);
         if (asRole === "host") await advertise(c).catch(() => {});
       } catch (e) {
@@ -219,6 +254,7 @@ export function NetProvider({ children }: { children: ReactNode }) {
     setRoom("");
     setLockedState(false);
     setNextSessionState("");
+    setTable(null);
   }, []);
 
   // Bridge for the legacy tool iframes (same-origin): the VTT reads
@@ -239,7 +275,8 @@ export function NetProvider({ children }: { children: ReactNode }) {
     if (grew && liveRef.current.role === "host" && liveRef.current.status === "connected") {
       sessionRef.current?.publish({ t: "bp", value: bpRef.current });
       sessionRef.current?.publish({ t: "unit-note", op: "sync", notes: unitNotesRef.current });
-      if (nextSessionRef.current) sessionRef.current?.publish({ t: "room-info", nextSession: nextSessionRef.current });
+      if (nextSessionRef.current || campaignRef.current)
+        sessionRef.current?.publish({ t: "room-info", nextSession: nextSessionRef.current, campaignId: campaignRef.current?.id, campaignName: campaignRef.current?.name });
     }
   }, [peers]);
   useEffect(() => {
@@ -287,6 +324,9 @@ export function NetProvider({ children }: { children: ReactNode }) {
     setLocked,
     nextSession,
     setNextSession,
+    table,
+    announceCampaign,
+    setInUseCharacter,
   };
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }

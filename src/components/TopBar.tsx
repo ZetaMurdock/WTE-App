@@ -5,13 +5,14 @@ import { ProfileMenu } from "./ProfileMenu";
 // Legacy iframe tabs (sheet/vtt/wiki) are retired from the nav — the React Sheet,
 // VTT, and Codex are the app now. The TabId union keeps the ids so old deep links
 // / persisted state don't break, but they never render in the bar.
-export type TabId = "dashboard" | "characters" | "sheet" | "vtt" | "wiki" | "lobby" | "codex" | "vtt2";
+export type TabId = "dashboard" | "characters" | "sheet" | "vtt" | "wiki" | "lobby" | "table" | "codex" | "vtt2";
 
 export const TABS: { id: TabId; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
   { id: "characters", label: "Sheet" },
   { id: "vtt2", label: "VTT" },
   { id: "lobby", label: "Lobby" },
+  { id: "table", label: "Table" },
   { id: "codex", label: "Codex" },
 ];
 
