@@ -9,6 +9,7 @@ import { getNetConfig, buildIceServers } from "./netconfig";
 import { advertise, unadvertise, myPeerId, myPeerName } from "./discovery";
 import { listSavedRooms, upsertSavedRoom } from "./savedRooms";
 import { getTableLink, saveTableLink, type TableLink } from "./activeTable";
+import { clampShrives } from "../game/money";
 import type { NetMessage, NetMessageType, Peer } from "./protocol";
 import type { DeskNote } from "../lib/campaignDesk";
 
@@ -46,6 +47,17 @@ interface NetApi {
   /** The table this client is linked to — the Curator's campaign, and which of
    *  my characters is in use here. Null until a host announces one. */
   table: TableLink | null;
+  /** Everyone's personal purse (Shrives), by peer id — so the Curator can see
+   *  what the party is carrying. Includes my own entry. */
+  purses: Record<string, { shrives: number; charName?: string }>;
+  /** The shared party purse, in Shrives. */
+  unitPurse: number;
+  /** Set MY purse: persists locally and announces it to the room. */
+  setMyPurse(shrives: number, charName?: string): void;
+  /** Set the shared party purse. */
+  setUnitPurse(shrives: number): void;
+  /** Curator only: hand money to a player (or take it back with a negative). */
+  grantPurse(peerId: string, delta: number): void;
   /** Host only: tell the room which campaign this table is. */
   announceCampaign(id: string, name: string): void;
   /** Set the character I am playing at this table. */
@@ -60,7 +72,7 @@ export function useNet(): NetApi {
 }
 
 // Wire event types re-dispatched to React subscribers.
-const FANOUT: NetMessageType[] = ["roll", "chat", "party", "presence", "sheet-patch", "sheet-request", "vtt-patch", "snapshot", "bp", "unit-note", "sfx", "room-locked", "room-info", "vtt-ping", "play-mode", "cine"];
+const FANOUT: NetMessageType[] = ["roll", "chat", "party", "presence", "sheet-patch", "sheet-request", "vtt-patch", "snapshot", "bp", "unit-note", "purse", "sfx", "room-locked", "room-info", "vtt-ping", "play-mode", "cine"];
 
 export function NetProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>("idle");
@@ -146,6 +158,66 @@ export function NetProvider({ children }: { children: ReactNode }) {
     if (roleRef.current === "host")
       sessionRef.current?.publish({ t: "room-info", nextSession: v, campaignId: campaignRef.current?.id, campaignName: campaignRef.current?.name });
   }, []);
+  // ── Money ──────────────────────────────────────────────────────────────────
+  // Personal purses are announced by their owner and collected by everyone, so
+  // the Curator can see what the party carries. The shared Unit purse is a single
+  // value anyone may change. Persistence stays local (activeTable), because the
+  // purse belongs to the player's device; the wire only carries the current value.
+  const [purses, setPurses] = useState<Record<string, { shrives: number; charName?: string }>>({});
+  const [unitPurse, setUnitPurseState] = useState(0);
+  const tableRef = useRef<TableLink | null>(table);
+  tableRef.current = table;
+
+  const setMyPurse = useCallback((shrives: number, charName?: string) => {
+    const v = clampShrives(shrives);
+    const room = roomRef.current;
+    if (room) setTable(saveTableLink({ room, purse: v }));
+    setPurses((cur) => ({ ...cur, [selfId]: { shrives: v, charName: charName ?? cur[selfId]?.charName } }));
+    sessionRef.current?.publish({ t: "purse", op: "mine", shrives: v, charName });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selfId]);
+
+  const setUnitPurse = useCallback((shrives: number) => {
+    const v = clampShrives(shrives);
+    setUnitPurseState(v);
+    sessionRef.current?.publish({ t: "purse", op: "unit", shrives: v });
+  }, []);
+
+  const grantPurse = useCallback((peerId: string, delta: number) => {
+    if (roleRef.current !== "host" || !peerId) return;
+    sessionRef.current?.publish({ t: "purse", op: "grant", peerId, shrives: Math.round(delta) || 0 });
+  }, []);
+
+  useEffect(() => {
+    return subscribe("purse", (raw, from) => {
+      const m = raw as Extract<NetMessage, { t: "purse" }>;
+      if (m.op === "mine") {
+        setPurses((cur) => ({ ...cur, [from]: { shrives: clampShrives(m.shrives ?? 0), charName: m.charName } }));
+        return;
+      }
+      if (m.op === "unit") {
+        setUnitPurseState(clampShrives(m.shrives ?? 0));
+        return;
+      }
+      if (m.op === "request") {
+        // A late joiner (or the Curator) asked; re-announce what I hold.
+        const mine = tableRef.current?.purse ?? 0;
+        sessionRef.current?.publish({ t: "purse", op: "mine", shrives: mine });
+        return;
+      }
+      if (m.op === "grant" && m.peerId === selfId) {
+        // The Curator paid me. Apply it to MY purse and announce the new total,
+        // so the grant round-trips instead of the Curator guessing at my balance.
+        const room = roomRef.current;
+        const next = clampShrives((tableRef.current?.purse ?? 0) + (m.shrives ?? 0));
+        if (room) setTable(saveTableLink({ room, purse: next }));
+        setPurses((cur) => ({ ...cur, [selfId]: { shrives: next, charName: cur[selfId]?.charName } }));
+        sessionRef.current?.publish({ t: "purse", op: "mine", shrives: next });
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selfId]);
+
   /** Host: name this table's campaign, and tell the room. Also stored locally so
    *  the Curator's own Player-view reads the same link everyone else sees. */
   const announceCampaign = useCallback((id: string, name: string) => {
@@ -234,7 +306,14 @@ export function NetProvider({ children }: { children: ReactNode }) {
         upsertSavedRoom({ code: c, role: asRole });
         const saved = listSavedRooms().find((r) => r.code === c);
         setNextSessionState(saved?.nextSession ?? "");
-        setTable(getTableLink(c));
+        const link = getTableLink(c);
+        setTable(link);
+        // Seed my own entry, then ask everyone to announce theirs so a late joiner
+        // and the Curator both end up with a full picture.
+        setPurses({ [selfId]: { shrives: link?.purse ?? 0 } });
+        setUnitPurseState(0);
+        session.publish({ t: "purse", op: "mine", shrives: link?.purse ?? 0 });
+        session.publish({ t: "purse", op: "request" });
         setLockedState(false);
         if (asRole === "host") await advertise(c).catch(() => {});
       } catch (e) {
@@ -255,6 +334,8 @@ export function NetProvider({ children }: { children: ReactNode }) {
     setLockedState(false);
     setNextSessionState("");
     setTable(null);
+    setPurses({});
+    setUnitPurseState(0);
   }, []);
 
   // Bridge for the legacy tool iframes (same-origin): the VTT reads
@@ -275,6 +356,7 @@ export function NetProvider({ children }: { children: ReactNode }) {
     if (grew && liveRef.current.role === "host" && liveRef.current.status === "connected") {
       sessionRef.current?.publish({ t: "bp", value: bpRef.current });
       sessionRef.current?.publish({ t: "unit-note", op: "sync", notes: unitNotesRef.current });
+      sessionRef.current?.publish({ t: "purse", op: "request" });
       if (nextSessionRef.current || campaignRef.current)
         sessionRef.current?.publish({ t: "room-info", nextSession: nextSessionRef.current, campaignId: campaignRef.current?.id, campaignName: campaignRef.current?.name });
     }
@@ -327,6 +409,11 @@ export function NetProvider({ children }: { children: ReactNode }) {
     table,
     announceCampaign,
     setInUseCharacter,
+    purses,
+    unitPurse,
+    setMyPurse,
+    setUnitPurse,
+    grantPurse,
   };
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }

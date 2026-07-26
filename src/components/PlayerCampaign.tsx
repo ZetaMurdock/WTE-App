@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useNet } from "../net/NetContext";
-import { saveTableLink } from "../net/activeTable";
 import { formatMoney, formatMoneyLong, fromShrives, parseMoney, addShrives, spendShrives } from "../game/money";
 import { listCharacters, type CharacterRecord } from "../lib/characters";
 import { PortraitFrame } from "./characters/PortraitFrame";
@@ -13,6 +12,7 @@ export function PlayerCampaign() {
   const table = net.table;
   const [chars, setChars] = useState<CharacterRecord[]>([]);
   const [amount, setAmount] = useState("");
+  const [unitAmount, setUnitAmount] = useState("");
   const [moneyNote, setMoneyNote] = useState("");
 
   // My own characters, from MY vault — the character is mine, the table is theirs.
@@ -66,7 +66,9 @@ export function PlayerCampaign() {
   // Bound after the guards above so the closures below narrow cleanly.
   const t = table;
   const inUse = chars.find((c) => c.id === t.inUseCharacterId) ?? null;
-  const purse = fromShrives(t.purse);
+  // Prefer the synced value for my own row so a Curator grant shows immediately.
+  const myShrives = net.purses[net.selfId]?.shrives ?? t.purse;
+  const purse = fromShrives(myShrives);
 
   function applyMoney(dir: 1 | -1) {
     const parsed = parseMoney(amount);
@@ -74,23 +76,50 @@ export function PlayerCampaign() {
       setMoneyNote("Type an amount — e.g. 2pd, 300cr, 4500sh, or a bare number of Shrives.");
       return;
     }
+    // setMyPurse persists locally AND announces to the room, so the Curator sees it.
     if (dir === 1) {
-      saveTableLink({ room: t.room, purse: addShrives(t.purse, parsed) });
+      net.setMyPurse(addShrives(myShrives, parsed), inUse?.name);
       setMoneyNote(`Gained ${formatMoneyLong(parsed)}.`);
       setAmount("");
-      // Touch the link so the context re-reads the stored purse into state.
-      net.setInUseCharacter(t.inUseCharacterId ?? null);
       return;
     }
-    const next = spendShrives(t.purse, parsed);
+    const next = spendShrives(myShrives, parsed);
     if (next === null) {
-      setMoneyNote(`Not enough — you hold ${formatMoney(t.purse)} and that costs ${formatMoney(parsed)}.`);
+      setMoneyNote(`Not enough — you hold ${formatMoney(myShrives)} and that costs ${formatMoney(parsed)}.`);
       return;
     }
-    saveTableLink({ room: t.room, purse: next });
+    net.setMyPurse(next, inUse?.name);
     setMoneyNote(`Spent ${formatMoneyLong(parsed)}.`);
     setAmount("");
-    net.setInUseCharacter(t.inUseCharacterId ?? null);
+  }
+
+  function moveUnit(dir: 1 | -1) {
+    const parsed = parseMoney(unitAmount);
+    if (parsed === null) {
+      setMoneyNote("Type an amount to move to or from the Unit purse.");
+      return;
+    }
+    if (dir === 1) {
+      // Into the Unit purse, out of mine.
+      const mine = spendShrives(myShrives, parsed);
+      if (mine === null) {
+        setMoneyNote(`You only hold ${formatMoney(myShrives)}.`);
+        return;
+      }
+      net.setMyPurse(mine, inUse?.name);
+      net.setUnitPurse(addShrives(net.unitPurse, parsed));
+      setMoneyNote(`Put ${formatMoneyLong(parsed)} into the Unit purse.`);
+    } else {
+      const unit = spendShrives(net.unitPurse, parsed);
+      if (unit === null) {
+        setMoneyNote(`The Unit purse only holds ${formatMoney(net.unitPurse)}.`);
+        return;
+      }
+      net.setUnitPurse(unit);
+      net.setMyPurse(addShrives(myShrives, parsed), inUse?.name);
+      setMoneyNote(`Took ${formatMoneyLong(parsed)} from the Unit purse.`);
+    }
+    setUnitAmount("");
   }
 
   return (
@@ -142,7 +171,7 @@ export function PlayerCampaign() {
 
         <div className="lobby-card">
           <div className="panel-title">Purse</div>
-          <div className="purse-total">{formatMoney(t.purse)}</div>
+          <div className="purse-total">{formatMoney(myShrives)}</div>
           <div className="purse-breakdown">
             <span>
               <b>{purse.palladium.toLocaleString()}</b> Palladium
@@ -174,16 +203,69 @@ export function PlayerCampaign() {
         </div>
 
         <div className="lobby-card">
-          <div className="panel-title">Players ({net.peers.length})</div>
-          <div className="chip-list">
-            {net.peers.map((p) => (
-              <span key={p.id} className={"load-chip" + (p.role === "host" ? " cipher" : "")}>
-                {p.name}
-                {p.id === net.selfId ? " (you)" : ""}
-                {p.role === "host" ? " · Curator" : ""}
-              </span>
-            ))}
+          <div className="panel-title">Unit purse</div>
+          <div className="purse-total">{formatMoney(net.unitPurse)}</div>
+          <p className="vtt2-actor-hint" style={{ margin: "4px 0 0" }}>
+            The party's shared money. Anyone at the table can move money in or out.
+          </p>
+          <div className="purse-entry mt">
+            <input
+              className="bg-select"
+              value={unitAmount}
+              onChange={(e) => setUnitAmount(e.target.value)}
+              placeholder="500cr"
+              onKeyDown={(e) => e.key === "Enter" && moveUnit(1)}
+            />
+            <button className="icon-btn" onClick={() => moveUnit(1)} title="Move from your purse into the Unit purse">
+              Put in
+            </button>
+            <button className="icon-btn" onClick={() => moveUnit(-1)} title="Take from the Unit purse into yours">
+              Take
+            </button>
           </div>
+        </div>
+      </div>
+
+      <div className="lobby-rooms">
+        <div className="panel-title">
+          The party ({net.peers.length}){net.role === "host" ? " · you can hand out money" : ""}
+        </div>
+        <div className="room-grid">
+          {net.peers.map((p) => {
+            const held = net.purses[p.id];
+            return (
+              <div className={"room-card" + (p.role === "host" ? " mine" : "")} key={p.id}>
+                <div className="room-open" style={{ cursor: "default" }}>
+                  <span className="room-code" style={{ letterSpacing: 0, fontFamily: "Georgia, serif" }}>
+                    {p.name}
+                    {p.id === net.selfId ? " (you)" : ""}
+                  </span>
+                  <span className="room-meta">
+                    {p.role === "host" ? "Curator" : held?.charName || "player"}
+                    {" · "}
+                    {held ? formatMoney(held.shrives) : "purse unknown"}
+                  </span>
+                </div>
+                {net.role === "host" && p.id !== net.selfId && (
+                  <div className="room-tools">
+                    <button
+                      className="icon-btn xs"
+                      title="Give this player the amount typed in your purse box"
+                      onClick={() => {
+                        const parsed = parseMoney(amount);
+                        if (parsed === null) return setMoneyNote("Type an amount in your purse box first, then press Pay.");
+                        net.grantPurse(p.id, parsed);
+                        setMoneyNote(`Paid ${formatMoneyLong(parsed)} to ${p.name}.`);
+                        setAmount("");
+                      }}
+                    >
+                      Pay
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 

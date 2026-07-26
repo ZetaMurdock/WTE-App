@@ -31,6 +31,10 @@ export type NetMessage =
   | { t: "party"; charId: string; name: string; summary: Record<string, unknown> }
   | { t: "bp"; value: number } // shared Base Pressure for the table
   | { t: "unit-note"; op: "upsert" | "delete" | "sync"; note?: DeskNote; id?: string; notes?: DeskNote[] } // shared party notes
+  // Money, in Shrives. "mine" = a player announcing their own purse (the Curator
+  // collects them); "unit" = the shared party purse; "grant" = the Curator paying
+  // someone; "request" = tell everyone to re-announce (late join).
+  | { t: "purse"; op: "mine" | "unit" | "grant" | "request"; shrives?: number; charName?: string; peerId?: string }
   | { t: "sheet-patch"; charId: string; patch: unknown; rev: number } // reserved: sheet sync
   | { t: "sheet-request" } // Curator → players: push me your characters so I can open/edit them
   | { t: "vtt-patch"; scope: string; patch: unknown; rev: number } // reserved: VTT sync
