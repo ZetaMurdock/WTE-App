@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNet } from "../net/NetContext";
 import { formatMoney, formatMoneyLong, fromShrives, parseMoney, addShrives, spendShrives } from "../game/money";
+import { addItem, moveItem, removeItem, stepQty, summarizeInventory, type InvItem } from "../game/tableInventory";
 import { listCharacters, type CharacterRecord } from "../lib/characters";
 import { PortraitFrame } from "./characters/PortraitFrame";
 
@@ -69,6 +70,8 @@ export function PlayerCampaign() {
   // Prefer the synced value for my own row so a Curator grant shows immediately.
   const myShrives = net.purses[net.selfId]?.shrives ?? t.purse;
   const purse = fromShrives(myShrives);
+  // Prefer the synced list so a handoff from the stash shows immediately.
+  const myItems = net.invs[net.selfId]?.items ?? t.inventory;
 
   function applyMoney(dir: 1 | -1) {
     const parsed = parseMoney(amount);
@@ -269,6 +272,63 @@ export function PlayerCampaign() {
         </div>
       </div>
 
+      <div className="lobby-grid">
+        <InvPanel
+          title="My inventory"
+          items={myItems}
+          summary={summarizeInventory(myItems)}
+          onAdd={(name, qty) => net.setMyInv(addItem(myItems, name, qty), inUse?.name)}
+          onStep={(id, by) => net.setMyInv(stepQty(myItems, id, by), inUse?.name)}
+          onRemove={(id) => net.setMyInv(removeItem(myItems, id), inUse?.name)}
+          moveLabel="→ Unit"
+          onMove={(id) => {
+            const moved = moveItem(myItems, net.unitInv, id, 1);
+            if (!moved) return setMoneyNote("Nothing left of that to hand over.");
+            net.setMyInv(moved.from, inUse?.name);
+            net.setUnitInv(moved.to);
+          }}
+        />
+        <InvPanel
+          title="Unit stash"
+          items={net.unitInv}
+          summary={summarizeInventory(net.unitInv)}
+          onAdd={(name, qty) => net.setUnitInv(addItem(net.unitInv, name, qty))}
+          onStep={(id, by) => net.setUnitInv(stepQty(net.unitInv, id, by))}
+          onRemove={(id) => net.setUnitInv(removeItem(net.unitInv, id))}
+          moveLabel="→ Mine"
+          onMove={(id) => {
+            const moved = moveItem(net.unitInv, myItems, id, 1);
+            if (!moved) return setMoneyNote("Nothing left of that in the stash.");
+            net.setUnitInv(moved.from);
+            net.setMyInv(moved.to, inUse?.name);
+          }}
+        />
+        {net.role === "host" && (
+          <div className="lobby-card">
+            <div className="panel-title">What the party carries</div>
+            {net.peers.filter((p) => p.id !== net.selfId).length === 0 ? (
+              <p className="list-empty">No players yet.</p>
+            ) : (
+              <ul className="lobby-feed">
+                {net.peers
+                  .filter((p) => p.id !== net.selfId)
+                  .map((p) => {
+                    const held = net.invs[p.id];
+                    return (
+                      <li key={p.id}>
+                        <b>{held?.charName || p.name}</b> — {held ? summarizeInventory(held.items) : "not reported yet"}
+                        {held && held.items.length > 0 && (
+                          <div className="char-meta">{held.items.map((x) => `${x.name} ×${x.qty}`).join(", ")}</div>
+                        )}
+                      </li>
+                    );
+                  })}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="lobby-rooms">
         <div className="panel-title">Unit notes ({net.unitNotes.length})</div>
         {net.unitNotes.length === 0 ? (
@@ -285,6 +345,86 @@ export function PlayerCampaign() {
             ))}
           </ul>
         )}
+      </div>
+    </div>
+  );
+}
+
+// One inventory list — used for both the personal and the Unit stash, since the
+// only difference is which direction "move" goes.
+function InvPanel({
+  title,
+  items,
+  summary,
+  onAdd,
+  onStep,
+  onRemove,
+  onMove,
+  moveLabel,
+}: {
+  title: string;
+  items: InvItem[];
+  summary: string;
+  onAdd: (name: string, qty: number) => void;
+  onStep: (id: string, by: number) => void;
+  onRemove: (id: string) => void;
+  onMove: (id: string) => void;
+  moveLabel: string;
+}) {
+  const [name, setName] = useState("");
+  const [qty, setQty] = useState("1");
+  function commit() {
+    if (!name.trim()) return;
+    onAdd(name, parseInt(qty, 10) || 1);
+    setName("");
+    setQty("1");
+  }
+  return (
+    <div className="lobby-card">
+      <div className="panel-title">
+        {title} <span className="load-badge">{summary}</span>
+      </div>
+      {items.length === 0 ? (
+        <p className="list-empty">Empty.</p>
+      ) : (
+        <div className="inv-list">
+          {items.map((x) => (
+            <div className="inv-row" key={x.id}>
+              <span className="inv-name" title={x.note}>
+                {x.name}
+                {x.value ? <span className="inv-worth">{formatMoney(x.value)} ea</span> : null}
+              </span>
+              <span className="inv-qty">×{x.qty}</span>
+              <span className="inv-tools">
+                <button className="icon-btn xs" onClick={() => onStep(x.id, -1)} title="One fewer">−</button>
+                <button className="icon-btn xs" onClick={() => onStep(x.id, 1)} title="One more">+</button>
+                <button className="icon-btn xs" onClick={() => onMove(x.id)} title={"Move one " + moveLabel}>
+                  {moveLabel}
+                </button>
+                <button className="icon-btn xs" onClick={() => onRemove(x.id)} title="Remove entirely">×</button>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="inv-add mt">
+        <input
+          className="bg-select"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Item name"
+          onKeyDown={(e) => e.key === "Enter" && commit()}
+        />
+        <input
+          className="stat-input"
+          type="number"
+          min={1}
+          value={qty}
+          onChange={(e) => setQty(e.target.value)}
+        />
+        <button className="icon-btn" onClick={commit} disabled={!name.trim()}>
+          Add
+        </button>
       </div>
     </div>
   );

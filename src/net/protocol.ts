@@ -3,6 +3,7 @@
 // could ride any future transport. See docs/NETPLAY.md.
 
 import type { DeskNote } from "../lib/campaignDesk";
+import type { InvItem } from "../game/tableInventory";
 
 export const PROTOCOL_VERSION = 1;
 
@@ -35,6 +36,9 @@ export type NetMessage =
   // collects them); "unit" = the shared party purse; "grant" = the Curator paying
   // someone; "request" = tell everyone to re-announce (late join).
   | { t: "purse"; op: "mine" | "unit" | "grant" | "request"; shrives?: number; charName?: string; peerId?: string }
+  // Carried items. "mine" = a player's personal list (the Curator collects them);
+  // "unit" = the shared party stash; "request" = re-announce (late join).
+  | { t: "inv"; op: "mine" | "unit" | "request"; items?: InvItem[]; charName?: string }
   | { t: "sheet-patch"; charId: string; patch: unknown; rev: number } // reserved: sheet sync
   | { t: "sheet-request" } // Curator → players: push me your characters so I can open/edit them
   | { t: "vtt-patch"; scope: string; patch: unknown; rev: number } // reserved: VTT sync
@@ -75,4 +79,12 @@ export const RELAYED: ReadonlySet<NetMessageType> = new Set<NetMessageType>([
   "sheet-patch",
   "vtt-patch",
   "vtt-ping",
+  // Shared table state. These were missing, which meant a value changed by a
+  // PLAYER only ever reached the host — the other players never converged, even
+  // though bp and unit-note are documented as shared across the room. Anything
+  // every client is meant to agree on has to be relayed.
+  "bp",
+  "unit-note",
+  "purse",
+  "inv",
 ]);

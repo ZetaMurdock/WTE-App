@@ -7,6 +7,7 @@
 // restores the character you were playing without asking again.
 
 import { clampShrives } from "../game/money";
+import { parseInventory, type InvItem } from "../game/tableInventory";
 
 export interface TableLink {
   room: string;
@@ -17,6 +18,8 @@ export interface TableLink {
   inUseCharacterId?: string;
   /** This character's personal purse, in Shrives. */
   purse: number;
+  /** Carried items at this table (not sheet equipment — see game/tableInventory). */
+  inventory: InvItem[];
   joinedAt: number;
   lastSeen: number;
 }
@@ -52,6 +55,7 @@ export function parseLink(raw: unknown): TableLink | null {
     campaignName: String(o.campaignName ?? ""),
     inUseCharacterId: typeof o.inUseCharacterId === "string" && o.inUseCharacterId ? o.inUseCharacterId : undefined,
     purse: clampShrives(Number(o.purse) || 0),
+    inventory: parseInventory(o.inventory),
     joinedAt: Number(o.joinedAt) || Date.now(),
     lastSeen: Number(o.lastSeen) || Date.now(),
   };
@@ -74,6 +78,7 @@ export function mergeLink(
     inUseCharacterId:
       patch.inUseCharacterId !== undefined ? patch.inUseCharacterId || undefined : cur?.inUseCharacterId,
     purse: patch.purse !== undefined ? clampShrives(patch.purse) : cur?.purse ?? 0,
+    inventory: patch.inventory !== undefined ? parseInventory(patch.inventory) : cur?.inventory ?? [],
     joinedAt: cur?.joinedAt ?? now,
     lastSeen: now,
   };

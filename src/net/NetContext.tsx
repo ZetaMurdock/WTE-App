@@ -10,6 +10,7 @@ import { advertise, unadvertise, myPeerId, myPeerName } from "./discovery";
 import { listSavedRooms, upsertSavedRoom } from "./savedRooms";
 import { getTableLink, saveTableLink, type TableLink } from "./activeTable";
 import { clampShrives } from "../game/money";
+import { parseInventory, type InvItem } from "../game/tableInventory";
 import type { NetMessage, NetMessageType, Peer } from "./protocol";
 import type { DeskNote } from "../lib/campaignDesk";
 
@@ -58,6 +59,12 @@ interface NetApi {
   setUnitPurse(shrives: number): void;
   /** Curator only: hand money to a player (or take it back with a negative). */
   grantPurse(peerId: string, delta: number): void;
+  /** Everyone's personal carried items, by peer id — the Curator can look. */
+  invs: Record<string, { items: InvItem[]; charName?: string }>;
+  /** The shared party stash. */
+  unitInv: InvItem[];
+  setMyInv(items: InvItem[], charName?: string): void;
+  setUnitInv(items: InvItem[]): void;
   /** Host only: tell the room which campaign this table is. */
   announceCampaign(id: string, name: string): void;
   /** Set the character I am playing at this table. */
@@ -218,6 +225,34 @@ export function NetProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selfId]);
 
+  const [invs, setInvs] = useState<Record<string, { items: InvItem[]; charName?: string }>>({});
+  const [unitInv, setUnitInvState] = useState<InvItem[]>([]);
+
+  const setMyInv = useCallback((items: InvItem[], charName?: string) => {
+    const clean = parseInventory(items);
+    const room = roomRef.current;
+    if (room) setTable(saveTableLink({ room, inventory: clean }));
+    setInvs((cur) => ({ ...cur, [selfId]: { items: clean, charName: charName ?? cur[selfId]?.charName } }));
+    sessionRef.current?.publish({ t: "inv", op: "mine", items: clean, charName });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selfId]);
+
+  const setUnitInv = useCallback((items: InvItem[]) => {
+    const clean = parseInventory(items);
+    setUnitInvState(clean);
+    sessionRef.current?.publish({ t: "inv", op: "unit", items: clean });
+  }, []);
+
+  useEffect(() => {
+    return subscribe("inv", (raw, from) => {
+      const m = raw as Extract<NetMessage, { t: "inv" }>;
+      if (m.op === "mine") setInvs((cur) => ({ ...cur, [from]: { items: parseInventory(m.items), charName: m.charName } }));
+      else if (m.op === "unit") setUnitInvState(parseInventory(m.items));
+      else if (m.op === "request") sessionRef.current?.publish({ t: "inv", op: "mine", items: tableRef.current?.inventory ?? [] });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /** Host: name this table's campaign, and tell the room. Also stored locally so
    *  the Curator's own Player-view reads the same link everyone else sees. */
   const announceCampaign = useCallback((id: string, name: string) => {
@@ -314,6 +349,10 @@ export function NetProvider({ children }: { children: ReactNode }) {
         setUnitPurseState(0);
         session.publish({ t: "purse", op: "mine", shrives: link?.purse ?? 0 });
         session.publish({ t: "purse", op: "request" });
+        setInvs({ [selfId]: { items: link?.inventory ?? [] } });
+        setUnitInvState([]);
+        session.publish({ t: "inv", op: "mine", items: link?.inventory ?? [] });
+        session.publish({ t: "inv", op: "request" });
         setLockedState(false);
         if (asRole === "host") await advertise(c).catch(() => {});
       } catch (e) {
@@ -336,6 +375,8 @@ export function NetProvider({ children }: { children: ReactNode }) {
     setTable(null);
     setPurses({});
     setUnitPurseState(0);
+    setInvs({});
+    setUnitInvState([]);
   }, []);
 
   // Bridge for the legacy tool iframes (same-origin): the VTT reads
@@ -357,6 +398,7 @@ export function NetProvider({ children }: { children: ReactNode }) {
       sessionRef.current?.publish({ t: "bp", value: bpRef.current });
       sessionRef.current?.publish({ t: "unit-note", op: "sync", notes: unitNotesRef.current });
       sessionRef.current?.publish({ t: "purse", op: "request" });
+      sessionRef.current?.publish({ t: "inv", op: "request" });
       if (nextSessionRef.current || campaignRef.current)
         sessionRef.current?.publish({ t: "room-info", nextSession: nextSessionRef.current, campaignId: campaignRef.current?.id, campaignName: campaignRef.current?.name });
     }
@@ -414,6 +456,10 @@ export function NetProvider({ children }: { children: ReactNode }) {
     setMyPurse,
     setUnitPurse,
     grantPurse,
+    invs,
+    unitInv,
+    setMyInv,
+    setUnitInv,
   };
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }

@@ -7,6 +7,7 @@ const base = (over: Partial<TableLink> = {}): TableLink => ({
   campaignId: "c1",
   campaignName: "The Sunken Vault",
   purse: 0,
+  inventory: [],
   joinedAt: 1000,
   lastSeen: 1000,
   ...over,
