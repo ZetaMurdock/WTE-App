@@ -136,6 +136,12 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
   // Per-campaign Curator claim: only joining someone else's netplay room as a
   // player demotes you — hide Curator-only scene controls there.
   const net = useNet();
+  // Players see the scene name on their Table tab without opening the VTT.
+  const sceneNameForNet = scene?.name ?? "";
+  useEffect(() => {
+    if (net.status === "connected" && net.role === "host") net.announceScene(sceneNameForNet);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sceneNameForNet, net.status, net.role]);
   const isNetPlayer = net.status === "connected" && net.role === "player";
 
   // Curator PLAYER VIEW: preview the table exactly as a player would see it —

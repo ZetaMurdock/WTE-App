@@ -23,7 +23,7 @@ export type NetMessage =
   | { t: "room-locked" } // host refused the join — the room is locked
   // host → room: card info for saved rooms, plus WHICH CAMPAIGN this table is, so
   // a joining player's app points itself at the Curator's campaign.
-  | { t: "room-info"; nextSession?: string; campaignId?: string; campaignName?: string }
+  | { t: "room-info"; nextSession?: string; campaignId?: string; campaignName?: string; sceneName?: string }
   | { t: "peer-join"; peer: Peer }
   | { t: "peer-leave"; peerId: string }
   | { t: "presence"; status: string }

@@ -9,6 +9,9 @@ export interface DeskNote {
   title: string;
   body: string;
   updatedAt: number;
+  /** Which note folder it sits in (null = loose at the root). Folders nest — see
+   *  lib/noteFolders.ts, which reuses the character-vault folder logic. */
+  folderId?: string | null;
 }
 export type CalKind = "session" | "event" | "deadline";
 export interface CalEvent {

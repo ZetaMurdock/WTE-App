@@ -7795,3 +7795,14 @@ body.wte-dot-cursor * {
 .inv-add .stat-input {
   width: 56px;
 }
+.table-meta {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.table-scene.on {
+  color: var(--accent);
+}

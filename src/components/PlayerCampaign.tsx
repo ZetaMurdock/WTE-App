@@ -133,7 +133,12 @@ export function PlayerCampaign() {
             Table · room {net.room} · {net.role === "host" ? "you are the Curator" : "player"}
           </div>
           <h1 className="dash-title">{t.campaignName || "Untitled campaign"}</h1>
-          {net.nextSession && <div className="lobby-id">Next session · {net.nextSession}</div>}
+          <div className="table-meta">
+            <span className={net.sceneName ? "table-scene on" : "table-scene"}>
+              {net.sceneName ? `Scene · ${net.sceneName}` : "No scene set"}
+            </span>
+            {net.nextSession && <span>Next session · {net.nextSession}</span>}
+          </div>
         </div>
       </div>
 

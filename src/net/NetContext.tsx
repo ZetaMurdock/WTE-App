@@ -67,6 +67,10 @@ interface NetApi {
   setUnitInv(items: InvItem[]): void;
   /** Host only: tell the room which campaign this table is. */
   announceCampaign(id: string, name: string): void;
+  /** The scene the Curator currently has up, for the players' Table view. */
+  sceneName: string;
+  /** Host only: tell the room which scene is up. */
+  announceScene(name: string): void;
   /** Set the character I am playing at this table. */
   setInUseCharacter(charId: string | null): void;
 }
@@ -79,7 +83,7 @@ export function useNet(): NetApi {
 }
 
 // Wire event types re-dispatched to React subscribers.
-const FANOUT: NetMessageType[] = ["roll", "chat", "party", "presence", "sheet-patch", "sheet-request", "vtt-patch", "snapshot", "bp", "unit-note", "purse", "sfx", "room-locked", "room-info", "vtt-ping", "play-mode", "cine"];
+const FANOUT: NetMessageType[] = ["roll", "chat", "party", "presence", "sheet-patch", "sheet-request", "vtt-patch", "snapshot", "bp", "unit-note", "purse", "inv", "sfx", "room-locked", "room-info", "vtt-ping", "play-mode", "cine"];
 
 export function NetProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>("idle");
@@ -149,6 +153,9 @@ export function NetProvider({ children }: { children: ReactNode }) {
   const [nextSession, setNextSessionState] = useState("");
   const [table, setTable] = useState<TableLink | null>(null);
   const campaignRef = useRef<{ id: string; name: string } | null>(null);
+  const [sceneName, setSceneName] = useState("");
+  const sceneRef = useRef(sceneName);
+  sceneRef.current = sceneName;
   const roomRef = useRef(room);
   roomRef.current = room;
   const roleRef = useRef(role);
@@ -163,7 +170,7 @@ export function NetProvider({ children }: { children: ReactNode }) {
     setNextSessionState(v);
     if (roomRef.current) upsertSavedRoom({ code: roomRef.current, nextSession: v });
     if (roleRef.current === "host")
-      sessionRef.current?.publish({ t: "room-info", nextSession: v, campaignId: campaignRef.current?.id, campaignName: campaignRef.current?.name });
+      sessionRef.current?.publish({ t: "room-info", nextSession: v, campaignId: campaignRef.current?.id, campaignName: campaignRef.current?.name, sceneName: sceneRef.current });
   }, []);
   // ── Money ──────────────────────────────────────────────────────────────────
   // Personal purses are announced by their owner and collected by everyone, so
@@ -260,8 +267,22 @@ export function NetProvider({ children }: { children: ReactNode }) {
     campaignRef.current = { id, name };
     if (roomRef.current) setTable(saveTableLink({ room: roomRef.current, campaignId: id, campaignName: name }));
     if (roleRef.current === "host") {
-      sessionRef.current?.publish({ t: "room-info", nextSession: nextSessionRef.current, campaignId: id, campaignName: name });
+      sessionRef.current?.publish({ t: "room-info", nextSession: nextSessionRef.current, campaignId: id, campaignName: name, sceneName: sceneRef.current });
     }
+  }, []);
+
+  /** Host: the scene now on the table. Players see it on their Table tab without
+   *  needing the VTT open. */
+  const announceScene = useCallback((name: string) => {
+    setSceneName(name);
+    if (roleRef.current !== "host") return;
+    sessionRef.current?.publish({
+      t: "room-info",
+      nextSession: nextSessionRef.current,
+      campaignId: campaignRef.current?.id,
+      campaignName: campaignRef.current?.name,
+      sceneName: name,
+    });
   }, []);
 
   /** Which of MY characters I am playing at this table. Local only — the Curator
@@ -287,6 +308,7 @@ export function NetProvider({ children }: { children: ReactNode }) {
       if (roomRef.current) upsertSavedRoom({ code: roomRef.current, nextSession: info.nextSession ?? "" });
       // The Curator named their campaign — point this client at it and remember
       // the link, so rejoining restores the character I was playing.
+      if (info.sceneName !== undefined) setSceneName(info.sceneName);
       if (roomRef.current && info.campaignId) {
         setTable(saveTableLink({ room: roomRef.current, campaignId: info.campaignId, campaignName: info.campaignName ?? "" }));
       }
@@ -373,6 +395,7 @@ export function NetProvider({ children }: { children: ReactNode }) {
     setLockedState(false);
     setNextSessionState("");
     setTable(null);
+    setSceneName("");
     setPurses({});
     setUnitPurseState(0);
     setInvs({});
@@ -400,7 +423,7 @@ export function NetProvider({ children }: { children: ReactNode }) {
       sessionRef.current?.publish({ t: "purse", op: "request" });
       sessionRef.current?.publish({ t: "inv", op: "request" });
       if (nextSessionRef.current || campaignRef.current)
-        sessionRef.current?.publish({ t: "room-info", nextSession: nextSessionRef.current, campaignId: campaignRef.current?.id, campaignName: campaignRef.current?.name });
+        sessionRef.current?.publish({ t: "room-info", nextSession: nextSessionRef.current, campaignId: campaignRef.current?.id, campaignName: campaignRef.current?.name, sceneName: sceneRef.current });
     }
   }, [peers]);
   useEffect(() => {
@@ -450,6 +473,8 @@ export function NetProvider({ children }: { children: ReactNode }) {
     setNextSession,
     table,
     announceCampaign,
+    sceneName,
+    announceScene,
     setInUseCharacter,
     purses,
     unitPurse,
