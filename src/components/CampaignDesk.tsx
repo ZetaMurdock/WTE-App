@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { NoteTree, useFolderOptions, visibleNotes, type NoteSel } from "./NoteTree";
+import { listNoteFolders, saveNoteFolders } from "../lib/noteFolders";
 import {
   listDeskNotes,
   newDeskNote,
@@ -42,6 +44,8 @@ export function CampaignDesk({ campaignId, curator }: Props) {
   const [tick, setTick] = useState(0);
   const bump = () => setTick((t) => t + 1);
   const [noteTab, setNoteTab] = useState<DeskNoteKind>("inquisitor");
+  const [sel, setSel] = useState<NoteSel>("all");
+  const [folderTick, setFolderTick] = useState(0);
 
   const tabs = NOTE_TABS.filter((t) => t.kind !== "curator" || curator);
   const activeTab = tabs.some((t) => t.kind === noteTab) ? noteTab : "inquisitor";
@@ -67,6 +71,20 @@ export function CampaignDesk({ campaignId, curator }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [campaignId, activeTab, tick, unitShared, net.unitNotes]
   );
+  // Each note kind has its OWN folder tree, so a selection made in one tree is
+  // meaningless in another — reset it when the tab changes.
+  useEffect(() => setSel("all"), [activeTab]);
+
+  // Folders are per campaign AND per note kind — your own tree and the party's
+  // shared tree are separate things.
+  const folders = useMemo(
+    () => listNoteFolders(campaignId, activeTab),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [campaignId, activeTab, folderTick]
+  );
+  const folderOptions = useFolderOptions(folders);
+  const shown = useMemo(() => visibleNotes(folders, notes, sel), [folders, notes, sel]);
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const events = useMemo(() => listCalEvents(campaignId), [campaignId, tick]);
 
@@ -117,11 +135,27 @@ export function CampaignDesk({ campaignId, curator }: Props) {
           {NOTE_TABS.find((t) => t.kind === activeTab)?.blurb}
           {activeTab === "unit" && unitShared ? " Shared live with the room." : ""}
         </p>
-        {notes.length === 0 ? (
-          <p className="list-empty">No {activeTab} notes yet.</p>
-        ) : (
-          notes.map((n) => <NoteCard key={n.id} note={n} onSave={saveNote} onDelete={removeNote} />)
-        )}
+        <div className="desk-notes-split">
+          <NoteTree
+            folders={folders}
+            notes={notes}
+            sel={sel}
+            onSel={setSel}
+            onFolders={(next) => { saveNoteFolders(campaignId, activeTab, next); setFolderTick((t) => t + 1); }}
+            onRehome={(rehomed) => rehomed.forEach((n) => saveNote(n))}
+          />
+          <div className="desk-notes-main">
+            {notes.length === 0 ? (
+              <p className="list-empty">No {activeTab} notes yet.</p>
+            ) : shown.length === 0 ? (
+              <p className="list-empty">Nothing in this folder yet.</p>
+            ) : (
+              shown.map((n) => (
+                <NoteCard key={n.id} note={n} onSave={saveNote} onDelete={removeNote} folderOptions={folderOptions} />
+              ))
+            )}
+          </div>
+        </div>
       </div>
 
       {/* ── Calendar ── */}
@@ -146,7 +180,7 @@ export function CampaignDesk({ campaignId, curator }: Props) {
   );
 }
 
-function NoteCard({ note, onSave, onDelete }: { note: DeskNote; onSave: (n: DeskNote) => void; onDelete: (n: DeskNote) => void }) {
+function NoteCard({ note, onSave, onDelete, folderOptions }: { note: DeskNote; onSave: (n: DeskNote) => void; onDelete: (n: DeskNote) => void; folderOptions?: { id: string; label: string }[] }) {
   // Local edit state, but re-seed if the note changes underneath us (a live
   // netplay update to this same note) while it isn't focused.
   const [n, setN] = useState(note);
@@ -170,6 +204,21 @@ function NoteCard({ note, onSave, onDelete }: { note: DeskNote; onSave: (n: Desk
           onBlur={() => setFocused(false)}
           onChange={(e) => patch({ title: e.target.value })}
         />
+        {folderOptions && folderOptions.length > 0 && (
+          <select
+            className="desk-note-folder"
+            value={n.folderId ?? ""}
+            title="Which folder this note lives in"
+            onChange={(e) => patch({ folderId: e.target.value || null })}
+          >
+            <option value="">Unfiled</option>
+            {folderOptions.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        )}
         <button className="cdx-flag" title="Delete note" onClick={() => onDelete(n)}>
           ×
         </button>

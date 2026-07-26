@@ -7806,3 +7806,45 @@ body.wte-dot-cursor * {
 .table-scene.on {
   color: var(--accent);
 }
+
+/* ── Note folder tree (shares the vault-tree look) ── */
+.desk-notes-split {
+  display: grid;
+  grid-template-columns: minmax(150px, 200px) 1fr;
+  gap: 12px;
+  align-items: start;
+}
+.note-tree {
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-radius: 6px;
+  padding: 6px 4px 8px;
+  position: sticky;
+  top: 0;
+}
+.note-tree .vault-tree-head {
+  padding: 2px 8px 6px;
+}
+.desk-notes-main {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.desk-note-folder {
+  background: var(--bg);
+  border: 1px solid var(--panel-line);
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 10.5px;
+  padding: 2px 4px;
+  max-width: 130px;
+}
+@media (max-width: 900px) {
+  .desk-notes-split {
+    grid-template-columns: 1fr;
+  }
+  .note-tree {
+    position: static;
+  }
+}
