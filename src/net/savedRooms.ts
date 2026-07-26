@@ -61,3 +61,15 @@ export function upsertSavedRoom(patch: { code: string; role?: SavedRoom["role"];
 export function deleteSavedRoom(code: string): SavedRoom[] {
   return write(withoutRoom(listSavedRooms(), code));
 }
+
+/** Ambiguous glyphs are left out — a room code gets read aloud and typed by
+ *  hand, so O/0, I/1 and L never appear in one. */
+const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+/** A fresh room code so the Curator does not have to invent one. */
+export function newRoomCode(len = 6): string {
+  const nums =
+    typeof crypto !== "undefined" && "getRandomValues" in crypto
+      ? Array.from(crypto.getRandomValues(new Uint32Array(len)))
+      : Array.from({ length: len }, () => Math.floor(Math.random() * 0xffffffff));
+  return nums.map((n) => CODE_ALPHABET[n % CODE_ALPHABET.length]).join("");
+}

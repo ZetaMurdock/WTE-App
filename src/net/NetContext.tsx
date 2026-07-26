@@ -180,6 +180,10 @@ export function NetProvider({ children }: { children: ReactNode }) {
       setError("");
       setRole(asRole);
       setStatus("connecting");
+      // Save the code BEFORE dialling. A Curator who hosts and fails to connect
+      // (signaling down, bad URL, closed the app) used to lose the code entirely,
+      // because this only ran after a successful start.
+      upsertSavedRoom({ code: c, role: asRole });
       try {
         const name = myPeerName();
         const iceServers = await buildIceServers(cfg);
@@ -191,7 +195,8 @@ export function NetProvider({ children }: { children: ReactNode }) {
         sessionRef.current = session;
         setRoom(c);
         setStatus("connected");
-        // Remember the room (one-click next time) and restore its table info.
+        // Touch it again so a room that actually connected sorts above one that
+        // only got as far as being dialled, and restore its table info.
         upsertSavedRoom({ code: c, role: asRole });
         const saved = listSavedRooms().find((r) => r.code === c);
         setNextSessionState(saved?.nextSession ?? "");

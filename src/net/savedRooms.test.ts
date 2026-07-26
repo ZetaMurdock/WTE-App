@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergeRoom, withoutRoom, type SavedRoom } from "./savedRooms";
+import { mergeRoom, withoutRoom, type SavedRoom, newRoomCode } from "./savedRooms";
 
 const room = (code: string, over: Partial<SavedRoom> = {}): SavedRoom => ({ code, role: "player", lastUsed: 1, ...over });
 
@@ -31,5 +31,27 @@ describe("mergeRoom", () => {
 describe("withoutRoom", () => {
   it("removes by code", () => {
     expect(withoutRoom([room("a"), room("b")], "a").map((r) => r.code)).toEqual(["b"]);
+  });
+});
+
+describe("room codes", () => {
+  it("are six readable characters by default", () => {
+    const c = newRoomCode();
+    expect(c).toHaveLength(6);
+    expect(c).toMatch(/^[A-Z2-9]+$/);
+  });
+
+  it("never use glyphs that get misread aloud — O/0, I/1, L", () => {
+    for (let i = 0; i < 400; i++) expect(newRoomCode(12)).not.toMatch(/[O0I1L]/);
+  });
+
+  it("honour a requested length", () => {
+    expect(newRoomCode(4)).toHaveLength(4);
+    expect(newRoomCode(10)).toHaveLength(10);
+  });
+
+  it("are not all identical — there is real entropy", () => {
+    const seen = new Set(Array.from({ length: 60 }, () => newRoomCode()));
+    expect(seen.size).toBeGreaterThan(50);
   });
 });

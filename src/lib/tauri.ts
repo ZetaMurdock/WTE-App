@@ -297,9 +297,25 @@ export function firebasePublishConfigured(): boolean {
   return !!(cfg && cfg.databaseURL && cfg.projectId);
 }
 
-/** Raw stored Firebase config text (for the settings editor). */
+/** Is this device pointed at a CUSTOM project, or the built-in library? */
+export function usingCustomFirebaseConfig(): boolean {
+  return !!localStorage.getItem("wte-fb-config");
+}
+
+/** Config text for the settings editor. Shows the EFFECTIVE config, so the box
+ *  reflects what the app is actually using — it used to return only localStorage
+ *  and therefore rendered blank on the built-in default, which looks unconfigured
+ *  and invites re-pasting the very config already baked in. */
 export function getFirebaseConfigRaw(): string {
-  return localStorage.getItem("wte-fb-config") || "";
+  const stored = localStorage.getItem("wte-fb-config");
+  if (stored) {
+    try {
+      return JSON.stringify(JSON.parse(stored), null, 2);
+    } catch {
+      return stored;
+    }
+  }
+  return JSON.stringify(DEFAULT_FB_CONFIG, null, 2);
 }
 /** Save the Firebase config from pasted JSON (or a `const firebaseConfig = {…}`
  *  snippet). Returns an error string on invalid JSON, or null on success. */
@@ -318,6 +334,12 @@ export function saveFirebaseConfig(text: string): string | null {
     const obj = Function(`"use strict";return (${jsonish})`)();
     if (!obj || typeof obj !== "object") return "That doesn't look like a config object.";
     if (!obj.databaseURL) return "Missing databaseURL — enable the Realtime Database and copy its config.";
+    // Pasting the built-in config is the same as using the built-in config: drop
+    // the override rather than storing a redundant copy that can drift.
+    if (obj.projectId === DEFAULT_FB_CONFIG.projectId && obj.databaseURL === DEFAULT_FB_CONFIG.databaseURL) {
+      localStorage.removeItem("wte-fb-config");
+      return null;
+    }
     localStorage.setItem("wte-fb-config", JSON.stringify(obj));
     return null;
   } catch {

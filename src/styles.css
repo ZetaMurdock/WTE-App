@@ -7593,3 +7593,118 @@ body.wte-dot-cursor * {
   color: var(--muted);
   font-size: 12px;
 }
+
+/* ── Lobby: connect first, settings folded below ── */
+.lobby-connect {
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+.lobby-connect-main {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.lobby-connect-main .lobby-field {
+  flex: 1;
+  min-width: 260px;
+  margin: 0;
+}
+.lobby-code-row {
+  display: flex;
+  gap: 6px;
+}
+.lobby-code {
+  flex: 1;
+  min-width: 0;
+  font-family: Consolas, monospace;
+  font-size: 17px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+.lobby-connect-actions {
+  display: flex;
+  gap: 8px;
+}
+.lobby-connect-hint {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+.lobby-rooms {
+  margin-bottom: 16px;
+}
+.room-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 8px;
+}
+.room-card {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg);
+  border: 1px solid var(--panel-line);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.room-card.mine {
+  border-left: 3px solid var(--accent);
+}
+.room-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: none;
+  border: none;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+}
+.room-open:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.room-code {
+  font-family: Consolas, monospace;
+  font-size: 15px;
+  letter-spacing: 2px;
+}
+.room-open:hover:not(:disabled) .room-code {
+  color: var(--accent);
+}
+.room-meta {
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.room-tools {
+  display: inline-flex;
+  gap: 3px;
+}
+.lobby-copied {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--accent);
+}
+.room-copy {
+  margin-left: 10px;
+  vertical-align: middle;
+}
+.lobby-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--panel-line);
+}

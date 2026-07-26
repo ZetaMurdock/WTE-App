@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isTauri, getFirebaseConfigRaw, saveFirebaseConfig, firebasePublishConfigured } from "../lib/tauri";
+import { isTauri, getFirebaseConfigRaw, saveFirebaseConfig, firebasePublishConfigured, usingCustomFirebaseConfig } from "../lib/tauri";
 import { discovered, myPeerName, setPeerName, type DiscoveredHost } from "../net/discovery";
-import { deleteSavedRoom, listSavedRooms, type SavedRoom } from "../net/savedRooms";
+import { deleteSavedRoom, listSavedRooms, newRoomCode, type SavedRoom } from "../net/savedRooms";
 import { getNetConfig, setNetConfig, type NetConfig } from "../net/netconfig";
 import { useNet } from "../net/NetContext";
 import type { NetMessage } from "../net/protocol";
+import { Collapsible } from "./ui/Collapsible";
 
 type RollMsg = Extract<NetMessage, { t: "roll" }>;
 type ChatMsg = Extract<NetMessage, { t: "chat" }>;
@@ -26,10 +27,31 @@ export function LobbyView() {
   const [fbText, setFbText] = useState(getFirebaseConfigRaw());
   const [fbNote, setFbNote] = useState("");
   const [fbOk, setFbOk] = useState(firebasePublishConfigured());
-  function saveFb() {
-    const err = saveFirebaseConfig(fbText);
-    setFbNote(err ?? "Saved — published Codex pages are now shared. Reopen the app to connect.");
-    setFbOk(firebasePublishConfigured());
+  const [fbCustom, setFbCustom] = useState(usingCustomFirebaseConfig());
+  const [copied, setCopied] = useState("");
+  const fbTimer = useRef<number | undefined>(undefined);
+
+  // The config saves as you type — there is no Save button to forget to press.
+  // Debounced so a half-pasted object doesn't churn an error message.
+  function onFbChange(text: string) {
+    setFbText(text);
+    window.clearTimeout(fbTimer.current);
+    fbTimer.current = window.setTimeout(() => {
+      const err = saveFirebaseConfig(text);
+      setFbOk(firebasePublishConfigured());
+      setFbCustom(usingCustomFirebaseConfig());
+      setFbNote(err ?? (usingCustomFirebaseConfig() ? "Saved — reopen the app to connect to your project." : "Using the built-in community library."));
+    }, 600);
+  }
+
+  async function copyCode(code: string) {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(code);
+      window.setTimeout(() => setCopied(""), 1600);
+    } catch {
+      /* clipboard blocked — the code is on screen to read anyway */
+    }
   }
 
   const peersRef = useRef(net.peers);
@@ -106,7 +128,13 @@ export function LobbyView() {
               Netplay · {net.role === "host" ? "hosting" : "joined"}
               {net.locked ? " · locked" : ""}
             </div>
-            <h1 className="dash-title">Room · {net.room}</h1>
+            <h1 className="dash-title">
+              Room · {net.room}
+              <button className="icon-btn xs room-copy" onClick={() => void copyCode(net.room)} title="Copy the room code">
+                {copied === net.room ? "Copied" : "Copy"}
+              </button>
+            </h1>
+            <div className="lobby-id">Saved automatically — it's in Saved rooms next time you open the lobby.</div>
           </div>
           <button className="ghost-btn" onClick={net.leave}>Leave</button>
         </div>
@@ -202,18 +230,115 @@ export function LobbyView() {
 
       {net.error && <div className="validation-list" style={{ marginBottom: 16 }}>{net.error}</div>}
 
-      <div className="lobby-grid">
-        <div className="lobby-card">
-          <div className="panel-title">You</div>
+      {/* CONNECT comes first — it is what the page is for. One code field, two
+          verbs, and the Curator never has to invent a code. */}
+      <div className="lobby-connect">
+        <div className="lobby-connect-main">
+          <label className="lobby-field">
+            <span>Room code</span>
+            <div className="lobby-code-row">
+              <input
+                className="bg-select lobby-code"
+                value={room}
+                onChange={(e) => setRoom(e.target.value.toUpperCase())}
+                placeholder="e.g. VAULT7"
+                spellCheck={false}
+              />
+              <button className="icon-btn" onClick={() => setRoom(newRoomCode())} title="Generate a fresh code">
+                New code
+              </button>
+            </div>
+          </label>
+          <div className="lobby-connect-actions">
+            <button className="primary-btn" onClick={() => net.host(room)} disabled={!room.trim() || net.status === "connecting"}>
+              {net.status === "connecting" ? "Connecting…" : "Host"}
+            </button>
+            <button className="ghost-btn" onClick={() => net.join(room)} disabled={!room.trim() || net.status === "connecting"}>
+              Join
+            </button>
+          </div>
+        </div>
+        <p className="lobby-connect-hint">
+          Hosting saves the code the moment you press Host, so it lands in Saved rooms below even if the
+          connection fails.
+        </p>
+      </div>
+
+      {saved.length > 0 && (
+        <div className="lobby-rooms">
+          <div className="panel-title">Saved rooms</div>
+          <div className="room-grid">
+            {saved.map((r) => (
+              <div className={"room-card" + (r.role === "host" ? " mine" : "")} key={r.code}>
+                <button
+                  className="room-open"
+                  onClick={() => (r.role === "host" ? void net.host(r.code) : void net.join(r.code))}
+                  disabled={net.status === "connecting"}
+                  title={r.role === "host" ? "Host this room again" : "Rejoin this room"}
+                >
+                  <span className="room-code">{r.code}</span>
+                  <span className="room-meta">
+                    {r.role === "host" ? "Your room" : "Joined"}
+                    {r.nextSession ? " · " + r.nextSession : ""}
+                  </span>
+                </button>
+                <div className="room-tools">
+                  <button className="icon-btn xs" onClick={() => void copyCode(r.code)} title="Copy the code">
+                    Copy
+                  </button>
+                  <button className="icon-btn xs" onClick={() => setSaved(deleteSavedRoom(r.code))} title="Forget this room">
+                    ×
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          {copied && <p className="lobby-copied">Copied {copied}</p>}
+        </div>
+      )}
+
+      <div className="lobby-rooms">
+        <div className="panel-title">
+          Rooms on your Wi-Fi
+          <button className={"chip" + (scanning ? " active" : "")} onClick={() => setScanning((s) => !s)} style={{ marginLeft: 10 }}>
+            {scanning ? "Scanning…" : "Scan"}
+          </button>
+        </div>
+        {!scanning ? (
+          <p className="list-empty">Scan to auto-find local rooms (they still connect through your signaling server).</p>
+        ) : others.length === 0 ? (
+          <p className="list-empty">No local rooms found yet.</p>
+        ) : (
+          <div className="room-grid">
+            {others.map((h) => (
+              <div className="room-card" key={h.fullname}>
+                <button className="room-open" onClick={() => net.join(h.room)}>
+                  <span className="room-code">{h.room || "Room"}</span>
+                  <span className="room-meta">
+                    {(h.peer || "peer").slice(0, 8)}
+                    {h.addrs[0] ? " · " + h.addrs[0] : ""}
+                  </span>
+                </button>
+                <div className="room-tools">
+                  <button className="icon-btn xs" onClick={() => net.join(h.room)}>Join</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Settings sit BELOW the actions and stay folded — they are set once. */}
+      <div className="lobby-settings">
+        <Collapsible title={`You · ${name || "unnamed"}`}>
           <label className="lobby-field">
             <span>Display name</span>
             <input className="bg-select full" value={name} onChange={(e) => saveName(e.target.value)} placeholder="Player" />
           </label>
           <div className="lobby-id">Peer id · {net.selfId.slice(0, 8)}</div>
-        </div>
+        </Collapsible>
 
-        <div className="lobby-card">
-          <div className="panel-title">Netplay settings</div>
+        <Collapsible title={`Netplay settings${cfg.signalUrl.trim() ? "" : " · signaling not set"}`} defaultOpen={!cfg.signalUrl.trim()}>
           <label className="lobby-field">
             <span>Signaling server</span>
             <input className="bg-select full" value={cfg.signalUrl} onChange={(e) => saveCfg({ signalUrl: e.target.value })} placeholder="wss://signal.example.com" />
@@ -226,105 +351,27 @@ export function LobbyView() {
             <span>TURN secret (optional)</span>
             <input className="bg-select full" type="password" value={cfg.turnSecret} onChange={(e) => saveCfg({ turnSecret: e.target.value })} placeholder="coturn static-auth-secret" />
           </label>
-        </div>
+        </Collapsible>
 
-        <div className="lobby-card">
-          <div className="panel-title">Shared library {fbOk ? "· connected" : "· not set"}</div>
+        <Collapsible title={`Shared library · ${fbCustom ? "your project" : "built-in"}${fbOk ? "" : " · unavailable"}`}>
           <p className="vtt2-actor-hint" style={{ margin: "0 0 6px" }}>
-            W.T.E ships with a built-in community library — you can pull official pages without any setup.
-            Anything <b>published</b> to it is <b>public</b> to everyone using the app, so keep private notes out of it.
+            W.T.E ships with a built-in community library, already configured — you can pull official pages
+            with no setup. Anything <b>published</b> to it is <b>public</b> to everyone using the app, so keep
+            private notes out of it.
           </p>
           <p className="vtt2-actor-hint" style={{ margin: "0 0 6px" }}>
-            Want a library only your group can see? Paste your own Firebase config (free Spark plan → Realtime Database)
-            to point this device at your own project instead. See docs/PUBLISH-SETUP.md.
+            Want a library only your group can see? Paste your own Firebase config (free Spark plan → Realtime
+            Database) below — it saves as you type. Clear the box to go back to the built-in one.
           </p>
           <textarea
             className="bg-select full"
-            style={{ minHeight: 96, fontFamily: "Consolas, monospace", fontSize: 11 }}
+            style={{ minHeight: 118, fontFamily: "Consolas, monospace", fontSize: 11 }}
             value={fbText}
-            onChange={(e) => setFbText(e.target.value)}
-            placeholder={'{ "apiKey": "…", "projectId": "…", "databaseURL": "https://…firebasedatabase.app" }'}
+            onChange={(e) => onFbChange(e.target.value)}
+            spellCheck={false}
           />
-          <button className="primary-btn full mt" onClick={saveFb}>Save shared-library config</button>
-          {fbNote && <p className="vtt2-actor-hint" style={{ marginTop: 6 }}>{fbNote}</p>}
-        </div>
-      </div>
-
-      {saved.length > 0 && (
-        <div className="lobby-scan" style={{ marginBottom: 16 }}>
-          <div className="panel-title">Saved rooms</div>
-          <div className="char-grid">
-            {saved.map((r) => (
-              <div className="char-card" key={r.code}>
-                <button
-                  className="char-open"
-                  onClick={() => (r.role === "host" ? void net.host(r.code) : void net.join(r.code))}
-                  disabled={net.status === "connecting"}
-                  title={r.role === "host" ? "Host this room again" : "Rejoin this room"}
-                >
-                  <div className="char-name">{r.code}</div>
-                  <div className="char-meta">
-                    {r.role === "host" ? "Your room" : "Joined"}
-                    {r.nextSession ? " · Next session: " + r.nextSession : ""}
-                  </div>
-                </button>
-                <div className="char-actions">
-                  <button className="icon-btn accent" onClick={() => (r.role === "host" ? void net.host(r.code) : void net.join(r.code))} disabled={net.status === "connecting"}>
-                    {r.role === "host" ? "Host" : "Join"}
-                  </button>
-                  <button className="icon-btn" onClick={() => setSaved(deleteSavedRoom(r.code))} title="Forget this room">
-                    Forget
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="lobby-grid">
-        <div className="lobby-card">
-          <div className="panel-title">Host a room</div>
-          <input className="bg-select full" value={room} onChange={(e) => setRoom(e.target.value)} placeholder="Room code (share this)" />
-          <button className="primary-btn full mt" onClick={() => net.host(room)} disabled={net.status === "connecting"}>
-            {net.status === "connecting" ? "Connecting…" : "Host room"}
-          </button>
-        </div>
-        <div className="lobby-card">
-          <div className="panel-title">Join a room</div>
-          <input className="bg-select full" value={room} onChange={(e) => setRoom(e.target.value)} placeholder="Room code" />
-          <button className="primary-btn full mt" onClick={() => net.join(room)} disabled={net.status === "connecting"}>
-            {net.status === "connecting" ? "Connecting…" : "Join room"}
-          </button>
-        </div>
-      </div>
-
-      <div className="lobby-scan">
-        <div className="panel-title">
-          Rooms on your Wi-Fi
-          <button className={"chip" + (scanning ? " active" : "")} onClick={() => setScanning((s) => !s)} style={{ marginLeft: 10 }}>
-            {scanning ? "Scanning…" : "Scan"}
-          </button>
-        </div>
-        {!scanning ? (
-          <p className="list-empty">Scan to auto-find local rooms (they still connect through your signaling server).</p>
-        ) : others.length === 0 ? (
-          <p className="list-empty">No local rooms found yet.</p>
-        ) : (
-          <div className="char-grid">
-            {others.map((h) => (
-              <div className="char-card" key={h.fullname}>
-                <button className="char-open" onClick={() => net.join(h.room)}>
-                  <div className="char-name">{h.room || "Room"}</div>
-                  <div className="char-meta">{(h.peer || "peer").slice(0, 8)}{h.addrs[0] ? " · " + h.addrs[0] : ""}</div>
-                </button>
-                <div className="char-actions">
-                  <button className="icon-btn accent" onClick={() => net.join(h.room)}>Join</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+          <p className="vtt2-actor-hint" style={{ marginTop: 6 }}>{fbNote || (fbCustom ? "Pointed at your own project." : "Using the built-in community library.")}</p>
+        </Collapsible>
       </div>
     </div>
   );
