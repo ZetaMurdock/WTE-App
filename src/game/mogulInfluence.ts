@@ -7,9 +7,14 @@
 // Rogue sector can still sit inside the geofence; a Core-aligned world can have a
 // hole in coverage.
 //
-// Note on vocabulary: the published diagram says "EAC Connection Lost" once while
-// the prose and the Sectors page say ECP throughout (ECP-certified Voyager
-// Credentials, the ECP network, ECP updates). ECP is treated as canonical here.
+// Vocabulary: ECP is canonical (confirmed by the author). The published diagram
+// says "EAC Connection Lost" once; that is a typo for ECP, which the prose and the
+// Sectors page use throughout — ECP-certified Voyager Credentials, the ECP
+// network, ECP updates.
+//
+// Regions are deliberately CURATOR-DRIVEN (also confirmed): a beacon is composed
+// and pushed by hand. There is no map-region trigger that fires one automatically,
+// and that is the intended design, not a gap.
 
 export type InfluenceBand = "core" | "marginal" | "void";
 
