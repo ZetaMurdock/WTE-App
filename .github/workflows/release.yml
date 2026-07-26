@@ -61,7 +61,10 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # Baked into the frontend by Vite (beforeBuildCommand: npm run build) so a
           # shipped user never has to paste a Google client secret. Absent in forks /
-          # PRs without the secret — the app then falls back to the dev prompt.
+          # PRs without the secret — the app then says Google sign-in is unavailable
+          # in that build and keeps working anonymously. NOTE: v0.8.39 was tagged 11
+          # minutes BEFORE this secret existed, so that one release shipped without
+          # it; v0.8.40 onward have it.
           VITE_GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
         with:
           tagName: ${{ github.ref_name }}

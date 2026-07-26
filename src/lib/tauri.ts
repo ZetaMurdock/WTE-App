@@ -202,32 +202,37 @@ export async function signInWithGoogle(): Promise<AuthUser | null> {
   }
   const oauth = getOAuth();
   if (!oauth.clientSecret) {
-    const sec = prompt(
-      'Paste the Google OAuth CLIENT SECRET (not the client ID).\nGoogle Cloud Console → APIs & Services → Credentials → your "W.T.E Desktop" client → Client secret (starts with GOCSPX-).\nStored only on this device.',
-      ""
+    // NEVER prompt an end user for this. A "client secret" is a developer
+    // credential from Google Cloud Console; a player cannot have one, and the
+    // old prompt led them to type something arbitrary, which Google then
+    // rejected as invalid_client. Builds before v0.8.40 shipped without the
+    // baked-in secret and hit exactly that.
+    throw new Error(
+      "Google sign-in isn't available in this build.\n\n" +
+        "Everything else still works — the shared library reads and publishes without signing in. " +
+        "Update to the latest version from the app's updater or the GitHub releases page; a named " +
+        "Google account is only needed for Codex ownership and role grants."
     );
-    if (!sec) return (fb.auth().currentUser as AuthUser) ?? null;
-    oauth.clientSecret = sec.trim();
-    try {
-      localStorage.setItem("wte-oauth", JSON.stringify(oauth));
-    } catch {
-      /* ignore */
-    }
   }
-  try {
+  // One full loopback attempt with a given secret.
+  async function attempt(clientSecret: string): Promise<AuthUser> {
     const verifier = b64url(crypto.getRandomValues(new Uint8Array(48)));
     const challenge = b64url(
       new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)))
     );
-    const idToken: string = await t.core.invoke("google_signin", {
+    const idToken: string = await t!.core.invoke("google_signin", {
       clientId: oauth.clientId,
-      clientSecret: oauth.clientSecret,
+      clientSecret,
       codeChallenge: challenge,
       codeVerifier: verifier,
     });
     const cred = fb.auth.GoogleAuthProvider.credential(idToken);
     const res = await fb.auth().signInWithCredential(cred);
     return res.user as AuthUser;
+  }
+
+  try {
+    return await attempt(oauth.clientSecret);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (e: any) {
     const code: string = (e && e.code) || "";
@@ -250,21 +255,50 @@ export async function signInWithGoogle(): Promise<AuthUser | null> {
           "Publish the consent screen (Google Cloud → APIs & Services → OAuth consent screen → Publish app), or add this account under Test users."
       );
     }
-    // A token-exchange/client error means a wrong secret → clear it so the next try
-    // re-prompts. In a shipped build the secret is build-injected, so this only
-    // reaches developers or custom-project users.
+    // invalid_client = the secret we used is wrong. If a stale one is sitting in
+    // localStorage (someone typed junk into the old prompt, or a custom project's
+    // secret was rotated) it would otherwise beat the build-injected one forever,
+    // because getOAuth prefers the stored value. Drop it and retry ONCE with the
+    // baked-in secret, so the app heals itself instead of dead-ending.
     if (/token exchange|rejected the token|invalid_client|401/i.test(msg)) {
-      try {
-        const o = getOAuth();
-        delete o.clientSecret;
-        localStorage.setItem("wte-oauth", JSON.stringify(o));
-      } catch {
-        /* ignore */
+      const stored = storedClientSecret();
+      if (stored && DEFAULT_OAUTH_CLIENT_SECRET && stored !== DEFAULT_OAUTH_CLIENT_SECRET) {
+        clearStoredClientSecret();
+        try {
+          return await attempt(DEFAULT_OAUTH_CLIENT_SECRET);
+        } catch {
+          /* the built-in one failed too — fall through to the message below */
+        }
+      } else {
+        clearStoredClientSecret();
       }
-      msg +=
-        "\n\nThe saved client secret was cleared — sign in again to re-enter it. Use the *Client secret* of the SAME Desktop OAuth client whose ID ends in ...687gkal.";
+      throw new Error(
+        "Google sign-in failed: this build's OAuth credentials were rejected.\n\n" +
+          "Nothing you did wrong, and nothing to enter — the shared library still reads and publishes " +
+          "without signing in. Update to the latest version; if it still fails, the app's Google " +
+          "credentials need re-issuing."
+      );
     }
     throw new Error(msg);
+  }
+}
+
+/** The client secret a user/dev stored on this device, if any. */
+function storedClientSecret(): string {
+  try {
+    const o = JSON.parse(localStorage.getItem("wte-oauth") || "null");
+    return (o && typeof o.clientSecret === "string" && o.clientSecret) || "";
+  } catch {
+    return "";
+  }
+}
+function clearStoredClientSecret(): void {
+  try {
+    const o = JSON.parse(localStorage.getItem("wte-oauth") || "null") || {};
+    delete o.clientSecret;
+    localStorage.setItem("wte-oauth", JSON.stringify(o));
+  } catch {
+    /* storage unavailable — the build-injected secret is used regardless */
   }
 }
 
