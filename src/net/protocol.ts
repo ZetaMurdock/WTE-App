@@ -54,6 +54,9 @@ export type NetMessage =
   // Curator's Play Mode: players' UI collapses to token movement + rolls, their
   // camera follows their token, zoom-out clamped to `range` (0.1..1 of normal).
   | { t: "play-mode"; on: boolean; range: number }
+  // Visual-novel dialogue box: the Curator puts a speaker portrait + line on
+  // every screen at the table. Portrait rides as a data URL, same as sfx clips.
+  | { t: "dialogue"; on: boolean; speaker?: string; portrait?: string; text?: string; kind?: "speech" | "beacon" }
   // Cinematic Mode — the director's cut: lock every player's camera onto a
   // token (follows as it moves), shake the frame, and run a full-screen GLSL
   // effect (validated per client; bad bodies fall back to none).

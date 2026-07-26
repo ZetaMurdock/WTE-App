@@ -27,6 +27,8 @@ import { VttEncounterPanel } from "./VttEncounterPanel";
 import { VttRollFeed, type RollLock } from "./VttRollFeed";
 import { VttAssetPanel } from "./VttAssetPanel";
 import { VttSoundboard } from "./VttSoundboard";
+import { VttDialogue } from "./VttDialogue";
+import { VttDialogueController } from "./VttDialogueController";
 import { VttAbilitiesPanel } from "./VttAbilitiesPanel";
 import { VttRollToast } from "./VttRollToast";
 import { VttAoePrompt, type AoePlacement, type AoeKind } from "./VttAoePrompt";
@@ -78,6 +80,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
   const [rollsOpen, setRollsOpen] = useState(false);
   const [gridOpen, setGridOpen] = useState(false);
   const [soundboardOpen, setSoundboardOpen] = useState(false);
+  const [dialogueOpen, setDialogueOpen] = useState(false);
   // A character sheet opened as an overlay from the Actors panel (players view
   // their own character in the VTT; the Curator can open any). sheetSyncTick
   // remounts the overlay when a live edit arrives for the open character.
@@ -1072,6 +1075,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
           onClearMusic={(id) => void patchScene(id, (s) => (s.data.audio = null))}
           onOpenSettings={() => setGridOpen(true)}
           onOpenSoundboard={() => setSoundboardOpen(true)}
+          onOpenDialogue={() => setDialogueOpen(true)}
           onSetActiveForEveryone={(id) => void setActiveForEveryone(id)}
           pinnedId={pinnedSceneId}
           onReleasePin={() => void releasePin()}
@@ -1272,6 +1276,10 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
           onEnvFx={(f) => engineRef.current?.setSceneEnvFx(f)}
           onClose={() => setCineOpen(false)}
         />
+      )}
+      <VttDialogue />
+      {campaign && dialogueOpen && net.role === "host" && (
+        <VttDialogueController campaignId={campaign.id} onClose={() => setDialogueOpen(false)} />
       )}
       {campaign && <VttRollToast campaignId={campaign.id} />}
       {campaign && rollsOpen && (

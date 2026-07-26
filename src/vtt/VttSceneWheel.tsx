@@ -16,6 +16,8 @@ interface Props {
   onOpenSettings: () => void;
   /** Open the per-scene soundboard (upload + play sound effects). */
   onOpenSoundboard: () => void;
+  /** Open the dialogue desk — speaker portraits and location beacons. */
+  onOpenDialogue: () => void;
   /** Push this scene to every connected player as the active shared view,
    *  and PIN it: players stay there while the Curator roams other scenes. */
   onSetActiveForEveryone: (id: string) => void;
@@ -82,7 +84,7 @@ const IconPin = () => (
 // up/down buttons or the scroll wheel. Replaces the old tiny dots, whose hover
 // tooltip overlapped neighbouring dots and ate their clicks. The menu is
 // PORTALED to <body> so no transform/overflow ancestor can clip it.
-export function VttSceneWheel({ scenes, activeId, onSwitch, onStep, onSetBackground, onSetMusic, onClearMusic, onOpenSettings, onOpenSoundboard, onSetActiveForEveryone, pinnedId, onReleasePin, playerCount }: Props) {
+export function VttSceneWheel({ scenes, activeId, onSwitch, onStep, onSetBackground, onSetMusic, onClearMusic, onOpenSettings, onOpenSoundboard, onOpenDialogue, onSetActiveForEveryone, pinnedId, onReleasePin, playerCount }: Props) {
   const [open, setOpen] = useState(true);
   const [menu, setMenu] = useState<{ id: string; y: number } | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -186,6 +188,10 @@ export function VttSceneWheel({ scenes, activeId, onSwitch, onStep, onSetBackgro
         <button className="profile-row" onClick={() => { if (menu.id !== activeId) onSwitch(menu.id); onOpenSoundboard(); setMenu(null); }}>
           <IconBoard />
           <span>Soundboard…</span>
+        </button>
+        <button className="profile-row" onClick={() => { if (menu.id !== activeId) onSwitch(menu.id); onOpenDialogue(); setMenu(null); }}>
+          <IconBoard />
+          <span>Dialogue…</span>
         </button>
         <button
           className="profile-row"

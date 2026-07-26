@@ -10,6 +10,7 @@ Welcome, Curator, to the official offline Codex for the **W.T.E** system. This c
 *   [Attributes](wte://rules/Attributes) — The 7 core traits (STR, DEX, END, AP, WIS, CHA, INT).
 *   [Specialties](wte://rules/Specialties) — Character build points and the Tax Burden.
 *   [Derived Statistics](wte://rules/Derived_Statistics) — Combat stats, scaling, and reduction formulas.
+*   [Mogul Influence](wte://rules/Mogul_Influence) — The geofenced margin, and what stops working outside it.
 *   [Movement & Positioning](wte://rules/Movement_and_Positioning) — Zones of Influence, Reaction Checks, and why there is no grid.
 *   [Wryde Mutations](wte://rules/Wryde_Mutations) — The visible marks an Incept leaves on its host.
 

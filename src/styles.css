@@ -7848,3 +7848,186 @@ body.wte-dot-cursor * {
     position: static;
   }
 }
+
+/* ── VTT dialogue box (visual-novel style) ── */
+.vtt-dlg {
+  position: absolute;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  width: min(720px, calc(100% - 60px));
+  background: linear-gradient(180deg, rgba(10, 16, 26, 0.94), rgba(6, 10, 18, 0.97));
+  border: 1px solid var(--panel-line);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.55);
+  animation: dlg-in 0.18s ease-out;
+}
+@keyframes dlg-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+.vtt-dlg.beacon {
+  border-left-color: #c8a070;
+  width: min(620px, calc(100% - 60px));
+}
+.vtt-dlg-portrait {
+  flex: 0 0 96px;
+  width: 96px;
+  align-self: stretch;
+  overflow: hidden;
+  border-right: 1px solid var(--panel-line);
+  background: #05080f;
+}
+.vtt-dlg-portrait img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.vtt-dlg-noface {
+  width: 100%;
+  height: 100%;
+  min-height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: Georgia, serif;
+  font-size: 30px;
+  color: var(--muted);
+}
+.vtt-dlg-body {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 14px 12px;
+}
+.vtt-dlg-speaker {
+  font-size: 10.5px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+.vtt-dlg.beacon .vtt-dlg-speaker {
+  color: #c8a070;
+}
+.vtt-dlg-text {
+  font-family: Georgia, serif;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #dfe7f2;
+  white-space: pre-wrap;
+}
+.vtt-dlg.beacon .vtt-dlg-text {
+  font-family: Consolas, monospace;
+  font-size: 12.5px;
+  letter-spacing: 0.3px;
+}
+.vtt-dlg-caret {
+  display: inline-block;
+  width: 7px;
+  height: 14px;
+  margin-left: 2px;
+  background: var(--accent);
+  vertical-align: -2px;
+  animation: dlg-blink 0.7s steps(1) infinite;
+}
+@keyframes dlg-blink {
+  50% { opacity: 0; }
+}
+.vtt-dlg-close {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 6px 9px;
+}
+.vtt-dlg-close:hover {
+  color: #d05a44;
+}
+
+/* ── Dialogue controller ── */
+.dlg-ctl {
+  width: min(620px, 94vw);
+  max-height: 88vh;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  padding: 12px 14px 16px;
+}
+.dlg-ctl-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.dlg-beacon-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.dlg-preview {
+  margin-top: 10px;
+  padding: 9px 11px;
+  background: var(--bg);
+  border: 1px dashed var(--panel-line);
+  border-radius: 4px;
+  font-family: Consolas, monospace;
+  font-size: 11.5px;
+  color: #c8a070;
+  word-break: break-word;
+}
+.chip.inf-core.active { border-color: #70c890; color: #70c890; }
+.chip.inf-marginal.active { border-color: #c8a070; color: #c8a070; }
+.chip.inf-void.active { border-color: #d05a44; color: #d05a44; }
+.inf-readout {
+  margin-top: 10px;
+  padding: 8px 11px;
+  border-radius: 4px;
+  border-left: 3px solid var(--panel-line);
+  background: var(--bg);
+}
+.inf-readout.sev0 { border-left-color: #70c890; }
+.inf-readout.sev1 { border-left-color: #c8a070; }
+.inf-readout.sev2 { border-left-color: #d05a44; }
+.inf-readout-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12.5px;
+}
+.inf-readout-top span {
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.inf-readout-sub {
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+  margin-top: 2px;
+}
+.inf-escalate {
+  margin-top: 5px;
+  font-size: 11px;
+  color: #d05a44;
+}
+.inf-consequences {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+.inf-consequences b {
+  color: #d05a44;
+}

@@ -73,6 +73,10 @@ interface NetApi {
   announceScene(name: string): void;
   /** Set the character I am playing at this table. */
   setInUseCharacter(charId: string | null): void;
+  /** The dialogue box currently on every screen at the table (null = none). */
+  dialogue: { speaker?: string; portrait?: string; text?: string; kind?: "speech" | "beacon" } | null;
+  /** Host only: put a line on the table, or pass null to clear it. */
+  setDialogue(d: { speaker?: string; portrait?: string; text?: string; kind?: "speech" | "beacon" } | null): void;
 }
 
 const Ctx = createContext<NetApi | null>(null);
@@ -83,7 +87,7 @@ export function useNet(): NetApi {
 }
 
 // Wire event types re-dispatched to React subscribers.
-const FANOUT: NetMessageType[] = ["roll", "chat", "party", "presence", "sheet-patch", "sheet-request", "vtt-patch", "snapshot", "bp", "unit-note", "purse", "inv", "sfx", "room-locked", "room-info", "vtt-ping", "play-mode", "cine"];
+const FANOUT: NetMessageType[] = ["roll", "chat", "party", "presence", "sheet-patch", "sheet-request", "vtt-patch", "snapshot", "bp", "unit-note", "purse", "inv", "dialogue", "sfx", "room-locked", "room-info", "vtt-ping", "play-mode", "cine"];
 
 export function NetProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>("idle");
@@ -154,6 +158,7 @@ export function NetProvider({ children }: { children: ReactNode }) {
   const [table, setTable] = useState<TableLink | null>(null);
   const campaignRef = useRef<{ id: string; name: string } | null>(null);
   const [sceneName, setSceneName] = useState("");
+  const [dialogue, setDialogueState] = useState<{ speaker?: string; portrait?: string; text?: string; kind?: "speech" | "beacon" } | null>(null);
   const sceneRef = useRef(sceneName);
   sceneRef.current = sceneName;
   const roomRef = useRef(room);
@@ -269,6 +274,21 @@ export function NetProvider({ children }: { children: ReactNode }) {
     if (roleRef.current === "host") {
       sessionRef.current?.publish({ t: "room-info", nextSession: nextSessionRef.current, campaignId: id, campaignName: name, sceneName: sceneRef.current });
     }
+  }, []);
+
+  /** Host: put a dialogue line on every screen, or clear it with null. Local state
+   *  updates too, so the Curator sees exactly what the table sees. */
+  const setDialogue = useCallback((d: { speaker?: string; portrait?: string; text?: string; kind?: "speech" | "beacon" } | null) => {
+    setDialogueState(d);
+    sessionRef.current?.publish({ t: "dialogue", on: !!d, speaker: d?.speaker, portrait: d?.portrait, text: d?.text, kind: d?.kind });
+  }, []);
+
+  useEffect(() => {
+    return subscribe("dialogue", (raw) => {
+      const m = raw as Extract<NetMessage, { t: "dialogue" }>;
+      setDialogueState(m.on ? { speaker: m.speaker, portrait: m.portrait, text: m.text, kind: m.kind } : null);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /** Host: the scene now on the table. Players see it on their Table tab without
@@ -396,6 +416,7 @@ export function NetProvider({ children }: { children: ReactNode }) {
     setNextSessionState("");
     setTable(null);
     setSceneName("");
+    setDialogueState(null);
     setPurses({});
     setUnitPurseState(0);
     setInvs({});
@@ -475,6 +496,8 @@ export function NetProvider({ children }: { children: ReactNode }) {
     announceCampaign,
     sceneName,
     announceScene,
+    dialogue,
+    setDialogue,
     setInUseCharacter,
     purses,
     unitPurse,
