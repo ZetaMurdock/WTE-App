@@ -63,13 +63,18 @@ import { useNet } from "../../net/NetContext";
 import { loadRules, sheetCaps, type CampaignRules } from "../../lib/campaignRules";
 import {
   FOCUS_PER_RANK,
-  focusBudget,
   focusRemaining,
   knownGenus,
   parseSpend,
+  talentHolderBonus,
+  focusBudgetWith,
+  earthMoldRange,
+  totalFocusSpent,
+  TALENT_HOLDER_DC,
   type FocusSpend,
 } from "../../game/synapticFocus";
 import { RollButton } from "./RollButton";
+import { GenusContestPanel } from "./GenusContestPanel";
 import { BioFields } from "./BioFields";
 import { parseBioFields, type BioField } from "../../lib/bioFields";
 
@@ -100,6 +105,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   const [rec, setRec] = useState<CharacterRecord | null>(null);
   const [tab, setTab] = useState<SheetTab>("stats");
   const [resolveMode, setResolveMode] = useState<"pressure" | "diplomacy">("pressure");
+  const [contestAbility, setContestAbility] = useState<import("../../game/wte").UsableAbility | null>(null);
   const { items: feedItems, push: pushFeed } = useRollFeed();
   const net = useNet();
   const saveTimer = useRef<number | undefined>(undefined);
@@ -142,6 +148,11 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   // Focus is the source of truth for genus; parseSheet migrates legacy loadouts.
   const spend = parseSpend(sheet.focusSpend);
   const knownGenusNames = knownGenus(spend);
+  // Talent Holder banks extra Focus at rank-up; the bank widens the budget.
+  const focusBonus = Math.max(0, Math.trunc(sheet.focusBonus ?? 0) || 0);
+  const hasTalentHolder = spend.incepts.some((n) => n.toLowerCase() === "talent holder");
+  const rankRolledFor = sheet.focusBonusRank ?? rank;
+  const focusSpentTotal = totalFocusSpent(spend, sheet.speciesId);
   const equip = mergeMods(aggregateEquip(sheet.equipment), loadoutMods(weaponLoadout, gearLoadout));
   // Soul mechanics fold into the shown effective values (Process: +3 INT / +3 Control).
   const soulMods = moralityMods(sheet.morality);
@@ -213,7 +224,36 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
     persist({ ...rec!, sheet: { ...sheet, specialties: { ...sheet.specialties, [k]: Math.max(0, Math.min(SPEC_MAX, v)) } } });
   }
   function setRank(v: number) {
-    persist({ ...rec!, sheet: { ...sheet, rank: Math.max(0, Math.min(RANK_MAX, v)) } });
+    const next = Math.max(0, Math.min(RANK_MAX, v));
+    // Hyomen's Talent Holder rolls once per rank GAINED. focusBonusRank starts at
+    // wherever the sheet already is, so an existing rank-4 character isn't paid
+    // out four times retroactively — and because it only ever climbs, dropping
+    // rank and raising it again cannot farm the bonus.
+    if (!hasTalentHolder || next <= rankRolledFor) {
+      persist({ ...rec!, sheet: { ...sheet, rank: next } });
+      return;
+    }
+    let gained = 0;
+    const rolls: number[] = [];
+    for (let r = rankRolledFor + 1; r <= next; r++) {
+      const d100 = 1 + Math.floor(Math.random() * 100);
+      rolls.push(d100);
+      gained += talentHolderBonus(d100);
+    }
+    persist({
+      ...rec!,
+      sheet: { ...sheet, rank: next, focusBonus: focusBonus + gained, focusBonusRank: next },
+    });
+    void doRoll({
+      formula: `Talent Holder · rank ${rankRolledFor} → ${next}`,
+      result: rolls[rolls.length - 1] ?? 0,
+      detail: {
+        die: 100,
+        roll: rolls[rolls.length - 1] ?? 0,
+        modifier: 0,
+        label: `${rolls.join(", ")} vs ${TALENT_HOLDER_DC}+ · ${gained ? `+${gained} SF` : "no gain"}`,
+      },
+    });
   }
   function setBioFields(next: BioField[]) {
     persist({ ...rec!, sheet: { ...sheet, bioFields: next } });
@@ -368,10 +408,17 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
           />
         </div>
         <div className="rank-item"><span className="rank-lbl">HP mult</span><span className="rank-val">×{rankMult(rank).toFixed(2)}</span></div>
-        <div className="rank-item" title={`${FOCUS_PER_RANK} Synaptic Focus per rank; spent on Genus and Incepts`}>
+        <div
+          className="rank-item"
+          title={
+            `${FOCUS_PER_RANK} Synaptic Focus per rank; spent on Genus and Incepts` +
+            (focusBonus > 0 ? ` · +${focusBonus} banked by Talent Holder` : "")
+          }
+        >
           <span className="rank-lbl">Focus left</span>
-          <span className={"rank-val" + (focusRemaining(rank, spend, sheet.speciesId) < 0 ? " over" : "")}>
-            {focusRemaining(rank, spend, sheet.speciesId)} / {focusBudget(rank)}
+          <span className={"rank-val" + (focusRemaining(rank, spend, sheet.speciesId, focusBonus) < 0 ? " over" : "")}>
+            {focusRemaining(rank, spend, sheet.speciesId, focusBonus)} / {focusBudgetWith(rank, focusBonus)}
+            {focusBonus > 0 && <span className="focus-banked"> +{focusBonus}</span>}
           </span>
         </div>
         <div className="rank-item"><span className="rank-lbl">Cipher slots</span><span className="rank-val">{cipherSlots(rank)}</span></div>
@@ -419,6 +466,17 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
           <div className="panel-title">Roll feed</div>
           <RollFeed items={feedItems} />
         </div>
+
+        {contestAbility && (
+          <GenusContestPanel
+            ability={contestAbility}
+            control={effSpec.ctrl}
+            rank={rank}
+            canBorrow={spend.incepts.some((n) => n.toLowerCase() === "identity theft")}
+            onRoll={doRoll}
+            onClose={() => setContestAbility(null)}
+          />
+        )}
 
         <div className="sheet-tabbox">
           <div className="sheet-tabstrip" role="tablist">
@@ -582,6 +640,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                 onRoll={doRoll}
                 onSpend={spendSS}
                 onManage={() => setTab("loadout")}
+                onContest={(a) => setContestAbility(a)}
               />
             )}
 
@@ -715,6 +774,21 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                         <li key={i.name}>
                           <b>{i.name}</b>
                           <span className={"wryde-badge t" + wrydeTier(i.weight).tier}>{i.weight}</span>
+                          {/* Incepts that scale off Focus spent are worked out here rather
+                              than left as arithmetic in the player's head. */}
+                          {i.name === "Earth Mold" && (
+                            <span
+                              className="incept-derived"
+                              title={`${focusSpentTotal} Focus spent · half NC mod (${derived.ncMod}) + Control mod (${specRollMod(effSpec.ctrl)}) per two levels`}
+                            >
+                              Range {earthMoldRange(focusSpentTotal, derived.ncMod, specRollMod(effSpec.ctrl))} ft
+                            </span>
+                          )}
+                          {i.name === "Talent Holder" && (
+                            <span className="incept-derived" title={`Rolled through rank ${rankRolledFor}`}>
+                              {focusBonus > 0 ? `+${focusBonus} SF banked` : "nothing banked yet"}
+                            </span>
+                          )}
                           {i.memory ? <em className="incept-memory"> {i.memory}</em> : null}
                           {i.effect ? ` — ${i.effect}` : ""}
                         </li>

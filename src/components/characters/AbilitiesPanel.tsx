@@ -127,7 +127,7 @@ export function AbilitiesBody({
                           className="icon-btn xs"
                           disabled={!canRaise}
                           title={f >= GENUS_FOCUS_MAX ? "At maximum Focus" : left < 1 ? "No Focus left" : "Raise Focus"}
-                          onClick={() => onSpend(raiseGenus(spend, a.name, rank, speciesId))}
+                          onClick={() => onSpend(raiseGenus(spend, a.name, rank, speciesId, bonusFocus))}
                         >
                           +
                         </button>
@@ -169,7 +169,7 @@ export function AbilitiesBody({
                     className={"icon-btn xs" + (on ? " on" : "")}
                     disabled={!on && !affordable}
                     title={on ? "Give this Incept back" : affordable ? `Unlock for ${cost} Focus` : `Needs ${cost} Focus — ${left} left`}
-                    onClick={() => onSpend(on ? relockIncept(spend, name) : unlockIncept(spend, name, rank, speciesId))}
+                    onClick={() => onSpend(on ? relockIncept(spend, name) : unlockIncept(spend, name, rank, speciesId, bonusFocus))}
                   >
                     {on ? "✓" : "+"}
                   </button>

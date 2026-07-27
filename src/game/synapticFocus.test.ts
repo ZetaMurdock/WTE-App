@@ -4,6 +4,7 @@ import {
   GENUS_FOCUS_MAX,
   INCEPT_FOCUS_COST,
   contestByRoll,
+  canUnlockIncept,
   emptySpend,
   focusBudget,
   focusContest,
@@ -21,6 +22,8 @@ import {
   focusBudgetWith,
   totalFocusSpent,
   effectiveFocus,
+  earthMoldRange,
+  TALENT_HOLDER_DC,
   type FocusSpend,
 } from "./synapticFocus";
 
@@ -205,5 +208,66 @@ describe("incept hooks into the Focus economy", () => {
     expect(effectiveFocus({ label: "x", focus: 3, control: 0, rank: 0, borrowedFocus: 1 })).toBe(3);
     expect(effectiveFocus({ label: "x", focus: 1, control: 0, rank: 0, borrowedFocus: 4 })).toBe(4);
     expect(effectiveFocus({ label: "x", focus: 2, control: 0, rank: 0 })).toBe(2);
+  });
+});
+
+describe("Earth Mold range", () => {
+  it("is 15 ft flat below two Focus spent", () => {
+    expect(earthMoldRange(0, 8, 4)).toBe(15);
+    expect(earthMoldRange(1, 8, 4)).toBe(15);
+  });
+
+  it("adds half the NC modifier plus the Control modifier per two levels", () => {
+    // 6 spent = 3 steps; each step = floor(8/2) + 4 = 8 ft.
+    expect(earthMoldRange(6, 8, 4)).toBe(15 + 24);
+    expect(earthMoldRange(7, 8, 4)).toBe(15 + 24); // odd level does not tick over
+    expect(earthMoldRange(8, 8, 4)).toBe(15 + 32);
+  });
+
+  it("never returns a negative range when the modifiers are underwater", () => {
+    expect(earthMoldRange(20, -4, -6)).toBe(0);
+  });
+});
+
+describe("Talent Holder banking", () => {
+  it("widens the budget by exactly what was banked", () => {
+    expect(focusBudgetWith(3, 0)).toBe(focusBudget(3));
+    expect(focusBudgetWith(3, 2)).toBe(focusBudget(3) + 2);
+  });
+
+  it("ignores junk and negative banks rather than shrinking the budget", () => {
+    expect(focusBudgetWith(3, -5)).toBe(focusBudget(3));
+    expect(focusBudgetWith(3, NaN)).toBe(focusBudget(3));
+  });
+
+  it("pays out on the DC and not below it", () => {
+    expect(talentHolderBonus(TALENT_HOLDER_DC - 1)).toBe(0);
+    expect(talentHolderBonus(TALENT_HOLDER_DC)).toBe(1);
+    expect(talentHolderBonus(100)).toBe(1);
+  });
+});
+
+describe("banked Focus is spendable, not just displayed", () => {
+  it("lets a banked point raise a genus that the base budget cannot afford", () => {
+    // Rank 0 = 3 Focus. Three points already committed, so the base budget is dry.
+    const full = spend({ Lark: 3 });
+    expect(focusRemaining(0, full)).toBe(0);
+    expect(raiseGenus(full, "Lark", 0)).toBe(full); // no-op without the bank
+    const withBank = raiseGenus(full, "Lark", 0, undefined, 1);
+    expect(withBank).not.toBe(full);
+    expect(genusFocus(withBank, "Lark")).toBe(4);
+  });
+
+  it("lets a banked point pay for an incept the base budget cannot", () => {
+    const full = spend({ Lark: 3 });
+    expect(canUnlockIncept(full, "Talent Holder", 0, "hyomen")).toBe(false);
+    expect(canUnlockIncept(full, "Talent Holder", 0, "hyomen", 3)).toBe(true);
+    expect(unlockIncept(full, "Talent Holder", 0, "hyomen", 3).incepts).toContain("Talent Holder");
+  });
+
+  it("still refuses to overspend the widened budget", () => {
+    const full = spend({ Lark: 4 });
+    expect(focusRemaining(0, full, undefined, 1)).toBe(0);
+    expect(raiseGenus(full, "Reflect", 0, undefined, 1)).toBe(full);
   });
 });

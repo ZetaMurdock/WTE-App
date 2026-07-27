@@ -8063,3 +8063,120 @@ body.wte-dot-cursor * {
   text-transform: uppercase;
   color: var(--muted);
 }
+
+/* ---- Genus contest (Focus vs Focus) ---- */
+.contest-panel {
+  width: min(560px, 94vw);
+  max-height: 88vh;
+  overflow: auto;
+  padding: 16px 18px 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+}
+.contest-sides {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+.contest-side {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-2);
+  min-width: 0;
+}
+.contest-side.mine {
+  border-color: var(--accent);
+}
+.contest-side-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.contest-side-meta {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.contest-focus {
+  margin-top: 6px;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+.contest-focus b {
+  color: var(--text);
+  font-size: 1.05rem;
+}
+.contest-borrowed {
+  color: var(--accent);
+  font-size: 0.76rem;
+}
+.contest-vs {
+  color: var(--muted);
+  font-variant: small-caps;
+  letter-spacing: 0.08em;
+}
+.contest-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.contest-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 14px;
+}
+.contest-out {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+}
+.contest-out.won {
+  border-color: #2f7d5b;
+}
+.contest-out.lost {
+  border-color: #7d3a3a;
+}
+.contest-out-verdict {
+  font-weight: 600;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+}
+.contest-out-how,
+.contest-out-sub {
+  font-weight: 400;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.contest-out-note {
+  font-size: 0.86rem;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.contest-out-sub {
+  margin-top: 4px;
+}
+
+/* Focus banked by Talent Holder, and incept values worked out from Focus spent. */
+.focus-banked {
+  color: var(--accent);
+  font-size: 0.72em;
+}
+.incept-derived {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  color: var(--muted);
+  white-space: nowrap;
+}

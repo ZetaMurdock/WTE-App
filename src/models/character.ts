@@ -54,6 +54,12 @@ export interface CharacterSheet {
   /** Synaptic Focus spend: genus name → Focus 1…4, plus unlocked Incept names.
    *  Focus IS access — see game/synapticFocus.ts. */
   focusSpend?: { genus: Record<string, number>; incepts: string[] };
+  /** Extra Synaptic Focus banked by Hyomen's Talent Holder — one point per
+   *  rank-up where a d100 landed on 50 or better. Rolled once, then kept. */
+  focusBonus?: number;
+  /** Ranks already rolled for Talent Holder, so dropping and re-raising rank
+   *  cannot farm the bonus. */
+  focusBonusRank?: number;
   /** Equipped weapon / gear names from the baked Codex catalogs. */
   weaponLoadout?: string[];
   gearLoadout?: string[];

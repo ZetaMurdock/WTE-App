@@ -21,6 +21,8 @@ interface Props {
   onRoll: (roll: RollResult) => void;
   onSpend: (cost: number) => void;
   onManage: () => void;
+  /** Open the genus-vs-genus contest for one ability (genus rows only). */
+  onContest?: (a: UsableAbility) => void;
 }
 
 const FILTERS: { id: "all" | Cat; label: string }[] = [
@@ -31,7 +33,7 @@ const FILTERS: { id: "all" | Cat; label: string }[] = [
 ];
 
 // The unified combat surface: equipped weapons + genus + ciphers as one filterable table.
-export function ActionsTable({ weapons, genus, ciphers, atk, phyMod, dexMod, paradigmId, onRoll, onSpend, onManage }: Props) {
+export function ActionsTable({ weapons, genus, ciphers, atk, phyMod, dexMod, paradigmId, onRoll, onSpend, onManage, onContest }: Props) {
   const [filter, setFilter] = useState<"all" | Cat>("all");
   const [open, setOpen] = useState<string | null>(null);
   const [ocOpen, setOcOpen] = useState(false);
@@ -125,6 +127,11 @@ export function ActionsTable({ weapons, genus, ciphers, atk, phyMod, dexMod, par
             </div>
             <div className="act-actions">
               {a.ss > 0 ? <button className="ghost-btn" onClick={() => onSpend(a.ss)}>Use −{a.ss} SS</button> : null}
+              {cat === "genus" && onContest && (
+                <button className="ghost-btn" onClick={() => onContest(a)} title="Resolve this against another genus">
+                  Contest…
+                </button>
+              )}
               <RollButton className="roll-btn" make={(mode) => rollGeneric(a.name, mode)} onLocal={onRoll}>Roll d20</RollButton>
             </div>
           </div>

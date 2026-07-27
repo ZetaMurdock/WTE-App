@@ -77,8 +77,8 @@ export function focusSpent(s: FocusSpend, speciesId?: string): number {
   return onGenus + onIncepts;
 }
 
-export function focusRemaining(rank: number, s: FocusSpend, speciesId?: string): number {
-  return focusBudget(rank) - focusSpent(s, speciesId);
+export function focusRemaining(rank: number, s: FocusSpend, speciesId?: string, bonus = 0): number {
+  return focusBudgetWith(rank, bonus) - focusSpent(s, speciesId);
 }
 
 /** Total Focus a character has actually committed. This is the figure incepts
@@ -96,6 +96,17 @@ export const TALENT_HOLDER_DC = 50;
 export function talentHolderBonus(roll?: number): number {
   const d100 = roll ?? 1 + Math.floor(Math.random() * 100);
   return d100 >= TALENT_HOLDER_DC ? 1 : 0;
+}
+
+/** SubDermin's Earth Mold: 15 ft base, and "for every two SF levels you
+ *  possess: increase the effective range by half your Neuronal Capacity
+ *  Modifier plus your Control Modifier". Reads TOTAL Focus spent, so incepts
+ *  count toward it as much as genus does. */
+export const EARTH_MOLD_BASE_FT = 15;
+export function earthMoldRange(spent: number, ncMod: number, controlMod: number): number {
+  const steps = Math.floor(Math.max(0, spent) / 2);
+  const perStep = Math.floor(ncMod / 2) + controlMod;
+  return Math.max(0, EARTH_MOLD_BASE_FT + steps * perStep);
 }
 
 /** Budget including any bonus points banked from Talent Holder rank-ups. */
@@ -116,10 +127,10 @@ export function knownGenus(s: FocusSpend): string[] {
 
 /** Raise one genus by a point. Returns the SAME object when the move is illegal
  *  (at the cap, or not enough Focus left) so callers can detect a no-op. */
-export function raiseGenus(s: FocusSpend, name: string, rank: number, speciesId?: string): FocusSpend {
+export function raiseGenus(s: FocusSpend, name: string, rank: number, speciesId?: string, bonus = 0): FocusSpend {
   const cur = genusFocus(s, name);
   if (cur >= GENUS_FOCUS_MAX) return s;
-  if (focusRemaining(rank, s, speciesId) < 1) return s;
+  if (focusRemaining(rank, s, speciesId, bonus) < 1) return s;
   return { ...s, genus: { ...s.genus, [name]: cur + 1 } };
 }
 
@@ -133,12 +144,12 @@ export function lowerGenus(s: FocusSpend, name: string): FocusSpend {
   return { ...s, genus };
 }
 
-export function canUnlockIncept(s: FocusSpend, name: string, rank: number, speciesId?: string): boolean {
-  return !s.incepts.includes(name) && focusRemaining(rank, s, speciesId) >= costOfIncept(name, speciesId);
+export function canUnlockIncept(s: FocusSpend, name: string, rank: number, speciesId?: string, bonus = 0): boolean {
+  return !s.incepts.includes(name) && focusRemaining(rank, s, speciesId, bonus) >= costOfIncept(name, speciesId);
 }
 
-export function unlockIncept(s: FocusSpend, name: string, rank: number, speciesId?: string): FocusSpend {
-  if (!canUnlockIncept(s, name, rank, speciesId)) return s;
+export function unlockIncept(s: FocusSpend, name: string, rank: number, speciesId?: string, bonus = 0): FocusSpend {
+  if (!canUnlockIncept(s, name, rank, speciesId, bonus)) return s;
   return { ...s, incepts: [...s.incepts, name] };
 }
 
