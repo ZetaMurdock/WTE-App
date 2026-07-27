@@ -5,6 +5,7 @@ import { addItem, moveItem, removeItem, stepQty, summarizeInventory, type InvIte
 import { assignCharacterCampaign, listAllCharacters, type CharacterRecord } from "../lib/characters";
 import { CharacterCreator } from "./characters/CharacterCreator";
 import { PortraitFrame } from "./characters/PortraitFrame";
+import { Collapsible } from "./ui/Collapsible";
 
 // The player's view of the Curator's table. It appears once a Curator announces
 // their campaign to the room — a player never picks the campaign by hand, because
@@ -162,12 +163,22 @@ export function PlayerCampaign() {
 
       <div className="lobby-grid">
         <div className="lobby-card">
-          <div className="panel-title">
-            In-use character
-            <button className="icon-btn xs" style={{ marginLeft: 8 }} onClick={() => setCreating(true)}>
-              + New
-            </button>
-          </div>
+          <Collapsible
+            defaultOpen={!inUse}
+            title={<>Character · {inUse ? inUse.name : "none chosen"}</>}
+            right={
+              <button
+                className="icon-btn xs"
+                title="Build a character straight into this table"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCreating(true);
+                }}
+              >
+                + New
+              </button>
+            }
+          >
           {chars.length === 0 ? (
             <p className="list-empty">
               No characters on this device yet. Press <b>+ New</b> — you don&apos;t need a campaign of your
@@ -233,6 +244,7 @@ export function PlayerCampaign() {
               </div>
             </>
           )}
+          </Collapsible>
         </div>
 
         <div className="lobby-card">

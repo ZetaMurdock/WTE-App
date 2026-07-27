@@ -6041,7 +6041,7 @@ dependencies = [
 
 [[package]]
 name = "wte-app"
-version = "0.8.57"
+version = "0.8.58"
 dependencies = [
  "mdns-sd",
  "open",

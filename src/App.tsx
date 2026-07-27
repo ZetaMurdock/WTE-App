@@ -327,9 +327,11 @@ export default function App() {
           </div>
         )}
         {activeTab === "table" && (
-          <Boundary label="Table">
-            <PlayerCampaign />
-          </Boundary>
+          <div className="view-scroll">
+            <Boundary label="Table">
+              <PlayerCampaign />
+            </Boundary>
+          </div>
         )}
 
         {activeTab === "lobby" && (
