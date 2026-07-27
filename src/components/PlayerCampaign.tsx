@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNet } from "../net/NetContext";
 import { formatMoney, formatMoneyLong, fromShrives, parseMoney, addShrives, spendShrives } from "../game/money";
 import { addItem, moveItem, removeItem, stepQty, summarizeInventory, type InvItem } from "../game/tableInventory";
-import { listCharacters, type CharacterRecord } from "../lib/characters";
+import { assignCharacterCampaign, listAllCharacters, type CharacterRecord } from "../lib/characters";
+import { CharacterCreator } from "./characters/CharacterCreator";
 import { PortraitFrame } from "./characters/PortraitFrame";
 
 // The player's view of the Curator's table. It appears once a Curator announces
@@ -15,20 +16,15 @@ export function PlayerCampaign() {
   const [amount, setAmount] = useState("");
   const [unitAmount, setUnitAmount] = useState("");
   const [moneyNote, setMoneyNote] = useState("");
+  const [creating, setCreating] = useState(false);
 
-  // My own characters, from MY vault — the character is mine, the table is theirs.
-  useEffect(() => {
-    if (!table?.campaignId) return;
-    let alive = true;
-    // A player's characters may sit under their own campaign(s), so offer all of
-    // them rather than filtering to the Curator's id, which this device does not own.
-    void listCharacters(table.campaignId).then((mine) => {
-      if (alive) setChars(mine);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [table?.campaignId]);
+  // EVERY character on this device. A player's characters sit under their own
+  // campaign ids — or none at all — so filtering to the Curator's id (which this
+  // device does not own) showed an empty list and made the table look broken.
+  const reload = useCallback(() => {
+    void listAllCharacters().then(setChars);
+  }, []);
+  useEffect(() => reload(), [reload]);
 
   if (net.status !== "connected") {
     return (
@@ -66,6 +62,10 @@ export function PlayerCampaign() {
 
   // Bound after the guards above so the closures below narrow cleanly.
   const t = table;
+  // Filed under THIS table vs everywhere else — the second group is what needs
+  // carrying over for someone who built characters before joining.
+  const here = chars.filter((c) => c.campaignId === t.campaignId);
+  const elsewhere = chars.filter((c) => c.campaignId !== t.campaignId);
   const inUse = chars.find((c) => c.id === t.inUseCharacterId) ?? null;
   // Prefer the synced value for my own row so a Curator grant shows immediately.
   const myShrives = net.purses[net.selfId]?.shrives ?? t.purse;
@@ -125,6 +125,24 @@ export function PlayerCampaign() {
     setUnitAmount("");
   }
 
+  // Building a character straight from the table: the creator is handed the
+  // Curator's campaign id, so it files itself into this table with no local
+  // campaign needed. This is the whole point — a player should never have to
+  // invent a campaign of their own just to roll a character.
+  if (creating) {
+    return (
+      <CharacterCreator
+        campaignId={t.campaignId}
+        onCancel={() => setCreating(false)}
+        onDone={(id) => {
+          setCreating(false);
+          reload();
+          if (id) net.setInUseCharacter(id);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="dashboard">
       <div className="dash-header">
@@ -144,11 +162,16 @@ export function PlayerCampaign() {
 
       <div className="lobby-grid">
         <div className="lobby-card">
-          <div className="panel-title">In-use character</div>
+          <div className="panel-title">
+            In-use character
+            <button className="icon-btn xs" style={{ marginLeft: 8 }} onClick={() => setCreating(true)}>
+              + New
+            </button>
+          </div>
           {chars.length === 0 ? (
             <p className="list-empty">
-              No characters in this campaign on this device yet. Build one in the Characters tab and it
-              appears here.
+              No characters on this device yet. Press <b>+ New</b> — you don&apos;t need a campaign of your
+              own; it files straight into this table.
             </p>
           ) : (
             <>
@@ -167,12 +190,47 @@ export function PlayerCampaign() {
                 onChange={(e) => net.setInUseCharacter(e.target.value || null)}
               >
                 <option value="">— nobody selected —</option>
-                {chars.map((c) => (
+                {here.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
                   </option>
                 ))}
               </select>
+              {here.length === 0 && (
+                <p className="vtt2-actor-hint" style={{ margin: "6px 0 0" }}>
+                  None of your characters are filed under this table yet — bring one over below.
+                </p>
+              )}
+            </>
+          )}
+
+          {/* Characters made before joining sit under another campaign (or none).
+              Carrying one over just re-files it; nothing is copied or duplicated. */}
+          {elsewhere.length > 0 && (
+            <>
+              <div className="panel-title mt">Bring a character to this table</div>
+              <div className="carry-list">
+                {elsewhere.map((c) => (
+                  <div className="carry-row" key={c.id}>
+                    <PortraitFrame src={c.sheet.portrait} size="sm" />
+                    <span className="carry-name">
+                      {c.name}
+                      <span className="carry-where">{c.campaignId ? "another campaign" : "unfiled"}</span>
+                    </span>
+                    <button
+                      className="icon-btn xs"
+                      title="File this character under this table's campaign"
+                      onClick={async () => {
+                        await assignCharacterCampaign(c.id, t.campaignId);
+                        reload();
+                        net.setInUseCharacter(c.id);
+                      }}
+                    >
+                      Bring over
+                    </button>
+                  </div>
+                ))}
+              </div>
             </>
           )}
         </div>

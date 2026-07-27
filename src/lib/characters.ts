@@ -90,6 +90,31 @@ export async function listCharacters(campaignId: string): Promise<CharacterRecor
   return rows.map(toRecord);
 }
 
+/** EVERY character on this device, whatever campaign they are filed under —
+ *  including ones with no campaign at all. A player who joins a Curator's table
+ *  has characters under their OWN campaign ids (or none), so a table view has to
+ *  offer all of them rather than filtering to the Curator's id, which this device
+ *  does not own. */
+export async function listAllCharacters(): Promise<CharacterRecord[]> {
+  if (!sqlAvailable()) return [];
+  const db = await getDb();
+  const rows = await db.select<CharacterRow[]>("SELECT * FROM characters ORDER BY updated_at DESC");
+  return rows.map(toRecord);
+}
+
+/** File a character under a different campaign — "carry it over" to the table you
+ *  are now playing at. campaign_id has no foreign key, so a player may hold a
+ *  character stamped with the Curator's campaign id without owning that row. */
+export async function assignCharacterCampaign(id: string, campaignId: string | null): Promise<void> {
+  if (!sqlAvailable()) return;
+  const db = await getDb();
+  await db.execute("UPDATE characters SET campaign_id = $1, updated_at = $2 WHERE id = $3", [
+    campaignId,
+    Date.now(),
+    id,
+  ]);
+}
+
 export async function getCharacter(id: string): Promise<CharacterRecord | undefined> {
   if (!sqlAvailable()) return undefined;
   const db = await getDb();

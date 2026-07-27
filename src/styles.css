@@ -8031,3 +8031,35 @@ body.wte-dot-cursor * {
 .inf-consequences b {
   color: #d05a44;
 }
+
+/* ── Carry a character over to the current table ── */
+.carry-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.carry-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg);
+  border: 1px solid var(--panel-line);
+  border-radius: 4px;
+  padding: 5px 8px;
+}
+.carry-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.carry-where {
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+}

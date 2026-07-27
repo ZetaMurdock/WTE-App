@@ -6,6 +6,7 @@ import { loadRules } from "../../lib/campaignRules";
 import { parseLegacySheet, scanLegacyStorage } from "../../lib/legacyImport";
 import { fromSharedCharacter } from "../../lib/charShare";
 import { isTauri } from "../../lib/tauri";
+import { useNet } from "../../net/NetContext";
 import { CharacterVault } from "./CharacterVault";
 import { CharacterCreator } from "./CharacterCreator";
 import { CharacterSheet } from "./CharacterSheet";
@@ -19,7 +20,22 @@ interface Props {
   onCharactersChanged: () => void;
 }
 
-export function CharactersTab({ campaign, curator, onCharactersChanged }: Props) {
+export function CharactersTab({ campaign: localCampaign, curator, onCharactersChanged }: Props) {
+  const net = useNet();
+  // A player at a Curator's table has no campaign of their OWN. Rather than
+  // blocking the whole tab, stand in a campaign built from the table link, so the
+  // vault works and characters file themselves into the table.
+  const campaign: Campaign | null =
+    localCampaign ??
+    (net.table?.campaignId
+      ? {
+          id: net.table.campaignId,
+          name: net.table.campaignName || "Curator's table",
+          createdAt: net.table.joinedAt,
+          updatedAt: net.table.lastSeen,
+          archived: false,
+        }
+      : null);
   const [view, setView] = useState<View>({ mode: "vault" });
   const [characters, setCharacters] = useState<CharacterRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,7 +70,11 @@ export function CharactersTab({ campaign, curator, onCharactersChanged }: Props)
   if (!campaign) {
     return (
       <div className="dashboard">
-        <p className="list-empty">Select or create a campaign first (Dashboard tab).</p>
+        <p className="list-empty">
+          {net.table?.campaignId
+            ? "Loading this table's campaign…"
+            : "Select or create a campaign first (Dashboard tab) — or join your Curator's room and build a character straight from the Table tab."}
+        </p>
       </div>
     );
   }
