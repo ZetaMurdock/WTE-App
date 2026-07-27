@@ -16,7 +16,7 @@
 // Focus also settles genus-vs-genus: the higher Focus wins outright (a Reflect
 // with less Focus than the Elemental it meets simply fails). Equal Focus goes to
 // a contested Control roll scaled by rank.
-import { getIncept, rankMult, rollSpecialty, type RollMode } from "./wte";
+import { getIncept, rankMult, rollSpecialty, type RollMode, type RollResult } from "./wte";
 
 /** Points granted per rank. Rank 0 is included, so a fresh character starts with
  *  one spend to make — 3 points, i.e. one genus at Focus 3 or a single incept. */
@@ -106,7 +106,10 @@ export const EARTH_MOLD_BASE_FT = 15;
 export function earthMoldRange(spent: number, ncMod: number, controlMod: number): number {
   const steps = Math.floor(Math.max(0, spent) / 2);
   const perStep = Math.floor(ncMod / 2) + controlMod;
-  return Math.max(0, EARTH_MOLD_BASE_FT + steps * perStep);
+  // The authored text INCREASES the range, so a character with underwater
+  // modifiers keeps the 15 ft base rather than having it subtracted away. Clamp
+  // the bonus, never the total.
+  return EARTH_MOLD_BASE_FT + Math.max(0, steps * perStep);
 }
 
 /** Budget including any bonus points banked from Talent Holder rank-ups. */
@@ -201,6 +204,10 @@ export interface ContestResult {
   byFocus: boolean;
   aTotal?: number;
   bTotal?: number;
+  /** The underlying Control rolls, kept so a caller can log what was actually
+   *  thrown instead of inventing dice detail around the scaled total. */
+  aRoll?: RollResult;
+  bRoll?: RollResult;
   note: string;
 }
 
@@ -213,8 +220,13 @@ export function contestByRoll(aTotal: number, bTotal: number): "a" | "b" {
 /** Scaled Control total for a contest side: the standard d40 Control roll,
  *  multiplied by the roller's rank multiplier. */
 export function contestRoll(side: ContestSide, mode: RollMode = "normal"): number {
-  const r = rollSpecialty("Control", side.control, mode);
-  return Math.round(r.result * rankMult(side.rank));
+  return contestRollDetail(side, mode).total;
+}
+
+/** Same roll, but keeps the d40 that produced it. */
+export function contestRollDetail(side: ContestSide, mode: RollMode = "normal"): { raw: RollResult; total: number } {
+  const raw = rollSpecialty("Control", side.control, mode);
+  return { raw, total: Math.round(raw.result * rankMult(side.rank)) };
 }
 
 /** Resolve one genus used against another. Higher Synaptic Focus wins outright;
@@ -233,14 +245,18 @@ export function focusContest(a: ContestSide, b: ContestSide, mode: RollMode = "n
           : `${b.label} (Focus ${bf}) is too strongly focused — ${a.label} (Focus ${af}) fails.`,
     };
   }
-  const aTotal = contestRoll(a, mode);
-  const bTotal = contestRoll(b, mode);
+  const aRolled = contestRollDetail(a, mode);
+  const bRolled = contestRollDetail(b, mode);
+  const aTotal = aRolled.total;
+  const bTotal = bRolled.total;
   const winner = contestByRoll(aTotal, bTotal);
   return {
     winner,
     byFocus: false,
     aTotal,
     bTotal,
+    aRoll: aRolled.raw,
+    bRoll: bRolled.raw,
     note:
       `Focus ${af} both ways — contested Control: ` +
       `${a.label} ${aTotal} vs ${b.label} ${bTotal}. ` +

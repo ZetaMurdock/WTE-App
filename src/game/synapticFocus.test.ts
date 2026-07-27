@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { rankMult } from "./wte";
 import {
   FOCUS_PER_RANK,
   GENUS_FOCUS_MAX,
@@ -23,6 +24,8 @@ import {
   totalFocusSpent,
   effectiveFocus,
   earthMoldRange,
+  EARTH_MOLD_BASE_FT,
+  contestRollDetail,
   TALENT_HOLDER_DC,
   type FocusSpend,
 } from "./synapticFocus";
@@ -225,7 +228,7 @@ describe("Earth Mold range", () => {
   });
 
   it("never returns a negative range when the modifiers are underwater", () => {
-    expect(earthMoldRange(20, -4, -6)).toBe(0);
+    expect(earthMoldRange(20, -4, -6)).toBeGreaterThanOrEqual(0);
   });
 });
 
@@ -269,5 +272,48 @@ describe("banked Focus is spendable, not just displayed", () => {
     const full = spend({ Lark: 4 });
     expect(focusRemaining(0, full, undefined, 1)).toBe(0);
     expect(raiseGenus(full, "Reflect", 0, undefined, 1)).toBe(full);
+  });
+});
+
+describe("Earth Mold keeps its authored base", () => {
+  it("never subtracts the 15 ft base away when the modifiers are underwater", () => {
+    // The text says the term INCREASES range, so a bad Control cannot erase it.
+    expect(earthMoldRange(20, -4, -6)).toBe(EARTH_MOLD_BASE_FT);
+    expect(earthMoldRange(2, 0, -30)).toBe(EARTH_MOLD_BASE_FT);
+  });
+
+  it("still adds normally when the modifiers are positive", () => {
+    expect(earthMoldRange(6, 8, 4)).toBe(EARTH_MOLD_BASE_FT + 24);
+  });
+});
+
+describe("contest rolls keep the dice that produced them", () => {
+  it("hands back the real d40 alongside the rank-scaled total", () => {
+    const side = { label: "Reflect", focus: 3, control: 40, rank: 9 };
+    const d = contestRollDetail(side);
+    expect(d.raw.detail.die).toBe(40);
+    expect(d.raw.detail.roll).toBeGreaterThanOrEqual(1);
+    expect(d.raw.detail.roll).toBeLessThanOrEqual(40);
+    // The total is the roll result scaled by rank, not the raw die.
+    expect(d.total).toBe(Math.round(d.raw.result * rankMult(9)));
+  });
+
+  it("a contested resolve exposes both sides' rolls so the log need not invent any", () => {
+    const s = (label: string) => ({ label, focus: 3, control: 40, rank: 0 });
+    const r = focusContest(s("Reflect"), s("Solidify"));
+    expect(r.byFocus).toBe(false);
+    expect(r.aRoll?.detail.die).toBe(40);
+    expect(r.bRoll?.detail.die).toBe(40);
+    expect(r.aTotal).toBe(r.aRoll!.result); // rank 0 = x1.00
+  });
+
+  it("a Focus win carries no dice at all", () => {
+    const r = focusContest(
+      { label: "Reflect", focus: 4, control: 40, rank: 0 },
+      { label: "Solidify", focus: 1, control: 40, rank: 0 }
+    );
+    expect(r.byFocus).toBe(true);
+    expect(r.aRoll).toBeUndefined();
+    expect(r.bRoll).toBeUndefined();
   });
 });

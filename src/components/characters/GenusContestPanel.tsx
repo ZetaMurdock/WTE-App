@@ -1,12 +1,11 @@
-import { useState } from "react";
-import { rankMult, snrOfGenus, type RollResult, type UsableAbility } from "../../game/wte";
-import {
-  GENUS_FOCUS_MAX,
-  contestRoll,
-  effectiveFocus,
-  focusContest,
-  type ContestSide,
-} from "../../game/synapticFocus";
+import { useEffect, useState } from "react";
+import { RANK_MAX, SPEC_MAX, rankMult, snrOfGenus, type RollResult, type UsableAbility } from "../../game/wte";
+import { GENUS_FOCUS_MAX, effectiveFocus, focusContest, type ContestSide } from "../../game/synapticFocus";
+
+function clamp(v: string, lo: number, hi: number): number {
+  const n = parseInt(v, 10);
+  return Math.max(lo, Math.min(hi, Number.isFinite(n) ? n : lo));
+}
 
 interface Props {
   /** MY ability — carries the Focus I invested and the domain it came from. */
@@ -34,7 +33,24 @@ export function GenusContestPanel({ ability, control, rank, canBorrow, onRoll, o
   const [oppControl, setOppControl] = useState(25);
   const [oppRank, setOppRank] = useState(rank);
   const [borrowed, setBorrowed] = useState(0);
-  const [out, setOut] = useState<{ note: string; winner: "a" | "b"; byFocus: boolean } | null>(null);
+  // The outcome snapshots the multipliers it was resolved under, so editing the
+  // opponent's rank afterwards cannot relabel a roll that already happened.
+  const [out, setOut] = useState<{
+    note: string;
+    winner: "a" | "b";
+    byFocus: boolean;
+    myMult: number;
+    theirMult: number;
+  } | null>(null);
+
+  // Every sibling overlay in this directory closes on Escape; match them.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   const mine: ContestSide = {
     label: ability.name,
@@ -49,14 +65,28 @@ export function GenusContestPanel({ ability, control, rank, canBorrow, onRoll, o
 
   function resolve() {
     const r = focusContest(mine, theirs);
-    setOut({ note: r.note, winner: r.winner, byFocus: r.byFocus });
+    setOut({
+      note: r.note,
+      winner: r.winner,
+      byFocus: r.byFocus,
+      myMult: rankMult(rank),
+      theirMult: rankMult(oppRank),
+    });
     // Log the contested rolls so the table sees them, but only when dice were
     // actually thrown — a Focus win is not a roll and should not pretend to be.
-    if (!r.byFocus) {
+    // The logged detail is the REAL d40 that produced my total, and the label
+    // carries both scaled totals and the verdict so the record is complete.
+    if (!r.byFocus && r.aRoll) {
+      const verdict = r.winner === "a" ? "lands" : "fails";
       onRoll({
-        formula: `Contest · ${ability.name} vs ${theirs.label}`,
+        formula: `${r.aRoll.formula} × ${rankMult(rank).toFixed(2)} (rank ${rank})`,
         result: r.aTotal ?? 0,
-        detail: { die: 40, roll: r.aTotal ?? 0, modifier: 0, label: `${ability.name} (Control × rank)` },
+        detail: {
+          ...r.aRoll.detail,
+          label:
+            `Contest · ${ability.name} ${r.aTotal} vs ${theirs.label} ${r.bTotal} — ` +
+            `${ability.name} ${verdict}`,
+        },
       });
     }
   }
@@ -111,11 +141,25 @@ export function GenusContestPanel({ ability, control, rank, canBorrow, onRoll, o
         <div className="contest-grid mt">
           <label className="lobby-field">
             <span>Their Control pts</span>
-            <input className="stat-input" type="number" min={0} max={75} value={oppControl} onChange={(e) => setOppControl(parseInt(e.target.value, 10) || 0)} />
+            <input
+              className="stat-input"
+              type="number"
+              min={0}
+              max={SPEC_MAX}
+              value={oppControl}
+              onChange={(e) => setOppControl(clamp(e.target.value, 0, SPEC_MAX))}
+            />
           </label>
           <label className="lobby-field">
             <span>Their rank</span>
-            <input className="stat-input" type="number" min={0} max={9} value={oppRank} onChange={(e) => setOppRank(parseInt(e.target.value, 10) || 0)} />
+            <input
+              className="stat-input"
+              type="number"
+              min={0}
+              max={RANK_MAX}
+              value={oppRank}
+              onChange={(e) => setOppRank(clamp(e.target.value, 0, RANK_MAX))}
+            />
           </label>
         </div>
 
@@ -140,7 +184,7 @@ export function GenusContestPanel({ ability, control, rank, canBorrow, onRoll, o
             Resolve
           </button>
           {out && (
-            <button className="icon-btn" onClick={() => setOut(null)}>
+            <button className="icon-btn" onClick={resolve}>
               Again
             </button>
           )}
@@ -155,7 +199,7 @@ export function GenusContestPanel({ ability, control, rank, canBorrow, onRoll, o
             <div className="contest-out-note">{out.note}</div>
             {!out.byFocus && (
               <div className="contest-out-sub">
-                Rank multiplier ×{rankMult(rank).toFixed(2)} vs ×{rankMult(oppRank).toFixed(2)}
+                Rank multiplier ×{out.myMult.toFixed(2)} vs ×{out.theirMult.toFixed(2)}
               </div>
             )}
           </div>
@@ -169,6 +213,3 @@ export function GenusContestPanel({ ability, control, rank, canBorrow, onRoll, o
     </div>
   );
 }
-
-/** Re-exported so a caller can preview a side's scaled Control without resolving. */
-export { contestRoll };

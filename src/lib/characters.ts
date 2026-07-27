@@ -55,6 +55,12 @@ function parseSheet(raw: string | null): CharacterSheet {
       focusSpend: p.focusSpend
         ? parseSpend(p.focusSpend)
         : migrateLoadout(Array.isArray(p.genusLoadout) ? p.genusLoadout : [], typeof p.rank === "number" ? p.rank : 0),
+      // Talent Holder's bank and its anti-farm ratchet. BOTH must survive a
+      // reload: without focusBonus the rolled point is destroyed, and without
+      // focusBonusRank the ratchet re-derives from the current rank, so the same
+      // rank pays out all over again next session.
+      focusBonus: typeof p.focusBonus === "number" ? p.focusBonus : undefined,
+      focusBonusRank: typeof p.focusBonusRank === "number" ? p.focusBonusRank : undefined,
       weaponLoadout: Array.isArray(p.weaponLoadout) ? p.weaponLoadout : [],
       gearLoadout: Array.isArray(p.gearLoadout) ? p.gearLoadout : [],
       ssSpent: typeof p.ssSpent === "number" ? p.ssSpent : 0,

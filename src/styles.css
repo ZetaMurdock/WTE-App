@@ -8070,7 +8070,7 @@ body.wte-dot-cursor * {
   max-height: 88vh;
   overflow: auto;
   padding: 16px 18px 18px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--panel-line);
   border-radius: 12px;
   background: var(--panel);
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
@@ -8084,9 +8084,9 @@ body.wte-dot-cursor * {
 }
 .contest-side {
   padding: 10px 12px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--panel-line);
   border-radius: 10px;
-  background: var(--panel-2);
+  background: var(--bar);
   min-width: 0;
 }
 .contest-side.mine {
@@ -8107,7 +8107,7 @@ body.wte-dot-cursor * {
   color: var(--muted);
 }
 .contest-focus b {
-  color: var(--text);
+  color: var(--ink);
   font-size: 1.05rem;
 }
 .contest-borrowed {
@@ -8120,6 +8120,7 @@ body.wte-dot-cursor * {
   letter-spacing: 0.08em;
 }
 .contest-grid {
+  margin-top: 10px;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
@@ -8134,8 +8135,8 @@ body.wte-dot-cursor * {
   margin-top: 12px;
   padding: 10px 12px;
   border-radius: 10px;
-  border: 1px solid var(--line);
-  background: var(--panel-2);
+  border: 1px solid var(--panel-line);
+  background: var(--bar);
 }
 .contest-out.won {
   border-color: #2f7d5b;
@@ -8174,7 +8175,7 @@ body.wte-dot-cursor * {
   display: inline-block;
   margin-left: 6px;
   padding: 1px 7px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--panel-line);
   border-radius: 999px;
   font-size: 0.72rem;
   color: var(--muted);

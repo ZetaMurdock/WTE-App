@@ -225,12 +225,16 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   }
   function setRank(v: number) {
     const next = Math.max(0, Math.min(RANK_MAX, v));
-    // Hyomen's Talent Holder rolls once per rank GAINED. focusBonusRank starts at
-    // wherever the sheet already is, so an existing rank-4 character isn't paid
-    // out four times retroactively — and because it only ever climbs, dropping
-    // rank and raising it again cannot farm the bonus.
+    // Hyomen's Talent Holder rolls once per rank GAINED, ever. focusBonusRank is
+    // a high-water mark: it is written on EVERY rank change and only ever climbs,
+    // so a given rank number can pay out exactly once for the life of the
+    // character. That is what makes the payout safe on a number input — clearing
+    // the field reads as rank 0, and typing the old number back pays nothing.
+    // It also means an existing high-rank character is not paid out retroactively
+    // when they first take the incept.
+    const ratchet = Math.max(rankRolledFor, next);
     if (!hasTalentHolder || next <= rankRolledFor) {
-      persist({ ...rec!, sheet: { ...sheet, rank: next } });
+      persist({ ...rec!, sheet: { ...sheet, rank: next, focusBonusRank: ratchet } });
       return;
     }
     let gained = 0;
@@ -242,7 +246,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
     }
     persist({
       ...rec!,
-      sheet: { ...sheet, rank: next, focusBonus: focusBonus + gained, focusBonusRank: next },
+      sheet: { ...sheet, rank: next, focusBonus: focusBonus + gained, focusBonusRank: ratchet },
     });
     void doRoll({
       formula: `Talent Holder · rank ${rankRolledFor} → ${next}`,
@@ -732,6 +736,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                     innateChoice={sheet.innateChoice}
                     rank={rank}
                     spend={spend}
+                    bonusFocus={focusBonus}
                     cipherLoadout={cipherLoadout}
                     onSpend={setSpend}
                     onCiphers={setCiphers}
@@ -779,9 +784,12 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                           {i.name === "Earth Mold" && (
                             <span
                               className="incept-derived"
-                              title={`${focusSpentTotal} Focus spent · half NC mod (${derived.ncMod}) + Control mod (${specRollMod(effSpec.ctrl)}) per two levels`}
+                              title={
+                                `${focusSpentTotal} Focus spent = ${Math.floor(focusSpentTotal / 2)} steps · ` +
+                                `half NC mod (${Math.floor(derived.ncMod / 2)}) + Control mod (${rollMod(effSpec.ctrl)}) per step`
+                              }
                             >
-                              Range {earthMoldRange(focusSpentTotal, derived.ncMod, specRollMod(effSpec.ctrl))} ft
+                              Range {earthMoldRange(focusSpentTotal, derived.ncMod, rollMod(effSpec.ctrl))} ft
                             </span>
                           )}
                           {i.name === "Talent Holder" && (
