@@ -1,6 +1,7 @@
 // SQLite access via tauri-plugin-sql. Only usable inside the desktop app;
 // callers must gate on sqlAvailable() and fall back to localStorage otherwise.
 import Database from "@tauri-apps/plugin-sql";
+import { invoke } from "@tauri-apps/api/core";
 import { isTauri } from "./tauri";
 
 const DB_URL = "sqlite:wte.db";
@@ -8,6 +9,92 @@ let dbPromise: Promise<Database> | null = null;
 
 export function sqlAvailable(): boolean {
   return isTauri();
+}
+
+export interface MigrationGate {
+  ok: boolean;
+  reason?: string | null;
+  backup_dir?: string | null;
+  schema_version: number;
+}
+
+/** The last gate answer, so Diagnostics can show it without re-asking. */
+let lastGate: MigrationGate | null = null;
+export function lastMigrationGate(): MigrationGate | null {
+  return lastGate;
+}
+
+/** Thrown instead of opening a database this build would irreversibly upgrade. */
+export class BackupRequiredError extends Error {
+  constructor(
+    readonly reason: string,
+    readonly schemaVersion: number
+  ) {
+    super(
+      "W.T.E did not open your data, because it could not first make a backup copy of it. " +
+        reason +
+        " Nothing has been changed. Close every W.T.E window and start the app again."
+    );
+    this.name = "BackupRequiredError";
+  }
+}
+
+/**
+ * Ask Rust whether the pre-upgrade backup succeeded, and refuse to continue if not.
+ *
+ * Loading the database is what applies the schema migration, and a v5 database
+ * cannot be opened by a build that only knows v4 — so the last moment a backup is
+ * worth anything is before this call. The old routine reported failures to stderr
+ * and let the migration run anyway, which is a backup in name only.
+ *
+ * A build without the command (an older shell, or the dev browser) answers with an
+ * error rather than a verdict; that is treated as open, because refusing to start
+ * would be a worse failure than the one being guarded against.
+ */
+async function checkMigrationGate(): Promise<void> {
+  if (!isTauri()) return;
+  let gate: MigrationGate;
+  try {
+    gate = await invoke<MigrationGate>("wte_migration_gate");
+  } catch {
+    return; // command not present in this build
+  }
+  lastGate = gate;
+  if (!gate.ok) throw new BackupRequiredError(gate.reason || "The backup could not be verified.", gate.schema_version);
+}
+
+/**
+ * Ask the gate directly, for the boot screen. Never throws and never hangs.
+ *
+ * Returns null when there is nothing to report — not in the desktop app, an older
+ * shell without the command, or an answer that did not arrive. A gate that cannot
+ * answer must not become a second way for the app to sit on "Loading..." forever,
+ * which is the exact failure this whole mechanism exists to prevent.
+ */
+export async function probeMigrationGate(): Promise<MigrationGate | null> {
+  if (!isTauri()) return null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const gate = await Promise.race([
+      invoke<MigrationGate>("wte_migration_gate"),
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), 5000);
+      }),
+    ]);
+    if (!gate) return null;
+    lastGate = gate;
+    return gate;
+  } catch {
+    return null;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/** Test seam: forget the cached handle and the last gate answer. */
+export function __resetDbForTests(): void {
+  dbPromise = null;
+  lastGate = null;
 }
 
 /**
@@ -26,6 +113,8 @@ export function sqlAvailable(): boolean {
 export function getDb(): Promise<Database> {
   if (!dbPromise) {
     dbPromise = (async () => {
+      // Before the handle exists, because opening it is what migrates it.
+      await checkMigrationGate();
       const db = await Database.load(DB_URL);
       await migrateFromLocalStorage(db);
       return db;

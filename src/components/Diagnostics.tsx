@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Campaign } from "../models/campaign";
-import { getDb, sqlAvailable } from "../lib/db";
+import { getDb, sqlAvailable, lastMigrationGate } from "../lib/db";
 import { listQuarantined } from "../lib/localJson";
 import { migrationStatus } from "../lib/campaignStore";
 import { pushToast } from "../lib/appToast";
@@ -108,6 +108,7 @@ export function Diagnostics({ campaign }: Props) {
     void scan();
   }, [scan]);
 
+  const gate = lastMigrationGate();
   const migration = campaign ? migrationStatus(campaign.id) : [];
   const pending = migration.filter((m) => !m.migrated);
 
@@ -120,6 +121,14 @@ export function Diagnostics({ campaign }: Props) {
           The database could not be opened: {dbError}
           <br />
           Close any other copy of W.T.E and use Re-scan. Nothing has been changed.
+        </p>
+      )}
+
+      {/* Where to go back to. A restore point nobody can find is not one. */}
+      {gate?.backup_dir && (
+        <p className="diag-hint">
+          A copy of your data from before this version's storage upgrade is kept at <code>{gate.backup_dir}</code>. To go
+          back to an older W.T.E, close the app and copy those files over the originals.
         </p>
       )}
 

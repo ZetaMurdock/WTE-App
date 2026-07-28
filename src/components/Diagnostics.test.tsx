@@ -7,7 +7,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
-vi.mock("../lib/db", () => ({ getDb: async () => ({ select: async () => [] }), sqlAvailable: () => false }));
+vi.mock("../lib/db", () => ({
+  getDb: async () => ({ select: async () => [] }),
+  sqlAvailable: () => false,
+  lastMigrationGate: () => ({ ok: true, backup_dir: "C:/AppData/com.wte.tabletop/backup-pre-v5", schema_version: 5 }),
+}));
 vi.mock("../lib/localJson", () => ({
   listQuarantined: () => [{ key: "wte-desk-notes:c1.corrupt.1700000000000", original: "wte-desk-notes:c1", at: 1700000000000, bytes: 128 }],
 }));
@@ -26,6 +30,13 @@ const campaign = { id: "c1", name: "Ashen Sun", createdAt: 1, updatedAt: 2, arch
 describe("the diagnostics screen", () => {
   it("renders without throwing", () => {
     expect(() => renderToStaticMarkup(<Diagnostics campaign={campaign} />)).not.toThrow();
+  });
+
+  it("tells you where the pre-upgrade restore point is", () => {
+    // A restore point nobody can find is not one.
+    const html = renderToStaticMarkup(<Diagnostics campaign={campaign} />);
+    expect(html).toContain("backup-pre-v5");
+    expect(html).toMatch(/copy those files over the originals/i);
   });
 
   it("renders with no campaign selected", () => {

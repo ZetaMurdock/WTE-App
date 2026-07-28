@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use serde::Serialize;
 use tauri::Manager;
 
+mod backup;
 mod net;
 
 // Desktop Google sign-in (loopback flow): open the system browser to Google's
@@ -730,35 +731,67 @@ const SCHEMA_VERSION: u32 = 5;
 /// Copy the database once, before a schema upgrade it cannot be rolled back from.
 ///
 /// Runs in `setup`, before any JS calls Database::load, so nothing has the file
-/// open and a plain copy is consistent. The -wal and -shm siblings come too: a
-/// database whose WAL is left behind is not the same database.
+/// open and a plain copy is consistent. The copying, verification and atomic
+/// publication live in `backup.rs`; this only locates the folder and records the
+/// verdict where the frontend can find it.
 ///
 /// Keyed on the target version, so each upgrade leaves its own restore point and a
 /// later one never overwrites the copy taken before an earlier one.
-fn backup_before_schema_upgrade(app: &tauri::AppHandle) {
-    let Ok(dir) = app.path().app_data_dir() else { return };
-    let db = dir.join("wte.db");
-    if !db.exists() {
-        return; // fresh install: nothing to preserve
+fn backup_before_schema_upgrade(app: &tauri::AppHandle) -> backup::BackupOutcome {
+    let Ok(dir) = app.path().app_data_dir() else {
+        return backup::BackupOutcome::Failed("could not locate the W.T.E data folder".into());
+    };
+    if let Err(e) = std::fs::create_dir_all(&dir) {
+        return backup::BackupOutcome::Failed(format!("could not open the W.T.E data folder: {e}"));
     }
-    let backup = dir.join(format!("wte.db.backup-pre-v{SCHEMA_VERSION}"));
-    if backup.exists() {
-        return; // already taken for this version
-    }
-    // Only back up when this database predates the upgrade. sqlx keeps its applied
-    // list in _sqlx_migrations; if the read fails we back up anyway, because a
-    // needless copy is far cheaper than a missing one.
-    for (from, to) in [
-        (db.clone(), backup.clone()),
-        (dir.join("wte.db-wal"), dir.join(format!("wte.db-wal.backup-pre-v{SCHEMA_VERSION}"))),
-        (dir.join("wte.db-shm"), dir.join(format!("wte.db-shm.backup-pre-v{SCHEMA_VERSION}"))),
-    ] {
-        if from.exists() {
-            if let Err(e) = std::fs::copy(&from, &to) {
-                eprintln!("[wte] pre-upgrade backup of {from:?} failed: {e}");
-                // A failed backup must not block the app, but it must be visible.
-            }
+    let outcome = backup::run_backup(&dir, SCHEMA_VERSION);
+    match &outcome {
+        backup::BackupOutcome::Failed(why) => {
+            eprintln!("[wte] pre-upgrade backup FAILED, refusing to migrate: {why}")
         }
+        other => eprintln!("[wte] pre-upgrade backup: {other:?}"),
+    }
+    outcome
+}
+
+/// The database gate. The frontend asks before it opens the database, and a closed
+/// gate means the schema upgrade is not allowed to run.
+///
+/// This is the piece the old routine lacked: it copied, it failed, it printed to a
+/// console nobody reads, and then the migration proceeded anyway. Reporting a
+/// failure only matters if something acts on it.
+#[derive(Serialize)]
+struct MigrationGateReport {
+    /// May the app open (and therefore migrate) the database?
+    ok: bool,
+    /// Present only when it may not. Written for a person, not a log.
+    reason: Option<String>,
+    /// Where the restore point is, when one was taken.
+    backup_dir: Option<String>,
+    schema_version: u32,
+}
+
+#[tauri::command]
+fn wte_migration_gate(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, backup::MigrationGate>,
+) -> MigrationGateReport {
+    let outcome = state
+        .0
+        .lock()
+        .ok()
+        .and_then(|g| g.clone())
+        // Setup not having run is not a reason to assume the best.
+        .unwrap_or_else(|| backup::BackupOutcome::Failed("the startup check did not complete".into()));
+    let dir = app.path().app_data_dir().ok();
+    MigrationGateReport {
+        ok: outcome.is_safe_to_migrate(),
+        reason: outcome.reason(),
+        backup_dir: match (&outcome, dir) {
+            (backup::BackupOutcome::Failed(_), _) | (_, None) => None,
+            (_, Some(d)) => Some(d.join(format!("backup-pre-v{SCHEMA_VERSION}")).to_string_lossy().into_owned()),
+        },
+        schema_version: SCHEMA_VERSION,
     }
 }
 
@@ -840,9 +873,16 @@ fn main() {
         // holds the file and BEFORE sqlx applies a migration an older build cannot
         // read. Without this, upgrading is a one-way door.
         .setup(|app| {
-            backup_before_schema_upgrade(&app.handle());
+            let outcome = backup_before_schema_upgrade(&app.handle());
+            // Publish the verdict BEFORE the database can be opened. getDb() asks for
+            // it and refuses to load when it is Failed, so a backup that did not
+            // happen stops the one-way migration instead of merely preceding it.
+            if let Ok(mut gate) = app.state::<backup::MigrationGate>().0.lock() {
+                *gate = Some(outcome);
+            }
             Ok(())
         })
+        .manage(backup::MigrationGate::default())
         .manage(net::NetState::default())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
@@ -863,6 +903,7 @@ fn main() {
             wte_save_page,
             wte_delete_page,
             wte_export_campaign,
+            wte_migration_gate,
             open_external,
             net::net_advertise,
             net::net_unadvertise,
