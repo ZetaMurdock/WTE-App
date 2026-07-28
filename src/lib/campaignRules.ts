@@ -6,6 +6,7 @@
 // the characters that no longer fit.
 
 import { SPEC_TOTAL } from "../game/wte";
+import { isRecord, readJson, writeJson } from "./localJson";
 
 export interface CampaignRules {
   /** Cap the SUM of a character's attributes. Off by default: attributes are
@@ -67,21 +68,18 @@ export function sheetCaps(rules: CampaignRules): { specTotal: number; attrTotal?
   return { specTotal: rules.specTotal, attrTotal: rules.attrBudget ? rules.attrBudgetPoints : undefined };
 }
 
+// These are NOT preferences: derivedRules() feeds computeDerived, so a lost value
+// silently changes every character's derived pools, and sheetCaps() feeds
+// validateSheet, so characters that were legal become over budget. Falling back to
+// published defaults without saying so is the worst option, hence the guard.
 export function loadRules(campaignId: string): CampaignRules {
-  try {
-    return parseRules(JSON.parse(localStorage.getItem(key(campaignId)) || "{}"));
-  } catch {
-    return { ...DEFAULT_RULES };
-  }
+  const r = readJson<unknown>(key(campaignId), {}, { validate: isRecord, label: "campaign rules" });
+  return parseRules(r.value);
 }
 
 export function saveRules(campaignId: string, rules: CampaignRules): CampaignRules {
   const clean = parseRules(rules);
-  try {
-    localStorage.setItem(key(campaignId), JSON.stringify(clean));
-  } catch {
-    /* quota / unavailable — the rule simply stays off */
-  }
+  writeJson(key(campaignId), clean, { label: "campaign rules" });
   return clean;
 }
 

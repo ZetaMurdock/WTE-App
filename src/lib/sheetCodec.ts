@@ -143,14 +143,42 @@ export interface SheetParse {
   error?: string;
 }
 
-/** Parse the stored `data` column. Never throws. */
+/**
+ * Parse the stored `data` column. Never throws.
+ *
+ * A JSON syntax error is NOT the only way a row can be damaged, and the first
+ * version of this function only caught that one — which meant the guard missed the
+ * most probable corruption of all. Two more shapes are treated as corrupt:
+ *
+ *   - AN EMPTY STRING. A zero-length blob is what an interrupted or failed write
+ *     leaves behind, so it is damage, not absence. Only `null` means "this row
+ *     genuinely has no sheet yet"; every row this app creates is written with a
+ *     serialized object, so "" can never be legitimate.
+ *   - VALID JSON THAT IS NOT AN OBJECT. `null`, `5`, `false`, `"str"` and `[1,2]`
+ *     all parse without throwing. Coercing them to {} produced a complete blank
+ *     rank-0 sheet that reported corrupt:false, so the write guard let the autosave
+ *     replace the real row with it.
+ */
 export function parseSheetSafe(raw: string | null): SheetParse {
-  if (!raw) return { sheet: emptySheet(), corrupt: false };
+  if (raw === null || raw === undefined) return { sheet: emptySheet(), corrupt: false };
+  if (raw === "") {
+    return { sheet: emptySheet(), corrupt: true, raw, error: "the stored sheet was empty (an interrupted write)" };
+  }
+  let parsed: unknown;
   try {
-    return { sheet: sheetFromJson(JSON.parse(raw)), corrupt: false };
+    parsed = JSON.parse(raw);
   } catch (e) {
     return { sheet: emptySheet(), corrupt: true, raw, error: e instanceof Error ? e.message : String(e) };
   }
+  if (!isObj(parsed)) {
+    return {
+      sheet: emptySheet(),
+      corrupt: true,
+      raw,
+      error: `the stored sheet was ${Array.isArray(parsed) ? "an array" : typeof parsed}, not a character`,
+    };
+  }
+  return { sheet: sheetFromJson(parsed), corrupt: false };
 }
 
 /** The stored form of a sheet. */

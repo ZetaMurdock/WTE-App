@@ -148,3 +148,45 @@ describe("malformed and hostile records do not destroy data", () => {
     expect(sheetFromJson({ morality: Number.POSITIVE_INFINITY }).morality).toBeUndefined();
   });
 });
+
+describe("every corruption shape is caught, not just a syntax error", () => {
+  // The first version of parseSheetSafe only flagged JSON syntax errors, so six
+  // other shapes reported corrupt:false and produced a blank sheet the write guard
+  // then let the autosave persist over the real row.
+  it("treats a zero-length blob as damage, not as a new character", () => {
+    // This is what an interrupted or failed write leaves behind — the single most
+    // likely corruption in practice.
+    const r = parseSheetSafe("");
+    expect(r.corrupt).toBe(true);
+    expect(r.raw).toBe("");
+    expect(r.error).toMatch(/empty/i);
+  });
+
+  it("treats valid JSON that is not an object as damage", () => {
+    for (const raw of ["null", "5", "false", '"a string"', "[1,2]", "[]"]) {
+      const r = parseSheetSafe(raw);
+      expect(r.corrupt, raw).toBe(true);
+      expect(r.raw, raw).toBe(raw);
+      expect(r.error, raw).toBeTruthy();
+    }
+  });
+
+  it("names what it found so the recovery screen can explain it", () => {
+    expect(parseSheetSafe("[1,2]").error).toMatch(/array/);
+    expect(parseSheetSafe("5").error).toMatch(/number/);
+    expect(parseSheetSafe("null").error).toMatch(/object/);
+  });
+
+  it("still treats a genuinely absent column as a new character", () => {
+    const r = parseSheetSafe(null);
+    expect(r.corrupt).toBe(false);
+    expect(r.raw).toBeUndefined();
+  });
+
+  it("still accepts a real sheet", () => {
+    const r = parseSheetSafe('{"rank":4,"notes":"real","morality":80}');
+    expect(r.corrupt).toBe(false);
+    expect(r.sheet.rank).toBe(4);
+    expect(r.sheet.morality).toBe(80);
+  });
+});

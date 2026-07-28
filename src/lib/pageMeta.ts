@@ -3,6 +3,8 @@
 // localStorage (keyed by page stem) — same locality as the pages themselves (App
 // Data rules overlay); can move to a shared/campaign store later.
 
+import { isRecord, readJson, writeJson } from "./localJson";
+
 export interface PageMeta {
   /** Feeds the character sheet + VTT catalogs (data-driven pull). */
   pulled: boolean;
@@ -17,23 +19,40 @@ export const DEFAULT_PAGE_META: PageMeta = { pulled: true, visibility: "player" 
 
 const KEY = "wte-page-meta";
 
+/** Used for an unknown page when the stored metadata could NOT be read.
+ *
+ *  The old `catch { return {} }` failed OPEN: an empty map means every page falls
+ *  back to DEFAULT_PAGE_META, which is `visibility: "player"`. So one malformed
+ *  byte published every GM-only Codex page to the table. A Curator's secrets are
+ *  the last thing that should default to visible, so a read failure now fails
+ *  CLOSED until it is resolved. */
+const FAIL_CLOSED_META: PageMeta = { pulled: true, visibility: "gm" };
+
+/** Set when the last read found damaged content. */
+let unreadable = false;
+
+/** Whether visibility is currently being forced closed by a read failure, so the
+ *  Codex can explain why every page suddenly reads GM-only. */
+export function pageMetaUnreadable(): boolean {
+  return unreadable;
+}
+
 function readAll(): Record<string, PageMeta> {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return {};
-    const obj = JSON.parse(raw) as Record<string, Partial<PageMeta>>;
-    const out: Record<string, PageMeta> = {};
-    for (const [k, v] of Object.entries(obj)) {
-      out[k] = {
-        pulled: v.pulled !== false,
-        visibility: v.visibility === "gm" ? "gm" : "player",
-        label: typeof v.label === "string" && v.label.trim() ? v.label : undefined,
-      };
-    }
-    return out;
-  } catch {
-    return {};
+  const r = readJson<Record<string, Partial<PageMeta>>>(KEY, {}, {
+    validate: isRecord,
+    label: "Codex page settings",
+  });
+  unreadable = r.corrupt;
+  const out: Record<string, PageMeta> = {};
+  for (const [k, v] of Object.entries(r.value)) {
+    if (!v || typeof v !== "object") continue;
+    out[k] = {
+      pulled: v.pulled !== false,
+      visibility: v.visibility === "gm" ? "gm" : "player",
+      label: typeof v.label === "string" && v.label.trim() ? v.label : undefined,
+    };
   }
+  return out;
 }
 
 export function allPageMeta(): Record<string, PageMeta> {
@@ -41,16 +60,18 @@ export function allPageMeta(): Record<string, PageMeta> {
 }
 
 export function getPageMeta(stem: string, all?: Record<string, PageMeta>): PageMeta {
-  return (all ?? readAll())[stem] ?? DEFAULT_PAGE_META;
+  const map = all ?? readAll();
+  const hit = map[stem];
+  if (hit) return hit;
+  // No entry for this page. If the store read cleanly, "player" is the intended
+  // default for a page nobody has classified. If it did NOT, we cannot know
+  // whether this page was marked GM-only, so we must assume it was.
+  return unreadable ? FAIL_CLOSED_META : DEFAULT_PAGE_META;
 }
 
 export function setPageMeta(stem: string, patch: Partial<PageMeta>): Record<string, PageMeta> {
   const all = readAll();
   all[stem] = { ...(all[stem] ?? DEFAULT_PAGE_META), ...patch };
-  try {
-    localStorage.setItem(KEY, JSON.stringify(all));
-  } catch {
-    /* ignore quota */
-  }
+  writeJson(KEY, all, { label: "Codex page settings" });
   return all;
 }

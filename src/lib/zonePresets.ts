@@ -2,6 +2,7 @@
 // Contract (see ZoneLayer.buildZoneFragment): set `col` (vec3) and `alpha`
 // (float) from `mask` (feathered 0..1), `pc` (world cell coords), `uTime` (s).
 import { ZONE_DEFAULT_BODIES } from "../vtt/engine/layers/ZoneLayer";
+import { isArray, readJson, writeJson } from "./localJson";
 
 export interface ZonePreset {
   name: string;
@@ -35,11 +36,7 @@ const BUILTINS: ZonePreset[] = [
 ];
 
 function readUser(): ZonePreset[] {
-  try {
-    return (JSON.parse(localStorage.getItem(KEY) || "[]") as ZonePreset[]) || [];
-  } catch {
-    return [];
-  }
+  return readJson<ZonePreset[]>(KEY, [], { validate: isArray, label: "zone presets" }).value;
 }
 export function listZonePresets(): ZonePreset[] {
   return [...BUILTINS, ...readUser()];
@@ -50,16 +47,8 @@ export function isBuiltinZonePreset(name: string): boolean {
 export function saveZonePreset(name: string, body: string): void {
   const user = readUser().filter((p) => p.name.toLowerCase() !== name.toLowerCase());
   user.push({ name, body });
-  try {
-    localStorage.setItem(KEY, JSON.stringify(user));
-  } catch {
-    /* storage full — preset stays in-session only */
-  }
+  writeJson(KEY, user, { label: "zone presets" });
 }
 export function deleteZonePreset(name: string): void {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(readUser().filter((p) => p.name.toLowerCase() !== name.toLowerCase())));
-  } catch {
-    /* ignore */
-  }
+  writeJson(KEY, readUser().filter((p) => p.name.toLowerCase() !== name.toLowerCase()), { label: "zone presets" });
 }

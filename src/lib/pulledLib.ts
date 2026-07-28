@@ -5,6 +5,7 @@
 // Pure status logic up top (unit-tested); localStorage wrappers below.
 
 import type { PublishedPage } from "./publishedPages";
+import { isRecord, readJson, writeJson } from "./localJson";
 
 export type LibStatus = "new" | "updated" | "current";
 
@@ -27,21 +28,11 @@ export function stalePulled(pages: PublishedPage[], pulled: PulledMap): Publishe
 const KEY = "wte-pulled-lib";
 
 export function getPulledMap(): PulledMap {
-  try {
-    const raw = localStorage.getItem(KEY);
-    const obj = raw ? (JSON.parse(raw) as PulledMap) : {};
-    return obj && typeof obj === "object" ? obj : {};
-  } catch {
-    return {};
-  }
+  return readJson<PulledMap>(KEY, {}, { validate: isRecord, label: "library pull history" }).value;
 }
 
 export function markPulled(stem: string, at: number): void {
   const map = getPulledMap();
   map[stem] = at;
-  try {
-    localStorage.setItem(KEY, JSON.stringify(map));
-  } catch {
-    /* quota — status tracking just degrades to "new" */
-  }
+  writeJson(KEY, map, { label: "library pull history" });
 }

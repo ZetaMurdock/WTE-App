@@ -4,6 +4,8 @@
 // their `folderId` inside the sheet JSON. Pure tree logic is unit-tested; the
 // localStorage wrappers live at the bottom.
 
+import { isArray, readJson, writeJson } from "./localJson";
+
 export interface CharFolder {
   id: string;
   name: string;
@@ -87,20 +89,17 @@ export function pathLabel(list: CharFolder[], id: string | null | undefined, sep
 const key = (campaignId: string) => `wte-char-folders:${campaignId}`;
 
 export function listFolders(campaignId: string): CharFolder[] {
-  try {
-    const raw = localStorage.getItem(key(campaignId));
-    const list = raw ? (JSON.parse(raw) as CharFolder[]) : [];
-    return Array.isArray(list) ? list.filter((f) => f && typeof f.id === "string" && typeof f.name === "string") : [];
-  } catch {
-    return [];
-  }
+  // Guarded: this returned [] on damage and saveFolders then wrote over the
+  // original bytes, so a corrupt tree read as "no folders" and the next edit made
+  // that permanent.
+  const list = readJson<CharFolder[]>(key(campaignId), [], {
+    validate: isArray,
+    label: "vault folders",
+  }).value;
+  return list.filter((f) => f && typeof f.id === "string" && typeof f.name === "string");
 }
 
 export function saveFolders(campaignId: string, list: CharFolder[]): CharFolder[] {
-  try {
-    localStorage.setItem(key(campaignId), JSON.stringify(list.slice(0, 500)));
-  } catch {
-    /* storage unavailable — folders just aren't remembered */
-  }
+  writeJson(key(campaignId), list.slice(0, 500), { label: "vault folders" });
   return list;
 }

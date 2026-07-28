@@ -2,25 +2,20 @@
 // Phase 4 migrates structured data (campaigns, characters, scenes, …) to SQLite.
 // Only lightweight UI prefs should stay in localStorage long-term.
 import type { Campaign } from "../models/campaign";
+import { readJson, writeJson } from "./localJson";
 
 const CAMPAIGNS_KEY = "wte-campaigns";
 const ACTIVE_KEY = "wte-active-campaign";
 
+// Guarded. Both halves used to swallow their failure: a corrupt campaign list read
+// as "you have no campaigns", and the next create/rename/archive wrote over the
+// original bytes — while a full quota reported success having saved nothing.
 function read<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
+  return readJson<T>(key, fallback, { label: "campaign list" }).value;
 }
 
 function write(key: string, value: unknown): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    /* storage full / unavailable — non-fatal */
-  }
+  writeJson(key, value, { label: "campaign list" });
 }
 
 function newId(): string {

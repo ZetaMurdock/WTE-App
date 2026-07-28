@@ -8,6 +8,7 @@
 
 import { clampShrives } from "../game/money";
 import { parseInventory, type InvItem } from "../game/tableInventory";
+import { isArray, readJson, writeJson } from "../lib/localJson";
 
 export interface TableLink {
   room: string;
@@ -26,21 +27,21 @@ export interface TableLink {
 
 const KEY = "wte-table-links";
 
+// Guarded. A table link holds the player's purse (in Shrives) and their carried
+// inventory, and this device is the ONLY place either exists — the Curator's
+// database has no copy to restore from. Returning [] on damage and then writing
+// over it is the difference between "my money is gone" and being able to get it
+// back.
 function readAll(): TableLink[] {
-  try {
-    const raw = JSON.parse(localStorage.getItem(KEY) || "[]");
-    return Array.isArray(raw) ? raw.filter((t) => t && typeof t.room === "string") : [];
-  } catch {
-    return [];
-  }
+  const list = readJson<TableLink[]>(KEY, [], {
+    validate: isArray,
+    label: "table links (purse and inventory)",
+  }).value;
+  return list.filter((t) => t && typeof t.room === "string");
 }
 
 function writeAll(list: TableLink[]): TableLink[] {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(list.slice(0, 40)));
-  } catch {
-    /* storage unavailable — the link just isn't remembered */
-  }
+  writeJson(KEY, list.slice(0, 40), { label: "table links (purse and inventory)" });
   return list;
 }
 

@@ -20,6 +20,7 @@ import {
   type CharFolder,
 } from "./charFolders";
 import type { DeskNoteKind } from "./campaignDesk";
+import { isArray, readJson, writeJson } from "./localJson";
 
 /** A note folder is the same shape as a vault folder — id, name, parent. */
 export type NoteFolder = CharFolder;
@@ -30,22 +31,15 @@ export { addFolder, renameFolder, moveFolder, removeFolder, descendantIds, folde
 const key = (campaignId: string, kind: DeskNoteKind) => `wte-note-folders:${kind}:${campaignId}`;
 
 export function listNoteFolders(campaignId: string, kind: DeskNoteKind): NoteFolder[] {
-  try {
-    const raw = JSON.parse(localStorage.getItem(key(campaignId, kind)) || "[]");
-    return Array.isArray(raw)
-      ? raw.filter((f) => f && typeof f.id === "string" && typeof f.name === "string")
-      : [];
-  } catch {
-    return [];
-  }
+  const list = readJson<NoteFolder[]>(key(campaignId, kind), [], {
+    validate: isArray,
+    label: "note folders",
+  }).value;
+  return list.filter((f) => f && typeof f.id === "string" && typeof f.name === "string");
 }
 
 export function saveNoteFolders(campaignId: string, kind: DeskNoteKind, list: NoteFolder[]): NoteFolder[] {
-  try {
-    localStorage.setItem(key(campaignId, kind), JSON.stringify(list.slice(0, 200)));
-  } catch {
-    /* storage unavailable — the tree just isn't remembered */
-  }
+  writeJson(key(campaignId, kind), list.slice(0, 200), { label: "note folders" });
   return list;
 }
 

@@ -1,5 +1,6 @@
 // Reusable height-fog / custom-shader presets (localStorage, global across scenes).
 import type { VttShader } from "../vtt/types/scene";
+import { isArray, readJson, writeJson } from "./localJson";
 
 export interface ShaderPreset {
   name: string;
@@ -95,11 +96,7 @@ const BUILTINS: ShaderPreset[] = [
 ];
 
 function readUser(): ShaderPreset[] {
-  try {
-    return (JSON.parse(localStorage.getItem(KEY) || "[]") as ShaderPreset[]) || [];
-  } catch {
-    return [];
-  }
+  return readJson<ShaderPreset[]>(KEY, [], { validate: isArray, label: "shader presets" }).value;
 }
 export function listShaderPresets(): ShaderPreset[] {
   return [...BUILTINS, ...readUser()];
@@ -107,18 +104,10 @@ export function listShaderPresets(): ShaderPreset[] {
 export function saveShaderPreset(name: string, shader: VttShader): void {
   const user = readUser().filter((p) => p.name.toLowerCase() !== name.toLowerCase());
   user.push({ name, shader });
-  try {
-    localStorage.setItem(KEY, JSON.stringify(user));
-  } catch {
-    /* ignore */
-  }
+  writeJson(KEY, user, { label: "shader presets" });
 }
 export function deleteShaderPreset(name: string): void {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(readUser().filter((p) => p.name !== name)));
-  } catch {
-    /* ignore */
-  }
+  writeJson(KEY, readUser().filter((p) => p.name !== name), { label: "shader presets" });
 }
 export function isBuiltinPreset(name: string): boolean {
   return BUILTINS.some((p) => p.name === name);

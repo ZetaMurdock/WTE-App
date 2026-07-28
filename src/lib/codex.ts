@@ -7,28 +7,25 @@ import gearData from "../game/data/gear.json";
 import { parseCodexEntry } from "./codexParse";
 import { parseEquipMods, mergeMods, WEIGHT_CATS, getParadigm, type EquipMods } from "../game/wte";
 import { isTauri } from "./tauri";
+import { isArray, readJson, writeJson } from "./localJson";
 
 const WEAPONS = weaponsData as Weapon[];
 const GEAR = gearData as Equipment[];
 
 // ── Custom armory: weapon/equipment records added from Codex pages (localStorage).
 // Merged after the baked catalogs so they're equippable in the sheet's Loadout. ──
+// Guarded. This matters more than it looks: sheets reference weapons and gear by
+// NAME, so once the armory is lost getWeapon() returns undefined and the loadout
+// math silently falls back to defaults — the character's slot cost, NC budget and
+// stat mods all change while the name still shows in the list.
 function customList<T>(key: string): T[] {
-  try {
-    return (JSON.parse(localStorage.getItem(key) || "[]") as T[]) || [];
-  } catch {
-    return [];
-  }
+  return readJson<T[]>(key, [], { validate: isArray, label: "custom armory" }).value;
 }
 export function addToArmory(entry: Weapon | Equipment): void {
   const key = entry.type === "weapon" ? "wte-armory-weapons" : "wte-armory-gear";
   const list = customList<Weapon | Equipment>(key).filter((x) => x.name.toLowerCase() !== entry.name.toLowerCase());
   list.push(entry);
-  try {
-    localStorage.setItem(key, JSON.stringify(list));
-  } catch {
-    /* ignore */
-  }
+  writeJson(key, list, { label: "custom armory" });
 }
 // ── Codex-pulled catalog: weapon/gear records from PULLED pages, loaded at boot
 // by lib/gameData. Overlaid between the baked catalogs and the custom armory. ──
