@@ -76,6 +76,7 @@ import {
 import { RollButton } from "./RollButton";
 import { GenusContestPanel } from "./GenusContestPanel";
 import { CorruptSheetNotice } from "./CorruptSheetNotice";
+import { registerSaver } from "../../lib/saveQueue";
 import { BioFields } from "./BioFields";
 import { parseBioFields, type BioField } from "../../lib/bioFields";
 
@@ -112,14 +113,29 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   const saveTimer = useRef<number | undefined>(undefined);
   const pending = useRef<CharacterRecord | null>(null);
 
-  const flush = useCallback(() => {
+  // Returns a promise so flushAll() on app close can actually AWAIT the write.
+  // It used to fire and forget, which meant closing the app dropped whatever was
+  // still inside the 400ms debounce.
+  const flush = useCallback(async (): Promise<void> => {
     window.clearTimeout(saveTimer.current);
     const p = pending.current;
-    if (p) {
-      pending.current = null;
-      void reportSaveFailure(updateCharacter(p.id, { name: p.name, sheet: p.sheet }), "this character").then(onChanged);
-    }
+    if (!p) return;
+    pending.current = null;
+    await reportSaveFailure(updateCharacter(p.id, { name: p.name, sheet: p.sheet }), "this character");
+    onChanged();
   }, [onChanged]);
+
+  // Make this sheet's outstanding write visible to the save indicator and to the
+  // close handler.
+  const saver = useRef<ReturnType<typeof registerSaver> | null>(null);
+  useEffect(() => {
+    const s = registerSaver("this character", () => flush());
+    saver.current = s;
+    return () => {
+      s.unregister();
+      saver.current = null;
+    };
+  }, [flush]);
 
   useEffect(() => {
     let alive = true;
@@ -131,7 +147,13 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
     };
   }, [characterId]);
 
-  useEffect(() => flush, [flush]);
+  // Flush on unmount too — navigating away from the sheet must not lose the last
+  // edit either.
+  useEffect(() => {
+    return () => {
+      void flush();
+    };
+  }, [flush]);
 
   if (!rec) {
     return (
@@ -230,12 +252,18 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   function persist(next: CharacterRecord) {
     setRec(next);
     pending.current = next;
+    saver.current?.markPending();
     window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => {
       const p = pending.current;
       if (!p) return;
       pending.current = null;
-      void reportSaveFailure(updateCharacter(p.id, { name: p.name, sheet: p.sheet }), "this character").then(onChanged);
+      void reportSaveFailure(updateCharacter(p.id, { name: p.name, sheet: p.sheet }), "this character")
+        .then(() => {
+          saver.current?.markSaved();
+          onChanged();
+        })
+        .catch((e) => saver.current?.markFailed(e instanceof Error ? e.message : String(e)));
     }, 400);
   }
   function setAttr(k: AttrKey, v: number) {

@@ -12,6 +12,7 @@ import { VttScreen } from "./vtt/VttScreen";
 import { Boundary } from "./components/ui/Boundary";
 import { CursorDot } from "./components/CursorDot";
 import { AppToasts } from "./components/ui/AppToasts";
+import { SaveStatus } from "./components/ui/SaveStatus";
 import { FirstRun } from "./components/FirstRun";
 import { countCharacters } from "./lib/characters";
 import { loadCodexGameData } from "./lib/gameData";
@@ -27,6 +28,7 @@ import {
 } from "./lib/tauri";
 import { pendingLibraryUpdates } from "./lib/publishedPages";
 import { pushToast } from "./lib/appToast";
+import { installSaveGuards } from "./lib/saveQueue";
 import type { Campaign } from "./models/campaign";
 import {
   listCampaigns,
@@ -168,6 +170,11 @@ export default function App() {
     }
   }, [theme]);
 
+  // Nothing flushed the debounced saves on app close before this.
+  useEffect(() => {
+    installSaveGuards();
+  }, []);
+
   useEffect(() => {
     getVersion().then(setVersion);
     checkUpdate().then(setUpdate);
@@ -290,6 +297,7 @@ export default function App() {
       {wallpaper && <div className="app-wallpaper" style={{ backgroundImage: `url(${wallpaper})` }} />}
       <CursorDot enabled={dotCursor} />
       <AppToasts />
+      <SaveStatus />
       <FirstRun />
       <TopBar
         activeTab={activeTab}

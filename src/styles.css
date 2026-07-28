@@ -8230,3 +8230,66 @@ body.wte-dot-cursor * {
   margin-top: 12px;
   align-items: center;
 }
+
+/* ---- Save status indicator ---- */
+.save-status {
+  position: fixed;
+  right: 14px;
+  bottom: 12px;
+  z-index: 900;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px;
+  border: 1px solid var(--panel-line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.76rem;
+  letter-spacing: 0.02em;
+  cursor: default;
+  opacity: 0.55;
+  transition: opacity 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+.save-status.idle:hover {
+  opacity: 0.9;
+}
+.save-status.pending,
+.save-status.saving {
+  opacity: 1;
+  color: var(--ink);
+  cursor: pointer;
+}
+.save-status.failed {
+  opacity: 1;
+  color: #e0a0a0;
+  border-color: #7d3a3a;
+  cursor: pointer;
+}
+.save-text {
+  white-space: nowrap;
+}
+.save-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex: none;
+}
+.save-status.idle .save-dot {
+  background: #2f7d5b;
+}
+.save-status.pending .save-dot {
+  background: var(--accent);
+}
+.save-status.saving .save-dot {
+  background: var(--accent);
+  animation: save-pulse 900ms ease-in-out infinite;
+}
+.save-status.failed .save-dot {
+  background: #b45050;
+}
+@keyframes save-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
