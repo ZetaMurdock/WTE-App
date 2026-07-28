@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { SEQ_COLORS, SEQ_ICONS, newScript, type Script, type Sequence } from "../../models/sequence";
+import { ConfirmButton } from "../ui/ConfirmButton";
 
 // A Sequence page: knowledge-path editor + its Scripts (guided trails).
 // Everything edits inline and saves on change — templates over blank fields.
@@ -96,9 +97,12 @@ export function SequenceView({ seq, pages, onSave, onDelete, onOpenPage, onBegin
             <button className="icon-btn" onClick={exportPack}>
               Export pack
             </button>
-            <button className="icon-btn" onClick={() => onDelete(seq.id)}>
-              Delete
-            </button>
+            <ConfirmButton
+              className="icon-btn"
+              label="Delete"
+              confirmLabel="Delete this Sequence and all its scripts"
+              onConfirm={() => onDelete(seq.id)}
+            />
           </div>
         </div>
       </div>

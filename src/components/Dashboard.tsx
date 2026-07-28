@@ -10,12 +10,14 @@ interface Props {
   loading: boolean;
   campaign: Campaign | null;
   campaigns: Campaign[];
+  archivedCampaigns?: Campaign[];
   characterCount: number;
   /** Curator mode — unlocks GM screens (Curator notes, calendar editing). */
   curator: boolean;
   onCreate: (name: string) => void;
   onRename: (id: string, name: string) => void;
   onArchive: (id: string) => void;
+  onUnarchive?: (id: string) => void;
   onSelect: (id: string) => void;
   onOpenTool: (tab: TabId) => void;
   onOpenCharacters: () => void;
@@ -26,11 +28,13 @@ export function Dashboard({
   loading,
   campaign,
   campaigns,
+  archivedCampaigns,
   characterCount,
   curator,
   onCreate,
   onRename,
   onArchive,
+  onUnarchive,
   onSelect,
   onOpenTool,
   onOpenCharacters,
@@ -73,9 +77,11 @@ export function Dashboard({
       <div className="dashboard">
         <CampaignPicker
           campaigns={campaigns}
+          archived={archivedCampaigns}
           onCreate={onCreate}
           onRename={onRename}
           onArchive={onArchive}
+          onUnarchive={onUnarchive}
           onSelect={onSelect}
         />
       </div>

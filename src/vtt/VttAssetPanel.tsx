@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import type { AssetKind, VttAsset } from "./data/assetRepo";
 import { fileToPngDataUrl } from "../lib/image";
+import { ConfirmButton } from "../components/ui/ConfirmButton";
 
 interface Props {
   assets: VttAsset[];
@@ -153,9 +154,7 @@ export function VttAssetPanel({
                       To token
                     </button>
                   )}
-                  <button className="icon-btn sm" onClick={() => onDelete(a.id)} title="Delete asset">
-                    ✕
-                  </button>
+                  <ConfirmButton className="icon-btn sm" title="Delete asset" label="✕" confirmLabel="Delete" onConfirm={() => onDelete(a.id)} />
                 </div>
               </div>
             </li>

@@ -8293,3 +8293,19 @@ body.wte-dot-cursor * {
   0%, 100% { opacity: 0.35; }
   50% { opacity: 1; }
 }
+
+/* ---- Archived campaigns (restorable) ---- */
+.archived-block {
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--panel-line);
+}
+.campaign-list.archived {
+  margin-top: 8px;
+  opacity: 0.75;
+}
+.campaign-open.muted {
+  color: var(--muted);
+  cursor: default;
+  text-align: left;
+}

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { CodexNote } from "../../models/note";
+import { ConfirmButton } from "../ui/ConfirmButton";
 
 // Inline note list + editors. Used on every Codex page (attached notes) and by the
 // wte://notes index (all notes, with backlinks to their pages).
@@ -51,9 +52,7 @@ export function NotesPanel({ notes, curator, onSave, onDelete, onOpenPage }: Pro
                 {n.visibility === "gm" ? "GM only" : "Player visible"}
               </button>
             )}
-            <button className="cdx-tab-x" title="Delete note" onClick={() => onDelete(n.id)}>
-              ×
-            </button>
+            <ConfirmButton className="cdx-tab-x" title="Delete note" label="×" confirmLabel="Delete note" onConfirm={() => onDelete(n.id)} />
           </div>
           {n.quote && <blockquote className="note-quote">“{n.quote}”</blockquote>}
           <textarea

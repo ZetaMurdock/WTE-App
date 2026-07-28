@@ -142,6 +142,7 @@ export default function App() {
   }
 
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [archivedCampaigns, setArchivedCampaigns] = useState<Campaign[]>([]);
   const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
   const [loading, setLoading] = useState(true);
   const [charCount, setCharCount] = useState(0);
@@ -149,8 +150,10 @@ export default function App() {
   const bumpChars = useCallback(() => setCharTick((t) => t + 1), []);
 
   const reload = useCallback(async () => {
-    const list = await listCampaigns();
-    setCampaigns(list);
+    // Load BOTH, so archiving is a reversible move rather than a one-way door.
+    const all = await listCampaigns(true);
+    setCampaigns(all.filter((c) => !c.archived));
+    setArchivedCampaigns(all.filter((c) => c.archived));
     const activeId = getActiveCampaignId();
     setActiveCampaign(activeId ? (await getCampaign(activeId)) ?? null : null);
     setLoading(false);
@@ -270,6 +273,15 @@ export default function App() {
     }
   }
 
+  async function handleUnarchive(id: string) {
+    try {
+      await archiveCampaign(id, false);
+      await reload();
+    } catch (e) {
+      reportError("restore campaign", e);
+    }
+  }
+
   async function handleArchive(id: string) {
     try {
       await archiveCampaign(id);
@@ -330,6 +342,8 @@ export default function App() {
               onCreate={handleCreate}
               onRename={handleRename}
               onArchive={handleArchive}
+              onUnarchive={handleUnarchive}
+              archivedCampaigns={archivedCampaigns}
               onSelect={selectCampaign}
               onOpenTool={setActiveTab}
               onOpenCharacters={() => setActiveTab("characters")}

@@ -17,6 +17,7 @@ import {
   type CalKind,
 } from "../lib/campaignDesk";
 import { useNet } from "../net/NetContext";
+import { ConfirmButton } from "../components/ui/ConfirmButton";
 
 function uid(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -219,9 +220,7 @@ function NoteCard({ note, onSave, onDelete, folderOptions }: { note: DeskNote; o
             ))}
           </select>
         )}
-        <button className="cdx-flag" title="Delete note" onClick={() => onDelete(n)}>
-          ×
-        </button>
+        <ConfirmButton className="cdx-flag" title="Delete note" label="×" confirmLabel="Delete note" onConfirm={() => onDelete(n)} />
       </div>
       <textarea
         className="desk-note-body"
@@ -266,9 +265,16 @@ function EventCard({ campaignId, ev, editable, onChanged }: { campaignId: string
           ))}
         </select>
         <input className="bg-select" type="date" value={e.date} onChange={(ev2) => patch({ date: ev2.target.value })} />
-        <button className="cdx-flag" title="Delete entry" onClick={() => { deleteCalEvent(campaignId, e.id); onChanged(); }}>
-          ×
-        </button>
+        <ConfirmButton
+          className="cdx-flag"
+          title="Delete entry"
+          label="×"
+          confirmLabel="Delete entry"
+          onConfirm={() => {
+            deleteCalEvent(campaignId, e.id);
+            onChanged();
+          }}
+        />
       </div>
       <input className="desk-note-title" value={e.title} placeholder="Title…" onChange={(ev2) => patch({ title: ev2.target.value })} />
       <input className="bg-select full" value={e.inWorld} placeholder="In-world date (e.g. Year 3261 · Cycle 4)" onChange={(ev2) => patch({ inWorld: ev2.target.value })} />

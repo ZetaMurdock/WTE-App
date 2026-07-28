@@ -4,6 +4,7 @@ import { groupSounds, soundDisplayName, soundNameFromFile } from "./data/soundLi
 import { getMasterVolume } from "../lib/audioPrefs";
 import { useNet } from "../net/NetContext";
 import { reportSaveFailure } from "../lib/appToast";
+import { ConfirmButton } from "../components/ui/ConfirmButton";
 
 interface Props {
   campaignId: string;
@@ -166,7 +167,7 @@ export function VttSoundboard({ campaignId, sceneName, onClose, onPlaceEmitter }
               Pin
             </button>
           )}
-          <button className="vtt2-sb-mini danger" onClick={() => void remove(s.id)} title="Delete sound">Del</button>
+          <ConfirmButton className="vtt2-sb-mini danger" title="Delete sound" label="Del" confirmLabel="Delete" onConfirm={() => void remove(s.id)} />
         </div>
       </div>
     );
