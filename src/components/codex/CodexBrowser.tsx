@@ -17,6 +17,7 @@ import { firebasePublishConfigured } from "../../lib/tauri";
 import { publishPage, unpublishPage, fetchPublishedPages } from "../../lib/publishedPages";
 import { assertCanPublish } from "../../lib/codexRoles";
 import { LibraryDialog } from "./LibraryDialog";
+import { reportSaveFailure } from "../../lib/appToast";
 
 // The new Codex: a browser built solely for W.T.E (Remaster slice 1 — the usable
 // shell: tabs, wte:// address bar, history, search, bookmarks, recents, reader).
@@ -327,16 +328,16 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
   // ── Notes: state-first, persisted best-effort ──
   function persistNote(n: CodexNote) {
     setNotes((ns) => ns.map((x) => (x.id === n.id ? { ...n, updatedAt: Date.now() } : x)));
-    void saveNote(n).catch(() => {});
+    void reportSaveFailure(saveNote(n), "the note");
   }
   function addNote(attachedTo: string | null, quote: string | null = null) {
     const n = newNote(attachedTo, quote);
     setNotes((ns) => [n, ...ns]);
-    void saveNote(n).catch(() => {});
+    void reportSaveFailure(saveNote(n), "the note");
   }
   function removeNote(id: string) {
     setNotes((ns) => ns.filter((x) => x.id !== id));
-    void deleteNote(id).catch(() => {});
+    void reportSaveFailure(deleteNote(id), "the note deletion");
   }
   // Select text in the reader → a floating Annotate chip → note quoting the selection.
   function onReaderMouseUp(e: React.MouseEvent) {
@@ -349,17 +350,17 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
   // ── Sequences: persistence + guided-flow runner ──
   function persistSeq(next: Sequence) {
     setSeqs((ss) => ss.map((s) => (s.id === next.id ? next : s)));
-    void saveSequence(next);
+    void reportSaveFailure(saveSequence(next), "the Sequence");
   }
   async function createSequence() {
     const s = newSequence("New Sequence");
-    await saveSequence(s).catch(() => {});
+    await reportSaveFailure(saveSequence(s), "the Sequence");
     setSeqs((ss) => [s, ...ss]);
     navigate(`wte://sequence/${s.id}`);
   }
   async function removeSequence(id: string) {
     setSeqs((ss) => ss.filter((s) => s.id !== id));
-    await deleteSequence(id).catch(() => {});
+    await reportSaveFailure(deleteSequence(id), "the Sequence deletion");
     navigate(HOME);
   }
   function beginRun(seq: Sequence, script: Script) {
@@ -579,7 +580,7 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
         visibility: src.visibility === "gm" ? "gm" : "player",
       };
       setSeqs((ss) => [s, ...ss]);
-      void saveSequence(s).catch(() => {});
+      void reportSaveFailure(saveSequence(s), "the Sequence");
       setPackIn(null);
       navigate(`wte://sequence/${s.id}`);
     } catch {

@@ -3,6 +3,7 @@ import { addAsset, deleteAsset, listAssets, type VttAsset } from "./data/assetRe
 import { groupSounds, soundDisplayName, soundNameFromFile } from "./data/soundLib";
 import { getMasterVolume } from "../lib/audioPrefs";
 import { useNet } from "../net/NetContext";
+import { reportSaveFailure } from "../lib/appToast";
 
 interface Props {
   campaignId: string;
@@ -132,14 +133,14 @@ export function VttSoundboard({ campaignId, sceneName, onClose, onPlaceEmitter }
       if (!f.type.startsWith("audio/") && !/\.(mp3|ogg|wav|m4a|flac|webm)$/i.test(f.name)) continue;
       const uri = await fileToDataUrl(f).catch(() => null);
       const rel = useRelativePath ? ((f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name) : f.name;
-      if (uri) await addAsset(campaignId, "sound", soundNameFromFile(rel), uri).catch(() => {});
+      if (uri) await reportSaveFailure(addAsset(campaignId, "sound", soundNameFromFile(rel), uri), "the sound");
     }
     await reload();
   }
 
   async function remove(id: string) {
     stopOne(id);
-    await deleteAsset(id).catch(() => {});
+    await reportSaveFailure(deleteAsset(id), "the sound deletion");
     await reload();
   }
 

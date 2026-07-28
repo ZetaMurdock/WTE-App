@@ -805,7 +805,23 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
 
   async function deleteSceneById(id: string) {
     if (!campaign) return;
-    await deleteScene(id).catch(() => {});
+    // The pending 500ms autosave holds the LIVE engine scene and saves with
+    // INSERT OR REPLACE, so a delete that leaves the timer armed lets the scene
+    // RESURRECT itself moments after the user confirmed removing it. Every other
+    // scene-swapping path (switchScene, createScene, setActiveForEveryone,
+    // releasePin) already flushes first; this one did not.
+    if (id === scene?.id) {
+      // Deleting the live scene: cancel the write rather than flush it — there is
+      // no sense persisting a row we are about to remove.
+      window.clearTimeout(saveTimer.current);
+    } else {
+      // Deleting a different scene: the pending edit belongs to the live scene and
+      // must still land.
+      await flush();
+    }
+    // Report a failed delete instead of swallowing it — otherwise the scene stays
+    // on disk while the UI acts as though it is gone.
+    await reportSaveFailure(deleteScene(id), "the scene deletion");
     if (id === scene?.id) {
       const remaining = await listScenes(campaign.id).catch(() => [] as VttScene[]);
       const next = remaining.find((x) => x.active) ?? remaining[0] ?? null;
@@ -919,7 +935,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     if (a) setAssets((cur) => [a, ...cur]);
   }
   async function removeAsset(id: string) {
-    await deleteAsset(id).catch(() => {});
+    await reportSaveFailure(deleteAsset(id), "the asset deletion");
     setAssets((cur) => cur.filter((a) => a.id !== id));
   }
   function applyTokenArt(uri: string) {

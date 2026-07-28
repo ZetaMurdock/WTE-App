@@ -8,6 +8,7 @@ import {
   type VttEncounter,
 } from "./types/encounter";
 import { newId, type VttToken } from "./types/scene";
+import { reportSaveFailure } from "../lib/appToast";
 
 interface Props {
   campaignId: string;
@@ -72,7 +73,7 @@ export function VttEncounterPanel({ campaignId, sceneId, tokens, linkedId, onLin
       setEnc(next);
       onTimeline(next.data.round, turnNumber(next.data));
       window.clearTimeout(saveTimer.current);
-      saveTimer.current = window.setTimeout(() => void saveEncounter(next).catch(() => {}), 400);
+      saveTimer.current = window.setTimeout(() => void reportSaveFailure(saveEncounter(next), "the encounter"), 400);
     },
     [enc, onTimeline]
   );
@@ -80,7 +81,7 @@ export function VttEncounterPanel({ campaignId, sceneId, tokens, linkedId, onLin
   async function start() {
     const e = newEncounter(campaignId, sceneId, "Encounter");
     e.data.activeId = null;
-    await saveEncounter(e).catch(() => {});
+    await reportSaveFailure(saveEncounter(e), "the encounter");
     loadedId.current = e.id;
     setEnc(e);
     onLink(e.id);
@@ -88,7 +89,7 @@ export function VttEncounterPanel({ campaignId, sceneId, tokens, linkedId, onLin
   }
 
   async function end() {
-    if (enc) await deleteEncounter(enc.id).catch(() => {});
+    if (enc) await reportSaveFailure(deleteEncounter(enc.id), "ending the encounter");
     loadedId.current = null;
     setEnc(null);
     onLink(null);
