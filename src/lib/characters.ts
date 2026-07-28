@@ -3,9 +3,9 @@
 // Desktop-only: the vault UI gates on isTauri(); there is no browser fallback.
 import type { Character, CharacterSheet } from "../models/character";
 import { getDb, sqlAvailable } from "./db";
-import { zeroAttributes, zeroSpecialties } from "../game/wte";
-import { migrateLoadout, parseSpend } from "../game/synapticFocus";
-import { parseBioFields } from "./bioFields";
+import { emptySheet, parseSheetSafe, serializeSheet } from "./sheetCodec";
+
+export { emptySheet };
 
 interface CharacterRow {
   id: string;
@@ -26,55 +26,6 @@ function newId(): string {
   return "ch-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
 }
 
-export function emptySheet(): CharacterSheet {
-  return { attributes: zeroAttributes(), specialties: zeroSpecialties(), rank: 0, notes: "" };
-}
-
-function parseSheet(raw: string | null): CharacterSheet {
-  if (!raw) return emptySheet();
-  try {
-    const p = JSON.parse(raw) as Partial<CharacterSheet>;
-    return {
-      attributes: { ...zeroAttributes(), ...(p.attributes || {}) },
-      specialties: { ...zeroSpecialties(), ...(p.specialties || {}) },
-      speciesId: p.speciesId,
-      variantName: p.variantName,
-      variantOption: p.variantOption,
-      paradigmId: p.paradigmId,
-      rank: typeof p.rank === "number" ? p.rank : 0,
-      portrait: p.portrait,
-      background: p.background,
-      sizeId: p.sizeId || "auto",
-      equipment: Array.isArray(p.equipment) ? p.equipment : [],
-      genusLoadout: Array.isArray(p.genusLoadout) ? p.genusLoadout : [],
-      cipherLoadout: Array.isArray(p.cipherLoadout) ? p.cipherLoadout : [],
-      // Focus is the source of truth for genus. A sheet written before the
-      // rework has no focusSpend, so seed it from the old flat loadout at
-      // Focus 1 each — within budget, never silently upgraded.
-      bioFields: parseBioFields(p.bioFields),
-      focusSpend: p.focusSpend
-        ? parseSpend(p.focusSpend)
-        : migrateLoadout(Array.isArray(p.genusLoadout) ? p.genusLoadout : [], typeof p.rank === "number" ? p.rank : 0),
-      // Talent Holder's bank and its anti-farm ratchet. BOTH must survive a
-      // reload: without focusBonus the rolled point is destroyed, and without
-      // focusBonusRank the ratchet re-derives from the current rank, so the same
-      // rank pays out all over again next session.
-      focusBonus: typeof p.focusBonus === "number" ? p.focusBonus : undefined,
-      focusBonusRank: typeof p.focusBonusRank === "number" ? p.focusBonusRank : undefined,
-      weaponLoadout: Array.isArray(p.weaponLoadout) ? p.weaponLoadout : [],
-      gearLoadout: Array.isArray(p.gearLoadout) ? p.gearLoadout : [],
-      ssSpent: typeof p.ssSpent === "number" ? p.ssSpent : 0,
-      notes: p.notes || "",
-      negotiation: p.negotiation && typeof p.negotiation === "object" ? p.negotiation : undefined,
-      folderId: p.folderId ?? null,
-      tags: Array.isArray(p.tags) ? p.tags : [],
-      notesMd: typeof p.notesMd === "string" ? p.notesMd : "",
-    };
-  } catch {
-    return emptySheet();
-  }
-}
-
 function toRecord(row: CharacterRow): CharacterRecord {
   return {
     id: row.id,
@@ -82,7 +33,7 @@ function toRecord(row: CharacterRow): CharacterRecord {
     name: row.name,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    sheet: parseSheet(row.data),
+    sheet: parseSheetSafe(row.data).sheet,
   };
 }
 
@@ -155,7 +106,7 @@ export async function createCharacter(
   const db = await getDb();
   await db.execute(
     "INSERT INTO characters (id, campaign_id, name, data, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6)",
-    [rec.id, campaignId, rec.name, JSON.stringify(sheet), now, now]
+    [rec.id, campaignId, rec.name, serializeSheet(sheet), now, now]
   );
   return rec;
 }
@@ -169,13 +120,13 @@ export async function updateCharacter(
   if (patch.name !== undefined && patch.sheet !== undefined) {
     await db.execute("UPDATE characters SET name = $1, data = $2, updated_at = $3 WHERE id = $4", [
       patch.name.trim() || "Unnamed Inquisitor",
-      JSON.stringify(patch.sheet),
+      serializeSheet(patch.sheet),
       now,
       id,
     ]);
   } else if (patch.sheet !== undefined) {
     await db.execute("UPDATE characters SET data = $1, updated_at = $2 WHERE id = $3", [
-      JSON.stringify(patch.sheet),
+      serializeSheet(patch.sheet),
       now,
       id,
     ]);
@@ -217,6 +168,6 @@ export async function upsertCharacter(rec: CharacterRecord): Promise<void> {
          name = excluded.name,
          data = excluded.data,
          updated_at = excluded.updated_at`,
-    [rec.id, rec.campaignId, rec.name || "Unnamed Inquisitor", JSON.stringify(rec.sheet), rec.createdAt || now, rec.updatedAt || now]
+    [rec.id, rec.campaignId, rec.name || "Unnamed Inquisitor", serializeSheet(rec.sheet), rec.createdAt || now, rec.updatedAt || now]
   );
 }
