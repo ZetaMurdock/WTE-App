@@ -291,6 +291,13 @@ export interface VttScene {
   data: VttSceneData;
   createdAt: number;
   updatedAt: number;
+  /** Set when the stored `data` could not be read. `data` is then a blank
+   *  placeholder and NOT the real scene, so saveScene refuses to write it back —
+   *  otherwise the 500ms autosave would replace the only copy of the map. */
+  corrupt?: boolean;
+  /** The original unreadable text, kept verbatim for recovery. */
+  rawData?: string;
+  corruptError?: string;
 }
 
 export const TOKEN_COLORS = ["#689a96", "#837aae", "#a1584a", "#6f9a68", "#a08a4f", "#a7aebd"];

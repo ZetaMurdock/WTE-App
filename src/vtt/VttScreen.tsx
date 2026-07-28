@@ -19,7 +19,7 @@ import type { NetMessage } from "../net/protocol";
 import { addSessionRoll } from "./sync/rollSession";
 import { SfxPlayer } from "./audio/sfxPlayer";
 import { getMasterVolume, subscribeMasterVolume } from "../lib/audioPrefs";
-import { reportSaveFailure } from "../lib/appToast";
+import { reportSaveFailure, pushToast } from "../lib/appToast";
 import { VttCinePanel, type CineConfig } from "./VttCinePanel";
 import { VttSceneBrowser } from "./VttSceneBrowser";
 import { VttActorsPanel } from "./VttActorsPanel";
@@ -618,11 +618,28 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     async function load() {
       let s: VttScene | null = null;
       let all: VttScene[] = [];
+      let readFailed = false;
       if (campaign && isTauri()) {
-        all = await listScenes(campaign.id).catch(() => [] as VttScene[]);
+        // Do NOT conflate a failed read with an empty campaign. This used to be
+        // `.catch(() => [])` and, finding no scenes, wrote a brand-new "Scene 1"
+        // marked active straight over the campaign — so a locked database (a second
+        // app instance, an antivirus handle) was enough to make every scene vanish
+        // from the rail and be replaced by an empty one. The failure was never
+        // surfaced either: only the subsequent SAVE was wrapped.
+        try {
+          all = await listScenes(campaign.id);
+        } catch (e) {
+          readFailed = true;
+          pushToast(
+            `Couldn't read this campaign's scenes: ${e instanceof Error ? e.message : String(e)}. Nothing has been changed — close any other copy of W.T.E, then reopen this tab.`,
+            "error",
+            0
+          );
+        }
         s = all.find((x) => x.active) ?? all[0] ?? null;
       }
-      if (!s) {
+      if (!s && !readFailed) {
+        // Only seed when the query SUCCEEDED and genuinely returned no scenes.
         // No campaign → an in-memory sandbox table; with a campaign, seed Scene 1.
         s = newScene(campaign?.id ?? "sandbox", campaign ? campaign.name + " · Scene 1" : "Sandbox");
         s.active = true;
@@ -634,7 +651,11 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
       if (!alive) return;
       setScene(s);
       setScenes(all);
-      engineRef.current?.setScene(s);
+      // `s` is null only when the scene read FAILED — in that case we deliberately
+      // hand the engine nothing rather than a blank stand-in, so no autosave can
+      // fire against a scene we never actually loaded. The error toast above tells
+      // the user what happened.
+      if (s) engineRef.current?.setScene(s);
     }
     void load();
     return () => {

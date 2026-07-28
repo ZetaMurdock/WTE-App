@@ -31,6 +31,13 @@ export interface VttEncounter {
   data: VttEncounterData;
   createdAt: number;
   updatedAt: number;
+  /** Set when the stored `data` could not be read. `data` is then a blank
+   *  placeholder and NOT the real encounter, so saveEncounter refuses to write it
+   *  back — otherwise the 400ms autosave would destroy the initiative roster,
+   *  every combatant's HP and conditions, and the round counter, mid-fight. */
+  corrupt?: boolean;
+  rawData?: string;
+  corruptError?: string;
 }
 
 export function defaultEncounterData(): VttEncounterData {
