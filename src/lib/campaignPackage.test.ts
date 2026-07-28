@@ -14,6 +14,7 @@ function tableOf(sql: string): string {
 
 const fakeDb = {
   select: async <T>(sql: string, args: unknown[] = []): Promise<T> => {
+    if (/sqlite_master/.test(sql)) return [{ name: "campaign_kv" }] as unknown as T;
     const t = tableOf(sql);
     const rows = tables[t] ?? [];
     if (/WHERE campaign_id = \$1 AND scope = \$2 AND key = \$3/.test(sql)) {

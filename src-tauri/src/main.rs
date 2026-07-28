@@ -702,15 +702,24 @@ ALTER TABLE notes ADD COLUMN tags TEXT;
 ALTER TABLE notes ADD COLUMN quote TEXT;
 ";
 
-// Phase 1 "trustworthy core": bring campaign data out of localStorage.
+// DEFERRED TO PHASE 2 — deliberately NOT registered in the migration list below.
 //
-// localStorage lives in the webview's profile directory, NOT beside wte.db — so
-// copying the database to another machine, or restoring it from a backup, arrived
-// stripped of campaign rules (which feed computeDerived and change every
-// character's numbers), the desk notes and calendar (the longest-form writing in
-// the app), the vault and note folder trees, the custom armory (referenced by NAME
-// from sheets, so losing it silently alters loadout math), and Codex page
-// visibility. None of it travelled with the campaign it belonged to.
+// Applying this migration makes the database unopenable by v0.8.60. sqlx validates
+// the applied-migration list against the binary's own list, so a database carrying
+// v5 fails to open on a build that only knows v1-v4 — and because getDb memoized
+// the rejected promise, the older build showed "Loading..." forever with no error.
+// Verified on a real 188 MB database: v0.8.60 ran fine for hours, a single launch
+// of the v5 build bricked it for that binary, and removing the v5 record from
+// _sqlx_migrations brought it straight back.
+//
+// A one-way upgrade is the opposite of the clean rollback boundary this release is
+// meant to have, so the schema change waits for Phase 2, where the layered-rules
+// work it exists for actually lands. Everything protective in Phase 1 — the
+// localStorage read/write guards, quarantine, recovery, diagnostics — is pure code
+// and ships without it.
+//
+// When this IS registered, it must come with a pre-migration database backup so
+// the upgrade stays recoverable.
 //
 // campaign_kv is a general scoped store, so a new kind of campaign-scoped blob does
 // not need another migration and another table.
@@ -721,6 +730,7 @@ ALTER TABLE notes ADD COLUMN quote TEXT;
 // itself ("base 10, +4 Ashen Sun, +2 Voaulton, -1 Null Storm = 15") rather than
 // just print a number. That needs each contribution stored separately with its
 // source and scope, which a single settings blob cannot express.
+#[allow(dead_code)]
 const SCHEMA_V5: &str = "
 CREATE TABLE IF NOT EXISTS campaign_kv (
   campaign_id TEXT NOT NULL,
@@ -773,12 +783,9 @@ fn main() {
             sql: SCHEMA_V4,
             kind: tauri_plugin_sql::MigrationKind::Up,
         },
-        tauri_plugin_sql::Migration {
-            version: 5,
-            description: "campaign_kv + rule_layers: move campaign data out of localStorage",
-            sql: SCHEMA_V5,
-            kind: tauri_plugin_sql::MigrationKind::Up,
-        },
+        // v5 is DEFERRED to Phase 2 — see SCHEMA_V5 above. Registering it here makes
+        // the database unopenable by v0.8.60, which would destroy this release's
+        // rollback boundary.
     ];
 
     tauri::Builder::default()

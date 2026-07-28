@@ -29,10 +29,46 @@ interface KvRow {
   updated_at: number;
 }
 
+/** The campaign_kv table only exists once the Phase 2 schema migration lands. Until
+ *  then every operation here is a no-op, so this module ships inert rather than
+ *  throwing on a table that is not there yet.
+ *
+ *  Cached once — a missing table is a schema fact, not a transient one. Null means
+ *  "not yet determined". */
+let tablePresent: boolean | null = null;
+
+async function haveTable(): Promise<boolean> {
+  if (tablePresent !== null) return tablePresent;
+  if (!sqlAvailable()) return false;
+  try {
+    const db = await getDb();
+    const rows = await db.select<{ name: string }[]>(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'campaign_kv'"
+    );
+    tablePresent = rows.length > 0;
+  } catch {
+    // A failed CHECK must not be cached as "absent" — the database may simply be
+    // unavailable this moment, and getDb now retries.
+    return false;
+  }
+  return tablePresent;
+}
+
+/** Test seam, and for use after a migration lands so the cache cannot go stale. */
+export function __resetCampaignStoreCache(): void {
+  tablePresent = null;
+}
+
+/** Whether campaign settings can live in the database yet. The diagnostics screen
+ *  reads this so it can say "not yet" rather than implying something is broken. */
+export async function campaignStoreReady(): Promise<boolean> {
+  return haveTable();
+}
+
 /** Read one campaign-scoped value. Returns null when absent — the caller decides
  *  what "absent" means, exactly as with localJson. */
 export async function kvGet<T>(campaignId: string, scope: KvScope, key: string): Promise<T | null> {
-  if (!sqlAvailable()) return null;
+  if (!(await haveTable())) return null;
   const db = await getDb();
   const rows = await db.select<KvRow[]>(
     "SELECT * FROM campaign_kv WHERE campaign_id = $1 AND scope = $2 AND key = $3",
@@ -50,7 +86,7 @@ export async function kvGet<T>(campaignId: string, scope: KvScope, key: string):
 
 /** Write one campaign-scoped value. */
 export async function kvSet(campaignId: string, scope: KvScope, key: string, value: unknown): Promise<void> {
-  if (!sqlAvailable()) return;
+  if (!(await haveTable())) return;
   const db = await getDb();
   await db.execute(
     "INSERT OR REPLACE INTO campaign_kv (campaign_id, scope, key, value, updated_at) VALUES ($1,$2,$3,$4,$5)",
@@ -60,7 +96,7 @@ export async function kvSet(campaignId: string, scope: KvScope, key: string, val
 
 /** Every value in one scope for a campaign — used by the package exporter. */
 export async function kvAll(campaignId: string, scope?: KvScope): Promise<{ scope: string; key: string; value: unknown }[]> {
-  if (!sqlAvailable()) return [];
+  if (!(await haveTable())) return [];
   const db = await getDb();
   const rows = scope
     ? await db.select<KvRow[]>("SELECT * FROM campaign_kv WHERE campaign_id = $1 AND scope = $2", [campaignId, scope])
@@ -77,7 +113,7 @@ export async function kvAll(campaignId: string, scope?: KvScope): Promise<{ scop
 }
 
 export async function kvDelete(campaignId: string, scope: KvScope, key: string): Promise<void> {
-  if (!sqlAvailable()) return;
+  if (!(await haveTable())) return;
   const db = await getDb();
   await db.execute("DELETE FROM campaign_kv WHERE campaign_id = $1 AND scope = $2 AND key = $3", [
     campaignId,
@@ -156,7 +192,9 @@ export interface MigrationReport {
  */
 export async function migrateCampaignToDb(campaignId: string): Promise<MigrationReport> {
   const report: MigrationReport = { copied: [], skipped: [], failed: [] };
-  if (!sqlAvailable() || !campaignId) return report;
+  // Without the table there is nowhere to copy TO; the localStorage guards in
+  // localJson still protect the data where it sits.
+  if (!campaignId || !(await haveTable())) return report;
 
   const run = async (id: string, moves: Move[]) => {
     for (const m of moves) {

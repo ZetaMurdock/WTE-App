@@ -11,8 +11,11 @@ interface Row {
 let rows: Row[] = [];
 let failNextWrite = false;
 
+let tableExists = true;
+
 const fakeDb = {
   select: async <T>(sql: string, args: unknown[] = []): Promise<T> => {
+    if (/sqlite_master/.test(sql)) return (tableExists ? [{ name: "campaign_kv" }] : []) as unknown as T;
     if (/AND scope = \$2 AND key = \$3/.test(sql)) {
       return rows.filter((r) => r.campaign_id === args[0] && r.scope === args[1] && r.key === args[2]) as unknown as T;
     }
@@ -42,12 +45,15 @@ const fakeDb = {
 vi.mock("./db", () => ({ getDb: async () => fakeDb, sqlAvailable: () => true }));
 vi.mock("./appToast", () => ({ pushToast: vi.fn() }));
 
-const { kvGet, kvSet, kvAll, migrateCampaignToDb, migrationStatus } = await import("./campaignStore");
+const { kvGet, kvSet, kvAll, migrateCampaignToDb, migrationStatus, campaignStoreReady, __resetCampaignStoreCache } =
+  await import("./campaignStore");
 
 beforeEach(() => {
   rows = [];
   failNextWrite = false;
+  tableExists = true;
   localStorage.clear();
+  __resetCampaignStoreCache();
 });
 
 describe("the campaign store round-trips", () => {
@@ -160,5 +166,45 @@ describe("migration copies without destroying", () => {
   it("does nothing without a campaign id", async () => {
     const r = await migrateCampaignToDb("");
     expect(r).toEqual({ copied: [], skipped: [], failed: [] });
+  });
+});
+
+describe("without the Phase 2 schema, the store ships inert", () => {
+  // Migration v5 is deferred, so campaign_kv does not exist on a fresh v0.8.61
+  // install. Every operation must no-op rather than throw — the localStorage
+  // guards in localJson still protect the data where it currently sits.
+  it("reports that it is not ready", async () => {
+    tableExists = false;
+    __resetCampaignStoreCache();
+    expect(await campaignStoreReady()).toBe(false);
+  });
+
+  it("reads return null instead of throwing", async () => {
+    tableExists = false;
+    __resetCampaignStoreCache();
+    await expect(kvGet("c1", "desk", "notes")).resolves.toBeNull();
+  });
+
+  it("writes are a silent no-op instead of throwing", async () => {
+    tableExists = false;
+    __resetCampaignStoreCache();
+    await expect(kvSet("c1", "desk", "notes", [1])).resolves.toBeUndefined();
+    expect(rows).toHaveLength(0);
+  });
+
+  it("kvAll returns empty, so the package exporter still works", async () => {
+    tableExists = false;
+    __resetCampaignStoreCache();
+    await expect(kvAll("c1")).resolves.toEqual([]);
+  });
+
+  it("the migration does nothing and reports nothing failed", async () => {
+    tableExists = false;
+    __resetCampaignStoreCache();
+    localStorage.setItem("wte-desk-notes:c1", JSON.stringify(["prep"]));
+    const r = await migrateCampaignToDb("c1");
+    expect(r).toEqual({ copied: [], skipped: [], failed: [] });
+    // Critically: the source is untouched, so nothing is stranded.
+    expect(localStorage.getItem("wte-desk-notes:c1")).toBe(JSON.stringify(["prep"]));
   });
 });

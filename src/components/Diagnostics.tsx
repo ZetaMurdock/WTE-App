@@ -49,8 +49,15 @@ export function Diagnostics({ campaign }: Props) {
       const out: TableStat[] = [];
       const bad: Damaged[] = [];
 
-      // Row counts per table.
+      // Row counts per table. A table that does not EXIST is skipped rather than
+      // reported as unreadable — campaign_kv only arrives with the Phase 2 schema,
+      // and listing it as broken would be a false alarm on exactly the screen
+      // built to stop false alarms.
+      const existing = new Set(
+        (await db.select<{ name: string }[]>("SELECT name FROM sqlite_master WHERE type = 'table'")).map((r) => r.name)
+      );
       for (const t of ["campaigns", "characters", "scenes", "encounters", "assets", "notes", "codex_sequences", "rolls", "campaign_kv"]) {
+        if (!existing.has(t)) continue;
         try {
           const rows = await db.select<{ n: number }[]>(`SELECT COUNT(*) AS n FROM ${t}`);
           out.push({ table: t, rows: rows[0]?.n ?? 0, unreadable: 0 });
