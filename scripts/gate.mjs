@@ -12,6 +12,10 @@ import { spawnSync } from "node:child_process";
 const steps = [
   { name: "typecheck", cmd: "npm", args: ["run", "typecheck"] },
   { name: "tests", cmd: "npx", args: ["vitest", "run"] },
+  // The Rust tests guard the two security boundaries that have no TS equivalent:
+  // the open_external shell-quote breakout, and the export path allowlist. They
+  // were in neither gate, so a regression in either could have shipped green.
+  { name: "rust tests", cmd: "cargo", args: ["test", "--manifest-path", "src-tauri/Cargo.toml"] },
   { name: "build", cmd: "npm", args: ["run", "build"] },
 ];
 

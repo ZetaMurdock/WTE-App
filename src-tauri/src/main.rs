@@ -198,42 +198,29 @@ async fn wte_save_page(app: tauri::AppHandle, name: String, content: String) -> 
     Ok(stem)
 }
 
-/// Extensions the export writer will produce. Anything else is refused.
-const EXPORT_EXTENSIONS: &[&str] = &["wtepack", "json"];
+/// The ONLY extension W.T.E will write. `.json` was originally allowed too, which
+/// was far too broad: any absolute .json path the webview named could be
+/// overwritten — a package.json, a tsconfig, an editor's settings.json, another
+/// game's save file. A campaign package has its own extension, so nothing is lost
+/// by refusing the rest.
+const EXPORT_EXTENSION: &str = "wtepack";
 
-/// Write an exported file to a path the USER chose in the save dialog.
-///
-/// The fs plugin is deliberately still read-only. Granting `fs:allow-write-file`
-/// would let any code in the webview write anywhere the user can, which is exactly
-/// the blast radius the CSP and sanitizer work just finished reducing. This command
-/// is the narrow alternative: it exists only to land an export, and it refuses any
-/// path that is not a plain file with one of our own extensions.
-///
-/// The path still comes from the dialog plugin's save picker, so the user has named
-/// the destination. The checks here are defence in depth for the case where
-/// something else manages to call the command.
-#[tauri::command]
-async fn wte_write_export(path: String, content: String) -> Result<(), String> {
-    let p = std::path::Path::new(&path);
-
-    let ext = p
-        .extension()
+fn export_extension_ok(path: &std::path::Path) -> bool {
+    path.extension()
         .and_then(|e| e.to_str())
-        .map(|e| e.to_ascii_lowercase())
-        .unwrap_or_default();
-    if !EXPORT_EXTENSIONS.contains(&ext.as_str()) {
-        return Err(format!(
-            "W.T.E only writes {} files, and that path ends in {:?}.",
-            EXPORT_EXTENSIONS.join(" or ."),
-            ext
-        ));
+        .map(|e| e.eq_ignore_ascii_case(EXPORT_EXTENSION))
+        .unwrap_or(false)
+}
+
+/// Validate a destination before writing to it. Split out so it is testable
+/// without a dialog or a filesystem write.
+fn validate_export_path(p: &std::path::Path) -> Result<(), String> {
+    if !export_extension_ok(p) {
+        return Err(format!("W.T.E only writes .{EXPORT_EXTENSION} files."));
     }
-    // A relative path, or one containing "..", is not something the save dialog
-    // produces — refuse rather than resolve it against an unknown working directory.
     if !p.is_absolute() || p.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
-        return Err("Export path must be an absolute path with no parent-directory segments.".into());
+        return Err("Export path must be absolute with no parent-directory segments.".into());
     }
-    // Refuse to clobber a directory or a symlink.
     if p.is_dir() {
         return Err("That path is a folder, not a file.".into());
     }
@@ -242,36 +229,89 @@ async fn wte_write_export(path: String, content: String) -> Result<(), String> {
             return Err("Refusing to write through a symlink.".into());
         }
     }
-    let parent = p.parent().ok_or_else(|| "That path has no folder.".to_string())?;
-    if !parent.exists() {
-        return Err("That folder does not exist.".into());
+    match p.parent() {
+        Some(parent) if parent.exists() => Ok(()),
+        Some(_) => Err("That folder does not exist.".into()),
+        None => Err("That path has no folder.".into()),
     }
-    std::fs::write(p, content).map_err(|e| e.to_string())
+}
+
+/// Export a campaign package.
+///
+/// RUST OWNS THE SAVE DIALOG. The webview passes only the CONTENT and a suggested
+/// filename — never a path — so there is no path for it to choose, and the
+/// destination is by construction one the user confirmed in a native dialog.
+///
+/// This replaces an earlier version that accepted a path from the webview. Even
+/// with validation that was the wrong shape: it made the webview the source of a
+/// filesystem destination, and the extension allowlist then had to carry the whole
+/// weight of the boundary.
+///
+/// The fs plugin remains read-only. Granting `fs:allow-write-file` would let any
+/// code in the webview write anywhere the user can, which is precisely the blast
+/// radius the CSP and sanitizer work reduced.
+///
+/// Returns the path written, or None when the user cancelled.
+#[tauri::command]
+async fn wte_export_campaign(
+    app: tauri::AppHandle,
+    content: String,
+    default_name: String,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    // Only the FILE NAME is taken from the webview, and only its last component, so
+    // a name like "../../etc/passwd" cannot escape the folder the user picks.
+    let suggested = std::path::Path::new(&default_name)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .filter(|n| !n.is_empty())
+        .unwrap_or("campaign.wtepack")
+        .to_string();
+    let suggested = if export_extension_ok(std::path::Path::new(&suggested)) {
+        suggested
+    } else {
+        format!("{suggested}.{EXPORT_EXTENSION}")
+    };
+
+    let (tx, rx) = std::sync::mpsc::channel::<Option<std::path::PathBuf>>();
+    app.dialog()
+        .file()
+        .add_filter("W.T.E campaign package", &[EXPORT_EXTENSION])
+        .set_file_name(&suggested)
+        .save_file(move |chosen| {
+            let _ = tx.send(chosen.and_then(|p| p.into_path().ok()));
+        });
+
+    let picked = tauri::async_runtime::spawn_blocking(move || rx.recv().ok().flatten())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let Some(path) = picked else { return Ok(None) };
+    validate_export_path(&path)?;
+    std::fs::write(&path, content).map_err(|e| e.to_string())?;
+    Ok(Some(path.to_string_lossy().into_owned()))
 }
 
 #[cfg(test)]
 mod export_tests {
-    // The extension gate is the load-bearing check, so it is tested directly.
-    use super::EXPORT_EXTENSIONS;
+    use super::{export_extension_ok, validate_export_path};
+    use std::path::Path;
 
-    fn ext_ok(path: &str) -> bool {
-        std::path::Path::new(path)
-            .extension()
-            .and_then(|e| e.to_str())
-            .map(|e| EXPORT_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()))
-            .unwrap_or(false)
+    #[test]
+    fn accepts_only_our_own_extension() {
+        assert!(export_extension_ok(Path::new("C:/Users/x/Ashen Sun.wtepack")));
+        assert!(export_extension_ok(Path::new("C:/Users/x/UPPER.WTEPACK")));
     }
 
     #[test]
-    fn accepts_our_own_extensions() {
-        assert!(ext_ok("C:/Users/x/Ashen Sun.wtepack"));
-        assert!(ext_ok("C:/Users/x/backup.json"));
-        assert!(ext_ok("C:/Users/x/BACKUP.JSON"));
-    }
-
-    #[test]
-    fn refuses_anything_else() {
+    fn refuses_json_and_everything_else() {
+        // .json used to be accepted, which meant any absolute .json path the
+        // webview named could be overwritten.
         for bad in [
+            "C:/Users/x/backup.json",
+            "C:/Users/x/package.json",
+            "C:/Users/x/tsconfig.json",
             "C:/Windows/System32/drivers/etc/hosts",
             "C:/Users/x/.bashrc",
             "C:/Users/x/evil.exe",
@@ -279,8 +319,30 @@ mod export_tests {
             "C:/Users/x/wte.db",
             "C:/Users/x/noextension",
         ] {
-            assert!(!ext_ok(bad), "should refuse {bad:?}");
+            assert!(!export_extension_ok(Path::new(bad)), "should refuse {bad:?}");
+            assert!(validate_export_path(Path::new(bad)).is_err(), "should refuse {bad:?}");
         }
+    }
+
+    #[test]
+    fn refuses_relative_and_traversing_paths() {
+        for bad in ["relative.wtepack", "C:/Users/x/../../evil.wtepack"] {
+            assert!(validate_export_path(Path::new(bad)).is_err(), "should refuse {bad:?}");
+        }
+    }
+
+    #[test]
+    fn refuses_a_missing_folder() {
+        let p = Path::new("C:/definitely/not/a/real/folder/x.wtepack");
+        assert!(validate_export_path(p).is_err());
+    }
+
+    #[test]
+    fn accepts_a_real_destination() {
+        // The system temp dir exists on every platform CI runs on.
+        let dir = std::env::temp_dir();
+        let p = dir.join("wte-export-test.wtepack");
+        assert!(validate_export_path(&p).is_ok(), "temp dir should be writable: {p:?}");
     }
 }
 
@@ -739,7 +801,7 @@ fn main() {
             wte_list_pages,
             wte_save_page,
             wte_delete_page,
-            wte_write_export,
+            wte_export_campaign,
             open_external,
             net::net_advertise,
             net::net_unadvertise,

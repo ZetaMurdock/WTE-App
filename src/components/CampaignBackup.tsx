@@ -19,7 +19,6 @@ interface Props {
 interface TauriApi {
   core: { invoke: <R>(cmd: string, args?: Record<string, unknown>) => Promise<R> };
   dialog?: {
-    save?: (o: Record<string, unknown>) => Promise<string | null>;
     open?: (o: Record<string, unknown>) => Promise<string | string[] | null>;
   };
 }
@@ -35,7 +34,7 @@ export function CampaignBackup({ campaign, onImported }: Props) {
 
   async function doExport() {
     const t = tauri();
-    if (!t?.dialog?.save) {
+    if (!t?.core) {
       pushToast("Exporting a campaign needs the desktop app.", "error");
       return;
     }
@@ -43,15 +42,14 @@ export function CampaignBackup({ campaign, onImported }: Props) {
     try {
       const appVersion = await getVersion().catch(() => undefined);
       const pkg = await buildPackage(campaign, { appVersion: appVersion ?? undefined });
-      const path = await t.dialog.save({
-        title: "Export campaign",
-        defaultPath: packageFilename(campaign),
-        filters: [{ name: "W.T.E campaign", extensions: ["wtepack"] }],
+      // RUST OWNS THE SAVE DIALOG. We pass content and a suggested FILENAME, never a
+      // path — so the webview cannot name a destination at all, and what gets
+      // written is by construction what the user confirmed in a native dialog.
+      const written = await t.core.invoke<string | null>("wte_export_campaign", {
+        content: serializePackage(pkg),
+        defaultName: packageFilename(campaign),
       });
-      if (!path) return; // cancelled
-      // The fs plugin stays read-only; a narrow Rust command does the write and
-      // refuses any path that is not one of our own file types.
-      await t.core.invoke("wte_write_export", { path, content: serializePackage(pkg) });
+      if (!written) return; // cancelled
       const n = pkg.characters.length + pkg.scenes.length + pkg.notes.length + pkg.sequences.length;
       pushToast(`Exported "${campaign.name}" — ${n} records, including settings and folder trees.`, "info", 9000);
     } catch (e) {
