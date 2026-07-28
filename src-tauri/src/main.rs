@@ -234,12 +234,103 @@ async fn wte_list_pages(app: tauri::AppHandle) -> Result<Vec<String>, String> {
     Ok(names)
 }
 
+/// Characters that must never reach `open::that`.
+///
+/// On Windows the `open` crate builds `cmd /c start "" "<url>"` and passes the
+/// url through `raw_arg` + a `wrap_in_quotes` that only brackets the string
+/// without escaping anything inside it (open-5.3.6/src/windows.rs:59). So a
+/// double quote in the url closes the wrapper early and everything after it is
+/// parsed by cmd.exe as more command line:
+///
+///     https://a" & calc & "   ->   cmd /c start "" "https://a" & calc & ""
+///
+/// which runs calc. The scheme check alone does not stop this — the string still
+/// begins with "https://". cmd does not expand & or | INSIDE quotes, so the quote
+/// is the thing that must be rejected; the rest are refused as cheap insurance.
+const URL_FORBIDDEN: &[char] = &['"', '\'', '&', '|', '^', '<', '>', '%', '`', '\n', '\r', '\t', '\0'];
+
+/// True when the string is a plain http(s) url that is safe to hand to the shell.
+fn is_safe_external_url(url: &str) -> bool {
+    if !(url.starts_with("http://") || url.starts_with("https://")) {
+        return false;
+    }
+    if url.chars().any(|c| URL_FORBIDDEN.contains(&c)) {
+        return false;
+    }
+    // Any control character, not just the ones named above.
+    if url.chars().any(|c| c.is_control()) {
+        return false;
+    }
+    // Must have a non-empty host after the scheme.
+    let rest = url
+        .strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"))
+        .unwrap_or("");
+    let host = rest.split(['/', '?', '#']).next().unwrap_or("");
+    !host.is_empty() && host.chars().all(|c| c.is_ascii_alphanumeric() || ".-:[]_".contains(c))
+}
+
 #[tauri::command]
 async fn open_external(url: String) -> Result<(), String> {
-    if !(url.starts_with("http://") || url.starts_with("https://")) {
-        return Err("Only http(s) links may be opened externally".into());
+    if !is_safe_external_url(&url) {
+        return Err("Only plain http(s) links may be opened externally".into());
     }
     open::that(&url).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod url_tests {
+    use super::is_safe_external_url;
+
+    #[test]
+    fn rejects_the_quote_breakout() {
+        // The actual exploit: passes the scheme check, breaks out of cmd's quoting.
+        assert!(!is_safe_external_url("https://a\" & calc & \""));
+        assert!(!is_safe_external_url("https://x.com/\"&calc&\""));
+    }
+
+    #[test]
+    fn rejects_shell_metacharacters_and_controls() {
+        for bad in [
+            "https://x.com/a&b",
+            "https://x.com/a|b",
+            "https://x.com/a^b",
+            "https://x.com/a<b",
+            "https://x.com/a>b",
+            "https://x.com/a`b",
+            "https://x.com/a\nb",
+            "https://x.com/a\tb",
+            "https://x.com/a%b",
+        ] {
+            assert!(!is_safe_external_url(bad), "should reject {bad:?}");
+        }
+    }
+
+    #[test]
+    fn rejects_non_http_schemes() {
+        for bad in ["javascript:alert(1)", "file:///C:/", "", "ftp://x.com", "//x.com"] {
+            assert!(!is_safe_external_url(bad), "should reject {bad:?}");
+        }
+    }
+
+    #[test]
+    fn rejects_a_missing_or_malformed_host() {
+        for bad in ["https://", "https:///path", "https://a b.com"] {
+            assert!(!is_safe_external_url(bad), "should reject {bad:?}");
+        }
+    }
+
+    #[test]
+    fn allows_ordinary_links() {
+        for ok in [
+            "https://wonderland-of-the-enigma.fandom.com/wiki/Pressure_Engine",
+            "http://localhost:1420/",
+            "https://github.com/ZetaMurdock/WTE-App/releases",
+            "https://x.com/a/b?c=d#e",
+        ] {
+            assert!(is_safe_external_url(ok), "should allow {ok:?}");
+        }
+    }
 }
 
 #[derive(Serialize)]

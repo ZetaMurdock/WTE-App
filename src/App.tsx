@@ -25,7 +25,8 @@ import {
   type WteUpdate,
   type AuthUser,
 } from "./lib/tauri";
-import { autoRefreshPulledPages } from "./lib/publishedPages";
+import { pendingLibraryUpdates } from "./lib/publishedPages";
+import { pushToast } from "./lib/appToast";
 import type { Campaign } from "./models/campaign";
 import {
   listCampaigns,
@@ -183,14 +184,22 @@ export default function App() {
     window.addEventListener("wte-pages-changed", reload);
     return () => window.removeEventListener("wte-pages-changed", reload);
   }, []);
-  // Library auto-refresh: shared pages this install already pulled re-import at
-  // launch when the owner republished them — the owner's edits reach everyone
-  // without anyone pressing anything.
+  // Library updates are OFFERED at launch, never applied. This used to call
+  // autoRefreshPulledPages(), which wrote every changed page straight over the
+  // local file before the user saw the app — destroying their own edits to a
+  // pulled page, silently re-enabling pages they had deliberately un-pulled, and
+  // rendering whatever the shared library happened to contain. Now we only count
+  // them; Codex › Library already reviews and applies deliberately.
   useEffect(() => {
     if (!firebasePublishConfigured()) return;
-    autoRefreshPulledPages()
-      .then((n) => {
-        if (n > 0) window.dispatchEvent(new Event("wte-pages-changed"));
+    pendingLibraryUpdates()
+      .then((pending) => {
+        if (pending.length === 0) return;
+        pushToast(
+          `${pending.length} shared Codex ${pending.length === 1 ? "page has" : "pages have"} an update waiting — open Codex › Library to review.`,
+          "info",
+          12000
+        );
       })
       .catch(() => {});
   }, []);
