@@ -21,6 +21,8 @@ import { listCharacters, upsertCharacter } from "./characters";
 import { listNotes, saveNote } from "./notes";
 import { listSequences, saveSequence } from "./sequences";
 import { kvAll, kvSet, type KvScope } from "./campaignStore";
+import { listRuleLayers, saveRuleLayer } from "./ruleLayerRepo";
+import type { RuleLayer } from "../game/ruleLayers";
 import { getDb, sqlAvailable } from "./db";
 import { sheetFromJson } from "./sheetCodec";
 
@@ -43,6 +45,9 @@ export interface CampaignPackage {
   kv: { scope: string; key: string; value: unknown }[];
   /** Codex pages this campaign relies on, by stem. */
   pages: { stem: string; content: string }[];
+  /** Layered rule overrides. Without these a package restores a campaign whose
+   *  numbers are wrong — the layers ARE the house rules. */
+  ruleLayers: RuleLayer[];
 }
 
 export class PackageVersionError extends Error {
@@ -72,7 +77,7 @@ export async function buildPackage(
   campaign: Campaign,
   opts?: { appVersion?: string; pages?: { stem: string; content: string }[] }
 ): Promise<CampaignPackage> {
-  const [characters, notes, sequences, scenes, encounters, assets, kv] = await Promise.all([
+  const [characters, notes, sequences, scenes, encounters, assets, kv, ruleLayers] = await Promise.all([
     listCharacters(campaign.id),
     listNotes(campaign.id),
     listSequences(campaign.id),
@@ -80,6 +85,7 @@ export async function buildPackage(
     selectAll<unknown>("SELECT * FROM encounters WHERE campaign_id = $1", [campaign.id]),
     selectAll<unknown>("SELECT * FROM assets WHERE campaign_id = $1", [campaign.id]),
     kvAll(campaign.id),
+    listRuleLayers(campaign.id),
   ]);
 
   return {
@@ -98,6 +104,7 @@ export async function buildPackage(
     encounters,
     assets,
     kv,
+    ruleLayers,
     pages: opts?.pages ?? [],
   };
 }
@@ -131,6 +138,7 @@ export function parsePackage(raw: unknown): CampaignPackage {
     encounters: arr<unknown>(o.encounters),
     assets: arr<unknown>(o.assets),
     kv: arr<{ scope: string; key: string; value: unknown }>(o.kv),
+    ruleLayers: arr<RuleLayer>(o.ruleLayers),
     pages: arr<{ stem: string; content: string }>(o.pages),
   };
 }
@@ -275,6 +283,18 @@ export async function importPackage(
       await kvSet(campaignId, entry.scope as KvScope, entry.key, entry.value);
     } catch (e) {
       failed.push({ what: `setting ${entry.scope}/${entry.key}`, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  for (const l of pkg.ruleLayers) {
+    try {
+      // Remap the layer id so a copy-mode import does not collide, and re-own a
+      // campaign-scoped layer to the campaign it landed in — otherwise it would
+      // still point at the ORIGINAL campaign and silently never apply.
+      const owner = l.scope === "campaign" ? campaignId : l.owner;
+      await saveRuleLayer({ ...l, id: remap(l.id), owner }, campaignId);
+    } catch (e) {
+      failed.push({ what: `rule layer ${l.targetId}`, error: e instanceof Error ? e.message : String(e) });
     }
   }
 

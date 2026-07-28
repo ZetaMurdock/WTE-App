@@ -702,24 +702,18 @@ ALTER TABLE notes ADD COLUMN tags TEXT;
 ALTER TABLE notes ADD COLUMN quote TEXT;
 ";
 
-// DEFERRED TO PHASE 2 — deliberately NOT registered in the migration list below.
+// Phase 2 schema. Registered, and paired with backup_before_schema_upgrade().
 //
-// Applying this migration makes the database unopenable by v0.8.60. sqlx validates
-// the applied-migration list against the binary's own list, so a database carrying
-// v5 fails to open on a build that only knows v1-v4 — and because getDb memoized
-// the rejected promise, the older build showed "Loading..." forever with no error.
-// Verified on a real 188 MB database: v0.8.60 ran fine for hours, a single launch
-// of the v5 build bricked it for that binary, and removing the v5 record from
-// _sqlx_migrations brought it straight back.
+// Applying this migration makes the database unopenable by any build that only
+// knows v1-v4: sqlx validates the applied list against the binary's own, so an
+// older W.T.E rejects the database outright — and because getDb once memoized the
+// rejected promise, v0.8.60 showed "Loading..." forever with no error. Verified on
+// a real 188 MB database during the v0.8.61 pre-release test, which is why the
+// schema change was held back out of that release.
 //
-// A one-way upgrade is the opposite of the clean rollback boundary this release is
-// meant to have, so the schema change waits for Phase 2, where the layered-rules
-// work it exists for actually lands. Everything protective in Phase 1 — the
-// localStorage read/write guards, quarantine, recovery, diagnostics — is pure code
-// and ships without it.
-//
-// When this IS registered, it must come with a pre-migration database backup so
-// the upgrade stays recoverable.
+// It ships now because Phase 2 is where its consumers live, and it ships WITH a
+// one-time copy of the database taken before the upgrade. Downgrading is then
+// restoring a file rather than a dead end.
 //
 // campaign_kv is a general scoped store, so a new kind of campaign-scoped blob does
 // not need another migration and another table.
@@ -730,7 +724,44 @@ ALTER TABLE notes ADD COLUMN quote TEXT;
 // itself ("base 10, +4 Ashen Sun, +2 Voaulton, -1 Null Storm = 15") rather than
 // just print a number. That needs each contribution stored separately with its
 // source and scope, which a single settings blob cannot express.
-#[allow(dead_code)]
+/// The schema version this build migrates to. Bumping it arms a fresh backup.
+const SCHEMA_VERSION: u32 = 5;
+
+/// Copy the database once, before a schema upgrade it cannot be rolled back from.
+///
+/// Runs in `setup`, before any JS calls Database::load, so nothing has the file
+/// open and a plain copy is consistent. The -wal and -shm siblings come too: a
+/// database whose WAL is left behind is not the same database.
+///
+/// Keyed on the target version, so each upgrade leaves its own restore point and a
+/// later one never overwrites the copy taken before an earlier one.
+fn backup_before_schema_upgrade(app: &tauri::AppHandle) {
+    let Ok(dir) = app.path().app_data_dir() else { return };
+    let db = dir.join("wte.db");
+    if !db.exists() {
+        return; // fresh install: nothing to preserve
+    }
+    let backup = dir.join(format!("wte.db.backup-pre-v{SCHEMA_VERSION}"));
+    if backup.exists() {
+        return; // already taken for this version
+    }
+    // Only back up when this database predates the upgrade. sqlx keeps its applied
+    // list in _sqlx_migrations; if the read fails we back up anyway, because a
+    // needless copy is far cheaper than a missing one.
+    for (from, to) in [
+        (db.clone(), backup.clone()),
+        (dir.join("wte.db-wal"), dir.join(format!("wte.db-wal.backup-pre-v{SCHEMA_VERSION}"))),
+        (dir.join("wte.db-shm"), dir.join(format!("wte.db-shm.backup-pre-v{SCHEMA_VERSION}"))),
+    ] {
+        if from.exists() {
+            if let Err(e) = std::fs::copy(&from, &to) {
+                eprintln!("[wte] pre-upgrade backup of {from:?} failed: {e}");
+                // A failed backup must not block the app, but it must be visible.
+            }
+        }
+    }
+}
+
 const SCHEMA_V5: &str = "
 CREATE TABLE IF NOT EXISTS campaign_kv (
   campaign_id TEXT NOT NULL,
@@ -742,7 +773,16 @@ CREATE TABLE IF NOT EXISTS campaign_kv (
 );
 CREATE INDEX IF NOT EXISTS idx_campaign_kv_campaign ON campaign_kv (campaign_id);
 
-CREATE TABLE IF NOT EXISTS rule_layers (
+-- Recreated rather than CREATE IF NOT EXISTS. This migration never shipped: it was
+-- written, applied during the v0.8.61 pre-release test, then withdrawn from that
+-- release by deleting its _sqlx_migrations record — which leaves the TABLE behind
+-- on any machine that ran the test build, without the order_index column added
+-- since. CREATE TABLE IF NOT EXISTS would silently keep that older shape.
+--
+-- Safe to drop because nothing has ever written to rule_layers; campaign_kv is
+-- deliberately left alone because it does hold copied rows.
+DROP TABLE IF EXISTS rule_layers;
+CREATE TABLE rule_layers (
   id TEXT PRIMARY KEY,
   campaign_id TEXT,
   target_id TEXT NOT NULL,
@@ -752,6 +792,10 @@ CREATE TABLE IF NOT EXISTS rule_layers (
   value TEXT NOT NULL,
   note TEXT,
   enabled INTEGER NOT NULL DEFAULT 1,
+  -- Explicit same-scope sequencing. set/multiply/add are not commutative, so
+  -- without this the row order the query happened to return would decide the
+  -- mechanics.
+  order_index INTEGER,
   updated_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_rule_layers_target ON rule_layers (campaign_id, target_id);
@@ -783,12 +827,22 @@ fn main() {
             sql: SCHEMA_V4,
             kind: tauri_plugin_sql::MigrationKind::Up,
         },
-        // v5 is DEFERRED to Phase 2 — see SCHEMA_V5 above. Registering it here makes
-        // the database unopenable by v0.8.60, which would destroy this release's
-        // rollback boundary.
+        tauri_plugin_sql::Migration {
+            version: 5,
+            description: "campaign_kv + rule_layers: campaign data and layered rules in the database",
+            sql: SCHEMA_V5,
+            kind: tauri_plugin_sql::MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()
+        // Runs before any JS opens the database, so the copy is taken while nothing
+        // holds the file and BEFORE sqlx applies a migration an older build cannot
+        // read. Without this, upgrading is a one-way door.
+        .setup(|app| {
+            backup_before_schema_upgrade(&app.handle());
+            Ok(())
+        })
         .manage(net::NetState::default())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())

@@ -104,6 +104,7 @@ describe("a package gathers the whole campaign", () => {
       encounters: [],
       assets: [],
       kv: [],
+      ruleLayers: [],
       pages: [],
     });
     expect(JSON.parse(s).wte).toBe("campaign");

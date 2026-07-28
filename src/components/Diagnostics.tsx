@@ -56,7 +56,7 @@ export function Diagnostics({ campaign }: Props) {
       const existing = new Set(
         (await db.select<{ name: string }[]>("SELECT name FROM sqlite_master WHERE type = 'table'")).map((r) => r.name)
       );
-      for (const t of ["campaigns", "characters", "scenes", "encounters", "assets", "notes", "codex_sequences", "rolls", "campaign_kv"]) {
+      for (const t of ["campaigns", "characters", "scenes", "encounters", "assets", "notes", "codex_sequences", "rolls", "campaign_kv", "rule_layers"]) {
         if (!existing.has(t)) continue;
         try {
           const rows = await db.select<{ n: number }[]>(`SELECT COUNT(*) AS n FROM ${t}`);
