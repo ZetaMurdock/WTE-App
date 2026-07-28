@@ -115,10 +115,49 @@ describe("migration is conservative", () => {
     expect(Object.keys(plan.next)).toEqual(["wte.genus.vector-swing"]);
   });
 
-  it("collapses a name and its alias onto one id, keeping the larger investment", () => {
+  it("refuses to collapse a name and its alias, and says why", () => {
+    // Both entries are the same concept, so migrating them writes one key twice.
+    // Keeping the larger — what this used to do — silently changes how much Focus
+    // the character has spent and destroys the evidence that it did.
     const renamed = new CodexRegistry([renameEntity(genus("Vector Swing"), "Vector Redirection")]);
     const plan = planGenusMigration({ "Vector Swing": 2, "Vector Redirection": 4 }, renamed, ctx);
-    expect(plan.next).toEqual({ "wte.genus.vector-swing": 4 });
+
+    expect(plan.changed).toBe(false);
+    expect(plan.next).toEqual({ "Vector Swing": 2, "Vector Redirection": 4 });
+    expect(plan.conflicts).toEqual([
+      {
+        target: "wte.genus.vector-swing",
+        entries: [
+          { stored: "Vector Swing", focus: 2 },
+          { stored: "Vector Redirection", focus: 4 },
+        ],
+      },
+    ]);
+    expect(plan.kept.every((k) => k.reason === "collision")).toBe(true);
+  });
+
+  it("refuses when a legacy name would land on an id the sheet already holds", () => {
+    // The half-migrated sheet. The id entry is not being changed by anyone, and
+    // writing the name's Focus over it would lose points nothing was touching.
+    const plan = planGenusMigration({ "wte.genus.vector-swing": 5, "Vector Swing": 1 }, reg, ctx);
+    expect(plan.changed).toBe(false);
+    expect(plan.next["wte.genus.vector-swing"]).toBe(5);
+    expect(plan.next["Vector Swing"]).toBe(1);
+    expect(plan.conflicts[0].target).toBe("wte.genus.vector-swing");
+  });
+
+  it("does not rewrite anyone's sheet against a Codex that is not sound", () => {
+    // Duplicate ids mean the registry cannot say what a reference points at. That
+    // is not a state to permanently rewrite characters from.
+    const broken = new CodexRegistry([
+      genus("Vector Swing"),
+      buildEntity({ kind: "genus", title: "Vector Swing", sourcePage: "Other_Page", fields: {}, data: {} }).entity,
+    ]);
+    expect(broken.status()).toBe("degraded");
+    const plan = planGenusMigration({ "Vector Swing": 3 }, broken, ctx);
+    expect(plan.blocked).toBe("registry-degraded");
+    expect(plan.changed).toBe(false);
+    expect(plan.next).toEqual({ "Vector Swing": 3 });
   });
 
   it("handles an empty sheet without inventing anything", () => {

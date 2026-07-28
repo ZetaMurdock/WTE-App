@@ -81,14 +81,22 @@ export function resolveGenusRefs(
   return out;
 }
 
+export type KeptReason = "already-an-id" | "unresolved" | "ambiguous" | "collision" | "registry-degraded";
+
 export interface MigrationPlan {
   /** The rewritten focusSpend.genus map. */
   next: Record<string, number>;
   /** Names that became ids. */
   migrated: { from: string; to: string }[];
   /** Left exactly as they were, and why. */
-  kept: { stored: string; reason: "already-an-id" | "unresolved" | "ambiguous" }[];
+  kept: { stored: string; reason: KeptReason }[];
+  /** Two or more stored entries that resolve to ONE concept. Nothing is migrated
+   *  for these; a person has to say which was meant, because merging them changes
+   *  how much Focus the character has spent. */
+  conflicts: { target: string; entries: { stored: string; focus: number }[] }[];
   changed: boolean;
+  /** Set when the whole plan was refused because the Codex itself is not sound. */
+  blocked?: "registry-degraded";
 }
 
 /**
@@ -107,9 +115,67 @@ export function planGenusMigration(
 ): MigrationPlan {
   const next: Record<string, number> = {};
   const migrated: { from: string; to: string }[] = [];
-  const kept: { stored: string; reason: "already-an-id" | "unresolved" | "ambiguous" }[] = [];
+  const kept: { stored: string; reason: KeptReason }[] = [];
+  const conflicts: MigrationPlan["conflicts"] = [];
 
-  for (const ref of resolveGenusRefs(spend, registry, ctx)) {
+  const refs = resolveGenusRefs(spend, registry, ctx);
+
+  // A Codex with duplicate ids, a cycle, or records it could not index is not a
+  // sound basis for rewriting anyone's character. Read from it — resolveGenusRefs
+  // above still works — but do not write against it.
+  if (registry.status() === "degraded") {
+    for (const ref of refs) {
+      next[ref.stored] = ref.focus;
+      kept.push({ stored: ref.stored, reason: "registry-degraded" });
+    }
+    return { next, migrated, kept, conflicts, changed: false, blocked: "registry-degraded" };
+  }
+
+  // Work out where each entry WANTS to go before moving anything, so a collision
+  // is visible while both sides are still intact.
+  const targets = new Map<string, { stored: string; focus: number }[]>();
+  const claim = (target: string, stored: string, focus: number) => {
+    const list = targets.get(target);
+    if (list) list.push({ stored, focus });
+    else targets.set(target, [{ stored, focus }]);
+  };
+  for (const ref of refs) {
+    // An entry that is ALREADY an id still occupies its key, so a legacy name
+    // migrating onto that same key is a collision too — and one that would
+    // otherwise overwrite an entry nothing was even trying to change.
+    if (ref.migrated) {
+      claim(ref.stored, ref.stored, ref.focus);
+      continue;
+    }
+    if (ref.ambiguousWith || ref.unresolved || !ref.entity) continue;
+    // Migrate to the OFFICIAL concept id, not the campaign override's id — the
+    // character holds a concept, and which layer wins is resolved per context. A
+    // sheet pinned to a campaign override would carry that table's rules with it
+    // to another campaign entirely.
+    claim(
+      ref.entity.scope === "wte" ? ref.entity.id : (ref.entity.overrides ?? ref.entity.id),
+      ref.stored,
+      ref.focus
+    );
+  }
+
+  // Two stored entries reaching one concept — a name and its own alias, most
+  // often. This used to keep the larger Focus and drop the other, which quietly
+  // changed how much the character had spent and destroyed the evidence of it.
+  // It is a conflict for a person to settle, not a number to pick.
+  const collided = new Set<string>();
+  for (const [target, entries] of targets) {
+    if (entries.length < 2) continue;
+    conflicts.push({ target, entries });
+    for (const en of entries) collided.add(en.stored);
+  }
+
+  for (const ref of refs) {
+    if (collided.has(ref.stored)) {
+      next[ref.stored] = ref.focus;
+      kept.push({ stored: ref.stored, reason: "collision" });
+      continue;
+    }
     if (ref.migrated) {
       next[ref.stored] = ref.focus;
       kept.push({ stored: ref.stored, reason: "already-an-id" });
@@ -125,16 +191,10 @@ export function planGenusMigration(
       kept.push({ stored: ref.stored, reason: "unresolved" });
       continue;
     }
-    // Migrate to the OFFICIAL concept id, not the campaign override's id — the
-    // character holds a concept, and which layer wins is resolved per context. A
-    // sheet pinned to a campaign override would carry that table's rules with it
-    // to another campaign entirely.
     const target = ref.entity.scope === "wte" ? ref.entity.id : (ref.entity.overrides ?? ref.entity.id);
-    // Two legacy names can collapse onto one id (a name and its alias); keep the
-    // larger investment rather than letting one silently overwrite the other.
-    next[target] = Math.max(next[target] ?? 0, ref.focus);
+    next[target] = ref.focus;
     migrated.push({ from: ref.stored, to: target });
   }
 
-  return { next, migrated, kept, changed: migrated.length > 0 };
+  return { next, migrated, kept, conflicts, changed: migrated.length > 0 };
 }

@@ -78,10 +78,23 @@ export function resolveIdentity(
   title: string,
   fields: IdentityFields,
   opts?: { scope?: IdScope; ownerId?: string }
-): { id: string; assigned: boolean; malformed?: string } {
+): { id: string; assigned: boolean; malformed?: string; mismatch?: string } {
   const declared = (fields.id ?? "").trim();
   if (declared) {
-    if (parseId(declared)) return { id: declared, assigned: false };
+    const parsed = parseId(declared);
+    if (parsed) {
+      // Well-formed is not the same as correct. An id whose kind, scope or owner
+      // disagrees with the page is left exactly as written — references already use
+      // it — but the disagreement is handed back so the Curator can be told.
+      const wantScope = opts?.scope ?? "wte";
+      let mismatch: string | undefined;
+      if (parsed.kind !== kind) mismatch = `"${declared}" says ${parsed.kind}, but this page is a ${kind}`;
+      else if (parsed.scope !== wantScope)
+        mismatch = `"${declared}" is ${parsed.scope}-scoped, but this page is ${wantScope}-scoped`;
+      else if (wantScope !== "wte" && parsed.owner !== slugify(opts?.ownerId ?? ""))
+        mismatch = `"${declared}" belongs to another owner`;
+      return { id: declared, assigned: false, mismatch };
+    }
     // A malformed id is reported rather than silently replaced: the page author
     // wrote something, and quietly substituting a different id would detach every
     // reference that already used theirs.
@@ -105,7 +118,7 @@ export function buildEntity(args: {
   summary?: string;
   scope?: IdScope;
   ownerId?: string;
-}): { entity: CodexEntity; assigned: boolean; malformed?: string } {
+}): { entity: CodexEntity; assigned: boolean; malformed?: string; mismatch?: string } {
   const { kind, title, sourcePage, fields, data, summary } = args;
   const ident = resolveIdentity(kind, title, fields, { scope: args.scope, ownerId: args.ownerId });
 
@@ -134,6 +147,7 @@ export function buildEntity(args: {
     },
     assigned: ident.assigned,
     malformed: ident.malformed,
+    mismatch: ident.mismatch,
   };
 }
 

@@ -4,7 +4,7 @@
 // Curator renames the page to "Vector Redirection", the character still works, and
 // "Vector Swing" still finds it.
 //
-// Three rules shape the resolver, and each one is a decision NOT to be clever:
+// Four rules shape the resolver, and each one is a decision NOT to be clever:
 //
 //  1. IT NEVER SILENTLY PICKS. Two equally valid matches produce an `ambiguous`
 //     result listing both. Guessing is how a rename quietly rewires a character to
@@ -15,10 +15,36 @@
 //  3. VISIBILITY IS FILTERED CENTRALLY. A player asking about a Curator-only
 //     concept gets nothing — not a redacted stub, and not a leak from some caller
 //     that forgot to check.
+//  4. A BROKEN RECORD IS REPORTED, NEVER DELETED. A typo in an ID row must not
+//     make a page vanish; it stays findable by name and shows up in health.
+//
+// HOW TWO RECORDS BECOME ONE CONCEPT
+//
+// Originally this was decided purely by kind+slug, and the `overrides` field a page
+// could declare was stored and never read. That had two consequences. An override
+// whose page carried a different title — "Ashen Sun Vector Swing" overriding
+// "Vector Swing" — produced a different slug and therefore silently did nothing,
+// which is the worst possible outcome for a rules override. And an unrelated
+// campaign page that merely happened to share a title with an official one took it
+// over without anyone saying so.
+//
+// Now:
+//   overrides: <id>   is authoritative. The declaring record joins that concept
+//                     however its own title reads.
+//   overrides: none   is an explicit opt-out. It defines something of its own and
+//                     will never absorb, or be absorbed by, a same-named concept.
+//   (absent)          falls back to kind+slug, which is what makes the documented
+//                     scope stack work for pages that simply share a title — and
+//                     any cross-scope join made this way is reported as
+//                     `undeclared-override`, so it is a decision the Curator can
+//                     see rather than one the resolver made quietly.
 import { parseId, sameConcept, scopeRank, slugify } from "./codexId";
 import { entityKeys, type CodexEntity, type CodexKind } from "./codexEntity";
 
 export type MatchedBy = "id" | "name" | "slug" | "alias";
+
+/** The literal a page writes to say "this stands alone". */
+export const STANDALONE = "none";
 
 export interface ResolveContext {
   /** Who is asking. A player never resolves a Curator-only definition. */
@@ -46,6 +72,10 @@ export interface Provenance {
   overridden: boolean;
   /** The official id this replaces, when it replaces one. */
   overrides?: string;
+  /** True when the winning layer never declared that it overrides anything, and
+   *  was joined to the concept by title alone. The mechanics are unaffected; it is
+   *  reported so a surprising override can be traced to its cause. */
+  byTitleOnly?: boolean;
 }
 
 export interface Resolution {
@@ -64,28 +94,91 @@ export interface Ambiguity {
   term: string;
   /** Every concept that matched equally well. The caller must ask. */
   candidates: CodexEntity[];
+  /** Set when the candidates all claim the SAME id. That is not a term collision
+   *  but an authoring fault, and it needs different wording in the UI. */
+  conflictingId?: string;
 }
 
 export type ResolveResult = Resolution | Ambiguity | null;
 
+export type ProblemKind =
+  | "duplicate-id"
+  | "ambiguous-alias"
+  | "dangling-override"
+  | "malformed-id"
+  | "identity-mismatch"
+  | "override-cycle"
+  | "undeclared-override"
+  | "unusable-record";
+
 export interface RegistryProblem {
-  kind: "duplicate-id" | "ambiguous-alias" | "dangling-override" | "malformed-id";
+  kind: ProblemKind;
   detail: string;
   ids: string[];
+  /** "error" means something cannot be resolved correctly and the app should say
+   *  so before acting on it. "warning" is worth showing but resolution is sound. */
+  severity: "error" | "warning";
 }
 
-/** Concept key — kind + slug. An official and its campaign override share one. */
-function conceptKey(e: CodexEntity): string {
+const ERRORS: ReadonlySet<ProblemKind> = new Set(["duplicate-id", "override-cycle", "unusable-record"]);
+
+/** What a consumer needs to know before trusting an answer. `loading` and `failed`
+ *  belong to whatever owns the registry; the registry itself is only ever one of
+ *  the other two. */
+export type RegistryStatus = "loading" | "ready" | "degraded" | "failed";
+
+/** kind + slug of an id, or of a name when the id is unusable. */
+function titleKey(e: CodexEntity): string {
   const p = parseId(e.id);
   return p ? `${p.kind}:${p.slug}` : `${e.kind}:${slugify(e.name)}`;
 }
 
+/** A record with neither a usable id nor a usable name cannot be found by anything,
+ *  so indexing it would only hide it. These are listed in health instead. */
+function isUnusable(e: CodexEntity): boolean {
+  return !parseId(e.id) && !slugify(e.name ?? "");
+}
+
+/**
+ * Does a well-formed id actually describe the record carrying it?
+ *
+ * A `wte.`-prefixed id on a campaign page, or a `genus.` id on a cipher, resolves
+ * perfectly and means the wrong thing — the record files itself under a layer or a
+ * kind it does not belong to, and takes over whatever legitimately lives there.
+ * Returns the disagreement in words, or null.
+ */
+function identityDisagreement(
+  e: CodexEntity,
+  idKind: string,
+  idScope: string,
+  idOwner: string | undefined
+): string | null {
+  if (idKind !== e.kind) return `it is a ${e.kind}, not a ${idKind}`;
+  if (idScope !== e.scope) return `it is ${e.scope}-scoped, not ${idScope}-scoped`;
+  if (e.scope !== "wte") {
+    const owner = slugify(e.ownerId ?? "");
+    if (!owner) return `a ${e.scope}-scoped record must name its owner`;
+    if (owner !== idOwner) return `it belongs to "${e.ownerId}", not "${idOwner}"`;
+  }
+  return null;
+}
+
 export class CodexRegistry {
+  /** The authoritative list. Every index below is derived from it, and rebuilt
+   *  wholesale — an index that is updated in place drifts out of agreement with
+   *  the entities it describes, and nothing tells you when it has. */
+  private entities: CodexEntity[] = [];
+
   private byId = new Map<string, CodexEntity>();
   private byKey = new Map<string, CodexEntity[]>();
-  /** kind:slug -> every layer defining that concept. An official and its campaign
+  /** concept key -> every layer defining that concept. An official and its campaign
    *  override live here together even when their display names have diverged. */
   private byConcept = new Map<string, CodexEntity[]>();
+  /** entity id -> its concept key, resolved through declared overrides. */
+  private conceptOf = new Map<CodexEntity, string>();
+  /** Ids claimed by more than one record. Resolving one is a question, not an answer. */
+  private conflicted = new Map<string, CodexEntity[]>();
+  private quarantine: CodexEntity[] = [];
   private problems: RegistryProblem[] = [];
 
   constructor(entities: CodexEntity[] = []) {
@@ -93,34 +186,212 @@ export class CodexRegistry {
   }
 
   addAll(entities: CodexEntity[]): void {
-    for (const e of entities) this.add(e);
+    if (!entities.length) {
+      if (!this.entities.length) this.rebuild();
+      return;
+    }
+    this.entities = this.entities.concat(entities);
+    this.rebuild();
   }
 
   add(e: CodexEntity): void {
-    if (!parseId(e.id)) {
-      this.problems.push({ kind: "malformed-id", detail: `"${e.name}" has id "${e.id}"`, ids: [e.id] });
-    }
-    const prior = this.byId.get(e.id);
-    if (prior && prior.sourcePage !== e.sourcePage) {
-      // Two pages claiming one id is a real authoring error — every reference to
-      // that id is now ambiguous, and picking one silently would be arbitrary.
-      this.problems.push({
-        kind: "duplicate-id",
-        detail: `"${e.id}" is claimed by both "${prior.sourcePage}" and "${e.sourcePage}"`,
-        ids: [e.id],
-      });
-    }
-    this.byId.set(e.id, e);
-    for (const k of entityKeys(e)) {
-      const list = this.byKey.get(k);
-      if (list) list.push(e);
-      else this.byKey.set(k, [e]);
-    }
-    const ck = conceptKey(e);
-    const cl = this.byConcept.get(ck);
-    if (cl) cl.push(e);
-    else this.byConcept.set(ck, [e]);
+    this.addAll([e]);
   }
+
+  /** Replace the contents outright. The indexes only ever swap in complete. */
+  replaceAll(entities: CodexEntity[]): void {
+    this.entities = [...entities];
+    this.rebuild();
+  }
+
+  // ---- index construction ---------------------------------------------------
+
+  /**
+   * Rebuild every index from `entities`, in one pass, atomically.
+   *
+   * Atomic in the sense that matters here: the new maps are built into locals and
+   * only assigned once all of them are complete, so a throw part-way leaves the
+   * previous, consistent set in place rather than a half-populated one that would
+   * answer questions wrongly instead of failing.
+   */
+  private rebuild(): void {
+    const problems: RegistryProblem[] = [];
+    const quarantine: CodexEntity[] = [];
+    const usable: CodexEntity[] = [];
+
+    for (const e of this.entities) {
+      if (isUnusable(e)) {
+        quarantine.push(e);
+        problems.push({
+          kind: "unusable-record",
+          detail: `a record from "${e.sourcePage}" has neither a usable id nor a usable name`,
+          ids: [e.id],
+          severity: "error",
+        });
+        continue;
+      }
+      const parsed = parseId(e.id);
+      if (!parsed) {
+        // Reported, but kept resolvable by name. A typo in an ID row must never be
+        // the reason a page disappears.
+        problems.push({
+          kind: "malformed-id",
+          detail: `"${e.name}" has id "${e.id}", which is not a well-formed Codex id`,
+          ids: [e.id],
+          severity: "warning",
+        });
+      } else {
+        // A well-formed id can still disagree with the record carrying it. Left as
+        // written — every existing reference uses it — but never left unsaid.
+        const wrong = identityDisagreement(e, parsed.kind, parsed.scope, parsed.owner);
+        if (wrong) {
+          problems.push({
+            kind: "identity-mismatch",
+            detail: `"${e.name}" has id "${e.id}", but ${wrong}`,
+            ids: [e.id],
+            severity: "warning",
+          });
+        }
+      }
+      usable.push(e);
+    }
+
+    // ---- id index, and the ids more than one record claims
+    const byId = new Map<string, CodexEntity>();
+    const claims = new Map<string, CodexEntity[]>();
+    for (const e of usable) {
+      const list = claims.get(e.id);
+      if (list) list.push(e);
+      else claims.set(e.id, [e]);
+      if (!byId.has(e.id)) byId.set(e.id, e); // first wins, deterministically
+    }
+    const conflicted = new Map<string, CodexEntity[]>();
+    for (const [id, list] of claims) {
+      const pages = new Set(list.map((e) => e.sourcePage));
+      if (list.length > 1 && pages.size > 1) {
+        conflicted.set(id, list);
+        problems.push({
+          kind: "duplicate-id",
+          detail: `"${id}" is claimed by ${[...pages].map((p) => `"${p}"`).join(" and ")}`,
+          ids: [id],
+          severity: "error",
+        });
+      }
+    }
+
+    // ---- concept keys, following declared overrides to their root
+    const conceptOf = new Map<CodexEntity, string>();
+    for (const e of usable) {
+      conceptOf.set(e, this.conceptKeyFor(e, byId, problems));
+    }
+
+    const byKey = new Map<string, CodexEntity[]>();
+    const byConcept = new Map<string, CodexEntity[]>();
+    for (const e of usable) {
+      for (const k of entityKeys(e)) {
+        const list = byKey.get(k);
+        if (list) list.push(e);
+        else byKey.set(k, [e]);
+      }
+      const ck = conceptOf.get(e)!;
+      const cl = byConcept.get(ck);
+      if (cl) cl.push(e);
+      else byConcept.set(ck, [e]);
+    }
+
+    // ---- joins nobody declared
+    // A scoped record that took over an official concept purely because the titles
+    // matched. Resolution is unchanged — this is the documented fallback — but it
+    // is the one way an override can happen without anyone writing it down, so it
+    // is said out loud.
+    for (const [, group] of byConcept) {
+      if (group.length < 2) continue;
+      const official = group.find((e) => e.scope === "wte");
+      if (!official) continue;
+      for (const e of group) {
+        if (e === official || e.scope === "wte") continue;
+        if (e.overrides) continue; // declared: nothing to warn about
+        problems.push({
+          kind: "undeclared-override",
+          detail: `"${e.name}" (${e.scope}) replaces the official "${official.name}" because their titles match, not because it says so`,
+          ids: [e.id, official.id],
+          severity: "warning",
+        });
+      }
+    }
+
+    // ---- dangling overrides
+    for (const e of usable) {
+      if (!e.overrides || e.overrides === STANDALONE) continue;
+      if (!byId.has(e.overrides)) {
+        problems.push({
+          kind: "dangling-override",
+          detail: `"${e.name}" overrides "${e.overrides}", which is not in the Codex`,
+          ids: [e.id, e.overrides],
+          severity: "warning",
+        });
+      }
+    }
+
+    // ---- an alias reaching two different concepts can never resolve without asking
+    for (const [key, list] of byKey) {
+      const concepts = new Set(list.map((e) => conceptOf.get(e)!));
+      if (concepts.size > 1) {
+        problems.push({
+          kind: "ambiguous-alias",
+          detail: `"${key}" matches ${concepts.size} different concepts`,
+          ids: list.map((e) => e.id),
+          severity: "warning",
+        });
+      }
+    }
+
+    // Swap in complete.
+    this.byId = byId;
+    this.byKey = byKey;
+    this.byConcept = byConcept;
+    this.conceptOf = conceptOf;
+    this.conflicted = conflicted;
+    this.quarantine = quarantine;
+    this.problems = problems;
+  }
+
+  /** Follow `overrides` to the concept root. Cycles are broken and reported. */
+  private conceptKeyFor(
+    e: CodexEntity,
+    byId: Map<string, CodexEntity>,
+    problems: RegistryProblem[]
+  ): string {
+    if (e.overrides === STANDALONE) return `standalone:${e.id}`;
+    let cur = e;
+    const seen = new Set<string>([e.id]);
+    for (let hops = 0; hops < 16; hops++) {
+      const target = cur.overrides;
+      if (!target || target === STANDALONE) break;
+      if (seen.has(target)) {
+        problems.push({
+          kind: "override-cycle",
+          detail: `"${e.name}" is part of an overrides cycle through "${target}"`,
+          ids: [...seen],
+          severity: "error",
+        });
+        break;
+      }
+      const next = byId.get(target);
+      // Dangling: reported separately. Root on the last record we could reach, so
+      // the layer still defines something rather than evaporating.
+      if (!next) break;
+      seen.add(target);
+      cur = next;
+    }
+    return titleKey(cur);
+  }
+
+  private keyOf(e: CodexEntity): string {
+    return this.conceptOf.get(e) ?? titleKey(e);
+  }
+
+  // ---- reading --------------------------------------------------------------
 
   get(id: string): CodexEntity | undefined {
     return this.byId.get(id);
@@ -134,32 +405,19 @@ export class CodexRegistry {
     return this.all().filter((e) => e.kind === kind);
   }
 
+  /** Records that could not be indexed at all. Never silently dropped. */
+  quarantined(): CodexEntity[] {
+    return [...this.quarantine];
+  }
+
   /** Authoring problems worth surfacing in a Codex health panel. */
   health(): RegistryProblem[] {
-    const out = [...this.problems];
-    // A dangling override points at a definition that is not here.
-    for (const e of this.all()) {
-      if (e.overrides && !this.byId.has(e.overrides)) {
-        out.push({
-          kind: "dangling-override",
-          detail: `"${e.name}" overrides "${e.overrides}", which is not in the Codex`,
-          ids: [e.id, e.overrides],
-        });
-      }
-    }
-    // An alias that reaches two different CONCEPTS can never be resolved without
-    // asking, so it is an authoring problem rather than a runtime surprise.
-    for (const [key, list] of this.byKey) {
-      const concepts = new Set(list.map(conceptKey));
-      if (concepts.size > 1) {
-        out.push({
-          kind: "ambiguous-alias",
-          detail: `"${key}" matches ${concepts.size} different concepts`,
-          ids: list.map((e) => e.id),
-        });
-      }
-    }
-    return out;
+    return [...this.problems];
+  }
+
+  /** Ready, or working but with something that makes an answer untrustworthy. */
+  status(): Extract<RegistryStatus, "ready" | "degraded"> {
+    return this.problems.some((p) => ERRORS.has(p.kind)) ? "degraded" : "ready";
   }
 
   /** Is this definition in play for the given context? */
@@ -206,7 +464,7 @@ export class CodexRegistry {
     // two candidates.
     const groups = new Map<string, CodexEntity[]>();
     for (const e of visible) {
-      const k = conceptKey(e);
+      const k = this.keyOf(e);
       const g = groups.get(k);
       if (g) g.push(e);
       else groups.set(k, [e]);
@@ -227,19 +485,32 @@ export class CodexRegistry {
     // must still win.
     const matched = [...groups.values()][0][0];
     const group = this.conceptLayers(matched, ctx);
+    const clash = this.conflictWithin(group, raw);
+    if (clash) return clash;
     return this.resolveGroup(group, this.matchedBy(this.pick(group), lower, slug));
   }
 
   /** Every in-context layer defining the same concept as `e`. */
   private conceptLayers(e: CodexEntity, ctx: ResolveContext): CodexEntity[] {
-    const all = this.byConcept.get(conceptKey(e)) ?? [e];
+    const all = this.byConcept.get(this.keyOf(e)) ?? [e];
     const usable = all.filter((x) => this.inContext(x, ctx) && (!ctx.kind || x.kind === ctx.kind));
     return usable.length ? usable : [e];
+  }
+
+  /** Two records claiming one id inside the answer make the answer a question. */
+  private conflictWithin(group: CodexEntity[], term: string): Ambiguity | null {
+    if (!this.conflicted.size) return null;
+    for (const e of group) {
+      const rivals = this.conflicted.get(e.id);
+      if (rivals) return { ambiguous: true, term, candidates: [...rivals], conflictingId: e.id };
+    }
+    return null;
   }
 
   private resolveGroup(group: CodexEntity[], matchedBy: MatchedBy): Resolution {
     const winner = this.pick(group);
     const official = group.find((e) => e.scope === "wte");
+    const overridden = winner.scope !== "wte";
     return {
       ambiguous: false,
       entity: winner,
@@ -250,8 +521,14 @@ export class CodexRegistry {
         scope: winner.scope,
         ownerId: winner.ownerId,
         sourcePage: winner.sourcePage,
-        overridden: winner.scope !== "wte",
-        overrides: winner.overrides ?? (winner.scope !== "wte" && official ? official.id : undefined),
+        overridden,
+        overrides:
+          winner.overrides && winner.overrides !== STANDALONE
+            ? winner.overrides
+            : overridden && official
+              ? official.id
+              : undefined,
+        byTitleOnly: overridden && !!official && !winner.overrides ? true : undefined,
       },
     };
   }
@@ -273,6 +550,12 @@ export class CodexRegistry {
    *  This is what makes the dual-read period safe: existing characters hold names,
    *  new ones hold ids, and both keep working while they migrate. */
   resolveReference(ref: string, ctx: ResolveContext): ResolveResult {
+    const rivals = this.conflicted.get(ref);
+    if (rivals) {
+      // The stored id is real but two records claim it. Answering with either one
+      // binds the character to a coin toss.
+      return { ambiguous: true, term: ref, candidates: [...rivals], conflictingId: ref };
+    }
     const direct = this.byId.get(ref);
     if (direct) {
       // Resolve the whole CONCEPT, not this one record: a campaign override must
@@ -281,6 +564,8 @@ export class CodexRegistry {
       // record is out of context can still resolve through a layer that is in it.
       const group = this.conceptLayers(direct, ctx);
       if (!group.some((e) => this.inContext(e, ctx))) return null;
+      const clash = this.conflictWithin(group, ref);
+      if (clash) return clash;
       return this.resolveGroup(group, "id");
     }
     return this.resolveTerm(ref, ctx);
