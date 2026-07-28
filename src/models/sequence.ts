@@ -33,13 +33,14 @@ export interface Sequence {
 export const SEQ_ICONS = ["◈", "☍", "✶", "⌬", "♁", "⚚", "☌", "⟁"];
 export const SEQ_COLORS = ["#689a96", "#837aae", "#a7aebd", "#a1584a", "#6f9a68", "#a08a4f"];
 
-export function newSequence(title: string): Sequence {
+export function newSequence(title: string, campaignId: string | null = null): Sequence {
   const id =
     typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()
       : "sq-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
   return {
     id,
+    campaignId,
     title,
     description: "",
     icon: SEQ_ICONS[0],
@@ -49,7 +50,6 @@ export function newSequence(title: string): Sequence {
     recordIds: [],
     scripts: [],
     visibility: "player",
-    campaignId: null,
     updatedAt: Date.now(),
   };
 }

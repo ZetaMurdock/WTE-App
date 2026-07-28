@@ -35,10 +35,22 @@ function parse(r: Row): CodexNote {
   };
 }
 
-export async function listNotes(): Promise<CodexNote[]> {
+/** Notes for one campaign, plus any UNFILED note (campaign_id NULL).
+ *
+ *  There was no WHERE clause at all, so every campaign showed every other
+ *  campaign's notes. Rows written before notes were scoped all have a NULL
+ *  campaign_id and cannot be attributed after the fact, so they stay visible
+ *  everywhere rather than vanishing — nothing disappears, and new notes are
+ *  properly scoped from here on. */
+export async function listNotes(campaignId?: string | null): Promise<CodexNote[]> {
   if (!sqlAvailable()) return [];
   const db = await getDb();
-  const rows = await db.select<Row[]>("SELECT * FROM notes ORDER BY updated_at DESC");
+  const rows = campaignId
+    ? await db.select<Row[]>(
+        "SELECT * FROM notes WHERE campaign_id = $1 OR campaign_id IS NULL ORDER BY updated_at DESC",
+        [campaignId]
+      )
+    : await db.select<Row[]>("SELECT * FROM notes ORDER BY updated_at DESC");
   return rows.map(parse);
 }
 

@@ -132,7 +132,16 @@ function extractLinks(md: string, self: string): string[] {
   return [...out];
 }
 
-export function CodexBrowser({ curator = false, engineer = false }: { curator?: boolean; engineer?: boolean }) {
+export function CodexBrowser({
+  curator = false,
+  engineer = false,
+  campaignId = null,
+}: {
+  curator?: boolean;
+  engineer?: boolean;
+  /** Scopes notes and Sequences. Without it every campaign shared one pool. */
+  campaignId?: string | null;
+}) {
   const [tabs, setTabs] = useState<CTab[]>([{ id: uid(), hist: [HOME], idx: 0, title: "Archive" }]);
   const [activeId, setActiveId] = useState(tabs[0].id);
   const [addr, setAddr] = useState(HOME);
@@ -252,8 +261,8 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
   useEffect(() => {
     if (isTauri()) {
       invoke<string[]>("wte_list_pages").then(setPages).catch(() => setPages([]));
-      listSequences().then(setSeqs).catch(() => setSeqs([]));
-      listNotes().then(setNotes).catch(() => setNotes([]));
+      listSequences(campaignId).then(setSeqs).catch(() => setSeqs([]));
+      listNotes(campaignId).then(setNotes).catch(() => setNotes([]));
     }
   }, []);
 
@@ -331,7 +340,7 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
     void reportSaveFailure(saveNote(n), "the note");
   }
   function addNote(attachedTo: string | null, quote: string | null = null) {
-    const n = newNote(attachedTo, quote);
+    const n = newNote(attachedTo, quote, campaignId);
     setNotes((ns) => [n, ...ns]);
     void reportSaveFailure(saveNote(n), "the note");
   }
@@ -353,7 +362,7 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
     void reportSaveFailure(saveSequence(next), "the Sequence");
   }
   async function createSequence() {
-    const s = newSequence("New Sequence");
+    const s = newSequence("New Sequence", campaignId);
     await reportSaveFailure(saveSequence(s), "the Sequence");
     setSeqs((ss) => [s, ...ss]);
     navigate(`wte://sequence/${s.id}`);
@@ -563,7 +572,7 @@ export function CodexBrowser({ curator = false, engineer = false }: { curator?: 
       const src = (p.sequence ?? p) as Partial<Sequence>;
       if (!src || typeof src.title !== "string" || !Array.isArray(src.recordIds)) throw new Error("bad pack");
       const s: Sequence = {
-        ...newSequence(src.title),
+        ...newSequence(src.title, campaignId),
         description: src.description || "",
         icon: src.icon || "◈",
         color: src.color || "#689a96",

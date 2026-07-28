@@ -372,7 +372,7 @@ export default function App() {
         )}
         {/* Codex stays mounted so its tabs/history survive switching away */}
         <div className={"view-scroll" + (activeTab !== "codex" ? " hidden" : "")}>
-          <CodexBrowser curator={curator} engineer={engineer} />
+          <CodexBrowser curator={curator} engineer={engineer} campaignId={activeCampaign?.id ?? null} />
         </div>
         {/* VTT v2 stays mounted so the Pixi context survives tab switches */}
         <div className={"view-scroll" + (activeTab !== "vtt2" ? " hidden" : "")}>

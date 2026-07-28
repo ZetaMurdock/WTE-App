@@ -16,20 +16,20 @@ export interface CodexNote {
   updatedAt: number;
 }
 
-export function newNote(attachedTo: string | null, quote: string | null = null): CodexNote {
+export function newNote(attachedTo: string | null, quote: string | null = null, campaignId: string | null = null): CodexNote {
   const id =
     typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()
       : "n-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
   return {
     id,
+    campaignId,
     title: "",
     body: "",
     attachedTo,
     quote,
     visibility: "player",
     tags: [],
-    campaignId: null,
     updatedAt: Date.now(),
   };
 }

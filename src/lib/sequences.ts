@@ -22,10 +22,18 @@ function parse(r: Row): Sequence | null {
   }
 }
 
-export async function listSequences(): Promise<Sequence[]> {
+/** Sequences for one campaign, plus any UNFILED one — same reasoning as
+ *  listNotes: there was no WHERE clause, so every campaign saw every other
+ *  campaign's Sequences. */
+export async function listSequences(campaignId?: string | null): Promise<Sequence[]> {
   if (!sqlAvailable()) return [];
   const db = await getDb();
-  const rows = await db.select<Row[]>("SELECT * FROM codex_sequences ORDER BY updated_at DESC");
+  const rows = campaignId
+    ? await db.select<Row[]>(
+        "SELECT * FROM codex_sequences WHERE campaign_id = $1 OR campaign_id IS NULL ORDER BY updated_at DESC",
+        [campaignId]
+      )
+    : await db.select<Row[]>("SELECT * FROM codex_sequences ORDER BY updated_at DESC");
   return rows.map(parse).filter((s): s is Sequence => !!s);
 }
 
