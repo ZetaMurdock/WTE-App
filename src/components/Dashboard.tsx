@@ -3,6 +3,7 @@ import type { Campaign } from "../models/campaign";
 import type { TabId } from "./TopBar";
 import { CampaignPicker } from "./CampaignPicker";
 import { CampaignBackup } from "./CampaignBackup";
+import { Diagnostics } from "./Diagnostics";
 import { listScenes } from "../vtt/data/sceneRepo";
 import { CampaignDesk } from "./CampaignDesk";
 import { nextSession, countDeskNotes } from "../lib/campaignDesk";
@@ -102,6 +103,7 @@ export function Dashboard({
       </div>
 
       <CampaignBackup campaign={campaign} onImported={onSwitchCampaign} />
+      <Diagnostics campaign={campaign} />
 
       <div className="dash-grid">
         <button className="panel panel-btn" onClick={onOpenCharacters}>
