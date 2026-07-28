@@ -1,3 +1,5 @@
+import { sanitizeHtml } from "./sanitizeHtml";
+
 // Minimal renderer for Codex pages: markdown with raw-HTML passthrough (the wiki
 // mirror saves pages as `# Title` + arbitrary HTML). Produces an HTML string for
 // the Codex reader; link clicks are intercepted by the reader, not here.
@@ -91,7 +93,11 @@ export function renderCodexHtml(md: string): string {
     para.push(inline(t));
   }
   flushAll();
-  return out.join("\n");
+  // Sanitize at the single exit point. Codex pages arrive from the shared library
+  // and character notes arrive in imported files, so the raw-HTML passthrough
+  // above is untrusted input — see sanitizeHtml.ts for why an allowlist rather
+  // than escaping (319 of 336 real pages contain raw HTML).
+  return sanitizeHtml(out.join("\n"));
 }
 
 /** The page's display title: first heading, else the file stem prettified. */

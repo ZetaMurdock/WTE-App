@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { sanitizeHtml } from "../../../lib/sanitizeHtml";
 import {
   WD_COLORS,
   extractDoc,
@@ -362,7 +363,7 @@ function CanvasNode({ node, selId, onSelect, onPatch }: CanvasProps) {
           suppressContentEditableWarning
           onClick={stop}
           onBlur={(e) => onPatch(node.id, { html: e.currentTarget.innerHTML })}
-          dangerouslySetInnerHTML={{ __html: node.html }}
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(node.html) }}
         />
       );
     case "image": {
