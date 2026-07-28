@@ -109,7 +109,10 @@ export type ProblemKind =
   | "identity-mismatch"
   | "override-cycle"
   | "undeclared-override"
-  | "unusable-record";
+  | "unusable-record"
+  /** A mirror Codex page whose mechanics disagree with the authoritative data
+   *  file. The official values stay in use; the disagreement is for a person. */
+  | "page-drift";
 
 export interface RegistryProblem {
   kind: ProblemKind;
@@ -362,7 +365,12 @@ export class CodexRegistry {
     byId: Map<string, CodexEntity>,
     problems: RegistryProblem[]
   ): string {
-    if (e.overrides === STANDALONE) return `standalone:${e.id}`;
+    // The key a record would have if nothing pointed at it. Computed for the ROOT
+    // of the chain, not just for `e` — a layer that declares it overrides a
+    // standalone concept joins that concept, and reading the root's title key
+    // instead would file it somewhere else entirely.
+    const ownKey = (r: CodexEntity) => (r.overrides === STANDALONE ? `standalone:${r.id}` : titleKey(r));
+    if (e.overrides === STANDALONE) return ownKey(e);
     let cur = e;
     const seen = new Set<string>([e.id]);
     for (let hops = 0; hops < 16; hops++) {
@@ -384,7 +392,7 @@ export class CodexRegistry {
       seen.add(target);
       cur = next;
     }
-    return titleKey(cur);
+    return ownKey(cur);
   }
 
   private keyOf(e: CodexEntity): string {
@@ -485,7 +493,7 @@ export class CodexRegistry {
     // must still win.
     const matched = [...groups.values()][0][0];
     const group = this.conceptLayers(matched, ctx);
-    const clash = this.conflictWithin(group, raw);
+    const clash = this.conflictWithin(group, raw, ctx);
     if (clash) return clash;
     return this.resolveGroup(group, this.matchedBy(this.pick(group), lower, slug));
   }
@@ -497,14 +505,29 @@ export class CodexRegistry {
     return usable.length ? usable : [e];
   }
 
-  /** Two records claiming one id inside the answer make the answer a question. */
-  private conflictWithin(group: CodexEntity[], term: string): Ambiguity | null {
+  /**
+   * Two records claiming one id inside the answer make the answer a question.
+   *
+   * Context-filtered like everything else. An ambiguity listing candidates the
+   * asker may not see would leak a Curator-only page's existence through the one
+   * path that does not return a definition — and "there is a second Warden's
+   * Gambit you cannot read" is exactly the leak the visibility rule exists to
+   * prevent. If only one rival is visible there is no ambiguity for this asker.
+   */
+  private conflictWithin(group: CodexEntity[], term: string, ctx: ResolveContext): Ambiguity | null {
     if (!this.conflicted.size) return null;
     for (const e of group) {
-      const rivals = this.conflicted.get(e.id);
-      if (rivals) return { ambiguous: true, term, candidates: [...rivals], conflictingId: e.id };
+      const rivals = this.visibleRivals(e.id, ctx);
+      if (rivals.length > 1) return { ambiguous: true, term, candidates: rivals, conflictingId: e.id };
     }
     return null;
+  }
+
+  /** The records claiming `id` that this context is allowed to know about. */
+  private visibleRivals(id: string, ctx: ResolveContext): CodexEntity[] {
+    const rivals = this.conflicted.get(id);
+    if (!rivals) return [];
+    return rivals.filter((e) => this.inContext(e, ctx) && (!ctx.kind || e.kind === ctx.kind));
   }
 
   private resolveGroup(group: CodexEntity[], matchedBy: MatchedBy): Resolution {
@@ -550,13 +573,15 @@ export class CodexRegistry {
    *  This is what makes the dual-read period safe: existing characters hold names,
    *  new ones hold ids, and both keep working while they migrate. */
   resolveReference(ref: string, ctx: ResolveContext): ResolveResult {
-    const rivals = this.conflicted.get(ref);
-    if (rivals) {
+    const rivals = this.visibleRivals(ref, ctx);
+    if (rivals.length > 1) {
       // The stored id is real but two records claim it. Answering with either one
       // binds the character to a coin toss.
-      return { ambiguous: true, term: ref, candidates: [...rivals], conflictingId: ref };
+      return { ambiguous: true, term: ref, candidates: rivals, conflictingId: ref };
     }
-    const direct = this.byId.get(ref);
+    // Exactly one of the rivals is in context: that one IS the answer here, and
+    // byId may hold the other, so resolve through the visible record.
+    const direct = rivals.length === 1 ? rivals[0] : this.byId.get(ref);
     if (direct) {
       // Resolve the whole CONCEPT, not this one record: a campaign override must
       // still win even though the character stored the official id. Note the
@@ -564,7 +589,7 @@ export class CodexRegistry {
       // record is out of context can still resolve through a layer that is in it.
       const group = this.conceptLayers(direct, ctx);
       if (!group.some((e) => this.inContext(e, ctx))) return null;
-      const clash = this.conflictWithin(group, ref);
+      const clash = this.conflictWithin(group, ref, ctx);
       if (clash) return clash;
       return this.resolveGroup(group, "id");
     }

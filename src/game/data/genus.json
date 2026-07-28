@@ -12,6 +12,7 @@
     "abilities": [
       {
         "name": "Lark",
+        "id": "wte.genus.lark",
         "classification": "Emission / Trans-modification",
         "ss": 5,
         "activation": "Active (5 min)",
@@ -22,6 +23,7 @@
       },
       {
         "name": "Varken",
+        "id": "wte.genus.varken",
         "classification": "Enhancement / Trans-modification",
         "ss": 4,
         "activation": "Active (3 min)",
@@ -32,6 +34,7 @@
       },
       {
         "name": "Borne",
+        "id": "wte.genus.borne",
         "classification": "Trans-modification / Enhancement",
         "ss": 7,
         "activation": "Active (4 min)",
@@ -42,6 +45,7 @@
       },
       {
         "name": "Armor Increase",
+        "id": "wte.genus.armor-increase",
         "classification": "Enhancement",
         "ss": 3,
         "activation": "Active (2 min)",
@@ -52,6 +56,7 @@
       },
       {
         "name": "Enlarge",
+        "id": "wte.genus.enlarge",
         "classification": "Trans-modification",
         "ss": 6,
         "activation": "Active (3 min)",
@@ -62,6 +67,7 @@
       },
       {
         "name": "Chattering Touch",
+        "id": "wte.genus.chattering-touch",
         "classification": "Trans-modification",
         "ss": 4,
         "activation": "Active (Instant — touch required)",
@@ -72,6 +78,7 @@
       },
       {
         "name": "Passive Death",
+        "id": "wte.genus.passive-death",
         "classification": "Enhancement / Emission",
         "ss": 8,
         "activation": "Active (3 min to establish)",
@@ -83,6 +90,7 @@
       },
       {
         "name": "Fyber Mutation",
+        "id": "wte.genus.fyber-mutation",
         "classification": "Trans-modification",
         "ss": 7,
         "activation": "Active (4 min)",
@@ -93,6 +101,7 @@
       },
       {
         "name": "Antheosis",
+        "id": "wte.genus.antheosis",
         "classification": "Trans-modification / Enhancement",
         "ss": 15,
         "activation": "Active (5 min)",
@@ -103,6 +112,7 @@
       },
       {
         "name": "Harlingsine",
+        "id": "wte.genus.harlingsine",
         "classification": "Emission / Trans-modification",
         "ss": 6,
         "activation": "Active (2 min)",
@@ -113,6 +123,7 @@
       },
       {
         "name": "Luscinian Embrace",
+        "id": "wte.genus.luscinian-embrace",
         "classification": "Enhancement / Divination",
         "ss": 5,
         "activation": "Active (3 min)",
@@ -123,6 +134,7 @@
       },
       {
         "name": "Inverse Reverse",
+        "id": "wte.genus.inverse-reverse",
         "classification": "Trans-modification",
         "ss": 12,
         "activation": "Reaction (Instant)",
@@ -133,6 +145,7 @@
       },
       {
         "name": "Reverse",
+        "id": "wte.genus.reverse",
         "classification": "Trans-modification",
         "ss": 10,
         "activation": "Reaction (within 1 round of event)",
@@ -143,6 +156,7 @@
       },
       {
         "name": "Unfloor",
+        "id": "wte.genus.unfloor",
         "classification": "Emission / Trans-modification",
         "ss": 4,
         "activation": "Active (2 min)",
@@ -153,6 +167,7 @@
       },
       {
         "name": "Room Enhancement",
+        "id": "wte.genus.room-enhancement",
         "classification": "Enhancement / Trans-modification",
         "ss": 10,
         "activation": "Active (5 min)",
@@ -163,6 +178,7 @@
       },
       {
         "name": "Energic Change",
+        "id": "wte.genus.energic-change",
         "classification": "Trans-modification",
         "ss": 15,
         "activation": "Reaction",
@@ -173,6 +189,7 @@
       },
       {
         "name": "Fabian Laugh",
+        "id": "wte.genus.fabian-laugh",
         "classification": "Emission",
         "ss": 3,
         "activation": "Active (Instant)",
@@ -183,6 +200,7 @@
       },
       {
         "name": "Seekth",
+        "id": "wte.genus.seekth",
         "classification": "Divination",
         "ss": 4,
         "activation": "Active (3 min, Prepared)",
@@ -206,6 +224,7 @@
     "abilities": [
       {
         "name": "Solidify",
+        "id": "wte.genus.solidify",
         "classification": "Trans-modification / Emission",
         "ss": 4,
         "activation": "Active (2 min)",
@@ -216,6 +235,7 @@
       },
       {
         "name": "Vorpal",
+        "id": "wte.genus.vorpal",
         "classification": "Enhancement / Trans-modification / Emission",
         "ss": 10,
         "activation": "Active (5 min)",
@@ -226,6 +246,7 @@
       },
       {
         "name": "Wisperian",
+        "id": "wte.genus.wisperian",
         "classification": "Enhancement / Trans-modification / Emission",
         "ss": 5,
         "activation": "Passive (3 min to establish)",
@@ -236,6 +257,7 @@
       },
       {
         "name": "Chain Reaction",
+        "id": "wte.genus.chain-reaction",
         "classification": "Emission / Trans-modification",
         "ss": 6,
         "activation": "Active (3 min)",
@@ -246,6 +268,7 @@
       },
       {
         "name": "Chain Element",
+        "id": "wte.genus.chain-element",
         "classification": "Enhancement / Trans-modification",
         "ss": 5,
         "activation": "Active (2 min)",
@@ -256,6 +279,7 @@
       },
       {
         "name": "Spontaneous Combustion",
+        "id": "wte.genus.spontaneous-combustion",
         "classification": "Trans-modification / Emission",
         "ss": 7,
         "activation": "Active (Instant)",
@@ -266,6 +290,7 @@
       },
       {
         "name": "Living Element",
+        "id": "wte.genus.living-element",
         "classification": "Materialization / Enhancement",
         "ss": 8,
         "activation": "Active (4 min)",
@@ -276,6 +301,7 @@
       },
       {
         "name": "Elevated Leap",
+        "id": "wte.genus.elevated-leap",
         "classification": "Enhancement / Emission",
         "ss": 4,
         "activation": "Reaction (Instant)",
@@ -286,6 +312,7 @@
       },
       {
         "name": "Charge",
+        "id": "wte.genus.charge",
         "classification": "Enhancement",
         "ss": 3,
         "activation": "Active (1 min per charge)",
@@ -297,6 +324,7 @@
       },
       {
         "name": "Dominate Element",
+        "id": "wte.genus.dominate-element",
         "classification": "Trans-modification / Enhancement",
         "ss": 9,
         "activation": "Active (4 min)",
@@ -307,6 +335,7 @@
       },
       {
         "name": "Meta Change",
+        "id": "wte.genus.meta-change",
         "classification": "Trans-modification",
         "ss": 15,
         "activation": "Active (3 min)",
@@ -317,6 +346,7 @@
       },
       {
         "name": "Geothian",
+        "id": "wte.genus.geothian",
         "classification": "Materialization / Emission",
         "ss": 6,
         "activation": "Active (3 min)",
@@ -327,6 +357,7 @@
       },
       {
         "name": "Hail Rain",
+        "id": "wte.genus.hail-rain",
         "classification": "Emission",
         "ss": 5,
         "activation": "Active (2 min)",
@@ -337,6 +368,7 @@
       },
       {
         "name": "Metalargy",
+        "id": "wte.genus.metalargy",
         "classification": "Trans-modification / Enhancement",
         "ss": 5,
         "activation": "Active (3 min)",
@@ -347,6 +379,7 @@
       },
       {
         "name": "Purify Water",
+        "id": "wte.genus.purify-water",
         "classification": "Trans-modification",
         "ss": 2,
         "activation": "Active (1 min)",
@@ -357,6 +390,7 @@
       },
       {
         "name": "Purify Element",
+        "id": "wte.genus.purify-element",
         "classification": "Trans-modification",
         "ss": 4,
         "activation": "Active (2 min)",
@@ -367,6 +401,7 @@
       },
       {
         "name": "Photonic Cleave",
+        "id": "wte.genus.photonic-cleave",
         "classification": "Emission / Trans-modification",
         "ss": 6,
         "activation": "Active (2 min)",
@@ -377,6 +412,7 @@
       },
       {
         "name": "Tachyeonic",
+        "id": "wte.genus.tachyeonic",
         "classification": "Emission / Enhancement",
         "ss": 8,
         "activation": "Active (Prepared, 3 min)",
@@ -387,6 +423,7 @@
       },
       {
         "name": "Heat",
+        "id": "wte.genus.heat",
         "classification": "Trans-modification / Emission",
         "ss": 2,
         "activation": "Active (Instant, sustained)",
@@ -411,6 +448,7 @@
     "abilities": [
       {
         "name": "Animate Animationless",
+        "id": "wte.genus.animate-animationless",
         "classification": "Enhancement / Trans-modification",
         "ss": 4,
         "activation": "Active (3 min)",
@@ -421,6 +459,7 @@
       },
       {
         "name": "Reduce Object",
+        "id": "wte.genus.reduce-object",
         "classification": "Enhancement / Trans-modification",
         "ss": 2,
         "activation": "Active (2 min)",
@@ -431,6 +470,7 @@
       },
       {
         "name": "Composite Creation",
+        "id": "wte.genus.composite-creation",
         "classification": "Enhancement / Trans-modification",
         "ss": 5,
         "activation": "Active (2 min)",
@@ -441,6 +481,7 @@
       },
       {
         "name": "Hearth",
+        "id": "wte.genus.hearth",
         "classification": "Enhancement / Trans-modification",
         "ss": 10,
         "activation": "Active (4 min)",
@@ -451,6 +492,7 @@
       },
       {
         "name": "Deus",
+        "id": "wte.genus.deus",
         "classification": "Materialization / Trans-modification",
         "ss": 12,
         "activation": "Active (5 min)",
@@ -461,6 +503,7 @@
       },
       {
         "name": "Sure Fire",
+        "id": "wte.genus.sure-fire",
         "classification": "Enhancement / Divination",
         "ss": 3,
         "activation": "Active (Prepared, 1 min setup)",
@@ -471,6 +514,7 @@
       },
       {
         "name": "Auto Aim",
+        "id": "wte.genus.auto-aim",
         "classification": "Enhancement / Divination",
         "ss": 2,
         "activation": "Passive (15 sec to activate)",
@@ -481,6 +525,7 @@
       },
       {
         "name": "View Organism",
+        "id": "wte.genus.view-organism",
         "classification": "Divination",
         "ss": 3,
         "activation": "Active (2 min)",
@@ -491,6 +536,7 @@
       },
       {
         "name": "Corporeal Shift",
+        "id": "wte.genus.corporeal-shift",
         "classification": "Trans-modification",
         "ss": 6,
         "activation": "Active (3 min)",
@@ -501,6 +547,7 @@
       },
       {
         "name": "Manifest Weakness",
+        "id": "wte.genus.manifest-weakness",
         "classification": "Divination / Trans-modification",
         "ss": 4,
         "activation": "Active (2 min)",
@@ -511,6 +558,7 @@
       },
       {
         "name": "True Intentions",
+        "id": "wte.genus.true-intentions",
         "classification": "Divination",
         "ss": 5,
         "activation": "Active (Prepared, 2 min)",
@@ -521,6 +569,7 @@
       },
       {
         "name": "Internal Break",
+        "id": "wte.genus.internal-break",
         "classification": "Trans-modification",
         "ss": 5,
         "activation": "Active (2 min — touch or within 5 ft)",
@@ -531,6 +580,7 @@
       },
       {
         "name": "Desentralization",
+        "id": "wte.genus.desentralization",
         "classification": "Trans-modification / Emission",
         "ss": 4,
         "activation": "Active (2 min)",
@@ -541,6 +591,7 @@
       },
       {
         "name": "Disperss Vibe",
+        "id": "wte.genus.disperss-vibe",
         "classification": "Trans-modification / Emission",
         "ss": 3,
         "activation": "Active (Instant)",
@@ -551,6 +602,7 @@
       },
       {
         "name": "Meld Memory",
+        "id": "wte.genus.meld-memory",
         "classification": "Divination / Trans-modification",
         "ss": 6,
         "activation": "Active (4 min — physical contact required)",
@@ -561,6 +613,7 @@
       },
       {
         "name": "Meld Mind",
+        "id": "wte.genus.meld-mind",
         "classification": "Divination / Trans-modification",
         "ss": 9,
         "activation": "Active (5 min — physical contact, both stationary)",
@@ -571,6 +624,7 @@
       },
       {
         "name": "Distant Grasp",
+        "id": "wte.genus.distant-grasp",
         "classification": "Enhancement / Emission",
         "ss": 3,
         "activation": "Active (15 sec)",
@@ -581,6 +635,7 @@
       },
       {
         "name": "Create Glass of Water",
+        "id": "wte.genus.create-glass-of-water",
         "classification": "Materialization",
         "ss": 1,
         "activation": "Active (Instant)",
@@ -591,6 +646,7 @@
       },
       {
         "name": "Material Locate",
+        "id": "wte.genus.material-locate",
         "classification": "Divination",
         "ss": 3,
         "activation": "Active (Prepared, 3 min)",
@@ -601,6 +657,7 @@
       },
       {
         "name": "Link",
+        "id": "wte.genus.link",
         "classification": "Enhancement / Trans-modification",
         "ss": 4,
         "activation": "Active (3 min — must touch both targets)",
@@ -625,6 +682,7 @@
     "abilities": [
       {
         "name": "Deconstruct",
+        "id": "wte.genus.deconstruct",
         "classification": "Trans-modification",
         "ss": 10,
         "activation": "Active (SNR)",
@@ -635,6 +693,7 @@
       },
       {
         "name": "Construct",
+        "id": "wte.genus.construct",
         "classification": "Enhancement / Materialization",
         "ss": 5,
         "activation": "Active (SNR)",
@@ -645,6 +704,7 @@
       },
       {
         "name": "Reconstruct",
+        "id": "wte.genus.reconstruct",
         "classification": "Trans-modification",
         "ss": 10,
         "activation": "Active (SNR)",
@@ -656,6 +716,7 @@
       },
       {
         "name": "Composite Nullification",
+        "id": "wte.genus.composite-nullification",
         "classification": "Trans-modification",
         "ss": 15,
         "activation": "Active (Instant — SNR)",
@@ -666,6 +727,7 @@
       },
       {
         "name": "Exchange",
+        "id": "wte.genus.exchange",
         "classification": "Trans-modification",
         "ss": 10,
         "activation": "Active (Instant — SNR)",
@@ -677,6 +739,7 @@
       },
       {
         "name": "Volume Increase",
+        "id": "wte.genus.volume-increase",
         "classification": "Trans-modification",
         "ss": 3,
         "activation": "Active (SNR)",
@@ -687,6 +750,7 @@
       },
       {
         "name": "Mass Increase",
+        "id": "wte.genus.mass-increase",
         "classification": "Trans-modification",
         "ss": 10,
         "activation": "Active (SNR)",
@@ -697,6 +761,7 @@
       },
       {
         "name": "Abstraction",
+        "id": "wte.genus.abstraction",
         "classification": "Trans-modification",
         "ss": 25,
         "activation": "Active (4 min — SNR)",
@@ -707,6 +772,7 @@
       },
       {
         "name": "Virulent Expunge",
+        "id": "wte.genus.virulent-expunge",
         "classification": "Trans-modification / Emission",
         "ss": 6,
         "activation": "Active (SNR)",
@@ -717,6 +783,7 @@
       },
       {
         "name": "Silience",
+        "id": "wte.genus.silience",
         "classification": "Trans-modification",
         "ss": 3,
         "activation": "Active (SNR)",
@@ -727,6 +794,7 @@
       },
       {
         "name": "Manifold Inversion",
+        "id": "wte.genus.manifold-inversion",
         "classification": "Trans-modification",
         "ss": 20,
         "activation": "Active (SNR)",
@@ -737,6 +805,7 @@
       },
       {
         "name": "Reality Break",
+        "id": "wte.genus.reality-break",
         "classification": "Trans-modification / Emission",
         "ss": 15,
         "activation": "Active (5 min — SNR)",
@@ -747,6 +816,7 @@
       },
       {
         "name": "Bastion Creation",
+        "id": "wte.genus.bastion-creation",
         "classification": "Materialization / Enhancement",
         "ss": 15,
         "activation": "Active (4 min)",
@@ -757,6 +827,7 @@
       },
       {
         "name": "Shape Change",
+        "id": "wte.genus.shape-change",
         "classification": "Trans-modification",
         "ss": 25,
         "activation": "Active (SNR)",
@@ -767,6 +838,7 @@
       },
       {
         "name": "Corrode Material",
+        "id": "wte.genus.corrode-material",
         "classification": "Trans-modification / Emission",
         "ss": 15,
         "activation": "Active (2 min)",
@@ -777,6 +849,7 @@
       },
       {
         "name": "Meld Form",
+        "id": "wte.genus.meld-form",
         "classification": "Trans-modification",
         "ss": 30,
         "activation": "Active (4 min — both targets must be in contact)",
@@ -787,6 +860,7 @@
       },
       {
         "name": "Decisive Grasp",
+        "id": "wte.genus.decisive-grasp",
         "classification": "Enhancement / Trans-modification",
         "ss": 25,
         "activation": "Active (SNR)",
@@ -797,6 +871,7 @@
       },
       {
         "name": "Negate",
+        "id": "wte.genus.negate",
         "classification": "Trans-modification",
         "ss": 20,
         "activation": "Reaction (SNR)",
@@ -807,6 +882,7 @@
       },
       {
         "name": "Reflect",
+        "id": "wte.genus.reflect",
         "classification": "Enhancement / Trans-modification",
         "ss": 30,
         "activation": "Reaction (SNR)",
@@ -817,6 +893,7 @@
       },
       {
         "name": "Create Being",
+        "id": "wte.genus.create-being",
         "classification": "Materialization",
         "ss": 12,
         "activation": "Active (5 min)",
@@ -827,6 +904,7 @@
       },
       {
         "name": "Inhibit",
+        "id": "wte.genus.inhibit",
         "classification": "Trans-modification",
         "ss": 5,
         "activation": "Active (SNR)",
@@ -850,6 +928,7 @@
     "abilities": [
       {
         "name": "Photonic Swing",
+        "id": "wte.genus.photonic-swing",
         "classification": "Enhancement / Emission",
         "ss": 4,
         "activation": "Active (15 sec)",
@@ -860,6 +939,7 @@
       },
       {
         "name": "Frictionless Advance",
+        "id": "wte.genus.frictionless-advance",
         "classification": "Enhancement / Emission",
         "ss": 3,
         "activation": "Active (25 sec)",
@@ -870,6 +950,7 @@
       },
       {
         "name": "Prismatic Overload",
+        "id": "wte.genus.prismatic-overload",
         "classification": "Trans-modification / Emission",
         "ss": 8,
         "activation": "Active (1:30 minutes)",
@@ -880,6 +961,7 @@
       },
       {
         "name": "Blitz",
+        "id": "wte.genus.blitz",
         "classification": "Enhancement / Emission",
         "ss": 5,
         "activation": "Reaction (10 sec)",
@@ -890,6 +972,7 @@
       },
       {
         "name": "Inverse Dodge",
+        "id": "wte.genus.inverse-dodge",
         "classification": "Enhancement / Trans-modification",
         "ss": 4,
         "activation": "Reaction (Instant)",
@@ -900,6 +983,7 @@
       },
       {
         "name": "Reverse Reaction",
+        "id": "wte.genus.reverse-reaction",
         "classification": "Trans-modification / Enhancement",
         "ss": 4,
         "activation": "Reaction (Instant)",
@@ -910,6 +994,7 @@
       },
       {
         "name": "Reverted Advance",
+        "id": "wte.genus.reverted-advance",
         "classification": "Trans-modification",
         "ss": 5,
         "activation": "Reaction (Instant)",
@@ -920,6 +1005,7 @@
       },
       {
         "name": "Long Jump",
+        "id": "wte.genus.long-jump",
         "classification": "Enhancement / Emission",
         "ss": 3,
         "activation": "Active (Instant — no run-up required)",
@@ -930,6 +1016,7 @@
       },
       {
         "name": "Teleport",
+        "id": "wte.genus.teleport",
         "classification": "Trans-modification / Enhancement",
         "ss": 8,
         "activation": "Active (Instant)",
@@ -940,6 +1027,7 @@
       },
       {
         "name": "Mirage Step",
+        "id": "wte.genus.mirage-step",
         "classification": "Enhancement / Emission",
         "ss": 4,
         "activation": "Active (2 min)",
@@ -950,6 +1038,7 @@
       },
       {
         "name": "Mirror Movement",
+        "id": "wte.genus.mirror-movement",
         "classification": "Enhancement / Trans-modification",
         "ss": 5,
         "activation": "Active (3 min)",
@@ -960,6 +1049,7 @@
       },
       {
         "name": "Vector Swap",
+        "id": "wte.genus.vector-swap",
         "classification": "Trans-modification",
         "ss": 5,
         "activation": "Reaction (Instant)",
@@ -970,6 +1060,7 @@
       },
       {
         "name": "Vector Decentralization",
+        "id": "wte.genus.vector-decentralization",
         "classification": "Emission / Trans-modification",
         "ss": 6,
         "activation": "Active (2 min)",
@@ -980,6 +1071,7 @@
       },
       {
         "name": "Blinding Radiance",
+        "id": "wte.genus.blinding-radiance",
         "classification": "Trans-modification / Emission",
         "ss": 5,
         "activation": "Active (2 min)",
@@ -990,6 +1082,7 @@
       },
       {
         "name": "Animate Object",
+        "id": "wte.genus.animate-object",
         "classification": "Enhancement / Trans-modification",
         "ss": 4,
         "activation": "Active (3 min)",
@@ -1000,6 +1093,7 @@
       },
       {
         "name": "Phase",
+        "id": "wte.genus.phase",
         "classification": "Trans-modification",
         "ss": 10,
         "activation": "Active (Instant)",
@@ -1010,6 +1104,7 @@
       },
       {
         "name": "Hover",
+        "id": "wte.genus.hover",
         "classification": "Enhancement",
         "ss": 2,
         "activation": "Active (15 sec)",
@@ -1021,6 +1116,7 @@
       },
       {
         "name": "Atomic Reverberation",
+        "id": "wte.genus.atomic-reverberation",
         "classification": "Emission / Trans-modification",
         "ss": 9,
         "activation": "Active (4 min)",
@@ -1031,6 +1127,7 @@
       },
       {
         "name": "Vibration Link",
+        "id": "wte.genus.vibration-link",
         "classification": "Enhancement / Trans-modification",
         "ss": 4,
         "activation": "Active (3 min)",
@@ -1041,6 +1138,7 @@
       },
       {
         "name": "Lock Move",
+        "id": "wte.genus.lock-move",
         "classification": "Trans-modification",
         "ss": 5,
         "activation": "Active (SNR speed — resolves before movement)",

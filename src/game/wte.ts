@@ -710,6 +710,9 @@ export function sizeOf(sizeId: string | undefined, speciesId?: string): SizeClas
 // ── Genus & Ciphers (baked from the Codex wiki mirror) ────────────────────
 export interface GenusAbility {
   name: string;
+  /** Permanent Codex id, stamped into genus.json. Optional because a page-sourced
+   *  or homebrew ability need not carry one; every official ability does. */
+  id?: string;
   ss: number | null;
   effect?: string | null;
   activation?: string | null;
