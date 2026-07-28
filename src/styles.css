@@ -8390,3 +8390,108 @@ body.wte-dot-cursor * {
   gap: 8px;
   margin-top: 12px;
 }
+
+/* ---- Contextual Codex card ---- */
+.codex-card {
+  width: min(560px, 94vw);
+  max-height: 88vh;
+  margin: auto;
+  overflow: auto;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--panel-line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink);
+}
+.codex-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 12px;
+}
+.codex-src {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-line);
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+}
+.codex-src.campaign {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.codex-src.gm {
+  border-color: #7d3a3a;
+  color: #e0a0a0;
+}
+.codex-alias {
+  font-size: 0.72rem;
+  color: var(--muted);
+  align-self: center;
+}
+.codex-card-grid {
+  margin: 0 0 10px;
+  font-size: 0.86rem;
+}
+.codex-card-grid dt {
+  display: inline-block;
+  min-width: 92px;
+  color: var(--muted);
+}
+.codex-card-grid dd {
+  display: inline;
+  margin: 0;
+}
+.codex-row {
+  margin-bottom: 3px;
+}
+.codex-was {
+  color: var(--muted);
+  font-style: italic;
+}
+.codex-effect {
+  margin: 10px 0;
+  padding: 9px 11px;
+  border-left: 2px solid var(--panel-line);
+  line-height: 1.55;
+  font-size: 0.88rem;
+}
+.codex-why-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+.codex-why-table td {
+  padding: 3px 0;
+  color: var(--muted);
+}
+.codex-why-table td:last-child {
+  text-align: right;
+  color: var(--ink);
+}
+.codex-why-table tr.final td {
+  padding-top: 6px;
+  border-top: 1px solid var(--panel-line);
+  color: var(--ink);
+  font-weight: 500;
+}
+.codex-why-note {
+  margin: 10px 0 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.codex-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.codex-card-id {
+  margin: 12px 0 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.7rem;
+  color: var(--muted);
+  word-break: break-all;
+}
