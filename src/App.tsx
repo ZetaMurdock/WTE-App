@@ -29,6 +29,7 @@ import {
 import { pendingLibraryUpdates } from "./lib/publishedPages";
 import { pushToast } from "./lib/appToast";
 import { installSaveGuards } from "./lib/saveQueue";
+import { migrateCampaignToDb } from "./lib/campaignStore";
 import type { Campaign } from "./models/campaign";
 import {
   listCampaigns,
@@ -213,6 +214,15 @@ export default function App() {
       })
       .catch(() => {});
   }, []);
+
+  // Copy this campaign's data out of localStorage into the database, once per key.
+  // Until this ran, copying wte.db to another machine arrived stripped of the
+  // campaign rules, desk notes, calendar and folder trees. It is a COPY, never a
+  // move: the localStorage original stays put so a bad migration is recoverable.
+  useEffect(() => {
+    if (!activeCampaign) return;
+    void migrateCampaignToDb(activeCampaign.id).catch(() => {});
+  }, [activeCampaign]);
 
   // keep the Dashboard character count in sync with the active campaign
   useEffect(() => {

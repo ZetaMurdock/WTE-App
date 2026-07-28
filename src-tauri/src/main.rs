@@ -554,6 +554,51 @@ ALTER TABLE notes ADD COLUMN tags TEXT;
 ALTER TABLE notes ADD COLUMN quote TEXT;
 ";
 
+// Phase 1 "trustworthy core": bring campaign data out of localStorage.
+//
+// localStorage lives in the webview's profile directory, NOT beside wte.db — so
+// copying the database to another machine, or restoring it from a backup, arrived
+// stripped of campaign rules (which feed computeDerived and change every
+// character's numbers), the desk notes and calendar (the longest-form writing in
+// the app), the vault and note folder trees, the custom armory (referenced by NAME
+// from sheets, so losing it silently alters loadout math), and Codex page
+// visibility. None of it travelled with the campaign it belonged to.
+//
+// campaign_kv is a general scoped store, so a new kind of campaign-scoped blob does
+// not need another migration and another table.
+//
+// rule_layers is deliberately NOT a blob. A campaign rule is one LAYER among
+// several — official, content pack, campaign override, character exception,
+// temporary session effect — and the resolved value has to be able to explain
+// itself ("base 10, +4 Ashen Sun, +2 Voaulton, -1 Null Storm = 15") rather than
+// just print a number. That needs each contribution stored separately with its
+// source and scope, which a single settings blob cannot express.
+const SCHEMA_V5: &str = "
+CREATE TABLE IF NOT EXISTS campaign_kv (
+  campaign_id TEXT NOT NULL,
+  scope TEXT NOT NULL,
+  key TEXT NOT NULL,
+  value TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (campaign_id, scope, key)
+);
+CREATE INDEX IF NOT EXISTS idx_campaign_kv_campaign ON campaign_kv (campaign_id);
+
+CREATE TABLE IF NOT EXISTS rule_layers (
+  id TEXT PRIMARY KEY,
+  campaign_id TEXT,
+  target_id TEXT NOT NULL,
+  layer_scope TEXT NOT NULL,
+  owner TEXT,
+  op TEXT NOT NULL,
+  value TEXT NOT NULL,
+  note TEXT,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_rule_layers_target ON rule_layers (campaign_id, target_id);
+";
+
 fn main() {
     let migrations = vec![
         tauri_plugin_sql::Migration {
@@ -578,6 +623,12 @@ fn main() {
             version: 4,
             description: "extend notes: page attachment, visibility, tags, quote",
             sql: SCHEMA_V4,
+            kind: tauri_plugin_sql::MigrationKind::Up,
+        },
+        tauri_plugin_sql::Migration {
+            version: 5,
+            description: "campaign_kv + rule_layers: move campaign data out of localStorage",
+            sql: SCHEMA_V5,
             kind: tauri_plugin_sql::MigrationKind::Up,
         },
     ];
