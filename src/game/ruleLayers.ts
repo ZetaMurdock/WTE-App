@@ -25,7 +25,8 @@ export interface RuleLayer {
   /** The concept this modifies, as a stable Codex id (see codexId.ts). */
   targetId: string;
   scope: IdScope;
-  /** Which campaign, pack, character or session effect owns this layer. */
+  /** Stable id of the campaign, pack, character or session effect that owns this
+   *  layer — never a display name, since those change. */
   owner?: string;
   op: LayerOp;
   value: number;
@@ -34,6 +35,12 @@ export interface RuleLayer {
   /** A disabled layer stays on record but does not contribute — so a Curator can
    *  switch a house rule off without losing it. */
   enabled?: boolean;
+  /** Explicit ordering WITHIN a scope. `set`, `multiply` and `add` are not
+   *  commutative, so two campaign layers can produce different answers depending
+   *  on which applies first. Without this the row order the database happened to
+   *  return would decide the mechanics. Lower runs first; ties fall back to the
+   *  order given, which keeps existing behaviour for layers that never set it. */
+  order?: number;
 }
 
 export interface Contribution {
@@ -82,10 +89,20 @@ function applyOp(current: number, op: LayerOp, value: number): number {
  * source stacks predictably rather than depending on array order across scopes.
  */
 export function resolveRule(base: number, layers: RuleLayer[]): Resolved {
+  // Scope first, then the explicit order within a scope, then the order given.
+  // A stable sort on the index keeps layers that declare no order exactly where
+  // the caller put them.
   const active = layers
     .filter((l) => l.enabled !== false)
-    .slice()
-    .sort((a, b) => scopeRank(a.scope) - scopeRank(b.scope));
+    .map((l, i) => ({ l, i }))
+    .sort((a, b) => {
+      const s = scopeRank(a.l.scope) - scopeRank(b.l.scope);
+      if (s !== 0) return s;
+      const o = (a.l.order ?? 0) - (b.l.order ?? 0);
+      if (o !== 0) return o;
+      return a.i - b.i;
+    })
+    .map((x) => x.l);
 
   let value = base;
   const trail: Contribution[] = [];
@@ -130,13 +147,47 @@ export function explain(r: Resolved, baseLabel = "Base W.T.E rule"): { label: st
   return rows;
 }
 
-/** Layers relevant to one target, filtered to the campaign in play. A layer with no
- *  owner is global; one owned by another campaign must not leak in. */
-export function layersFor(all: RuleLayer[], targetId: string, opts?: { campaignId?: string }): RuleLayer[] {
+/** The context a layer stack is resolved against. Every owned scope needs its own
+ *  id, all of them stable ids rather than display names. */
+export interface LayerContext {
+  campaignId?: string;
+  /** Stable ids of the content packs enabled for this table. */
+  packIds?: string[];
+  characterId?: string;
+  sessionId?: string;
+}
+
+/**
+ * Layers relevant to one target, filtered to the context in play.
+ *
+ * Every OWNED scope is checked, not just campaign. The previous version only kept
+ * another campaign's layers out, which was fine while campaign was the only scope
+ * with real data — but a character exception or a temporary session effect would
+ * have leaked into every other character and every later session the moment those
+ * scopes gained consumers. Better to close it before that happens than to debug a
+ * table where one player's exception is silently applying to everyone.
+ *
+ * An owned layer with NO owner set is treated as not-in-context rather than global:
+ * a character exception that forgot to say whose it is should apply to nobody, not
+ * to everybody. Only `wte` (official) is unconditionally in play.
+ */
+export function layersFor(all: RuleLayer[], targetId: string, ctx: LayerContext = {}): RuleLayer[] {
   return all.filter((l) => {
     if (l.targetId !== targetId) return false;
-    if (l.scope === "campaign" && opts?.campaignId && l.owner && l.owner !== opts.campaignId) return false;
-    return true;
+    switch (l.scope) {
+      case "wte":
+        return true;
+      case "pack":
+        return !!l.owner && (ctx.packIds ?? []).includes(l.owner);
+      case "campaign":
+        return !!l.owner && l.owner === ctx.campaignId;
+      case "character":
+        return !!l.owner && l.owner === ctx.characterId;
+      case "session":
+        return !!l.owner && l.owner === ctx.sessionId;
+      default:
+        return false;
+    }
   });
 }
 

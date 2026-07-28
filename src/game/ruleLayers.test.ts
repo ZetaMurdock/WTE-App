@@ -136,7 +136,11 @@ describe("another campaign's layers never leak in", () => {
   ];
 
   it("filters to the target", () => {
-    expect(layersFor(all, "wte.stat.something-else").length).toBe(1);
+    // With the owning campaign in context this layer applies...
+    expect(layersFor(all, "wte.stat.something-else", { campaignId: "ashen-sun" }).length).toBe(1);
+    // ...and with NO campaign in context it does not. An owned layer belongs to
+    // its owner; a missing context is not a licence to apply everywhere.
+    expect(layersFor(all, "wte.stat.something-else").length).toBe(0);
   });
 
   it("filters out other campaigns while keeping unowned layers", () => {
@@ -147,5 +151,106 @@ describe("another campaign's layers never leak in", () => {
   it("resolves to this table's numbers, not the other table's", () => {
     const mine = layersFor(all, "wte.stat.focus", { campaignId: "ashen-sun" });
     expect(resolveRule(10, mine).value).toBe(15);
+  });
+});
+
+describe("every owned scope is filtered, not just campaign", () => {
+  // Before this, layersFor only kept ANOTHER CAMPAIGN's layers out. Character and
+  // session layers would have leaked into every other character and every later
+  // session the moment those scopes gained real data.
+  const T = "wte.stat.focus";
+  const mk = (scope: RuleLayer["scope"], owner: string | undefined, value: number): RuleLayer => ({
+    id: `${scope}-${owner ?? "none"}`,
+    targetId: T,
+    scope,
+    owner,
+    op: "add",
+    value,
+  });
+
+  const all: RuleLayer[] = [
+    mk("wte", undefined, 1),
+    mk("pack", "pack-a", 2),
+    mk("pack", "pack-b", 4),
+    mk("campaign", "camp-1", 8),
+    mk("campaign", "camp-2", 16),
+    mk("character", "char-1", 32),
+    mk("character", "char-2", 64),
+    mk("session", "sess-1", 128),
+    mk("session", "sess-2", 256),
+  ];
+
+  const sum = (ls: RuleLayer[]) => ls.reduce((n, l) => n + l.value, 0);
+
+  it("official layers always apply", () => {
+    expect(sum(layersFor(all, T))).toBe(1);
+  });
+
+  it("keeps another character's exception out", () => {
+    expect(sum(layersFor(all, T, { characterId: "char-1" }))).toBe(1 + 32);
+  });
+
+  it("keeps another session's temporary effect out", () => {
+    expect(sum(layersFor(all, T, { sessionId: "sess-2" }))).toBe(1 + 256);
+  });
+
+  it("only applies packs that are enabled", () => {
+    expect(sum(layersFor(all, T, { packIds: ["pack-b"] }))).toBe(1 + 4);
+  });
+
+  it("combines every scope in one context without cross-talk", () => {
+    const ls = layersFor(all, T, {
+      packIds: ["pack-a"],
+      campaignId: "camp-1",
+      characterId: "char-1",
+      sessionId: "sess-1",
+    });
+    expect(sum(ls)).toBe(1 + 2 + 8 + 32 + 128);
+    expect(resolveRule(0, ls).value).toBe(171);
+  });
+
+  it("treats an owned layer with no owner as belonging to nobody", () => {
+    // A character exception that forgot to say whose it is must apply to no one,
+    // not to everyone.
+    const orphan: RuleLayer[] = [mk("character", undefined, 99)];
+    expect(layersFor(orphan, T, { characterId: "char-1" })).toEqual([]);
+    expect(layersFor(orphan, T)).toEqual([]);
+  });
+});
+
+describe("same-scope order is explicit, not incidental", () => {
+  const T = "wte.stat.focus";
+  const l = (id: string, op: RuleLayer["op"], value: number, order?: number): RuleLayer => ({
+    id,
+    targetId: T,
+    scope: "campaign",
+    owner: "c1",
+    op,
+    value,
+    order,
+  });
+
+  it("applies `order` within a scope so the database row order cannot decide mechanics", () => {
+    // set-then-add and add-then-set give different answers; without an explicit
+    // order, whichever the query happened to return first would win.
+    const setThenAdd = [l("a", "add", 5, 2), l("b", "set", 20, 1)];
+    expect(resolveRule(10, setThenAdd).value).toBe(25);
+
+    const addThenSet = [l("a", "add", 5, 1), l("b", "set", 20, 2)];
+    expect(resolveRule(10, addThenSet).value).toBe(20);
+  });
+
+  it("falls back to the given order when nothing declares one", () => {
+    // Existing layers without `order` keep behaving exactly as before.
+    expect(resolveRule(10, [l("a", "set", 20), l("b", "add", 5)]).value).toBe(25);
+  });
+
+  it("still puts scope ahead of order", () => {
+    const layers: RuleLayer[] = [
+      { id: "s", targetId: T, scope: "session", owner: "s1", op: "add", value: 1, order: 0 },
+      { id: "c", targetId: T, scope: "campaign", owner: "c1", op: "set", value: 100, order: 99 },
+    ];
+    // The campaign `set` runs first despite its higher order, because scope wins.
+    expect(resolveRule(0, layers).value).toBe(101);
   });
 });
