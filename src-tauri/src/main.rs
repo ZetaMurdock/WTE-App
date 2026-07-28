@@ -198,6 +198,92 @@ async fn wte_save_page(app: tauri::AppHandle, name: String, content: String) -> 
     Ok(stem)
 }
 
+/// Extensions the export writer will produce. Anything else is refused.
+const EXPORT_EXTENSIONS: &[&str] = &["wtepack", "json"];
+
+/// Write an exported file to a path the USER chose in the save dialog.
+///
+/// The fs plugin is deliberately still read-only. Granting `fs:allow-write-file`
+/// would let any code in the webview write anywhere the user can, which is exactly
+/// the blast radius the CSP and sanitizer work just finished reducing. This command
+/// is the narrow alternative: it exists only to land an export, and it refuses any
+/// path that is not a plain file with one of our own extensions.
+///
+/// The path still comes from the dialog plugin's save picker, so the user has named
+/// the destination. The checks here are defence in depth for the case where
+/// something else manages to call the command.
+#[tauri::command]
+async fn wte_write_export(path: String, content: String) -> Result<(), String> {
+    let p = std::path::Path::new(&path);
+
+    let ext = p
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .unwrap_or_default();
+    if !EXPORT_EXTENSIONS.contains(&ext.as_str()) {
+        return Err(format!(
+            "W.T.E only writes {} files, and that path ends in {:?}.",
+            EXPORT_EXTENSIONS.join(" or ."),
+            ext
+        ));
+    }
+    // A relative path, or one containing "..", is not something the save dialog
+    // produces — refuse rather than resolve it against an unknown working directory.
+    if !p.is_absolute() || p.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+        return Err("Export path must be an absolute path with no parent-directory segments.".into());
+    }
+    // Refuse to clobber a directory or a symlink.
+    if p.is_dir() {
+        return Err("That path is a folder, not a file.".into());
+    }
+    if let Ok(meta) = std::fs::symlink_metadata(p) {
+        if meta.file_type().is_symlink() {
+            return Err("Refusing to write through a symlink.".into());
+        }
+    }
+    let parent = p.parent().ok_or_else(|| "That path has no folder.".to_string())?;
+    if !parent.exists() {
+        return Err("That folder does not exist.".into());
+    }
+    std::fs::write(p, content).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod export_tests {
+    // The extension gate is the load-bearing check, so it is tested directly.
+    use super::EXPORT_EXTENSIONS;
+
+    fn ext_ok(path: &str) -> bool {
+        std::path::Path::new(path)
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| EXPORT_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()))
+            .unwrap_or(false)
+    }
+
+    #[test]
+    fn accepts_our_own_extensions() {
+        assert!(ext_ok("C:/Users/x/Ashen Sun.wtepack"));
+        assert!(ext_ok("C:/Users/x/backup.json"));
+        assert!(ext_ok("C:/Users/x/BACKUP.JSON"));
+    }
+
+    #[test]
+    fn refuses_anything_else() {
+        for bad in [
+            "C:/Windows/System32/drivers/etc/hosts",
+            "C:/Users/x/.bashrc",
+            "C:/Users/x/evil.exe",
+            "C:/Users/x/evil.bat",
+            "C:/Users/x/wte.db",
+            "C:/Users/x/noextension",
+        ] {
+            assert!(!ext_ok(bad), "should refuse {bad:?}");
+        }
+    }
+}
+
 #[tauri::command]
 async fn wte_delete_page(app: tauri::AppHandle, name: String) -> Result<(), String> {
     let stem = sanitize_stem(&name);
@@ -653,6 +739,7 @@ fn main() {
             wte_list_pages,
             wte_save_page,
             wte_delete_page,
+            wte_write_export,
             open_external,
             net::net_advertise,
             net::net_unadvertise,

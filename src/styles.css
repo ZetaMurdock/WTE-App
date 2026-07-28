@@ -8309,3 +8309,23 @@ body.wte-dot-cursor * {
   cursor: default;
   text-align: left;
 }
+
+/* ---- Campaign export / import ---- */
+.backup-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--panel-line);
+  border-radius: 4px;
+  background: var(--panel);
+}
+.backup-hint {
+  flex: 1 1 260px;
+  min-width: 200px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--muted);
+}

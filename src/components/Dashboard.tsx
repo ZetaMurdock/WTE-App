@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { Campaign } from "../models/campaign";
 import type { TabId } from "./TopBar";
 import { CampaignPicker } from "./CampaignPicker";
+import { CampaignBackup } from "./CampaignBackup";
 import { listScenes } from "../vtt/data/sceneRepo";
 import { CampaignDesk } from "./CampaignDesk";
 import { nextSession, countDeskNotes } from "../lib/campaignDesk";
@@ -99,6 +100,8 @@ export function Dashboard({
           Switch campaign
         </button>
       </div>
+
+      <CampaignBackup campaign={campaign} onImported={onSwitchCampaign} />
 
       <div className="dash-grid">
         <button className="panel panel-btn" onClick={onOpenCharacters}>
