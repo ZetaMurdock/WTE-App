@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CharacterSheet } from "../models/character";
 import { zeroAttributes, zeroSpecialties } from "../game/wte";
-import { SHEET_KEYS, emptySheet, parseSheetSafe, serializeSheet, sheetFromJson } from "./sheetCodec";
+import { SHEET_KEYS, SHEET_VERSION, emptySheet, parseSheetSafe, serializeSheet, sheetFromJson } from "./sheetCodec";
 
 // Built from the zero-builders so that adding an attribute or specialty key cannot
 // leave the fixture partially populated — every key gets a distinct non-zero value.
@@ -188,5 +188,55 @@ describe("every corruption shape is caught, not just a syntax error", () => {
     expect(r.corrupt).toBe(false);
     expect(r.sheet.rank).toBe(4);
     expect(r.sheet.morality).toBe(80);
+  });
+});
+
+describe("schema versioning and forward compatibility", () => {
+  it("stamps the current version on every write", () => {
+    const stored = JSON.parse(serializeSheet(emptySheet())) as Record<string, unknown>;
+    expect(stored._v).toBe(SHEET_VERSION);
+  });
+
+  it("keeps the version marker out of the sheet the app sees", () => {
+    const s = sheetFromJson({ _v: 1, rank: 3 });
+    expect((s as unknown as Record<string, unknown>)._v).toBeUndefined();
+    expect(s.rank).toBe(3);
+  });
+
+  it("treats a record with no version as version 1, which is what it is", () => {
+    const r = parseSheetSafe('{"rank":5,"notes":"legacy"}');
+    expect(r.corrupt).toBe(false);
+    expect(r.futureVersion).toBeUndefined();
+    expect(r.sheet.rank).toBe(5);
+  });
+
+  it("PRESERVES a field written by a newer build instead of deleting it", () => {
+    // The old codec was a strict allowlist, so anything it did not recognise was
+    // dropped on read and erased by the next save. Opening a character on a second
+    // machine running an older W.T.E silently destroyed the newer fields.
+    const fromFuture = JSON.stringify({ _v: 2, rank: 4, someNewFieldFromV2: { a: 1 }, anotherNew: "keep me" });
+    const parsed = parseSheetSafe(fromFuture);
+    const round = JSON.parse(serializeSheet(parsed.sheet)) as Record<string, unknown>;
+    expect(round.someNewFieldFromV2).toEqual({ a: 1 });
+    expect(round.anotherNew).toBe("keep me");
+  });
+
+  it("flags a newer record so the caller can refuse to save it", () => {
+    const r = parseSheetSafe('{"_v":99,"rank":4}');
+    expect(r.corrupt).toBe(false); // readable, not damaged
+    expect(r.futureVersion).toBe(99);
+    expect(r.sheet.rank).toBe(4);
+    expect(r.raw).toBeTruthy();
+  });
+
+  it("does not flag a record at the current version", () => {
+    const r = parseSheetSafe(serializeSheet(emptySheet()));
+    expect(r.futureVersion).toBeUndefined();
+  });
+
+  it("still round-trips a fully-populated sheet with the version present", () => {
+    const before = fullSheet();
+    const after = parseSheetSafe(serializeSheet(before)).sheet;
+    expect(after).toEqual(before);
   });
 });

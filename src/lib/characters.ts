@@ -32,6 +32,9 @@ export interface CharacterRecord extends Character {
   rawData?: string;
   /** Why the parse failed, for the recovery screen. */
   corruptError?: string;
+  /** Set when the record was written by a NEWER build; it is readable but the UI
+   *  must treat it as read-only. */
+  futureVersion?: number;
 }
 
 function newId(): string {
@@ -52,6 +55,7 @@ function toRecord(row: CharacterRow): CharacterRecord {
     // preserves the raw text for recovery; throwing that away here is what left
     // the destructive half of this bug live after the codec landed.
     ...(parsed.corrupt ? { corrupt: true as const, rawData: parsed.raw, corruptError: parsed.error } : {}),
+    ...(parsed.futureVersion ? { futureVersion: parsed.futureVersion } : {}),
   };
 }
 
@@ -64,13 +68,29 @@ export class CorruptRecordError extends Error {
   }
 }
 
+/** Thrown when a record was written by a NEWER build. Saving it from here would
+ *  normalise fields this build does not understand. */
+export class FutureVersionError extends Error {
+  constructor(
+    public readonly id: string,
+    public readonly version: number
+  ) {
+    super(
+      `This character was saved by a newer version of W.T.E (format ${version}). Update W.T.E to edit it — it is shown read-only so nothing is lost.`
+    );
+    this.name = "FutureVersionError";
+  }
+}
+
 /** Guard every write path. A corrupt row must be repaired or explicitly reset by
  *  the user, never silently replaced by the placeholder the reader substituted. */
 async function assertSafeToPersist(id: string): Promise<void> {
   const db = await getDb();
   const rows = await db.select<{ data: string | null }[]>("SELECT data FROM characters WHERE id = $1", [id]);
   if (rows.length === 0) return; // a new row is fine
-  if (parseSheetSafe(rows[0].data).corrupt) throw new CorruptRecordError(id);
+  const p = parseSheetSafe(rows[0].data);
+  if (p.corrupt) throw new CorruptRecordError(id);
+  if (p.futureVersion) throw new FutureVersionError(id, p.futureVersion);
 }
 
 /** The unreadable text of a corrupt row, for the recovery screen. */

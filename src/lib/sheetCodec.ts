@@ -84,13 +84,51 @@ function prune<T extends object>(o: T): T {
   return o;
 }
 
+/** The schema version stamped on every sheet this build writes.
+ *
+ *  Bump ONLY alongside a migration in upgradeSheet(). A record carrying a HIGHER
+ *  version than this was written by a newer build and must not be silently
+ *  rewritten — see parseSheetSafe. */
+export const SHEET_VERSION = 1;
+
+/** The key the version lives under. Prefixed so it can never collide with a real
+ *  sheet field, and stripped before the sheet reaches the app. */
+const VERSION_KEY = "_v";
+
+/** Bring an older record up to the current shape. One case per version step, so a
+ *  v1 record opened by a future v3 build walks 1 -> 2 -> 3.
+ *
+ *  Nothing to do yet: version 1 IS the current shape, and pre-versioning records
+ *  (no _v at all) are treated as version 1 because that is exactly what they are —
+ *  the field was added without changing any other field's meaning. */
+function upgradeSheet(raw: Record<string, unknown>, from: number): Record<string, unknown> {
+  let out = raw;
+  let v = from;
+  while (v < SHEET_VERSION) {
+    // switch (v) { case 1: out = ...; break; }
+    v++;
+  }
+  return out;
+}
+
 /** Build a sheet from an already-parsed JSON value. Every field is coerced to the
  *  shape the app expects; a field that is present but the wrong type is dropped
- *  rather than trusted, and one bad field never discards the others. */
+ *  rather than trusted, and one bad field never discards the others.
+ *
+ *  UNKNOWN KEYS PASS THROUGH. The coerced known fields are laid over a copy of the
+ *  raw object rather than replacing it, so a field written by a NEWER build
+ *  survives a round trip through this one instead of being deleted on the next
+ *  save. Without that, opening a character on a second machine running an older
+ *  version silently stripped whatever the newer version had added. */
 export function sheetFromJson(raw: unknown): CharacterSheet {
-  const p = (isObj(raw) ? raw : {}) as Partial<CharacterSheet> & Record<string, unknown>;
+  const p0 = (isObj(raw) ? raw : {}) as Partial<CharacterSheet> & Record<string, unknown>;
+  const storedV = num(p0[VERSION_KEY]) ?? 1;
+  const p = upgradeSheet({ ...p0 }, storedV) as Partial<CharacterSheet> & Record<string, unknown>;
+  // The version marker is bookkeeping, not a sheet field; serializeSheet re-adds it.
+  delete p[VERSION_KEY];
   const rank = num(p.rank) ?? 0;
   return prune({
+    ...(p as object),
     attributes: { ...zeroAttributes(), ...(isObj(p.attributes) ? p.attributes : {}) },
     specialties: { ...zeroSpecialties(), ...(isObj(p.specialties) ? p.specialties : {}) },
     speciesId: str(p.speciesId),
@@ -133,6 +171,11 @@ export function sheetFromJson(raw: unknown): CharacterSheet {
 
 export interface SheetParse {
   sheet: CharacterSheet;
+  /** Set when the record was written by a NEWER build than this one. The sheet is
+   *  still readable — unknown fields pass through — but the caller must treat it as
+   *  read-only, because this build cannot know what the newer fields mean and
+   *  saving would normalise them under rules that no longer apply. */
+  futureVersion?: number;
   /** True when the stored text could not be parsed as JSON at all. The caller
    *  still gets a usable empty sheet, but MUST NOT overwrite the original: the
    *  raw text is handed back so the record can be recovered rather than replaced
@@ -178,10 +221,16 @@ export function parseSheetSafe(raw: string | null): SheetParse {
       error: `the stored sheet was ${Array.isArray(parsed) ? "an array" : typeof parsed}, not a character`,
     };
   }
-  return { sheet: sheetFromJson(parsed), corrupt: false };
+  // A record from a NEWER build is readable but not writable. Refusing to save is
+  // the point: this build would normalise fields it does not understand, and the
+  // old behaviour — strip on load, delete on the next save — destroyed them.
+  const storedV = num((parsed as Record<string, unknown>)[VERSION_KEY]) ?? 1;
+  const sheet = sheetFromJson(parsed);
+  if (storedV > SHEET_VERSION) return { sheet, corrupt: false, futureVersion: storedV, raw };
+  return { sheet, corrupt: false };
 }
 
-/** The stored form of a sheet. */
+/** The stored form of a sheet, stamped with the schema version. */
 export function serializeSheet(sheet: CharacterSheet): string {
-  return JSON.stringify(prune({ ...sheet }));
+  return JSON.stringify(prune({ ...sheet, [VERSION_KEY]: SHEET_VERSION } as Record<string, unknown>));
 }

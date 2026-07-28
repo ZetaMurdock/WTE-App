@@ -130,11 +130,20 @@ export function CharactersTab({ campaign: localCampaign, curator, onCharactersCh
             const shared = fromSharedCharacter(parsed);
             const { name, sheet } = shared ?? parseLegacySheet(parsed);
             lastId = (await createCharacter(campaign.id, name, sheet)).id;
-          } catch {
-            failed.push(f.name);
+          } catch (e) {
+            // Report WHY. A file from a newer W.T.E and a malformed file need
+            // different responses, and lumping them together as "couldn't import"
+            // told the user nothing actionable.
+            failed.push(`${f.name} — ${e instanceof Error ? e.message : String(e)}`);
           }
         }
-        if (failed.length) alert("Couldn't import: " + failed.join(", ") + "\n(Expecting a shared .wte-character.json or the old sheet's exported .json.)");
+        if (failed.length) {
+          alert(
+            "Couldn't import:\n\n" +
+              failed.join("\n\n") +
+              "\n\n(Expecting a shared .wte-character.json or the old sheet's exported .json.)"
+          );
+        }
         await reload();
         if (lastId && files.length === 1) setView({ mode: "sheet", id: lastId });
       }}
