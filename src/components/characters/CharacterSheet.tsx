@@ -75,6 +75,7 @@ import {
 } from "../../game/synapticFocus";
 import { RollButton } from "./RollButton";
 import { GenusContestPanel } from "./GenusContestPanel";
+import { CorruptSheetNotice } from "./CorruptSheetNotice";
 import { BioFields } from "./BioFields";
 import { parseBioFields, type BioField } from "../../lib/bioFields";
 
@@ -137,6 +138,26 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
       <div className="dashboard">
         <p className="list-empty">Loading…</p>
       </div>
+    );
+  }
+
+  // A row whose `data` could not be parsed never reaches the editable sheet. The
+  // sheet is state-first and autosaves 400ms after any interaction, so rendering
+  // it here would write the reader's blank placeholder over the only copy of the
+  // real data — which is exactly what used to happen.
+  if (rec.corrupt) {
+    return (
+      <CorruptSheetNotice
+        id={rec.id}
+        name={rec.name}
+        raw={rec.rawData ?? ""}
+        error={rec.corruptError}
+        onBack={onBack}
+        onResolved={() => {
+          void getCharacter(characterId).then((r) => setRec(r ?? null));
+          onChanged();
+        }}
+      />
     );
   }
 

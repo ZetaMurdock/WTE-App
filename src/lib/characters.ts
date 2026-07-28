@@ -16,9 +16,22 @@ interface CharacterRow {
   updated_at: number;
 }
 
-/** A character row with its parsed sheet attached. */
+/** A character row with its parsed sheet attached.
+ *
+ *  When `corrupt` is set, `sheet` is a BLANK placeholder and `rawData` holds the
+ *  original unreadable text. Callers must not write such a record back: the
+ *  update path refuses it (see assertSafeToPersist), because the old behaviour was
+ *  to render a blank rank-0 character with the right name — reading exactly like
+ *  "my character was reset" — and then persist that blank over the real bytes
+ *  400ms after the first interaction. */
 export interface CharacterRecord extends Character {
   sheet: CharacterSheet;
+  /** True when `data` could not be parsed. `sheet` is then not the real sheet. */
+  corrupt?: boolean;
+  /** The original unreadable `data` text, kept verbatim so it can be recovered. */
+  rawData?: string;
+  /** Why the parse failed, for the recovery screen. */
+  corruptError?: string;
 }
 
 function newId(): string {
@@ -27,14 +40,73 @@ function newId(): string {
 }
 
 function toRecord(row: CharacterRow): CharacterRecord {
+  const parsed = parseSheetSafe(row.data);
   return {
     id: row.id,
     campaignId: row.campaign_id,
     name: row.name,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    sheet: parseSheetSafe(row.data).sheet,
+    sheet: parsed.sheet,
+    // Propagate the failure instead of discarding it. sheetCodec deliberately
+    // preserves the raw text for recovery; throwing that away here is what left
+    // the destructive half of this bug live after the codec landed.
+    ...(parsed.corrupt ? { corrupt: true as const, rawData: parsed.raw, corruptError: parsed.error } : {}),
   };
+}
+
+/** Thrown when something tries to save a character whose stored data could not be
+ *  read. Overwriting an unreadable record destroys the only copy of it. */
+export class CorruptRecordError extends Error {
+  constructor(public readonly id: string) {
+    super("Refusing to save over a character whose stored data could not be read.");
+    this.name = "CorruptRecordError";
+  }
+}
+
+/** Guard every write path. A corrupt row must be repaired or explicitly reset by
+ *  the user, never silently replaced by the placeholder the reader substituted. */
+async function assertSafeToPersist(id: string): Promise<void> {
+  const db = await getDb();
+  const rows = await db.select<{ data: string | null }[]>("SELECT data FROM characters WHERE id = $1", [id]);
+  if (rows.length === 0) return; // a new row is fine
+  if (parseSheetSafe(rows[0].data).corrupt) throw new CorruptRecordError(id);
+}
+
+/** The unreadable text of a corrupt row, for the recovery screen. */
+export async function getRawCharacterData(id: string): Promise<string | null> {
+  if (!sqlAvailable()) return null;
+  const db = await getDb();
+  const rows = await db.select<{ data: string | null }[]>("SELECT data FROM characters WHERE id = $1", [id]);
+  return rows[0]?.data ?? null;
+}
+
+/** Replace an unreadable row with a blank sheet. This is the ONE path allowed to
+ *  overwrite corrupt data, because the user asked for it explicitly after being
+ *  shown the raw text — it deliberately bypasses assertSafeToPersist. */
+export async function resetCorruptCharacter(id: string): Promise<void> {
+  if (!sqlAvailable()) return;
+  const db = await getDb();
+  await db.execute("UPDATE characters SET data = $1, updated_at = $2 WHERE id = $3", [
+    serializeSheet(emptySheet()),
+    Date.now(),
+    id,
+  ]);
+}
+
+/** Try to repair a row from text the user edited (e.g. after fixing a truncated
+ *  blob by hand, or pasting a backup). Rejects if the replacement is also
+ *  unreadable, so a failed repair cannot destroy the original. */
+export async function repairCharacterData(id: string, text: string): Promise<void> {
+  if (!sqlAvailable()) return;
+  const parsed = parseSheetSafe(text);
+  if (parsed.corrupt) throw new Error("That text still could not be read as a character — the original is unchanged.");
+  const db = await getDb();
+  await db.execute("UPDATE characters SET data = $1, updated_at = $2 WHERE id = $3", [
+    serializeSheet(parsed.sheet),
+    Date.now(),
+    id,
+  ]);
 }
 
 export async function listCharacters(campaignId: string): Promise<CharacterRecord[]> {
@@ -115,6 +187,10 @@ export async function updateCharacter(
   id: string,
   patch: { name?: string; sheet?: CharacterSheet }
 ): Promise<void> {
+  // A name-only edit is safe on a corrupt row (name is its own column), but any
+  // write that touches `data` would replace the unreadable original with the
+  // placeholder the reader substituted.
+  if (patch.sheet !== undefined) await assertSafeToPersist(id);
   const db = await getDb();
   const now = Date.now();
   if (patch.name !== undefined && patch.sheet !== undefined) {
@@ -149,6 +225,10 @@ export async function deleteCharacter(id: string): Promise<void> {
 export async function patchCharacterSheet(id: string, patch: Partial<CharacterSheet>): Promise<boolean> {
   const rec = await getCharacter(id);
   if (!rec) return false;
+  // Spreading a corrupt record's placeholder sheet would write a blank character
+  // with the patched field applied — this is the path the vault's move-folder and
+  // add/remove-tag actions take, so it must refuse too.
+  if (rec.corrupt) throw new CorruptRecordError(id);
   await updateCharacter(id, { sheet: { ...rec.sheet, ...patch } });
   return true;
 }
@@ -159,6 +239,10 @@ export async function patchCharacterSheet(id: string, patch: Partial<CharacterSh
  *  the receiver's own campaign character list. */
 export async function upsertCharacter(rec: CharacterRecord): Promise<void> {
   if (!sqlAvailable()) return;
+  // Never push a corrupt-loaded record over the wire into a good local row, and
+  // never overwrite a local row that is itself unreadable.
+  if (rec.corrupt) throw new CorruptRecordError(rec.id);
+  await assertSafeToPersist(rec.id);
   const db = await getDb();
   const now = Date.now();
   await db.execute(
