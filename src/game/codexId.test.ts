@@ -11,6 +11,7 @@ import {
   sameConcept,
   scopeRank,
   slugify,
+  type CodexIdentity,
 } from "./codexId";
 
 describe("slugify is deterministic and lossy in a predictable way", () => {
@@ -149,7 +150,7 @@ describe("renaming does not break references — the point of the whole module",
   });
 
   it("accumulates aliases across several renames", () => {
-    let x = { id: "wte.genus.a", name: "First" };
+    let x: CodexIdentity = { id: "wte.genus.a", name: "First" };
     x = rename(x, "Second");
     x = rename(x, "Third");
     expect(x.name).toBe("Third");
@@ -163,7 +164,7 @@ describe("renaming does not break references — the point of the whole module",
   });
 
   it("does not list the current name as one of its own aliases", () => {
-    let x = { id: "wte.genus.a", name: "One" };
+    let x: CodexIdentity = { id: "wte.genus.a", name: "One" };
     x = rename(x, "Two");
     x = rename(x, "One"); // renamed back
     expect(x.name).toBe("One");

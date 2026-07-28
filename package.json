@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "tauri": "tauri",
     "test": "vitest run",
-    "bump": "node scripts/bump.mjs"
+    "bump": "node scripts/bump.mjs",
+    "gate": "node scripts/gate.mjs"
   },
   "dependencies": {
     "@tauri-apps/plugin-sql": "^2",
