@@ -262,11 +262,21 @@ describe("the grouped official corpus", () => {
   });
 
   it("reports a genus page for a domain the rules do not have", () => {
-    // The installed corpus ships Kinetic_Genus while the data file calls that
-    // domain Photonic — so one page describes nothing and 20 abilities have no
-    // page. Both halves need saying.
-    const scan = scanGenusCorpus([{ stem: "Kinetic_Genus", text: "<div>Something</div>" }]);
-    expect(scan.domainMismatch.unknownPages).toContain("Kinetic_Genus");
+    const scan = scanGenusCorpus([{ stem: "Ionic_Genus", text: "<div>Something</div>" }]);
+    expect(scan.domainMismatch.unknownPages).toContain("Ionic_Genus");
+  });
+
+  it("finds a domain page filed under the domain's FORMER name", () => {
+    // Kinetic was renamed to Photonic. The installed corpus still ships
+    // Kinetic_Genus.md, and before the alias those 20 abilities had no page at
+    // all while the page itself described nothing the rules knew about.
+    const names = getGenusDomain("Photonic")!.abilities.map((a) => a.name);
+    const scan = scanGenusCorpus([
+      { stem: "Kinetic_Genus", text: names.map((n) => `<div>${n}</div>`).join("") },
+    ]);
+    expect(scan.pages.map((p) => p.title)).toEqual(expect.arrayContaining([names[0]]));
+    expect(scan.domainMismatch.unknownPages).not.toContain("Kinetic_Genus");
+    expect(scan.domainMismatch.missingPages).not.toContain("Photonic");
   });
 
   it("ignores ordinary lore pages", () => {

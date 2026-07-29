@@ -917,6 +917,9 @@
   },
   "Photonic": {
     "identity": "Motion, momentum, velocity, force amplification, and movement control. Photonic practitioners accelerate, redirect, and weaponize momentum — their own and everyone else's.",
+    "aliases": [
+      "Kinetic"
+    ],
     "paradigmAccess": [
       "simulation",
       "warfare"

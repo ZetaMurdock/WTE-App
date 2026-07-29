@@ -5,7 +5,7 @@ import type { CodexEntry, Weapon, Equipment, Creature } from "../models/codex";
 import weaponsData from "../game/data/weapons.json";
 import gearData from "../game/data/gear.json";
 import { parseCodexEntry } from "./codexParse";
-import { parseEquipMods, mergeMods, WEIGHT_CATS, getParadigm, type EquipMods } from "../game/wte";
+import { parseEquipMods, mergeMods, WEIGHT_CATS, getParadigm, canonicalDomain, type EquipMods } from "../game/wte";
 import { isTauri } from "./tauri";
 import { isArray, readJson, writeJson } from "./localJson";
 
@@ -90,8 +90,14 @@ export function loadoutMods(weaponNames: string[], gearNames: string[]): EquipMo
 /** Does the character (via its paradigm's domains) meet a weapon's DOMAIN requirement? */
 export function weaponDomainsMet(domain: string | undefined, paradigmId?: string): boolean {
   if (!domain) return true;
-  const req = domain.split(/[+&,/]/).map((s) => s.trim().toLowerCase()).filter(Boolean);
-  const have = (getParadigm(paradigmId)?.domains || []).map((d) => d.toLowerCase());
+  // Both sides are normalised through the domain's CURRENT name, because a
+  // rename must not lock content. Kinetic became Photonic, and gear.json,
+  // weapons.json and every Overclock requirement still say Kinetic — matching
+  // the strings directly meant those requirements named a domain that no longer
+  // existed, so they could never be met by anyone.
+  const norm = (s: string) => (canonicalDomain(s) ?? s.trim()).toLowerCase();
+  const req = domain.split(/[+&,/]/).map((s) => s.trim()).filter(Boolean).map(norm);
+  const have = (getParadigm(paradigmId)?.domains || []).map(norm);
   return req.every((r) => have.includes(r));
 }
 

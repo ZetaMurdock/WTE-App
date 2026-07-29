@@ -40,13 +40,24 @@ export interface CorpusScan {
 
 const stripTags = (s: string): string => s.replace(/<[^>]*>/g, " ").replace(/&[a-z]+;/gi, " ");
 
-/** Does this page look like the domain page for `domain`? */
+/**
+ * Does this page look like the domain page for `domain`?
+ *
+ * Former names count. The installed corpus ships Kinetic_Genus.md for the domain
+ * the rules now call Photonic, so matching the current name alone left twenty
+ * abilities with no page and one page describing nothing.
+ */
 function pageForDomain(pages: RawPage[], domain: string): RawPage | undefined {
-  const want = slugify(domain);
-  return (
-    pages.find((p) => slugify(p.stem) === `${want}-genus`) ??
-    pages.find((p) => slugify(p.stem).startsWith(want) && /genus/i.test(p.stem))
-  );
+  const names = [domain, ...(getGenusDomain(domain)?.aliases ?? [])].map(slugify).filter(Boolean);
+  for (const want of names) {
+    const exact = pages.find((p) => slugify(p.stem) === `${want}-genus`);
+    if (exact) return exact;
+  }
+  for (const want of names) {
+    const loose = pages.find((p) => slugify(p.stem).startsWith(want) && /genus/i.test(p.stem));
+    if (loose) return loose;
+  }
+  return undefined;
 }
 
 /** Whole-word, case-insensitive presence of a name in already-stripped text. */

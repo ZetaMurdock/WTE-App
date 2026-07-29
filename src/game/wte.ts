@@ -731,6 +731,10 @@ export interface GenusAbility {
 export type SnrPosture = "none" | "applies" | "anti";
 export interface GenusDomain {
   identity: string;
+  /** Former names for this domain. Kinetic was renamed to Photonic, and gear,
+   *  weapons and the installed Codex pages are all still full of the old name —
+   *  so the rename has to keep resolving rather than silently gating things off. */
+  aliases?: string[];
   /** Paradigm ids that may access this domain. */
   paradigmAccess: string[];
   snr: SnrPosture;
@@ -762,8 +766,33 @@ export const GENUS_DATA_BY_ID: Map<string, GenusAbility> = new Map(
 
 /** Every energy domain, in Codex order. */
 export const GENUS_DOMAIN_NAMES = Object.keys(GENUS_DOMAINS);
+
+/** Former domain name (lowercased) -> the name it goes by now. */
+const DOMAIN_ALIASES: Map<string, string> = new Map(
+  Object.entries(GENUS_DOMAINS).flatMap(([name, d]) =>
+    (d.aliases ?? []).map((a) => [a.toLowerCase(), name] as const)
+  )
+);
+
+/**
+ * The name a domain goes by NOW, given any name it has gone by.
+ *
+ * Kinetic was renamed to Photonic, and the old name is still written all over
+ * gear.json, weapons.json and the installed Codex pages. Without this, every
+ * Kinetic-gated weapon and Overclock is locked for everyone — the requirement
+ * names a domain that no longer exists, so it can never be met.
+ */
+export function canonicalDomain(name: string | undefined): string | undefined {
+  if (!name) return undefined;
+  const raw = name.trim();
+  if (GENUS_DOMAINS[raw]) return raw;
+  const exact = GENUS_DOMAIN_NAMES.find((d) => d.toLowerCase() === raw.toLowerCase());
+  return exact ?? DOMAIN_ALIASES.get(raw.toLowerCase());
+}
+
 export function getGenusDomain(domain: string): GenusDomain | undefined {
-  return GENUS_DOMAINS[domain];
+  const key = canonicalDomain(domain);
+  return key ? GENUS_DOMAINS[key] : undefined;
 }
 /** The domain an ability belongs to, by stable id OR by name.
  *
