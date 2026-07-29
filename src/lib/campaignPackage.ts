@@ -25,7 +25,8 @@ import { listRuleLayers, saveRuleLayer } from "./ruleLayerRepo";
 import type { RuleLayer } from "../game/ruleLayers";
 import { getDb, sqlAvailable } from "./db";
 import { sheetFromJson } from "./sheetCodec";
-import { reownPages } from "./campaignPages";
+import { readField, reownPages } from "./campaignPages";
+import { deleteCampaignCodexPages, saveCodexPage, type StoredCodexPage } from "./codexPageRepo";
 import { parseId, slugify, ID_SCOPES } from "../game/codexId";
 import { isTauri } from "./tauri";
 
@@ -51,6 +52,39 @@ export function remapConceptId(id: string, fromCampaign: string, toCampaign: str
   const p = parseId(id);
   if (!p || p.scope !== "campaign" || p.owner !== slugify(fromCampaign)) return id;
   return `campaign.${slugify(toCampaign)}.${p.kind}.${p.slug}`;
+}
+
+/**
+ * Turn a package page into a stored, OWNED page — or null when it is a global
+ * page that belongs on disk.
+ *
+ * The id is read from the page rather than invented, and it has already been
+ * re-owned for a copy import, so the store's foreign-owner check will agree with
+ * the campaign it landed in rather than rejecting our own import.
+ */
+function storedPageFrom(page: { stem: string; content: string }, campaignId: string): StoredCodexPage | null {
+  // Uses the SAME reader the ownership check uses. A second copy of this regex
+  // is a second chance to get the escaping wrong, and the first attempt did:
+  // inside a template literal `\s` collapses to `s`, so the pattern matched
+  // nothing and every imported page silently went to disk as a global page.
+  const field = (key: string) => readField(page.content, key);
+  const id = (field("ID") ?? "").trim();
+  const parsed = id ? parseId(id) : null;
+  if (!parsed || parsed.scope !== "campaign") return null;
+  const title = (page.content.match(/^#{1,4}\s+(.+)$/m)?.[1] ?? page.stem).replace(/[*_`]/g, "").trim();
+  const vis = (field("Visibility") ?? "").toLowerCase();
+  return {
+    id,
+    campaignId,
+    stem: page.stem,
+    kind: parsed.kind,
+    title,
+    content: page.content,
+    visibility: vis === "curator" || vis === "gm" ? "curator" : "player",
+    aliases: (field("Aliases") ?? "").split(/[,;/]/).map((x) => x.trim()).filter(Boolean),
+    overrides: field("Overrides") || undefined,
+    updatedAt: Date.now(),
+  };
 }
 
 /** Write an imported Codex page to disk. Desktop only — a browser has nowhere
@@ -376,7 +410,13 @@ export async function importPackage(
   for (const page of pages) {
     try {
       if (!page || typeof page.stem !== "string" || typeof page.content !== "string") continue;
-      await savePageFile(page.stem, page.content);
+      // Into the OWNED store when the page carries a campaign identity, so two
+      // campaigns can hold different versions of the same stem. A page with no
+      // campaign id of its own is a global page and still goes to disk, where
+      // one file per stem is the correct model.
+      const stored = storedPageFrom(page, campaignId);
+      if (stored) await saveCodexPage(stored);
+      else await savePageFile(page.stem, page.content);
       imported.pages++;
     } catch (e) {
       failed.push({ what: `Codex page "${page.stem}"`, error: e instanceof Error ? e.message : String(e) });
@@ -412,6 +452,7 @@ export async function importPackage(
 
 /** Remove a campaign and everything hanging off it. Used only to undo a copy. */
 async function deleteCampaignRows(db: Awaited<ReturnType<typeof getDb>>, campaignId: string): Promise<void> {
+  await deleteCampaignCodexPages(campaignId).catch(() => {});
   for (const t of ["characters", "notes", "codex_sequences", "scenes", "encounters", "assets", "campaign_kv", "rule_layers"]) {
     try {
       await db.execute(`DELETE FROM ${t} WHERE campaign_id = $1`, [campaignId]);

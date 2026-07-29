@@ -17,7 +17,7 @@ import {
   ruleLayerProblem,
   type CampaignPackage,
 } from "./campaignPackage";
-import { pageBelongsTo, pageIsUnownedHouseRule, reownPage, reownPages } from "./campaignPages";
+import { pageBelongsTo, pageIsUnownedHouseRule, readField, reownPage, reownPages } from "./campaignPages";
 import type { RuleLayer } from "../game/ruleLayers";
 
 const OLD = "8a93a397-4c21-4a6e-9d0b-1f2e3a4b5c6d";
@@ -181,5 +181,35 @@ describe("incoming rule layers are checked, not trusted", () => {
 
   it("refuses one that does not say what it applies to", () => {
     expect(ruleLayerProblem({ ...good, targetId: "" })).toMatch(/what it applies to/);
+  });
+});
+
+describe("an owned page is routed to the store, not to disk", () => {
+  // The routing decides whether two campaigns can hold different versions of one
+  // page at all. It is driven by reading the page's ID row, and a mangled regex
+  // there would send every page to disk while every test still passed — so this
+  // asserts the read itself.
+  it("reads the ID row out of a real page", () => {
+    expect(readField(housePage, "ID")).toBe(`campaign.${OLD}.genus.ashen-lark`);
+  });
+
+  it("reads the other identity rows too", () => {
+    expect(readField(housePage, "Overrides")).toBe("wte.genus.lark");
+    expect(readField(housePage, "Type")).toBe("Genus");
+  });
+
+  it("returns nothing for a row the page does not have", () => {
+    expect(readField(housePage, "Visibility")).toBeUndefined();
+  });
+
+  it("still reads the ID after the page is re-owned for a copy", () => {
+    // If this came back undefined the imported page would be filed as global,
+    // and the copy would quietly share the original's pages.
+    expect(readField(reownPage(housePage, OLD, NEW), "ID")).toBe(`campaign.${NEW}.genus.ashen-lark`);
+  });
+
+  it("does not mistake an official page for an owned one", () => {
+    const official = "# Lark\n\n| Type | Genus |\n| ID | wte.genus.lark |\n";
+    expect(readField(official, "ID")).toBe("wte.genus.lark");
   });
 });

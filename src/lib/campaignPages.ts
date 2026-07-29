@@ -10,6 +10,7 @@
 // characters and the scenes and then plays by the official rules, because the
 // table's own rules were never in the file.
 import { parseId, slugify } from "../game/codexId";
+import { listOwnedCodexPages } from "./codexPageRepo";
 
 export interface CampaignPage {
   stem: string;
@@ -17,7 +18,7 @@ export interface CampaignPage {
 }
 
 /** Read one field from a page's field table, in any of the shapes we accept. */
-function readField(md: string, key: string): string | undefined {
+export function readField(md: string, key: string): string | undefined {
   const row = new RegExp(`^\\s*\\|\\s*${key}\\s*\\|\\s*([^|]*)\\|\\s*$`, "im");
   const m = md.match(row);
   if (m) return m[1].trim();
@@ -86,6 +87,13 @@ export async function collectCampaignPages(
   campaignId: string
 ): Promise<{ pages: CampaignPage[]; unreadable: string[]; unowned: string[] }> {
   const pages: CampaignPage[] = [];
+  const seen = new Set<string>();
+  // Stored pages first — those are owned by construction, not by declaration,
+  // so they need no inspection to prove whose they are.
+  for (const sp of await listOwnedCodexPages(campaignId).catch(() => [])) {
+    pages.push({ stem: sp.stem, content: sp.content });
+    seen.add(sp.stem.toLowerCase());
+  }
   const unreadable: string[] = [];
   const unowned: string[] = [];
   const w = window as unknown as {
@@ -109,6 +117,9 @@ export async function collectCampaignPages(
       unreadable.push(stem);
       continue;
     }
+    // A stored version of this stem already travelled, and it is the one in
+    // force for this campaign; the file is the global fallback it shadows.
+    if (seen.has(stem.toLowerCase())) continue;
     if (pageBelongsTo(content, campaignId)) pages.push({ stem, content });
     else if (pageIsUnownedHouseRule(content)) unowned.push(stem);
   }

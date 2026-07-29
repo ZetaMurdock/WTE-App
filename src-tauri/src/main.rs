@@ -902,6 +902,40 @@ CREATE TABLE rule_layers (
   updated_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_rule_layers_target ON rule_layers (campaign_id, target_id);
+
+-- Codex pages, owned.
+--
+-- Pages have always been files in one shared folder, which makes ownership
+-- something a page can only DECLARE, never something the store enforces. The
+-- practical consequence is that two campaigns cannot hold different versions of
+-- the same page: there is one file per stem, so the second table's rewrite
+-- overwrites the first table's.
+--
+-- campaign_id is '' rather than NULL for a global page, deliberately: SQLite
+-- treats NULLs as distinct in a UNIQUE index, so a nullable column would let the
+-- same global stem be inserted any number of times and the constraint below
+-- would enforce nothing.
+--
+-- The identity columns are stored beside the content rather than re-parsed on
+-- every read. Re-deriving an id from a page's text is how a rename moves an
+-- identity, which is the whole failure stable ids exist to prevent.
+CREATE TABLE IF NOT EXISTS codex_pages (
+  id TEXT PRIMARY KEY,
+  campaign_id TEXT NOT NULL DEFAULT '',
+  stem TEXT NOT NULL,
+  kind TEXT,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  visibility TEXT NOT NULL DEFAULT 'player',
+  -- JSON arrays; former names and the official id this page replaces.
+  aliases TEXT,
+  overrides TEXT,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_codex_pages_campaign ON codex_pages (campaign_id);
+-- One page per stem PER OWNER: the constraint that makes per-campaign versions
+-- of the same page possible at all.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_codex_pages_owner_stem ON codex_pages (campaign_id, stem);
 ";
 
 fn main() {
