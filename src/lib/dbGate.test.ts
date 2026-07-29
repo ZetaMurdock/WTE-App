@@ -6,12 +6,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // Database.load is reached, not about what the message says.
 
 let gateAnswer: unknown = { ok: true, reason: null, backup_dir: "C:/x", schema_version: 5 };
+let retryAnswer: unknown = { ok: true, reason: null, schema_version: 5 };
 let gateThrows = false;
 let gateHangs = false;
 let loads = 0;
+let retried = 0;
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: async (cmd: string) => {
+    if (cmd === "wte_retry_backup") {
+      retried++;
+      return retryAnswer;
+    }
     if (cmd !== "wte_migration_gate") throw new Error("unexpected command " + cmd);
     if (gateThrows) throw new Error("command not found");
     if (gateHangs) return new Promise(() => {});
@@ -33,10 +39,13 @@ vi.mock("@tauri-apps/plugin-sql", () => ({
 
 vi.mock("./tauri", () => ({ isTauri: () => true }));
 
-const { getDb, probeMigrationGate, lastMigrationGate, BackupRequiredError, __resetDbForTests } = await import("./db");
+const { getDb, probeMigrationGate, retryBackup, lastMigrationGate, BackupRequiredError, __resetDbForTests } =
+  await import("./db");
 
 beforeEach(() => {
   loads = 0;
+  retried = 0;
+  retryAnswer = { ok: true, reason: null, schema_version: 5 };
   gateThrows = false;
   gateHangs = false;
   gateAnswer = { ok: true, reason: null, backup_dir: "C:/x", schema_version: 5 };
@@ -74,25 +83,65 @@ describe("a failed backup stops the upgrade", () => {
   });
 });
 
-describe("the gate never becomes its own failure", () => {
-  it("opens the database when the build has no such command", async () => {
+describe("not getting an answer is not permission to proceed", () => {
+  it("refuses to open the database when the gate command errors", async () => {
+    // Inside the desktop app this command always exists, so an error means the
+    // shell and the frontend disagree about what build this is — the worst
+    // possible moment to apply an irreversible migration.
     gateThrows = true;
-    await getDb();
-    expect(loads).toBe(1);
+    await expect(getDb()).rejects.toBeInstanceOf(BackupRequiredError);
+    expect(loads).toBe(0);
   });
 
-  it("gives up on an unresponsive gate instead of hanging the boot screen", async () => {
+  it("refuses to open the database when the gate never answers", async () => {
     vi.useFakeTimers();
     gateHangs = true;
-    const p = probeMigrationGate();
-    await vi.advanceTimersByTimeAsync(5000);
-    expect(await p).toBeNull();
+    const p = getDb();
+    const assertion = expect(p).rejects.toBeInstanceOf(BackupRequiredError);
+    await vi.advanceTimersByTimeAsync(15000);
+    await assertion;
+    expect(loads).toBe(0);
     vi.useRealTimers();
   });
 
-  it("reports null rather than throwing when the command is missing", async () => {
+  it("reports a closed gate, not null, when the command is missing", async () => {
     gateThrows = true;
-    expect(await probeMigrationGate()).toBeNull();
+    const g = await probeMigrationGate();
+    expect(g).toMatchObject({ ok: false, state: "unavailable" });
+  });
+
+  it("says something a person can act on when it times out", async () => {
+    vi.useFakeTimers();
+    gateHangs = true;
+    const p = probeMigrationGate();
+    await vi.advanceTimersByTimeAsync(15000);
+    expect((await p)?.reason).toMatch(/did not answer/i);
+    vi.useRealTimers();
+  });
+});
+
+describe("try again actually tries again", () => {
+  it("runs the backup rather than re-reading the old verdict", async () => {
+    gateAnswer = { ok: false, reason: "busy", schema_version: 5 };
+    expect((await probeMigrationGate())?.ok).toBe(false);
+    // The user closed the other window; the retry must reach Rust again.
+    retryAnswer = { ok: true, reason: null, has_restore_point: true, state: "created", schema_version: 5 };
+    const g = await retryBackup();
+    expect(g?.ok).toBe(true);
+    expect(retried).toBe(1);
+  });
+
+  it("reports a still-closed gate honestly", async () => {
+    retryAnswer = { ok: false, reason: "still busy", schema_version: 5 };
+    expect((await retryBackup())?.ok).toBe(false);
+  });
+});
+
+describe("a restore point is reported, never assumed", () => {
+  it("passes through the fact that no copy exists", async () => {
+    gateAnswer = { ok: true, reason: null, has_restore_point: false, state: "already-migrated", schema_version: 5 };
+    const g = await probeMigrationGate();
+    expect(g).toMatchObject({ ok: true, has_restore_point: false, state: "already-migrated" });
   });
 });
 

@@ -1,7 +1,8 @@
 // Token sprites: colour disc + optional circular art image + name label.
 // Diffed against the scene; art is (re)loaded only when a token's img changes.
-import { Assets, Container, Graphics, Sprite, Text } from "pixi.js";
+import { Container, Graphics, Sprite, Text } from "pixi.js";
 import type { VttScene, VttToken } from "../../types/scene";
+import { loadSceneTexture } from "../loadTexture";
 import { cellKey } from "../systems/VisionSystem";
 import { burnMechanicOn, lightFactor } from "../systems/lightState";
 
@@ -170,7 +171,10 @@ export class TokenLayer {
         if (n.artMask) (n.artMask.destroy(), (n.artMask = null));
         if (img) {
           const node = n;
-          void Assets.load(img)
+          // Token art is a base64 data URL like every other stored image, which
+          // Assets.load reaches by fetch() — a request path this app's CSP does not
+          // open to `data:`. See loadTexture.ts.
+          void loadSceneTexture(img)
             .then((tex) => {
               if (node.imgSrc !== img || !this.nodes.has(t.id)) return; // stale / removed
               const art = new Sprite(tex);

@@ -1,12 +1,16 @@
 // Scene backdrop: a fill for the playable area + optional map image (asset url).
-import { Assets, Container, Graphics, Sprite } from "pixi.js";
+import { Container, Graphics, Sprite } from "pixi.js";
 import type { VttScene } from "../../types/scene";
+import { describeSource, loadSceneTexture } from "../loadTexture";
 
 export class BackgroundLayer {
   readonly view = new Container();
   private fill = new Graphics();
   private sprite: Sprite | null = null;
   private loadedSrc = "";
+  /** Called when a map image cannot be shown. A background that silently fails to
+   *  load is indistinguishable from a scene that never had one. */
+  onImageError: ((detail: string) => void) | null = null;
 
   constructor() {
     this.view.addChild(this.fill);
@@ -28,15 +32,20 @@ export class BackgroundLayer {
         this.sprite = null;
       }
       if (src) {
-        void Assets.load(src)
+        void loadSceneTexture(src)
           .then((tex) => {
             if (this.loadedSrc !== src) return;
             this.sprite = new Sprite(tex);
             this.view.addChild(this.sprite);
             this.place(scene);
           })
-          .catch(() => {
-            /* bad url — keep the fill */
+          .catch((e) => {
+            if (this.loadedSrc !== src) return;
+            // The fill stays, so the scene is still usable — but say so. This used
+            // to be an empty catch, which is why a map that failed to load looked
+            // exactly like a scene with no map.
+            const why = e instanceof Error ? e.message : String(e);
+            this.onImageError?.(`This scene's map image could not be loaded (${describeSource(src)}): ${why}`);
           });
       }
     } else {

@@ -3,6 +3,8 @@ import type { MigrationGate } from "../lib/db";
 interface Props {
   gate: MigrationGate;
   onRetry: () => void;
+  /** The backup is being taken right now. On a large database this is not quick. */
+  busy?: boolean;
 }
 
 // Shown INSTEAD of the app when the pre-upgrade backup did not succeed.
@@ -11,7 +13,7 @@ interface Props {
 // only safe order is: copy first, upgrade second. When the copy fails the correct
 // behaviour is to do nothing at all — and to say so, rather than let the user find
 // out later that the upgrade happened and the restore point did not.
-export function DataBlocked({ gate, onRetry }: Props) {
+export function DataBlocked({ gate, onRetry, busy }: Props) {
   return (
     <div
       style={{
@@ -63,10 +65,15 @@ export function DataBlocked({ gate, onRetry }: Props) {
           W.T.E folder has free space and is not read-only.
         </p>
 
-        <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
-          <button className="primary-btn" onClick={onRetry}>
-            Try again
+        <div style={{ display: "flex", gap: 10, marginTop: 18, alignItems: "center" }}>
+          <button className="primary-btn" onClick={onRetry} disabled={busy}>
+            {busy ? "Making the copy…" : "Try again"}
           </button>
+          {busy && (
+            <span style={{ color: "var(--muted)", fontSize: 13 }}>
+              This can take a minute on a large campaign. Please leave the app open.
+            </span>
+          )}
         </div>
 
         <p style={{ marginTop: 16, fontSize: 12, color: "var(--muted)" }}>

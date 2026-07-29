@@ -301,7 +301,7 @@ export class PixiVttApp {
   private zoneValidCache = new Map<string, string | null>();
   private applyZoneGlsl(): void {
     const custom = this.scene?.data.zoneGlsl ?? {};
-    const key = ZONE_KINDS.map((k) => custom[k] ?? "").join(" ");
+    const key = ZONE_KINDS.map((k) => custom[k] ?? "").join("\u0000");
     if (key === this.zoneGlslKey) return;
     this.zoneGlslKey = key;
     const effective = { ...ZONE_DEFAULT_BODIES };

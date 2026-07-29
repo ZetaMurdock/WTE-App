@@ -766,9 +766,29 @@ struct MigrationGateReport {
     ok: bool,
     /// Present only when it may not. Written for a person, not a log.
     reason: Option<String>,
-    /// Where the restore point is, when one was taken.
+    /// Where the restore point is — only when one actually exists.
     backup_dir: Option<String>,
+    /// False means there is nothing to go back to. Not always a failure (a fresh
+    /// install has nothing to preserve) but never guessed at.
+    has_restore_point: bool,
+    /// Which branch the startup check took, for Diagnostics.
+    state: String,
     schema_version: u32,
+}
+
+fn gate_report(app: &tauri::AppHandle, outcome: &backup::BackupOutcome) -> MigrationGateReport {
+    let dir = app.path().app_data_dir().ok();
+    MigrationGateReport {
+        ok: outcome.is_safe_to_migrate(),
+        reason: outcome.reason(),
+        backup_dir: match (outcome.has_restore_point(), dir) {
+            (true, Some(d)) => Some(backup::backup_dir(&d, SCHEMA_VERSION).to_string_lossy().into_owned()),
+            _ => None,
+        },
+        has_restore_point: outcome.has_restore_point(),
+        state: outcome.label().to_string(),
+        schema_version: SCHEMA_VERSION,
+    }
 }
 
 #[tauri::command]
@@ -783,16 +803,24 @@ fn wte_migration_gate(
         .and_then(|g| g.clone())
         // Setup not having run is not a reason to assume the best.
         .unwrap_or_else(|| backup::BackupOutcome::Failed("the startup check did not complete".into()));
-    let dir = app.path().app_data_dir().ok();
-    MigrationGateReport {
-        ok: outcome.is_safe_to_migrate(),
-        reason: outcome.reason(),
-        backup_dir: match (&outcome, dir) {
-            (backup::BackupOutcome::Failed(_), _) | (_, None) => None,
-            (_, Some(d)) => Some(d.join(format!("backup-pre-v{SCHEMA_VERSION}")).to_string_lossy().into_owned()),
-        },
-        schema_version: SCHEMA_VERSION,
+    gate_report(&app, &outcome)
+}
+
+/// Actually run the backup again.
+///
+/// "Try again" used to re-read the verdict that was recorded at startup, which
+/// could only ever say the same thing — so the button did nothing, and the usual
+/// cause (a second W.T.E window, since closed) stayed unfixable without a restart.
+#[tauri::command]
+fn wte_retry_backup(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, backup::MigrationGate>,
+) -> MigrationGateReport {
+    let outcome = backup_before_schema_upgrade(&app);
+    if let Ok(mut gate) = state.0.lock() {
+        *gate = Some(outcome.clone());
     }
+    gate_report(&app, &outcome)
 }
 
 const SCHEMA_V5: &str = "
@@ -904,6 +932,7 @@ fn main() {
             wte_delete_page,
             wte_export_campaign,
             wte_migration_gate,
+            wte_retry_backup,
             open_external,
             net::net_advertise,
             net::net_unadvertise,

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { probeMigrationGate, type MigrationGate } from "../lib/db";
+import { probeMigrationGate, retryBackup, type MigrationGate } from "../lib/db";
 import { DataBlocked } from "./DataBlocked";
 
 interface Props {
@@ -16,6 +16,7 @@ interface Props {
 export function BootGate({ children }: Props) {
   const [gate, setGate] = useState<MigrationGate | null>(null);
   const [checked, setChecked] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   const check = useCallback(() => {
     let live = true;
@@ -32,10 +33,21 @@ export function BootGate({ children }: Props) {
 
   useEffect(check, [check]);
 
+  /** Actually take the backup again, rather than re-reading the same verdict. */
+  const retry = useCallback(async () => {
+    setRetrying(true);
+    try {
+      const g = await retryBackup();
+      setGate(g && !g.ok ? g : null);
+    } finally {
+      setRetrying(false);
+    }
+  }, []);
+
   // Deliberately renders nothing rather than a spinner: the answer is one IPC
   // call away, and a "Loading..." that can outlive its cause is the failure mode
   // this build exists to remove.
   if (!checked) return null;
-  if (gate) return <DataBlocked gate={gate} onRetry={check} />;
+  if (gate) return <DataBlocked gate={gate} onRetry={retry} busy={retrying} />;
   return <>{children}</>;
 }

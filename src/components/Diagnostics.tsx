@@ -14,15 +14,42 @@ interface Props {
 
 interface TableStat {
   table: string;
+  /** Rows belonging to the campaign being looked at. -1 when unreadable, null when
+   *  the table is not campaign-scoped and the question does not apply. */
+  mine: number | null;
+  /** Rows in the whole database. */
   rows: number;
   unreadable: number;
 }
+
+/**
+ * Which tables belong to a campaign.
+ *
+ * `campaigns` is the list of campaigns itself, so it has no owner; everything else
+ * carries campaign_id. Without this the screen counted every row in the database
+ * and reported it as the open campaign's data — so five campaigns all showed the
+ * same 27 characters, and the numbers never changed when you switched.
+ */
+const SCOPED = new Set([
+  "characters",
+  "scenes",
+  "encounters",
+  "assets",
+  "notes",
+  "codex_sequences",
+  "rolls",
+  "campaign_kv",
+  "rule_layers",
+]);
 
 interface Damaged {
   table: string;
   id: string;
   name: string;
   reason: string;
+  /** Damage is reported wherever it is — hiding another campaign's broken record
+   *  would be the silence this screen exists to break — but it is labelled. */
+  elsewhere: boolean;
 }
 
 // Where your data lives, how much of it there is, and whether any of it is
@@ -35,6 +62,9 @@ export function Diagnostics({ campaign }: Props) {
   const [dbError, setDbError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const quarantined = listQuarantined();
+  // Depend on the ID, not the object: a re-rendered Campaign with the same id must
+  // not re-scan, and a genuine switch must.
+  const campaignId = campaign?.id ?? "";
 
   const scan = useCallback(async () => {
     setLoading(true);
@@ -59,32 +89,44 @@ export function Diagnostics({ campaign }: Props) {
       for (const t of ["campaigns", "characters", "scenes", "encounters", "assets", "notes", "codex_sequences", "rolls", "campaign_kv", "rule_layers"]) {
         if (!existing.has(t)) continue;
         try {
-          const rows = await db.select<{ n: number }[]>(`SELECT COUNT(*) AS n FROM ${t}`);
-          out.push({ table: t, rows: rows[0]?.n ?? 0, unreadable: 0 });
+          const all = await db.select<{ n: number }[]>(`SELECT COUNT(*) AS n FROM ${t}`);
+          let mine: number | null = null;
+          if (campaignId && SCOPED.has(t)) {
+            const own = await db.select<{ n: number }[]>(
+              `SELECT COUNT(*) AS n FROM ${t} WHERE campaign_id = $1`,
+              [campaignId]
+            );
+            mine = own[0]?.n ?? 0;
+          }
+          out.push({ table: t, mine, rows: all[0]?.n ?? 0, unreadable: 0 });
         } catch {
-          out.push({ table: t, rows: -1, unreadable: 0 });
+          out.push({ table: t, mine: null, rows: -1, unreadable: 0 });
         }
       }
 
       // Which stored blobs cannot be read. This is the question the app could not
       // answer before: a damaged record used to look like an empty one.
       const checks: [string, string, (raw: string | null) => boolean][] = [
-        ["characters", "SELECT id, name, data FROM characters", (r) => parseSheetSafe(r).corrupt],
-        ["scenes", "SELECT id, name, data FROM scenes", (r) => parseSceneData(r).corrupt],
-        ["encounters", "SELECT id, name, data FROM encounters", (r) => parseEncounterData(r).corrupt],
+        ["characters", "SELECT id, name, data, campaign_id FROM characters", (r) => parseSheetSafe(r).corrupt],
+        ["scenes", "SELECT id, name, data, campaign_id FROM scenes", (r) => parseSceneData(r).corrupt],
+        ["encounters", "SELECT id, name, data, campaign_id FROM encounters", (r) => parseEncounterData(r).corrupt],
       ];
       for (const [table, sql, isCorrupt] of checks) {
         try {
-          const rows = await db.select<{ id: string; name: string; data: string | null }[]>(sql);
+          const rows = await db.select<{ id: string; name: string; data: string | null; campaign_id: string | null }[]>(
+            sql
+          );
           let n = 0;
           for (const r of rows) {
             if (!isCorrupt(r.data)) continue;
-            n++;
+            const elsewhere = !!campaignId && r.campaign_id !== campaignId;
+            if (!elsewhere) n++;
             bad.push({
               table,
               id: r.id,
               name: r.name || "(unnamed)",
               reason: r.data === "" ? "stored empty (an interrupted write)" : "could not be read",
+              elsewhere,
             });
           }
           const s = out.find((x) => x.table === table);
@@ -102,7 +144,10 @@ export function Diagnostics({ campaign }: Props) {
     } finally {
       setLoading(false);
     }
-  }, []);
+    // Rescans when the campaign changes. With an empty dependency list this
+    // callback was created once, captured nothing, and the screen kept showing the
+    // first campaign's scan for every campaign afterwards.
+  }, [campaignId]);
 
   useEffect(() => {
     void scan();
@@ -140,7 +185,8 @@ export function Diagnostics({ campaign }: Props) {
             <thead>
               <tr>
                 <th>Table</th>
-                <th>Records</th>
+                {campaign && <th>{campaign.name}</th>}
+                <th>All campaigns</th>
                 <th>Unreadable</th>
               </tr>
             </thead>
@@ -148,12 +194,19 @@ export function Diagnostics({ campaign }: Props) {
               {stats.map((s) => (
                 <tr key={s.table} className={s.unreadable > 0 ? "bad" : undefined}>
                   <td>{s.table}</td>
+                  {campaign && <td>{s.rows < 0 ? "—" : (s.mine ?? "—")}</td>}
                   <td>{s.rows < 0 ? "unreadable" : s.rows}</td>
                   <td>{s.unreadable || "—"}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+          {campaign && (
+            <p className="diag-hint">
+              The first column counts only what belongs to {campaign.name}. A dash means the table is not owned by any
+              one campaign.
+            </p>
+          )}
 
           {damaged.length > 0 && (
             <>
@@ -166,6 +219,7 @@ export function Diagnostics({ campaign }: Props) {
                 {damaged.map((d) => (
                   <li key={d.table + d.id}>
                     <b>{d.name}</b> <span className="diag-dim">({d.table})</span> — {d.reason}
+                    {d.elsewhere && <span className="diag-dim"> · in another campaign</span>}
                   </li>
                 ))}
               </ul>

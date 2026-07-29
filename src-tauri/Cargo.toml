@@ -16,6 +16,14 @@ tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-persisted-scope = "2"
 tauri-plugin-sql = { version = "2", features = ["sqlite"] }
+# Direct SQLite access, used only for the pre-upgrade snapshot. Copying a live
+# database file by file cannot produce a consistent copy; VACUUM INTO can,
+# because SQLite holds a read transaction for the duration — which is also what
+# makes the snapshot safe against an older W.T.E that knows nothing about our
+# lock file. Pinned to the libsqlite3-sys tauri-plugin-sql already links, so
+# this adds no second copy of SQLite.
+rusqlite = { version = "0.32", features = ["bundled"] }
+sha2 = "0.10"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 open = "5"

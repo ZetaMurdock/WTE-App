@@ -15,6 +15,11 @@ export interface MigrationGate {
   ok: boolean;
   reason?: string | null;
   backup_dir?: string | null;
+  /** Whether a copy to go back to actually exists. Distinct from `ok`: a fresh
+   *  install is fine to open and has nothing to restore. */
+  has_restore_point?: boolean;
+  /** Which branch the startup check took, for Diagnostics. */
+  state?: string;
   schema_version: number;
 }
 
@@ -47,48 +52,78 @@ export class BackupRequiredError extends Error {
  * worth anything is before this call. The old routine reported failures to stderr
  * and let the migration run anyway, which is a backup in name only.
  *
- * A build without the command (an older shell, or the dev browser) answers with an
- * error rather than a verdict; that is treated as open, because refusing to start
- * would be a worse failure than the one being guarded against.
+ * FAILS CLOSED. An earlier version treated a missing or erroring command as
+ * permission to proceed, on the grounds that refusing to start is worse than the
+ * problem being guarded against. That reasoning is wrong here: inside the desktop
+ * app the command is always present, so an error means the shell and the frontend
+ * disagree about what this build is — which is exactly when you least want to
+ * apply an irreversible migration. Outside Tauri there is no database to protect
+ * and the check does not apply at all.
  */
 async function checkMigrationGate(): Promise<void> {
   if (!isTauri()) return;
-  let gate: MigrationGate;
-  try {
-    gate = await invoke<MigrationGate>("wte_migration_gate");
-  } catch {
-    return; // command not present in this build
-  }
-  lastGate = gate;
+  const gate = await askGate();
   if (!gate.ok) throw new BackupRequiredError(gate.reason || "The backup could not be verified.", gate.schema_version);
 }
 
-/**
- * Ask the gate directly, for the boot screen. Never throws and never hangs.
- *
- * Returns null when there is nothing to report — not in the desktop app, an older
- * shell without the command, or an answer that did not arrive. A gate that cannot
- * answer must not become a second way for the app to sit on "Loading..." forever,
- * which is the exact failure this whole mechanism exists to prevent.
- */
-export async function probeMigrationGate(): Promise<MigrationGate | null> {
-  if (!isTauri()) return null;
+/** How long to wait for a verdict. The backup itself does not run inside this
+ *  call, so an answer is a lookup — seconds, not minutes. */
+const GATE_TIMEOUT_MS = 15000;
+
+const failedGate = (reason: string): MigrationGate => ({
+  ok: false,
+  reason,
+  has_restore_point: false,
+  state: "unavailable",
+  schema_version: 0,
+});
+
+/** Ask Rust, and turn every way of not getting an answer into a closed gate. */
+async function askGate(command = "wte_migration_gate"): Promise<MigrationGate> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const gate = await Promise.race([
-      invoke<MigrationGate>("wte_migration_gate"),
+      invoke<MigrationGate>(command),
       new Promise<null>((resolve) => {
-        timer = setTimeout(() => resolve(null), 5000);
+        timer = setTimeout(() => resolve(null), GATE_TIMEOUT_MS);
       }),
     ]);
-    if (!gate) return null;
+    if (!gate) {
+      return failedGate("W.T.E did not answer when asked whether your data had been backed up.");
+    }
     lastGate = gate;
     return gate;
-  } catch {
-    return null;
+  } catch (e) {
+    return failedGate(
+      `W.T.E could not check whether your data had been backed up (${e instanceof Error ? e.message : String(e)}).`
+    );
   } finally {
     if (timer) clearTimeout(timer);
   }
+}
+
+/**
+ * Ask the gate directly, for the boot screen.
+ *
+ * Returns null only when the question does not apply — outside the desktop app,
+ * where there is no database of ours to migrate. Every other outcome, including
+ * silence, is a real verdict.
+ */
+export async function probeMigrationGate(): Promise<MigrationGate | null> {
+  if (!isTauri()) return null;
+  return askGate();
+}
+
+/**
+ * Run the backup again and return the new verdict.
+ *
+ * "Try again" used to re-read the verdict recorded at startup, which could only
+ * ever say the same thing — so the button did nothing, and the usual cause (a
+ * second W.T.E window, since closed) could not be fixed without a restart.
+ */
+export async function retryBackup(): Promise<MigrationGate | null> {
+  if (!isTauri()) return null;
+  return askGate("wte_retry_backup");
 }
 
 /** Test seam: forget the cached handle and the last gate answer. */

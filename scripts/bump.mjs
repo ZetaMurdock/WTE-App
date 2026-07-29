@@ -49,4 +49,16 @@ const block = /(\[\[package\]\]\s*\nname = "wte-app"\s*\nversion = ")([^"]+)(")/
 if (!block.test(lock)) throw new Error("Cargo.lock: [[package]] wte-app block not found");
 writeFileSync(lockPath, lock.replace(block, `$1${next}$3`));
 
-console.log(`bumped ${cur} -> ${next} (package.json, tauri.conf.json, Cargo.toml, Cargo.lock)`);
+// package-lock.json — npm records the root version in two places and neither is
+// updated by editing package.json. Left out of this script originally, the lock
+// drifted two releases behind before anyone noticed, so `npm ci` would install a
+// tree stamped with the wrong version.
+const npmLockPath = p("package-lock.json");
+const npmLock = JSON.parse(readFileSync(npmLockPath, "utf8"));
+npmLock.version = next;
+if (npmLock.packages?.[""]) npmLock.packages[""].version = next;
+writeFileSync(npmLockPath, JSON.stringify(npmLock, null, 2) + "\n");
+
+console.log(
+  `bumped ${cur} -> ${next} (package.json, package-lock.json, tauri.conf.json, Cargo.toml, Cargo.lock)`
+);

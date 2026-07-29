@@ -600,6 +600,9 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     engine.onSelect = (s) => setSel(s);
     engine.onOp = (op) => broadcastRef.current(op);
     engine.onShaderError = (err) => setShaderError(err);
+    // A map that fails to load leaves the plain fill behind, which looks exactly
+    // like a scene that never had a map. Say which it is.
+    engine.bg.onImageError = (detail) => pushToast(detail, "error", 0);
     engine.onTokenMoved = (id, x, y) => void tokenMovedRef.current(id, x, y);
     engine.onPing = (x, y) => pingOutRef.current(x, y);
     // Dev-only handle for debugging sync ops in the preview (stripped in prod).
