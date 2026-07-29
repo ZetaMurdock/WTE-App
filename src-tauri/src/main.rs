@@ -237,6 +237,48 @@ fn validate_export_path(p: &std::path::Path) -> Result<(), String> {
     }
 }
 
+/// The largest package we will read into memory. A campaign with embedded scene
+/// art is genuinely large, but a file this size is a mistake or an attack, not a
+/// campaign — and reading it would take the app down rather than fail politely.
+const MAX_PACKAGE_BYTES: u64 = 512 * 1024 * 1024;
+
+/// Read a campaign package the user picked in a native dialog.
+///
+/// This exists because import called `wte_load_page` with the chosen file's
+/// absolute path. That command resolves a Codex page STEM inside the rules
+/// directories, so it searched for a rules page named after the whole path,
+/// found nothing, and every import failed with "Couldn't read that file" no
+/// matter how good the package was.
+///
+/// The path arrives from a dialog the user drove, but it is still checked: the
+/// webview is what passes it back, and a command that reads an arbitrary path on
+/// request is worth not having.
+#[tauri::command]
+fn wte_read_package(path: String) -> Result<String, String> {
+    let p = std::path::Path::new(&path);
+    if !p.is_absolute() || p.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+        return Err("That path is not a plain absolute file path.".into());
+    }
+    let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+    if ext != EXPORT_EXTENSION && ext != "json" {
+        return Err(format!("W.T.E reads .{EXPORT_EXTENSION} campaign packages."));
+    }
+    let meta = std::fs::symlink_metadata(p).map_err(|e| format!("That file could not be opened: {e}"))?;
+    if meta.file_type().is_symlink() {
+        return Err("Refusing to read through a symlink.".into());
+    }
+    if !meta.is_file() {
+        return Err("That path is not a file.".into());
+    }
+    if meta.len() > MAX_PACKAGE_BYTES {
+        return Err(format!(
+            "That file is {} MB, which is far larger than any campaign package.",
+            meta.len() / (1024 * 1024)
+        ));
+    }
+    std::fs::read_to_string(p).map_err(|e| format!("That file could not be read: {e}"))
+}
+
 /// Export a campaign package.
 ///
 /// RUST OWNS THE SAVE DIALOG. The webview passes only the CONTENT and a suggested
@@ -931,6 +973,7 @@ fn main() {
             wte_save_page,
             wte_delete_page,
             wte_export_campaign,
+            wte_read_package,
             wte_migration_gate,
             wte_retry_backup,
             open_external,

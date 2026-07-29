@@ -25,6 +25,41 @@ import { listRuleLayers, saveRuleLayer } from "./ruleLayerRepo";
 import type { RuleLayer } from "../game/ruleLayers";
 import { getDb, sqlAvailable } from "./db";
 import { sheetFromJson } from "./sheetCodec";
+import { reownPages } from "./campaignPages";
+import { parseId, slugify, ID_SCOPES } from "../game/codexId";
+import { isTauri } from "./tauri";
+
+/** Why an incoming rule layer cannot be stored, or null when it is fine.
+ *
+ *  A package is a file, and a file is untrusted input. A layer with an unknown
+ *  operation or a non-numeric value would sit in the table the resolver trusts
+ *  and produce arithmetic nobody can explain. */
+export function ruleLayerProblem(l: RuleLayer): string | null {
+  if (!l || typeof l !== "object") return "not a rule layer";
+  if (typeof l.id !== "string" || !l.id) return "it has no id";
+  if (typeof l.targetId !== "string" || !l.targetId) return "it does not say what it applies to";
+  if (!ID_SCOPES.includes(l.scope)) return `"${l.scope}" is not a scope this build knows`;
+  if (!["add", "set", "multiply", "min", "max"].includes(l.op)) return `"${l.op}" is not an operation this build knows`;
+  if (typeof l.value !== "number" || !Number.isFinite(l.value)) return "its value is not a number";
+  if (l.scope !== "wte" && !l.owner) return `a ${l.scope}-scoped layer must say who it belongs to`;
+  return null;
+}
+
+/** Move a campaign-scoped Codex id onto a new owner; leave every other id alone. */
+export function remapConceptId(id: string, fromCampaign: string, toCampaign: string): string {
+  if (fromCampaign === toCampaign) return id;
+  const p = parseId(id);
+  if (!p || p.scope !== "campaign" || p.owner !== slugify(fromCampaign)) return id;
+  return `campaign.${slugify(toCampaign)}.${p.kind}.${p.slug}`;
+}
+
+/** Write an imported Codex page to disk. Desktop only — a browser has nowhere
+ *  to put it, and pretending otherwise would report a success that did not happen. */
+async function savePageFile(stem: string, content: string): Promise<void> {
+  if (!isTauri()) throw new Error("Codex pages can only be written in the desktop app");
+  const w = window as unknown as { __TAURI__: { core: { invoke: (c: string, a: Record<string, unknown>) => Promise<unknown> } } };
+  await w.__TAURI__.core.invoke("wte_save_page", { name: stem, content });
+}
 
 /**
  * Bump when the ENVELOPE changes shape. Records inside carry their own versions.
@@ -181,8 +216,19 @@ export async function planImport(pkg: CampaignPackage): Promise<ImportPlan> {
 
 export interface ImportResult {
   campaignId: string;
-  imported: { characters: number; notes: number; sequences: number; scenes: number; encounters: number; assets: number };
+  imported: {
+    characters: number;
+    notes: number;
+    sequences: number;
+    scenes: number;
+    encounters: number;
+    assets: number;
+    ruleLayers: number;
+    pages: number;
+  };
   failed: { what: string; error: string }[];
+  /** Copy-mode only: the partial import was undone, so nothing was left behind. */
+  rolledBack?: boolean;
 }
 
 /**
@@ -199,7 +245,7 @@ export async function importPackage(
   opts?: { newCampaignName?: string }
 ): Promise<ImportResult> {
   const failed: { what: string; error: string }[] = [];
-  const imported = { characters: 0, notes: 0, sequences: 0, scenes: 0, encounters: 0, assets: 0 };
+  const imported = { characters: 0, notes: 0, sequences: 0, scenes: 0, encounters: 0, assets: 0, ruleLayers: 0, pages: 0 };
   if (!sqlAvailable()) return { campaignId: pkg.campaign.id, imported, failed };
   const db = await getDb();
 
@@ -297,17 +343,83 @@ export async function importPackage(
 
   for (const l of pkg.ruleLayers) {
     try {
-      // Remap the layer id so a copy-mode import does not collide, and re-own a
-      // campaign-scoped layer to the campaign it landed in — otherwise it would
-      // still point at the ORIGINAL campaign and silently never apply.
-      const owner = l.scope === "campaign" ? campaignId : l.owner;
-      await saveRuleLayer({ ...l, id: remap(l.id), owner }, campaignId);
+      const bad = ruleLayerProblem(l);
+      if (bad) {
+        // A layer that cannot be understood is REFUSED, not stored. Saving it
+        // would put an unreadable row into the table the resolver trusts.
+        failed.push({ what: `rule layer ${l.targetId || "(no target)"}`, error: bad });
+        continue;
+      }
+      // Every reference the layer carries has to follow the import.
+      //
+      //  - its own id, so a copy does not collide with the original;
+      //  - its OWNER: a campaign layer belongs to the campaign it landed in, and
+      //    a character or session layer points at a record this import renamed —
+      //    left alone it addresses the ORIGINAL, and silently never applies;
+      //  - its TARGET, when that target is a campaign-scoped Codex concept, for
+      //    the same reason.
+      const owner =
+        l.scope === "campaign" ? campaignId : l.owner ? remap(l.owner) : l.owner;
+      await saveRuleLayer(
+        { ...l, id: remap(l.id), owner, targetId: remapConceptId(l.targetId, pkg.campaign.id, campaignId) },
+        campaignId
+      );
+      imported.ruleLayers++;
     } catch (e) {
       failed.push({ what: `rule layer ${l.targetId}`, error: e instanceof Error ? e.message : String(e) });
     }
   }
 
+  // Codex pages last: they are files rather than rows, so a failure here cannot
+  // be undone by the rollback below, and doing them last keeps that window small.
+  const pages = mode === "copy" ? reownPages(pkg.pages, pkg.campaign.id, campaignId) : pkg.pages;
+  for (const page of pages) {
+    try {
+      if (!page || typeof page.stem !== "string" || typeof page.content !== "string") continue;
+      await savePageFile(page.stem, page.content);
+      imported.pages++;
+    } catch (e) {
+      failed.push({ what: `Codex page "${page.stem}"`, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  // ALL OR NOTHING, for a copy.
+  //
+  // tauri-plugin-sql hands out pooled connections, so BEGIN and COMMIT issued as
+  // separate calls are not guaranteed to reach the same connection — a real
+  // transaction is not available here. What IS available is a compensating undo:
+  // a copy creates a brand-new campaign, so removing that campaign removes
+  // everything this import wrote and nothing else. A half-imported campaign that
+  // looks whole is worse than no campaign at all.
+  //
+  // A MERGE is deliberately not rolled back. It wrote over records that were
+  // already there, and "undoing" that would delete the user's own data to tidy
+  // up after a failed import. It reports exactly what failed instead.
+  if (mode === "copy" && failed.length > 0) {
+    try {
+      await deleteCampaignRows(db, campaignId);
+      return { campaignId, imported, failed, rolledBack: true };
+    } catch (e) {
+      failed.push({
+        what: "undoing the partial import",
+        error: `${e instanceof Error ? e.message : String(e)} — the campaign "${name}" was left in place and is incomplete`,
+      });
+    }
+  }
+
   return { campaignId, imported, failed };
+}
+
+/** Remove a campaign and everything hanging off it. Used only to undo a copy. */
+async function deleteCampaignRows(db: Awaited<ReturnType<typeof getDb>>, campaignId: string): Promise<void> {
+  for (const t of ["characters", "notes", "codex_sequences", "scenes", "encounters", "assets", "campaign_kv", "rule_layers"]) {
+    try {
+      await db.execute(`DELETE FROM ${t} WHERE campaign_id = $1`, [campaignId]);
+    } catch {
+      // A table this build does not have is not a failure to undo.
+    }
+  }
+  await db.execute("DELETE FROM campaigns WHERE id = $1", [campaignId]);
 }
 
 /** A filename that is safe on every platform and says what it holds. */

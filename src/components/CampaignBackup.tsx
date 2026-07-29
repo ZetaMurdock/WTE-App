@@ -10,6 +10,7 @@ import {
   serializePackage,
 } from "../lib/campaignPackage";
 import { getVersion } from "../lib/tauri";
+import { collectCampaignPages } from "../lib/campaignPages";
 
 interface Props {
   campaign: Campaign;
@@ -41,7 +42,11 @@ export function CampaignBackup({ campaign, onImported }: Props) {
     setBusy("export");
     try {
       const appVersion = await getVersion().catch(() => undefined);
-      const pkg = await buildPackage(campaign, { appVersion: appVersion ?? undefined });
+      // The campaign's own Codex pages travel with it. Without them a package
+      // restores the characters and the scenes and then plays by the OFFICIAL
+      // rules, because the table's house rules were never in the file.
+      const page = await collectCampaignPages(campaign.id);
+      const pkg = await buildPackage(campaign, { appVersion: appVersion ?? undefined, pages: page.pages });
       // RUST OWNS THE SAVE DIALOG. We pass content and a suggested FILENAME, never a
       // path — so the webview cannot name a destination at all, and what gets
       // written is by construction what the user confirmed in a native dialog.
@@ -51,7 +56,23 @@ export function CampaignBackup({ campaign, onImported }: Props) {
       });
       if (!written) return; // cancelled
       const n = pkg.characters.length + pkg.scenes.length + pkg.notes.length + pkg.sequences.length;
-      pushToast(`Exported "${campaign.name}" — ${n} records, including settings and folder trees.`, "info", 9000);
+      pushToast(
+        `Exported "${campaign.name}" — ${n} records, ${page.pages.length} Codex page${page.pages.length === 1 ? "" : "s"}, settings and folder trees.`,
+        "info",
+        9000
+      );
+      // Say what did NOT travel. A package quietly missing a house rule is the
+      // exact failure this is meant to prevent.
+      if (page.unreadable.length) {
+        pushToast(`${page.unreadable.length} Codex page(s) could not be read and are NOT in this package.`, "error", 0);
+      }
+      if (page.unowned.length) {
+        pushToast(
+          `${page.unowned.length} page(s) change official rules but do not record which campaign owns them, so they were not included: ${page.unowned.slice(0, 3).join(", ")}. Re-save them from the Codex to pin their owner.`,
+          "info",
+          0
+        );
+      }
     } catch (e) {
       pushToast(`Couldn't export the campaign: ${e instanceof Error ? e.message : String(e)}`, "error");
     } finally {
@@ -75,7 +96,15 @@ export function CampaignBackup({ campaign, onImported }: Props) {
       const path = Array.isArray(picked) ? picked[0] : picked;
       if (!path) return;
 
-      const text = await t.core.invoke<string>("wte_load_page", { path }).catch(() => null);
+      // wte_read_package, NOT wte_load_page: that command resolves a Codex page
+      // STEM inside the rules folders, so handing it an absolute .wtepack path
+      // made it search for a rules page named after the whole path. It never
+      // found one, and every import failed with "Couldn't read that file"
+      // however good the package was.
+      const text = await t.core.invoke<string>("wte_read_package", { path }).catch((e) => {
+        pushToast(e instanceof Error ? e.message : String(e), "error");
+        return null;
+      });
       if (text === null) {
         pushToast("Couldn't read that file.", "error");
         return;
