@@ -17,6 +17,17 @@ interface CodexBase {
   keywords?: string[];
   effect?: string;
   overclock?: Overclock;
+  // Codex identity, as a page may declare it. All optional, and none of them
+  // change mechanics — they decide which CONCEPT a page is talking about, and
+  // who is allowed to see it.
+  /** A permanent id the page pins for itself, so a rename cannot move it. */
+  id?: string;
+  /** Former names, so references written before a rename still resolve. */
+  aliases?: string[];
+  /** The official id this page replaces, or "none" to stand deliberately apart. */
+  overrides?: string;
+  /** "curator" keeps it away from players. */
+  visibility?: string;
 }
 
 export interface Weapon extends CodexBase {

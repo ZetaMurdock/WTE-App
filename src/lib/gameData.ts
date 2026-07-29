@@ -20,7 +20,24 @@ import { parseCodexEntry } from "./codexParse";
 import { setCodexCatalog } from "./codex";
 import { allPageMeta, getPageMeta } from "./pageMeta";
 import { isTauri } from "./tauri";
+import { applyCodexPages, noCodexPages, type PageSkip } from "../game/codexService";
+import { mergeVisibility, type GenusPage } from "../game/codexGenusSource";
+import { parseId } from "../game/codexId";
+import { getActiveCampaignId } from "./repo";
 import type { Weapon, Equipment } from "../models/codex";
+
+/**
+ * Is this page a campaign's own rule, or a mirror of an official one?
+ *
+ * It has to SAY so. Guessing from the title is what let an unrelated page take
+ * over an official concept, so the signal is explicit: it declares which official
+ * rule it replaces, or it carries a campaign-scoped id of its own.
+ */
+function declaresCampaignScope(p: GenusPage): boolean {
+  if (p.overrides && p.overrides.trim()) return true;
+  const parsed = p.id ? parseId(p.id) : null;
+  return parsed?.scope === "campaign";
+}
 
 const ATTRS: AttrKey[] = ["phy", "dex", "end", "ap", "wis", "cha", "int"];
 
@@ -213,8 +230,24 @@ async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T
 }
 
 export async function loadCodexGameData(): Promise<void> {
-  if (!isTauri()) return;
-  const names = await invoke<string[]>("wte_list_pages").catch(() => [] as string[]);
+  if (!isTauri()) {
+    // No pages to read, rather than pages we failed to read. Saying so settles the
+    // Codex service instead of leaving it on "loading" forever.
+    noCodexPages();
+    return;
+  }
+  // A failed LISTING is not an empty Codex. Swallowed here, it used to mean "this
+  // machine has no Codex pages", which reads identically to a machine that really
+  // has none — so a locked database silently removed every page link and every
+  // campaign rule.
+  let listFailed: string | undefined;
+  const names = await invoke<string[]>("wte_list_pages").catch((e) => {
+    listFailed = e instanceof Error ? e.message : String(e);
+    return [] as string[];
+  });
+  const skipped: PageSkip[] = [];
+  const officialMirrors: GenusPage[] = [];
+  const campaignPages: GenusPage[] = [];
   const meta = allPageMeta();
   const species: Species[] = [];
   const paradigms: Paradigm[] = [];
@@ -230,7 +263,8 @@ export async function loadCodexGameData(): Promise<void> {
     let md = "";
     try {
       md = await invoke<string>("wte_load_page", { path: name });
-    } catch {
+    } catch (e) {
+      skipped.push({ stem: name, reason: `could not be read (${e instanceof Error ? e.message : String(e)})` });
       continue;
     }
     const sp = parseSpeciesPage(md, name);
@@ -257,7 +291,10 @@ export async function loadCodexGameData(): Promise<void> {
       continue;
     }
     const entry = parseCodexEntry(md, name);
-    if (!entry) continue;
+    if (!entry) {
+      skipped.push({ stem: name, reason: "no recognised Type row" });
+      continue;
+    }
     if (entry.type === "weapon") weapons.push(entry);
     else if (entry.type === "equipment") gear.push(entry);
     else if (entry.type === "genus") {
@@ -266,6 +303,32 @@ export async function loadCodexGameData(): Promise<void> {
         name: entry.name, ss: entry.ss ?? null, effect: entry.effect,
         activation: entry.activation, range: entry.range, target: entry.target,
       });
+      // The same page, told to the Codex as a page rather than as mechanics.
+      // Visibility takes the most restrictive of what the page says and what the
+      // Engineer set on it, so neither can un-hide what the other hid.
+      const page: GenusPage = {
+        stem: name,
+        title: entry.name,
+        aliases: entry.aliases,
+        id: entry.id,
+        overrides: entry.overrides,
+        visibility: mergeVisibility(entry.visibility, getPageMeta(name, meta).visibility),
+        data: {
+          domain,
+          ss: entry.ss ?? null,
+          activation: entry.activation ?? null,
+          range: entry.range ?? null,
+          target: entry.target ?? null,
+          effect: entry.effect ?? null,
+          limit: entry.limit ?? null,
+          classification: null,
+        },
+      };
+      // A page is a campaign rule only when it SAYS so — by declaring what it
+      // overrides, or by carrying a campaign-scoped id. Everything else is a
+      // mirror of an official page, and contributes provenance only.
+      if (declaresCampaignScope(page)) campaignPages.push(page);
+      else officialMirrors.push(page);
     } else if (entry.type === "cipher") {
       // Key by paradigm id (the page names the paradigm; match name or id).
       const key = slug(entry.paradigm || "");
@@ -280,5 +343,12 @@ export async function loadCodexGameData(): Promise<void> {
 
   registerCodexGameData({ species, paradigms, sizes, genus, ciphers, backgrounds });
   setCodexCatalog(weapons, gear);
+  applyCodexPages({
+    officialMirrors,
+    campaignPages,
+    campaignId: getActiveCampaignId() ?? "",
+    skipped,
+    listFailed,
+  });
   window.dispatchEvent(new Event("wte-gamedata-changed"));
 }

@@ -31,6 +31,12 @@ export interface GenusRef {
   migrated: boolean;
   /** True when nothing in the Codex answers to this. Kept, never dropped. */
   unresolved: boolean;
+  /** The permanent id of the concept this resolves to — what a migrated sheet
+   *  should store. The concept's root, never the layer that happens to win here. */
+  conceptId?: string;
+  /** False when that id is malformed, contested, or disagrees with its record.
+   *  Nothing is ever written to a sheet through an id in that state. */
+  conceptIdValid?: boolean;
   /** Set when the term matched more than one concept — the UI must ask rather
    *  than pick, exactly as the resolver refuses to. */
   ambiguousWith?: CodexEntity[];
@@ -71,6 +77,8 @@ export function resolveGenusRefs(
         displayName: r.entity.name,
         migrated: isCodexId(stored),
         unresolved: false,
+        conceptId: r.conceptId,
+        conceptIdValid: r.conceptIdValid && r.entity.kind === "genus",
       });
       continue;
     }
@@ -81,7 +89,15 @@ export function resolveGenusRefs(
   return out;
 }
 
-export type KeptReason = "already-an-id" | "unresolved" | "ambiguous" | "collision" | "registry-degraded";
+export type KeptReason =
+  | "already-an-id"
+  | "unresolved"
+  | "ambiguous"
+  | "collision"
+  | "registry-degraded"
+  /** Resolved, but the id that would be written is malformed, contested, or
+   *  describes something other than the record carrying it. */
+  | "unsound-id";
 
 export interface MigrationPlan {
   /** The rewritten focusSpend.genus map. */
@@ -148,15 +164,16 @@ export function planGenusMigration(
       continue;
     }
     if (ref.ambiguousWith || ref.unresolved || !ref.entity) continue;
-    // Migrate to the OFFICIAL concept id, not the campaign override's id — the
-    // character holds a concept, and which layer wins is resolved per context. A
-    // sheet pinned to a campaign override would carry that table's rules with it
-    // to another campaign entirely.
-    claim(
-      ref.entity.scope === "wte" ? ref.entity.id : (ref.entity.overrides ?? ref.entity.id),
-      ref.stored,
-      ref.focus
-    );
+    // The resolver's canonical concept id — the ROOT of the layer stack, not the
+    // layer that won here. A sheet pinned to a campaign override would carry that
+    // table's rules with it to another campaign entirely.
+    //
+    // And nothing is written through an id that is not sound: malformed,
+    // contested by two records, describing a different kind, or reached through a
+    // dangling override. Each of those would put a permanent reference on a
+    // character that points at nothing dependable.
+    if (!ref.conceptId || !ref.conceptIdValid) continue;
+    claim(ref.conceptId, ref.stored, ref.focus);
   }
 
   // Two stored entries reaching one concept — a name and its own alias, most
@@ -191,9 +208,13 @@ export function planGenusMigration(
       kept.push({ stored: ref.stored, reason: "unresolved" });
       continue;
     }
-    const target = ref.entity.scope === "wte" ? ref.entity.id : (ref.entity.overrides ?? ref.entity.id);
-    next[target] = ref.focus;
-    migrated.push({ from: ref.stored, to: target });
+    if (!ref.conceptId || !ref.conceptIdValid) {
+      next[ref.stored] = ref.focus;
+      kept.push({ stored: ref.stored, reason: "unsound-id" });
+      continue;
+    }
+    next[ref.conceptId] = ref.focus;
+    migrated.push({ from: ref.stored, to: ref.conceptId });
   }
 
   return { next, migrated, kept, conflicts, changed: migrated.length > 0 };

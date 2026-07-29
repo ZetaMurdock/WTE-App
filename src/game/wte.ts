@@ -757,10 +757,17 @@ export const GENUS_DOMAIN_NAMES = Object.keys(GENUS_DOMAINS);
 export function getGenusDomain(domain: string): GenusDomain | undefined {
   return GENUS_DOMAINS[domain];
 }
-/** The domain an ability belongs to (first match wins; names are unique). */
-export function domainOfGenus(name: string): string | undefined {
-  const n = name.toLowerCase();
-  return GENUS_DOMAIN_NAMES.find((d) => GENUS_DATA[d].some((a) => a.name.toLowerCase() === n));
+/** The domain an ability belongs to, by stable id OR by name.
+ *
+ *  A migrated sheet stores `wte.genus.lark`, and a name-only lookup would find
+ *  nothing — which for this function means losing the ability's Null/Photonic
+ *  posture, quietly changing how it resolves in initiative. */
+export function domainOfGenus(ref: string): string | undefined {
+  const n = String(ref ?? "").toLowerCase();
+  if (!n) return undefined;
+  return GENUS_DOMAIN_NAMES.find((d) =>
+    GENUS_DATA[d].some((a) => a.id === ref || a.name.toLowerCase() === n)
+  );
 }
 /** SNR posture for one ability, via its domain. */
 export function snrOfGenus(name: string): SnrPosture {
@@ -775,13 +782,33 @@ function mergeAbilities<T extends { name: string }>(base: T[], page: T[]): T[] {
   return [...out, ...page];
 }
 
+/**
+ * Add page-sourced abilities WITHOUT letting them displace official ones.
+ *
+ * The difference from mergeAbilities: a page whose title matches a baked official
+ * ability is dropped rather than substituted. genus.json is authoritative for
+ * official mechanics, and a wiki mirror one revision behind was rewriting live
+ * rules — silently, and reversibly, since a page that failed to parse restored
+ * the official version. What your table played by depended on whether a file read
+ * cleanly that morning.
+ *
+ * A page defining something genuinely NEW still appears; homebrew is unaffected.
+ * A table that means to change an official rule declares it, in an Overrides row,
+ * and gets a campaign layer the resolver honours and can explain.
+ */
+function appendUnofficial(base: GenusAbility[], page: GenusAbility[]): GenusAbility[] {
+  if (!page.length) return base;
+  const official = new Set(base.map((b) => b.name.toLowerCase()));
+  return [...base, ...page.filter((p) => !official.has(p.name.toLowerCase()))];
+}
+
 /** Genus abilities available to a paradigm, grouped by its accessible energy domains.
- *  Baked data + pulled Codex genus pages (keyed by domain). */
+ *  Official data, plus anything a pulled page adds that is not already official. */
 export function genusForParadigm(paradigmId?: string): { domain: string; abilities: GenusAbility[] }[] {
   const p = getParadigm(paradigmId);
   if (!p) return [];
   return p.domains
-    .map((d) => ({ domain: d, abilities: mergeAbilities(GENUS_DATA[d] || [], pageGenus[d] || []) }))
+    .map((d) => ({ domain: d, abilities: appendUnofficial(GENUS_DATA[d] || [], pageGenus[d] || []) }))
     .filter((g) => g.abilities.length > 0);
 }
 /** Ciphers for a paradigm, in page order (each carries its tier: offline/online/special).

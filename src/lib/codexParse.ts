@@ -17,6 +17,9 @@ const KNOWN_KEYS = new Set([
   "damage", "range", "size min", "ss", "ss cost", "activation", "target", "component",
   "paradigm", "tier", "archive", "size", "rank", "hp", "attack", "evasion", "movement",
   "keywords", "limit",
+  // Codex identity. Read so a page can pin its own permanent id, record former
+  // names, declare which official rule it replaces, and hide itself from players.
+  "id", "aliases", "alias", "overrides", "visibility",
   // creature (6-class) fields + stat vocabulary
   "class", "anchor", "cl", "traits", "chp",
   "off", "def", "spd", "wil", "con", "phy", "end", "int", "ap", "cha",
@@ -25,8 +28,20 @@ const KNOWN_KEYS = new Set([
 const CREATURE_NON_STATS = new Set([
   "type", "name", "class", "archive", "rank", "tier", "anchor", "cl",
   "traits", "keywords", "size", "grade", "movement", "domain", "category",
+  // Identity fields are structural too. Without this, "| ID | 12 |" on a creature
+  // page becomes a stat called ID.
+  "id", "aliases", "alias", "overrides", "visibility",
 ]);
 const normKey = (k: string) => strip(k).replace(/\*\*/g, "").replace(/:\s*$/, "").replace(/\s+/g, " ").trim().toLowerCase();
+
+/** Former names as a page lists them. Same separators the entity builder accepts. */
+const splitAliases = (v: string | undefined): string[] | undefined => {
+  const out = (v ?? "")
+    .split(/[,;/]/)
+    .map((s) => strip(s).trim())
+    .filter(Boolean);
+  return out.length ? out : undefined;
+};
 
 // Read a KEY/VALUE pair from a single line (markdown table, HTML table, tab, or **Field:**).
 function fieldFromLine(line: string): [string, string] | null {
@@ -211,6 +226,8 @@ export function parseCodexEntry(md: string, name?: string): CodexEntry | null {
       return {
         type: "genus", name: nm, keywords, effect, domain: fields["domain"], ss: num(fields["ss"] ?? fields["ss cost"]),
         activation: fields["activation"], range: fields["range"], target: fields["target"], limit: fields["limit"],
+        id: fields["id"], aliases: splitAliases(fields["aliases"] ?? fields["alias"]),
+        overrides: fields["overrides"], visibility: fields["visibility"],
       };
     case "creature": {
       const cls = creatureClass(fields["class"], fields["archive"]);

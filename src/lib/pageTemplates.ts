@@ -57,8 +57,22 @@ Effect: What the cipher does when activated.
 | Activation | Action |
 | Range | Self |
 | Target | Self |
+| Visibility | player |
+| Aliases |  |
+| Overrides |  |
 
 Effect: What the ability does.
+
+<!--
+Overrides — leave blank for a new ability of your own.
+  Put an official id here (for example wte.genus.lark) to REPLACE that rule at
+  your table. The official version stays on record, and the card shows both.
+  Put "none" to guarantee this is never mistaken for an official ability that
+  happens to share its name.
+Aliases — former names, comma separated. Characters that already reference an
+  old name keep working after you rename this page.
+Visibility — "curator" hides this from players everywhere: search, cards, VTT.
+-->
 `,
   Creature: `# New Creature
 

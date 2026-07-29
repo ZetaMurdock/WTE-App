@@ -87,6 +87,15 @@ export interface Resolution {
   officialDefinition?: CodexEntity;
   matchedBy: MatchedBy;
   provenance: Provenance;
+  /**
+   * The concept this resolves to, as one permanent id — the thing a character
+   * should store. It is the root of the layer stack, NOT whichever layer happened
+   * to win here, so a sheet never gets pinned to one table's override.
+   */
+  conceptId: string;
+  /** False when that id is not well-formed, or does not agree with the record
+   *  carrying it. Nothing may be migrated through a concept id that is not sound. */
+  conceptIdValid: boolean;
 }
 
 export interface Ambiguity {
@@ -493,7 +502,7 @@ export class CodexRegistry {
     // must still win.
     const matched = [...groups.values()][0][0];
     const group = this.conceptLayers(matched, ctx);
-    const clash = this.conflictWithin(group, raw, ctx);
+    const clash = this.conflictWithin(group, raw, ctx) ?? this.sameScopeConflict(group, raw);
     if (clash) return clash;
     return this.resolveGroup(group, this.matchedBy(this.pick(group), lower, slug));
   }
@@ -530,11 +539,59 @@ export class CodexRegistry {
     return rivals.filter((e) => this.inContext(e, ctx) && (!ctx.kind || e.kind === ctx.kind));
   }
 
+  /**
+   * Two definitions at the SAME strength inside one concept.
+   *
+   * `pick` breaks a tie by keeping the first, which is registration order — the
+   * order pages happened to load in. Two campaign pages both overriding the same
+   * official rule would therefore silently take turns winning between launches.
+   * Distinct records of equal standing is a question for the Curator.
+   */
+  private sameScopeConflict(group: CodexEntity[], term: string): Ambiguity | null {
+    if (group.length < 2) return null;
+    const top = Math.max(...group.map((e) => scopeRank(e.scope)));
+    const rivals = group.filter((e) => scopeRank(e.scope) === top);
+    // Distinct IDS, not distinct objects: the same record loaded twice is one
+    // definition, and calling that a conflict would break every reload.
+    const ids = new Set(rivals.map((e) => e.id));
+    if (ids.size < 2) return null;
+    const first = new Map<string, CodexEntity>();
+    for (const e of rivals) if (!first.has(e.id)) first.set(e.id, e);
+    return { ambiguous: true, term, candidates: [...first.values()] };
+  }
+
+  /**
+   * The permanent id of the CONCEPT, as distinct from the layer that won.
+   *
+   * The weakest layer present is the root — the official rule when there is one,
+   * otherwise whatever the stack is built on. A character stores this, so it keeps
+   * meaning the same thing in a campaign whose overrides differ or are absent.
+   */
+  private canonicalId(group: CodexEntity[]): string {
+    const official = group.find((e) => e.scope === "wte");
+    if (official) return official.id;
+    const root = group.reduce((best, e) => (scopeRank(e.scope) < scopeRank(best.scope) ? e : best), group[0]);
+    // A declared override naming something outside this context still names the
+    // concept; prefer it over the local record's own id.
+    if (root.overrides && root.overrides !== STANDALONE && parseId(root.overrides)) return root.overrides;
+    return root.id;
+  }
+
   private resolveGroup(group: CodexEntity[], matchedBy: MatchedBy): Resolution {
     const winner = this.pick(group);
     const official = group.find((e) => e.scope === "wte");
     const overridden = winner.scope !== "wte";
+    const conceptId = this.canonicalId(group);
+    const owner = this.byId.get(conceptId);
     return {
+      conceptId,
+      // Well-formed, and agreeing with whatever record carries it. The registry
+      // already reports both faults; this is the same judgement, per resolution,
+      // for callers that are about to WRITE the id into a character.
+      conceptIdValid:
+        !!parseId(conceptId) &&
+        !this.conflicted.has(conceptId) &&
+        (!owner || !this.problems.some((p) => p.kind === "identity-mismatch" && p.ids.includes(conceptId))),
       ambiguous: false,
       entity: winner,
       resolvedDefinition: winner,
@@ -589,7 +646,7 @@ export class CodexRegistry {
       // record is out of context can still resolve through a layer that is in it.
       const group = this.conceptLayers(direct, ctx);
       if (!group.some((e) => this.inContext(e, ctx))) return null;
-      const clash = this.conflictWithin(group, ref, ctx);
+      const clash = this.conflictWithin(group, ref, ctx) ?? this.sameScopeConflict(group, ref);
       if (clash) return clash;
       return this.resolveGroup(group, "id");
     }
