@@ -1179,7 +1179,9 @@ export function CodexBrowser({
             {annotate && (
               <button
                 className="cdx-annotate"
-                style={{ left: annotate.x, top: annotate.y + 14 }}
+                // Sits below the global "Look up" chip, which occupies y + 14 whenever
+                // the selection resolves to something. Both offers stay reachable.
+                style={{ left: annotate.x, top: annotate.y + 46 }}
                 onClick={() => {
                   addNote(view.stem, annotate.text);
                   setAnnotate(null);

@@ -17,6 +17,7 @@ import { FirstRun } from "./components/FirstRun";
 import { countCharacters } from "./lib/characters";
 import { loadCodexGameData } from "./lib/gameData";
 import { onOpenCodexPage } from "./lib/openCodexPage";
+import { LookUpSelection } from "./components/codex/LookUpSelection";
 import {
   getVersion,
   checkUpdate,
@@ -331,6 +332,10 @@ export default function App() {
     <div className="app">
       {wallpaper && <div className="app-wallpaper" style={{ backgroundImage: `url(${wallpaper})` }} />}
       <CursorDot enabled={dotCursor} />
+      {/* Select a term anywhere — sheet, scene, note, reader — and ask what it
+          means here. Global on purpose: the Codex only keeps its promise if it
+          answers everywhere, not just inside the Codex tab. */}
+      <LookUpSelection campaignId={activeCampaign?.id} />
       <AppToasts />
       <SaveStatus />
       <FirstRun />
