@@ -137,3 +137,59 @@ describe("card conventions", () => {
     expect(() => render(r)).not.toThrow();
   });
 });
+
+describe("a campaign definition and numeric layers are not double-applied", () => {
+  // The old arithmetic took the OFFICIAL value as the base and then applied the
+  // layers to it — so with both an override and a layer in play, whichever total
+  // you read, one of them had silently been discarded.
+  const layer: RuleLayer[] = [
+    { id: "L", targetId: "wte.genus.vector-swing", scope: "campaign", owner: CAMPAIGN, op: "add", value: 3, note: "Ashen Sun surcharge" },
+  ];
+
+  it("stacks the layer on top of the campaign's value, not the official one", () => {
+    // official SS 1, campaign override SS 2, layer +3 => 5. Reading 4 would mean
+    // the override was thrown away.
+    const html = render(resolve([official, override]), layer);
+    expect(html).toContain("<td>5</td>");
+    expect(html).not.toContain("<td>4</td>");
+  });
+
+  it("names the base as the campaign's rule so the sum reads correctly", () => {
+    const html = render(resolve([official, override]), layer);
+    expect(html).toContain("Modified by this campaign");
+    expect(html).not.toContain("Base W.T.E rule");
+  });
+
+  it("still calls it the base W.T.E rule when nothing overrode it", () => {
+    const html = render(resolve([official]), layer);
+    expect(html).toContain("Base W.T.E rule");
+    expect(html).toContain("<td>4</td>"); // 1 + 3
+  });
+});
+
+describe("provenance is named per scope", () => {
+  const scoped = (scope: "pack" | "campaign" | "character" | "session", owner: string) =>
+    buildEntity({
+      kind: "genus",
+      title: "Vector Swing",
+      sourcePage: "S",
+      fields: { overrides: "wte.genus.vector-swing" },
+      data: { ss: 4 },
+      scope,
+      ownerId: owner,
+    }).entity;
+
+  const ctxFor = (extra: Record<string, unknown>) => ({ role: "curator" as const, campaignId: CAMPAIGN, ...extra });
+
+  it.each([
+    ["pack", "p1", { packIds: ["p1"] }, "From a content pack"],
+    ["campaign", CAMPAIGN, {}, "Modified by this campaign"],
+    ["character", "c1", { characterId: "c1" }, "An exception for this character"],
+    ["session", "s1", { sessionId: "s1" }, "A temporary effect this session"],
+  ])("calls a %s definition what it is", (scope, owner, extra, label) => {
+    const reg = new CodexRegistry([official, scoped(scope as "campaign", owner as string)]);
+    const r = reg.resolveTerm("Vector Swing", ctxFor(extra as Record<string, unknown>));
+    if (!r || r.ambiguous) throw new Error("expected a single resolution");
+    expect(renderToStaticMarkup(<CodexCard resolution={r} onOpenPage={vi.fn()} onClose={vi.fn()} />)).toContain(label);
+  });
+});

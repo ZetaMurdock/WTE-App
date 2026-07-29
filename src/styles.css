@@ -7407,6 +7407,30 @@ body.wte-dot-cursor * {
   flex: 1;
   min-width: 0;
 }
+/* An ability name you can ask about. Styled as text rather than as a button: it
+   reads as part of the row and only offers itself on hover, because EVERY row is
+   one and a wall of buttons would be noise. */
+.codex-term {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: help;
+  border-bottom: 1px dotted transparent;
+}
+.codex-term:hover,
+.codex-term:focus-visible {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+/* A ghost button at the size the icon buttons already use. */
+.ghost-btn.xs {
+  padding: 1px 6px;
+  font-size: 11px;
+  line-height: 1.6;
+}
 .focus-pips {
   display: inline-flex;
   gap: 3px;

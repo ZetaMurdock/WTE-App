@@ -1,4 +1,5 @@
 import { Collapsible } from "../ui/Collapsible";
+import { genusFocusFor, genusKeyFor } from "../../game/resolvedGenus";
 import {
   genusForParadigm,
   ciphersForParadigm,
@@ -16,7 +17,6 @@ import {
   costOfIncept,
   focusBudgetWith,
   focusSpent,
-  genusFocus,
   lowerGenus,
   raiseGenus,
   relockIncept,
@@ -31,6 +31,9 @@ interface Props {
   innateChoice?: string[];
   rank: number;
   spend: FocusSpend;
+  /** Open the contextual Codex card for a stored reference. Optional so the
+   *  panel still renders anywhere the card is not mounted. */
+  onLookUp?: (storedRef: string) => void;
   cipherLoadout: string[];
   /** Bonus Focus banked from Hyomen's Talent Holder rank-ups. */
   bonusFocus?: number;
@@ -51,6 +54,7 @@ export function AbilitiesBody({
   bonusFocus = 0,
   onSpend,
   onCiphers,
+  onLookUp,
 }: Props) {
   const paradigm = getParadigm(paradigmId);
   const genusGroups = genusForParadigm(paradigmId);
@@ -98,16 +102,29 @@ export function AbilitiesBody({
         <p className="list-empty">No genus available for this paradigm.</p>
       ) : (
         genusGroups.map((g) => {
-          const invested = g.abilities.filter((a) => genusFocus(spend, a.name) > 0).length;
+          // Counted through the resolver: a sheet may hold these under a legacy
+          // name or a stable id, and both mean the same ability is known.
+          const invested = g.abilities.filter((a) => genusFocusFor(a, spend.genus) > 0).length;
           return (
             <Collapsible key={g.domain} defaultOpen title={`${g.domain} Genus${invested ? ` · ${invested} known` : ""}`}>
               <div className="ability-list">
                 {g.abilities.map((a) => {
-                  const f = genusFocus(spend, a.name);
+                  const f = genusFocusFor(a, spend.genus);
+                  // New investments are keyed by stable id; one this sheet
+                  // already holds under its old name keeps that key, so a
+                  // concept never ends up occupying two entries.
+                  const key = genusKeyFor(a, spend.genus);
                   const canRaise = f < GENUS_FOCUS_MAX && left >= 1;
                   return (
-                    <div key={a.name} className={"focus-row" + (f > 0 ? " known" : "")}>
-                      <span className="focus-row-name">{a.name}</span>
+                    <div key={a.id ?? a.name} className={"focus-row" + (f > 0 ? " known" : "")}>
+                      <button
+                        type="button"
+                        className="focus-row-name codex-term"
+                        title={"What does " + a.name + " mean here?"}
+                        onClick={() => onLookUp?.(key)}
+                      >
+                        {a.name}
+                      </button>
                       <span className="ss-badge">{a.ss == null ? "—" : a.ss} SS</span>
                       <span className="focus-pips" title={f ? `Synaptic Focus ${f}` : "Not known — invest to learn"}>
                         {Array.from({ length: GENUS_FOCUS_MAX }, (_, i) => (
@@ -119,7 +136,7 @@ export function AbilitiesBody({
                           className="icon-btn xs"
                           disabled={f <= 0}
                           title={f === 1 ? "Forget this genus" : "Lower Focus"}
-                          onClick={() => onSpend(lowerGenus(spend, a.name))}
+                          onClick={() => onSpend(lowerGenus(spend, key))}
                         >
                           −
                         </button>
@@ -127,7 +144,7 @@ export function AbilitiesBody({
                           className="icon-btn xs"
                           disabled={!canRaise}
                           title={f >= GENUS_FOCUS_MAX ? "At maximum Focus" : left < 1 ? "No Focus left" : "Raise Focus"}
-                          onClick={() => onSpend(raiseGenus(spend, a.name, rank, speciesId, bonusFocus))}
+                          onClick={() => onSpend(raiseGenus(spend, key, rank, speciesId, bonusFocus))}
                         >
                           +
                         </button>

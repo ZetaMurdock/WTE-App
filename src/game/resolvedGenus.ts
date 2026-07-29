@@ -59,6 +59,31 @@ export function codexCtx(campaignId?: string | null, characterId?: string | null
   };
 }
 
+/**
+ * Which key to store a Genus under on THIS sheet.
+ *
+ * New investments are keyed by stable id, so a character created today survives a
+ * rename without ever needing migrating. But an ability the sheet already holds
+ * under its legacy NAME keeps that key: writing the id beside it would leave one
+ * concept occupying two entries, which is exactly the collision the migration
+ * planner refuses to resolve on its own — and it would double the Focus the
+ * character appears to have spent.
+ *
+ * The id comes from genus.json, which is loaded synchronously and always
+ * authoritative, so this does not wait on the Codex being ready.
+ */
+export function genusKeyFor(ability: { name: string; id?: string }, spend: Record<string, number>): string {
+  const held = spend ?? {};
+  if (Object.prototype.hasOwnProperty.call(held, ability.name)) return ability.name;
+  return ability.id || ability.name;
+}
+
+/** Focus invested in an ability, whichever key this sheet happens to use. */
+export function genusFocusFor(ability: { name: string; id?: string }, spend: Record<string, number>): number {
+  const held = spend ?? {};
+  return held[ability.name] || (ability.id ? held[ability.id] : 0) || 0;
+}
+
 /** Mechanics for a concept id, from the authoritative data file. */
 function officialMechanics(conceptId: string | undefined): GenusAbility | undefined {
   return conceptId ? GENUS_DATA_BY_ID.get(conceptId) : undefined;

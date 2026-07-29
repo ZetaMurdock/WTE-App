@@ -16,6 +16,7 @@ import { SaveStatus } from "./components/ui/SaveStatus";
 import { FirstRun } from "./components/FirstRun";
 import { countCharacters } from "./lib/characters";
 import { loadCodexGameData } from "./lib/gameData";
+import { onOpenCodexPage } from "./lib/openCodexPage";
 import {
   getVersion,
   checkUpdate,
@@ -203,6 +204,10 @@ export default function App() {
     window.addEventListener("wte-pages-changed", reload);
     return () => window.removeEventListener("wte-pages-changed", reload);
   }, [codexCampaignKey]);
+  // "Open the full Codex page", from the sheet, the VTT or a contextual card.
+  // App owns the tab, so it is the only place that can switch to it.
+  useEffect(() => onOpenCodexPage(() => setActiveTab("codex")), []);
+
   // Library updates are OFFERED at launch, never applied. This used to call
   // autoRefreshPulledPages(), which wrote every changed page straight over the
   // local file before the user saw the app — destroying their own edits to a

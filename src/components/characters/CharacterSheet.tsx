@@ -55,6 +55,11 @@ import { RollFeed, useRollFeed } from "./RollFeed";
 import { SpeciesVariantsBody } from "./SpeciesVariantsPanel";
 import { WeaponsBody, InventoryBody } from "./EquipmentPanel";
 import { AbilitiesBody } from "./AbilitiesPanel";
+import { CodexLookup } from "../codex/CodexLookup";
+import { GenusMigration } from "./GenusMigration";
+import { listRuleLayers } from "../../lib/ruleLayerRepo";
+import type { RuleLayer } from "../../game/ruleLayers";
+import { openCodexPage } from "../../lib/openCodexPage";
 import { ActionsTable } from "./ActionsTable";
 import { PressureEngine } from "./PressureEngine";
 import { NegotiationPanel } from "./NegotiationPanel";
@@ -107,6 +112,22 @@ function intOf(v: string): number {
 export function CharacterSheet({ characterId, campaignId, curator, onBack, onChanged }: Props) {
   // A campaign override arriving after this sheet mounted must reach the rows.
   useCodex();
+  // The contextual card: which stored reference the reader asked about, if any.
+  const [lookUp, setLookUp] = useState<string | null>(null);
+  // Layers are loaded once and filtered per lookup, rather than queried on every
+  // click. A failed read leaves the card showing the definition without a
+  // breakdown, which is honest — it never invents one.
+  const [ruleLayers, setRuleLayers] = useState<RuleLayer[]>([]);
+  useEffect(() => {
+    if (!campaignId) return;
+    let live = true;
+    listRuleLayers(campaignId)
+      .then((ls) => live && setRuleLayers(ls))
+      .catch(() => live && setRuleLayers([]));
+    return () => {
+      live = false;
+    };
+  }, [campaignId]);
   const [rec, setRec] = useState<CharacterRecord | null>(null);
   const [tab, setTab] = useState<SheetTab>("stats");
   const [resolveMode, setResolveMode] = useState<"pressure" | "diplomacy">("pressure");
@@ -792,6 +813,14 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                     cipherLoadout={cipherLoadout}
                     onSpend={setSpend}
                     onCiphers={setCiphers}
+                    onLookUp={setLookUp}
+                  />
+                  {/* Deliberate, and the only thing that rewrites ability keys. */}
+                  <GenusMigration
+                    spend={spend}
+                    campaignId={campaignId}
+                    characterId={characterId}
+                    onApply={(genus) => setSpend({ ...spend, genus })}
                   />
                 </div>
               </div>
@@ -896,6 +925,23 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
           </div>
         </div>
       </div>
+
+      {/* What does this term mean HERE? Resolved against this campaign, this
+          character and this session — and it asks rather than guesses when the
+          Codex cannot decide. */}
+      {lookUp && (
+        <CodexLookup
+          storedRef={lookUp}
+          campaignId={campaignId}
+          characterId={characterId}
+          layers={ruleLayers}
+          onOpenPage={(stem, anchor) => {
+            openCodexPage(stem, anchor);
+            setLookUp(null);
+          }}
+          onClose={() => setLookUp(null)}
+        />
+      )}
     </div>
   );
 }

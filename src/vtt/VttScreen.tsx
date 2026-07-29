@@ -1,3 +1,4 @@
+import { useCodex } from "../game/useCodex";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { Campaign } from "../models/campaign";
 import { isTauri } from "../lib/tauri";
@@ -65,6 +66,10 @@ function fileToDataUrl(file: File): Promise<string> {
 // VTT v2 (slice 1): Pixi renders the map; React owns the chrome. Beside the
 // legacy VTT, not inside it — see the rework spec in docs/ / session notes.
 export function VttScreen({ campaign, active = true }: { campaign: Campaign | null; active?: boolean }) {
+  // A campaign override loading after the table opened must reach the action
+  // lists, exactly as it reaches the sheet. Without this the VTT kept whatever
+  // the Codex held when the screen first mounted.
+  useCodex();
   const hostRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<PixiVttApp | null>(null);
   const saveTimer = useRef<number | undefined>(undefined);
