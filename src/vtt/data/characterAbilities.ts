@@ -1,10 +1,10 @@
 // Derive a character's usable actions for the VTT abilities panel: weapon
 // attacks (with a computed to-hit), the paradigm's standard genus + cipher sets,
 // and racial abilities — each with AoE metadata parsed from its effect text.
+import { codexCtx, usableGenusResolved } from "../../game/resolvedGenus";
 import type { CharacterRecord } from "../../lib/characters";
 import {
   usableRacial,
-  usableGenus,
   usableCiphers,
   computeDerived,
   effectiveAttributes,
@@ -100,7 +100,10 @@ export function characterActionSet(rec: CharacterRecord): CharacterActionSet {
   const spend = parseSpend(s.focusSpend);
   const known = knownGenus(spend);
   const genusNames = known.length ? known : s.genusLoadout ?? [];
-  const genus = usableGenus(s.paradigmId, genusNames, spend.genus).map((a, i) =>
+  // Resolved through the Codex, so a character holding stable ids gets real
+  // mechanics instead of a row of blanks, and a campaign override reaches the
+  // VTT exactly as it reaches the sheet.
+  const genus = usableGenusResolved(genusNames, codexCtx(rec.campaignId, rec.id), spend.genus).map((a, i) =>
     mk("genus", a.name, i, { effect: a.effect, range: a.range, target: a.target, ss: a.ss ?? 0 })
   );
 

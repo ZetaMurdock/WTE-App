@@ -1,3 +1,5 @@
+import { codexCtx, usableGenusResolved } from "../../game/resolvedGenus";
+import { useCodex } from "../../game/useCodex";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getCharacter, updateCharacter, deleteCharacter, type CharacterRecord } from "../../lib/characters";
 import { logRoll } from "../../lib/rolls";
@@ -31,7 +33,6 @@ import {
   eminenceState,
   PE_MAX,
   PE_DEFAULT,
-  usableGenus,
   usableCiphers,
   usableRacial,
   getIncept,
@@ -104,6 +105,8 @@ function intOf(v: string): number {
 }
 
 export function CharacterSheet({ characterId, campaignId, curator, onBack, onChanged }: Props) {
+  // A campaign override arriving after this sheet mounted must reach the rows.
+  useCodex();
   const [rec, setRec] = useState<CharacterRecord | null>(null);
   const [tab, setTab] = useState<SheetTab>("stats");
   const [resolveMode, setResolveMode] = useState<"pressure" | "diplomacy">("pressure");
@@ -684,7 +687,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
             {tab === "actions" && (
               <ActionsTable
                 weapons={equippedWeapons}
-                genus={usableGenus(sheet.paradigmId, knownGenusNames, spend.genus)}
+                genus={usableGenusResolved(knownGenusNames, codexCtx(campaignId, characterId), spend.genus)}
                 ciphers={usableCiphers(sheet.paradigmId, cipherLoadout)}
                 atk={derived.atk}
                 phyMod={rollMod(eff.phy)}

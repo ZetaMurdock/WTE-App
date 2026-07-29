@@ -752,6 +752,14 @@ const GENUS_DATA: Record<string, GenusAbility[]> = Object.fromEntries(
 );
 const CIPHER_DATA = cipherData as Record<string, CipherAbility[]>;
 
+/** Official Genus mechanics by permanent id. The authoritative lookup for a
+ *  character that stores a stable id rather than a name. */
+export const GENUS_DATA_BY_ID: Map<string, GenusAbility> = new Map(
+  Object.values(GENUS_DOMAINS).flatMap((d) =>
+    d.abilities.filter((a) => a.id).map((a) => [a.id as string, a] as const)
+  )
+);
+
 /** Every energy domain, in Codex order. */
 export const GENUS_DOMAIN_NAMES = Object.keys(GENUS_DOMAINS);
 export function getGenusDomain(domain: string): GenusDomain | undefined {
