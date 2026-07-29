@@ -213,9 +213,10 @@ export function CodexBrowser({
   // Tell the data-driven loader (App) that pages or pull flags changed.
   const notifyPagesChanged = () => window.dispatchEvent(new Event("wte-pages-changed"));
 
+  // Neither of these calls notifyPagesChanged: setPageMeta announces its own
+  // writes, because remembering to do it here is exactly what went wrong.
   function togglePull(stem: string) {
     setPageMetaMap(savePageMeta(stem, { pulled: !getPageMeta(stem, pageMetaMap).pulled }));
-    notifyPagesChanged();
   }
   function toggleVisibility(stem: string) {
     const cur = getPageMeta(stem, pageMetaMap).visibility;

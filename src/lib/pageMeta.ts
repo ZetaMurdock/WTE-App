@@ -73,5 +73,17 @@ export function setPageMeta(stem: string, patch: Partial<PageMeta>): Record<stri
   const all = readAll();
   all[stem] = { ...(all[stem] ?? DEFAULT_PAGE_META), ...patch };
   writeJson(KEY, all, { label: "Codex page settings" });
+  // Announced HERE rather than at each call site.
+  //
+  // Both of these settings change what the app RESOLVES: `pulled` decides whether
+  // a page contributes at all, and `visibility` decides who may resolve what it
+  // defines. Every caller was supposed to notify afterwards, and the visibility
+  // toggle did not — so hiding a page updated the Codex list while the running
+  // registry kept the old visibility until some unrelated event or a restart, and
+  // the page you had just hidden stayed resolvable for players in between.
+  //
+  // Tying it to the write is the only version of this that a future call site
+  // cannot forget.
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("wte-pages-changed"));
   return all;
 }

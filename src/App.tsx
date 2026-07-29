@@ -198,14 +198,10 @@ export default function App() {
   useEffect(() => {
     const reload = () => void loadCodexGameData().then(() => setDataTick((t) => t + 1)).catch(() => {});
     reload();
+    // Content, pull flags AND visibility all announce themselves this way; a
+    // second event name would only be another thing to forget to dispatch.
     window.addEventListener("wte-pages-changed", reload);
-    // A page's Visibility row decides who may resolve it, so a change there has to
-    // rebuild the registry as well.
-    window.addEventListener("wte-page-meta-changed", reload);
-    return () => {
-      window.removeEventListener("wte-pages-changed", reload);
-      window.removeEventListener("wte-page-meta-changed", reload);
-    };
+    return () => window.removeEventListener("wte-pages-changed", reload);
   }, [codexCampaignKey]);
   // Library updates are OFFERED at launch, never applied. This used to call
   // autoRefreshPulledPages(), which wrote every changed page straight over the
