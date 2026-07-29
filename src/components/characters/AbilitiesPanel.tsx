@@ -38,6 +38,9 @@ interface Props {
   characterId?: string | null;
   /** Numeric rule layers, so the cost shown here is the cost play charges. */
   layers?: RuleLayer[];
+  /** Who is looking. Stated, so the picker cannot offer a player something the
+   *  resolver would hide from them. */
+  role?: "player" | "curator";
   cipherLoadout: string[];
   /** Bonus Focus banked from Hyomen's Talent Holder rank-ups. */
   bonusFocus?: number;
@@ -62,12 +65,13 @@ export function AbilitiesBody({
   campaignId,
   characterId,
   layers,
+  role,
 }: Props) {
   const paradigm = getParadigm(paradigmId);
   // From the RESOLVER, not the legacy overlay: campaign ownership, visibility and
   // stable identity are all honoured because every entry came through the same
   // resolution the sheet and the VTT use.
-  const genusGroups = genusCatalogFor(paradigmId, codexCtx(campaignId, characterId), layers);
+  const genusGroups = genusCatalogFor(paradigmId, codexCtx(campaignId, characterId, role), layers);
   const ciphers = ciphersForParadigm(paradigmId);
   const cCap = cipherSlots(rank);
 

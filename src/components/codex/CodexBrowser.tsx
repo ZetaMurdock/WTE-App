@@ -335,7 +335,10 @@ export function CodexBrowser({
       listSequences(campaignId).then(setSeqs).catch(() => setSeqs([]));
       listNotes(campaignId).then(setNotes).catch(() => setNotes([]));
     }
-  }, []);
+    // Notes and Sequences are campaign-scoped. Loaded once, switching campaigns
+    // left the previous table's records on screen — readable, editable, and
+    // filed under the wrong campaign the moment one was saved.
+  }, [campaignId]);
 
   // ── Global publish: Engineers push pages to a shared Firebase node; anyone can
   // sync the official set into their local Codex. ──
@@ -506,11 +509,29 @@ export function CodexBrowser({
     if (q != null) {
       retitle(tab.id, `Search · ${q}`);
       invoke<SearchHit[]>("wte_search", { query: q })
-        .then((hits) => alive && setView({ kind: "search", q, hits: hits || [] }))
+        .then((hits) => {
+          if (!alive) return;
+          // A snippet from a Curator-only page is a leak even when the page
+          // itself refuses to open: the excerpt is the content.
+          const visible = (hits || []).filter((h) => {
+            const st = stemOf(h.url);
+            return curator || !st || getPageMeta(st, pageMetaMap).visibility !== "gm";
+          });
+          setView({ kind: "search", q, hits: visible });
+        })
         .catch(() => alive && setView({ kind: "search", q, hits: [] }));
       return;
     }
     if (stem) {
+      // Visibility is enforced HERE, not only in the index. Hiding a page from
+      // the list while wte://page/<stem> still opened it made the setting a
+      // convenience rather than a rule — and search results, bookmarks, recents
+      // and in-page links all navigate this way.
+      if (!curator && getPageMeta(stem, pageMetaMap).visibility === "gm") {
+        setView({ kind: "error", message: "That page is kept by the Curator." });
+        retitle(tab.id, "Restricted");
+        return;
+      }
       invoke<string>("wte_load_page", { path: stem })
         .then((md) => {
           if (!alive) return;

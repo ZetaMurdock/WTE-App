@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { planGenusMigrationSafely, codexStatus } from "../../game/codexService";
+import { planGenusMigrationSafely } from "../../game/codexService";
+import { useCodex } from "../../game/useCodex";
 import { codexCtx } from "../../game/resolvedGenus";
 import type { FocusSpend } from "../../game/synapticFocus";
 
@@ -8,6 +9,7 @@ interface Props {
   campaignId?: string | null;
   characterId?: string | null;
   onApply: (next: Record<string, number>) => void;
+  role?: "player" | "curator";
 }
 
 // Moving a character's Genus references onto permanent ids.
@@ -22,14 +24,16 @@ interface Props {
 // conflict — two entries meaning one ability — is left for a person, because
 // merging them changes how much Focus the character has spent and there is no
 // safe way to guess which was meant.
-export function GenusMigration({ spend, campaignId, characterId, onApply }: Props) {
+export function GenusMigration({ spend, campaignId, characterId, onApply, role }: Props) {
   const [confirming, setConfirming] = useState(false);
-  const status = codexStatus();
+  // The plan depends on what the Codex currently says, which can change without
+  // the status string changing at all.
+  const { revision } = useCodex();
 
   const plan = useMemo(
-    () => planGenusMigrationSafely(spend.genus, codexCtx(campaignId, characterId)),
+    () => planGenusMigrationSafely(spend.genus, codexCtx(campaignId, characterId, role)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [spend.genus, campaignId, characterId, status]
+    [spend.genus, campaignId, characterId, revision]
   );
 
   const legacy = Object.keys(spend.genus ?? {}).filter(

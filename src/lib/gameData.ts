@@ -242,12 +242,16 @@ export async function loadCodexGameData(): Promise<void> {
   // machine has no Codex pages", which reads identically to a machine that really
   // has none — so a locked database silently removed every page link and every
   // campaign rule.
+  // Claimed BEFORE any awaiting, so ordering reflects when a load STARTED.
+  // Taken after enumeration, a load that began first but enumerated slowly got
+  // the higher number and won — which is precisely backwards, and let a stale
+  // campaign's pages land on top of the campaign you had just switched to.
+  const token = beginCodexLoad();
   let listFailed: string | undefined;
   const names = await invoke<string[]>("wte_list_pages").catch((e) => {
     listFailed = e instanceof Error ? e.message : String(e);
     return [] as string[];
   });
-  const token = beginCodexLoad();
   const skipped: PageSkip[] = [];
   const officialMirrors: GenusPage[] = [];
   const campaignPages: GenusPage[] = [];

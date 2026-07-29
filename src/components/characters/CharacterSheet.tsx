@@ -112,6 +112,9 @@ function intOf(v: string): number {
 export function CharacterSheet({ characterId, campaignId, curator, onBack, onChanged }: Props) {
   // A campaign override arriving after this sheet mounted must reach the rows.
   useCodex();
+  // The sheet KNOWS who is looking; it does not have to consult a per-machine
+  // toggle to find out.
+  const role: "player" | "curator" = curator ? "curator" : "player";
   // The contextual card: which stored reference the reader asked about, if any.
   const [lookUp, setLookUp] = useState<string | null>(null);
   // Layers are loaded once and filtered per lookup, rather than queried on every
@@ -391,7 +394,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
       sheet: {
         ...sheet,
         focusSpend: next,
-        genusLoadout: resolveGenusLoadout(knownGenus(next), codexCtx(campaignId, characterId)).map(
+        genusLoadout: resolveGenusLoadout(knownGenus(next), codexCtx(campaignId, characterId, role)).map(
           (r) => r.displayName
         ),
       },
@@ -725,7 +728,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
             {tab === "actions" && (
               <ActionsTable
                 weapons={equippedWeapons}
-                genus={usableGenusResolved(knownGenusNames, codexCtx(campaignId, characterId), spend.genus, ruleLayers)}
+                genus={usableGenusResolved(knownGenusNames, codexCtx(campaignId, characterId, role), spend.genus, ruleLayers)}
                 ciphers={usableCiphers(sheet.paradigmId, cipherLoadout)}
                 atk={derived.atk}
                 phyMod={rollMod(eff.phy)}
@@ -834,12 +837,14 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                     campaignId={campaignId}
                     characterId={characterId}
                     layers={ruleLayers}
+                    role={role}
                   />
                   {/* Deliberate, and the only thing that rewrites ability keys. */}
                   <GenusMigration
                     spend={spend}
                     campaignId={campaignId}
                     characterId={characterId}
+                    role={role}
                     onApply={(genus) => setSpend({ ...spend, genus })}
                   />
                 </div>
@@ -954,6 +959,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
           storedRef={lookUp}
           campaignId={campaignId}
           characterId={characterId}
+          role={role}
           layers={ruleLayers}
           onOpenPage={(stem, anchor) => {
             openCodexPage(stem, anchor);

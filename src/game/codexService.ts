@@ -131,7 +131,16 @@ function buildOfficial(): void {
 buildOfficial();
 
 const CHANGED = "wte-codex-changed";
+/** Bumped on every change. Consumers key on THIS, not on `status` — a
+ *  ready -> ready reload changes every answer while the status string stays the
+ *  same, so anything memoised on status alone kept serving the old Codex. */
+let revision = 0;
+export function codexRevision(): number {
+  return revision;
+}
+
 function announce(): void {
+  revision++;
   if (typeof window !== "undefined") window.dispatchEvent(new Event(CHANGED));
 }
 
@@ -315,6 +324,7 @@ export function __resetCodexService(): void {
   skipped = [];
   lastPages = null;
   lastGood = null;
+  revision++;
   newestApplied = -1;
   nextToken = 0;
 }

@@ -49,15 +49,25 @@ export interface ResolvedGenus {
  * right in another is how a hidden ability leaks: the sheet and the VTT have to
  * be asking the same question.
  */
-export function codexCtx(campaignId?: string | null, characterId?: string | null): ResolveContext {
-  let role: "player" | "curator" = "player";
-  try {
-    if (localStorage.getItem("wte-curator") === "1") role = "curator";
-  } catch {
-    /* no storage: assume the more restrictive role */
+export function codexCtx(
+  campaignId?: string | null,
+  characterId?: string | null,
+  /** STATE the role when the caller knows it — a sheet, the VTT and a networked
+   *  session all know who is looking. The stored toggle is only a fallback for
+   *  callers that genuinely do not, and it is a per-machine preference rather
+   *  than an authority on who this person is. */
+  role?: "player" | "curator"
+): ResolveContext {
+  let resolved: "player" | "curator" = role ?? "player";
+  if (!role) {
+    try {
+      if (localStorage.getItem("wte-curator") === "1") resolved = "curator";
+    } catch {
+      /* no storage: assume the more restrictive role */
+    }
   }
   return {
-    role,
+    role: resolved,
     campaignId: campaignId ?? undefined,
     characterId: characterId ?? undefined,
     kind: "genus",

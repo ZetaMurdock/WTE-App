@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { CodexCard } from "./CodexCard";
 import { codexManifest, codexRegistry, codexStatus } from "../../game/codexService";
+import { useCodex } from "../../game/useCodex";
 import { codexCtx } from "../../game/resolvedGenus";
 import { layersFor, type RuleLayer } from "../../game/ruleLayers";
 import type { CodexEntity } from "../../game/codexEntity";
@@ -11,6 +12,8 @@ interface Props {
   campaignId?: string | null;
   characterId?: string | null;
   sessionId?: string | null;
+  /** The reader's role, stated rather than read from local storage. */
+  role?: "player" | "curator";
   /** Every layer known for this campaign; filtered here against the full context. */
   layers?: RuleLayer[];
   onOpenPage: (stem: string, anchor?: string) => void;
@@ -29,15 +32,20 @@ export function CodexLookup({
   characterId,
   sessionId,
   layers,
+  role,
   onOpenPage,
   onClose,
 }: Props) {
-  const ctx = { ...codexCtx(campaignId, characterId), sessionId: sessionId ?? undefined };
+  const ctx = { ...codexCtx(campaignId, characterId, role), sessionId: sessionId ?? undefined };
+  // Keyed on the REVISION, not the status: a ready -> ready reload changes every
+  // answer while the status string stays "ready", so an open card kept showing
+  // the definition that was in force when it opened.
+  const { revision } = useCodex();
   const status = codexStatus();
   const result = useMemo(
     () => codexRegistry().resolveReference(storedRef, ctx),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [storedRef, campaignId, characterId, sessionId, status]
+    [storedRef, campaignId, characterId, sessionId, role, revision]
   );
 
   // Layers are filtered against the WHOLE context — campaign, character and
