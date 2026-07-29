@@ -13,7 +13,8 @@ import { resolveGenusRefs, type GenusRef } from "./genusRef";
 import { codexRegistry, codexStatus } from "./codexService";
 import type { CodexEntity } from "./codexEntity";
 import type { ResolveContext } from "./codexRegistry";
-import { GENUS_DATA_BY_ID, type GenusAbility, type UsableAbility } from "./wte";
+import { layersFor, resolveRule, type RuleLayer } from "./ruleLayers";
+import { canonicalDomain, domainOfGenus, getParadigm, GENUS_DATA_BY_ID, type GenusAbility, type UsableAbility } from "./wte";
 
 export interface ResolvedGenus {
   /** Exactly what the character stores — a stable id or a legacy name. */
@@ -33,6 +34,10 @@ export interface ResolvedGenus {
   ambiguousWith?: CodexEntity[];
   /** True when the resolved definition is not the official one. */
   overridden: boolean;
+  /** The SS after numeric rule layers, when any apply. Kept SEPARATE from
+   *  `mechanics` so the card and the actions rail both compute
+   *  definition-then-layers and cannot double-apply each other's work. */
+  layered?: { ss: number; base: number; trail: number };
   /** Where to read about it, when a page is known. */
   sourcePage?: string;
 }
@@ -122,15 +127,17 @@ function withOverride(base: GenusAbility | undefined, def: CodexEntity | undefin
   };
 }
 
-function fromRef(ref: GenusRef): ResolvedGenus {
+function fromRef(ref: GenusRef, layers?: RuleLayer[], ctx?: ResolveContext): ResolvedGenus {
   const def = ref.entity;
   const base = officialMechanics(ref.conceptId) ?? officialMechanics(def?.id);
+  const mechanics = withOverride(base, def);
   return {
     storedRef: ref.stored,
     conceptId: ref.conceptIdValid ? ref.conceptId : undefined,
     displayName: ref.displayName,
     focus: ref.focus,
-    mechanics: withOverride(base, def),
+    mechanics,
+    layered: layeredSs(mechanics, ref.conceptId, layers, ctx),
     definition: def,
     unresolved: ref.unresolved,
     ambiguousWith: ref.ambiguousWith,
@@ -140,12 +147,46 @@ function fromRef(ref: GenusRef): ResolvedGenus {
 }
 
 /**
+ * Numeric rule layers, applied to the SS that play actually uses.
+ *
+ * The card could already explain "base 2, +3 Ashen Sun, = 5" while the actions
+ * rail and the VTT charged 2, so the Codex and the table disagreed about the
+ * cost of the same ability. The base here is the RESOLVED definition's value —
+ * the campaign's rule when there is one — exactly as the card computes it, so
+ * the two arrive at the same number by the same route.
+ */
+function layeredSs(
+  mechanics: GenusAbility | undefined,
+  conceptId: string | undefined,
+  layers: RuleLayer[] | undefined,
+  ctx: ResolveContext | undefined
+): ResolvedGenus["layered"] {
+  if (!mechanics || !conceptId || !layers?.length) return undefined;
+  const applicable = layersFor(layers, conceptId, {
+    campaignId: ctx?.campaignId,
+    characterId: ctx?.characterId,
+    sessionId: ctx?.sessionId,
+    packIds: ctx?.packIds,
+  });
+  if (!applicable.length) return undefined;
+  const base = typeof mechanics.ss === "number" ? mechanics.ss : 0;
+  const r = resolveRule(base, applicable);
+  if (r.value === base && !r.trail.length) return undefined;
+  return { ss: r.value, base, trail: r.trail.length };
+}
+
+/**
  * Resolve everything a character has invested Focus in.
  *
  * `spend` is focusSpend.genus — keys are stored references, values are Focus.
  */
-export function resolveGenusSpend(spend: Record<string, number>, ctx: ResolveContext): ResolvedGenus[] {
-  return resolveGenusRefs(spend ?? {}, codexRegistry(), { ...ctx, kind: "genus" }).map(fromRef);
+export function resolveGenusSpend(
+  spend: Record<string, number>,
+  ctx: ResolveContext,
+  layers?: RuleLayer[]
+): ResolvedGenus[] {
+  const full = { ...ctx, kind: "genus" as const };
+  return resolveGenusRefs(spend ?? {}, codexRegistry(), full).map((r) => fromRef(r, layers, full));
 }
 
 /**
@@ -158,11 +199,12 @@ export function resolveGenusSpend(spend: Record<string, number>, ctx: ResolveCon
 export function resolveGenusLoadout(
   loadout: string[],
   ctx: ResolveContext,
-  focus?: Record<string, number>
+  focus?: Record<string, number>,
+  layers?: RuleLayer[]
 ): ResolvedGenus[] {
   const spend: Record<string, number> = {};
   for (const ref of loadout) if (ref) spend[ref] = focus?.[ref] ?? 0;
-  return resolveGenusSpend(spend, ctx);
+  return resolveGenusSpend(spend, ctx, layers);
 }
 
 /** The shape the actions rail and the VTT already consume. */
@@ -173,7 +215,7 @@ export function toUsable(r: ResolvedGenus): UsableAbility {
     // Always the display name. Consumers render this, and a raw id on a sheet is
     // not something anyone can read.
     name: r.displayName,
-    ss: m?.ss ?? 0,
+    ss: r.layered ? r.layered.ss : (m?.ss ?? 0),
     effect: m?.effect ?? undefined,
     range: m?.range ?? undefined,
     target: m?.target ?? undefined,
@@ -197,9 +239,106 @@ export function toUsable(r: ResolvedGenus): UsableAbility {
 export function usableGenusResolved(
   loadout: string[],
   ctx: ResolveContext,
-  focus?: Record<string, number>
+  focus?: Record<string, number>,
+  layers?: RuleLayer[]
 ): UsableAbility[] {
-  return resolveGenusLoadout(loadout, ctx, focus).map(toUsable);
+  return resolveGenusLoadout(loadout, ctx, focus, layers).map(toUsable);
+}
+
+export interface GenusOption {
+  /** The key a new investment is stored under. */
+  id: string;
+  name: string;
+  ss: number | null;
+  effect?: string | null;
+  /** True when this campaign has changed the official rule. */
+  overridden: boolean;
+  /** True when the Codex knows this only as a campaign's own creation. */
+  homebrew: boolean;
+}
+
+/**
+ * The abilities a character may invest in, DERIVED FROM THE REGISTRY.
+ *
+ * genusForParadigm is the legacy picker, and it was a second mechanics authority
+ * sitting beside the resolver: it read a global `pageGenus` overlay that knew
+ * nothing about campaign ownership, nothing about visibility, and nothing about
+ * stable identity. So a player could be offered a Curator-only ability, another
+ * table's house rule could appear in this one, and everything it offered was
+ * keyed by name.
+ *
+ * Everything here comes through the same resolution the sheet and the VTT use,
+ * so there is one answer to "what does this ability cost" rather than two that
+ * can drift apart.
+ */
+export function genusCatalogFor(
+  paradigmId: string | undefined,
+  ctx: ResolveContext,
+  layers?: RuleLayer[]
+): { domain: string; abilities: GenusOption[] }[] {
+  const domains = getParadigm(paradigmId)?.domains ?? [];
+  if (!domains.length) return [];
+  const full = { ...ctx, kind: "genus" as const };
+  const reg = codexRegistry();
+
+  // Concepts, not records: an official rule and the campaign override on top of
+  // it are ONE entry in the picker, resolved to whichever is in force.
+  const seen = new Set<string>();
+  const byDomain = new Map<string, GenusOption[]>();
+
+  for (const e of reg.ofKind("genus")) {
+    const r = reg.resolveReference(e.id, full);
+    // Filtered by the resolver, so visibility and campaign ownership are honoured
+    // here for free. An ambiguity is deliberately not offered — investing Focus
+    // in something the Codex cannot identify is how a sheet ends up unresolvable.
+    if (!r || r.ambiguous) continue;
+    if (seen.has(r.conceptId)) continue;
+    seen.add(r.conceptId);
+
+    const resolved = fromRef(
+      {
+        stored: r.conceptId,
+        focus: 0,
+        entity: r.resolvedDefinition,
+        displayName: r.resolvedDefinition.name,
+        migrated: true,
+        unresolved: false,
+        conceptId: r.conceptId,
+        conceptIdValid: r.conceptIdValid,
+      },
+      layers,
+      full
+    );
+
+    // The domain lives on the DEFINITION data, not on GenusAbility.
+    const domain = canonicalDomain(domainOf(resolved) ?? domainOfConcept(r.conceptId));
+    if (!domain || !domains.some((d) => canonicalDomain(d) === domain)) continue;
+
+    const list = byDomain.get(domain) ?? [];
+    list.push({
+      id: r.conceptIdValid ? r.conceptId : r.resolvedDefinition.id,
+      name: resolved.displayName,
+      ss: resolved.layered ? resolved.layered.ss : (resolved.mechanics?.ss ?? null),
+      effect: resolved.mechanics?.effect,
+      overridden: resolved.overridden,
+      homebrew: !GENUS_DATA_BY_ID.has(r.conceptId),
+    });
+    byDomain.set(domain, list);
+  }
+
+  // Codex order for domains, alphabetical within one — the legacy picker's order
+  // came from JSON key order plus whatever the page overlay appended.
+  return domains
+    .map((d) => canonicalDomain(d))
+    .filter((d): d is string => !!d)
+    .map((domain) => ({ domain, abilities: (byDomain.get(domain) ?? []).sort((a, b) => a.name.localeCompare(b.name)) }))
+    .filter((g) => g.abilities.length > 0);
+}
+
+/** An official ability's domain, via the data file. */
+function domainOfConcept(conceptId: string): string | undefined {
+  const a = GENUS_DATA_BY_ID.get(conceptId);
+  return a ? domainOfGenus(a.id ?? a.name) : undefined;
 }
 
 function domainOf(r: ResolvedGenus): string | undefined {

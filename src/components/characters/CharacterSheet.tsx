@@ -725,7 +725,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
             {tab === "actions" && (
               <ActionsTable
                 weapons={equippedWeapons}
-                genus={usableGenusResolved(knownGenusNames, codexCtx(campaignId, characterId), spend.genus)}
+                genus={usableGenusResolved(knownGenusNames, codexCtx(campaignId, characterId), spend.genus, ruleLayers)}
                 ciphers={usableCiphers(sheet.paradigmId, cipherLoadout)}
                 atk={derived.atk}
                 phyMod={rollMod(eff.phy)}
@@ -831,6 +831,9 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                     onSpend={setSpend}
                     onCiphers={setCiphers}
                     onLookUp={setLookUp}
+                    campaignId={campaignId}
+                    characterId={characterId}
+                    layers={ruleLayers}
                   />
                   {/* Deliberate, and the only thing that rewrites ability keys. */}
                   <GenusMigration

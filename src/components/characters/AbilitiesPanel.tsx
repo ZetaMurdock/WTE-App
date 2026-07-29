@@ -1,7 +1,7 @@
+import type { RuleLayer } from "../../game/ruleLayers";
 import { Collapsible } from "../ui/Collapsible";
-import { genusFocusFor, genusKeyFor } from "../../game/resolvedGenus";
+import { codexCtx, genusCatalogFor, genusFocusFor, genusKeyFor } from "../../game/resolvedGenus";
 import {
-  genusForParadigm,
   ciphersForParadigm,
   CIPHER_TIERS,
   cipherSlots,
@@ -34,6 +34,10 @@ interface Props {
   /** Open the contextual Codex card for a stored reference. Optional so the
    *  panel still renders anywhere the card is not mounted. */
   onLookUp?: (storedRef: string) => void;
+  campaignId?: string | null;
+  characterId?: string | null;
+  /** Numeric rule layers, so the cost shown here is the cost play charges. */
+  layers?: RuleLayer[];
   cipherLoadout: string[];
   /** Bonus Focus banked from Hyomen's Talent Holder rank-ups. */
   bonusFocus?: number;
@@ -55,9 +59,15 @@ export function AbilitiesBody({
   onSpend,
   onCiphers,
   onLookUp,
+  campaignId,
+  characterId,
+  layers,
 }: Props) {
   const paradigm = getParadigm(paradigmId);
-  const genusGroups = genusForParadigm(paradigmId);
+  // From the RESOLVER, not the legacy overlay: campaign ownership, visibility and
+  // stable identity are all honoured because every entry came through the same
+  // resolution the sheet and the VTT use.
+  const genusGroups = genusCatalogFor(paradigmId, codexCtx(campaignId, characterId), layers);
   const ciphers = ciphersForParadigm(paradigmId);
   const cCap = cipherSlots(rank);
 

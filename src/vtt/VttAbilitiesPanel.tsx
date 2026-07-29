@@ -1,3 +1,4 @@
+import type { RuleLayer } from "../game/ruleLayers";
 import { useCodex } from "../game/useCodex";
 import { useMemo, useState } from "react";
 import type { CharacterRecord } from "../lib/characters";
@@ -16,6 +17,9 @@ interface Props {
   onArmRoll: (label: string, expr?: string) => void;
   onUseAbility: (ability: VttAbility) => void;
   onClose: () => void;
+  /** Numeric rule layers for this campaign, so the SS shown at the table is the
+   *  SS the contextual card explains. */
+  layers?: RuleLayer[];
 }
 
 /** A short "cone · 15 ft" style tag describing the parsed AoE, when there is one. */
@@ -59,7 +63,7 @@ function armSelf(action: AbilityAction, sheet: CharacterSheet): { label: string;
 // (attribute d20s, specialty d40s, an ability's own damage dice) and the
 // player presses Roll — the legacy sheet's locked-roll flow. Area abilities
 // still prompt their hitbox on use.
-export function VttAbilitiesPanel({ character, characters, onPickCharacter, onArmRoll, onUseAbility, onClose }: Props) {
+export function VttAbilitiesPanel({ character, characters, onPickCharacter, onArmRoll, onUseAbility, onClose, layers }: Props) {
   // The Codex REVISION is part of this key, not just the character.
   //
   // characterActionSet resolves through the registry, so a campaign override
@@ -68,8 +72,8 @@ export function VttAbilitiesPanel({ character, characters, onPickCharacter, onAr
   // pre-override mechanics until something unrelated forced a re-render.
   const { tick } = useCodex();
   const set = useMemo(
-    () => (character ? characterActionSet(character) : { actions: [], genus: [], cipher: [], racial: [] }),
-    [character, tick]
+    () => (character ? characterActionSet(character, layers) : { actions: [], genus: [], cipher: [], racial: [] }),
+    [character, tick, layers]
   );
   const [racialIdx, setRacialIdx] = useState(0);
 

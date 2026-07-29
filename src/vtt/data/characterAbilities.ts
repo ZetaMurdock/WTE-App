@@ -1,6 +1,7 @@
 // Derive a character's usable actions for the VTT abilities panel: weapon
 // attacks (with a computed to-hit), the paradigm's standard genus + cipher sets,
 // and racial abilities — each with AoE metadata parsed from its effect text.
+import type { RuleLayer } from "../../game/ruleLayers";
 import { codexCtx, usableGenusResolved } from "../../game/resolvedGenus";
 import type { CharacterRecord } from "../../lib/characters";
 import {
@@ -85,7 +86,13 @@ function deriveHits(rec: CharacterRecord): { atk: number; phyMod: number; dexMod
   return { atk: derived.atk, phyMod: rollMod(eff.phy), dexMod: rollMod(eff.dex) };
 }
 
-export function characterActionSet(rec: CharacterRecord): CharacterActionSet {
+/**
+ * `layers` is passed in rather than fetched: this is a pure derivation the VTT
+ * calls per render, and a numeric layer the card explains must be a layer play
+ * actually charges. Without it the Codex said an ability cost 5 while the table
+ * spent 2.
+ */
+export function characterActionSet(rec: CharacterRecord, layers?: RuleLayer[]): CharacterActionSet {
   const s = rec.sheet;
   const { atk, phyMod, dexMod } = deriveHits(rec);
 
@@ -103,7 +110,7 @@ export function characterActionSet(rec: CharacterRecord): CharacterActionSet {
   // Resolved through the Codex, so a character holding stable ids gets real
   // mechanics instead of a row of blanks, and a campaign override reaches the
   // VTT exactly as it reaches the sheet.
-  const genus = usableGenusResolved(genusNames, codexCtx(rec.campaignId, rec.id), spend.genus).map((a, i) =>
+  const genus = usableGenusResolved(genusNames, codexCtx(rec.campaignId, rec.id), spend.genus, layers).map((a, i) =>
     mk("genus", a.name, i, { effect: a.effect, range: a.range, target: a.target, ss: a.ss ?? 0 })
   );
 

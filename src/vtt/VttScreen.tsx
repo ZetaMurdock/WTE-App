@@ -1,4 +1,6 @@
 import { useCodex } from "../game/useCodex";
+import { listRuleLayers } from "../lib/ruleLayerRepo";
+import type { RuleLayer } from "../game/ruleLayers";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { Campaign } from "../models/campaign";
 import { isTauri } from "../lib/tauri";
@@ -70,6 +72,23 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
   // lists, exactly as it reaches the sheet. Without this the VTT kept whatever
   // the Codex held when the screen first mounted.
   useCodex();
+  // Campaign rule layers, loaded once per campaign. The table must charge the
+  // same SS the contextual card explains.
+  const [ruleLayers, setRuleLayers] = useState<RuleLayer[]>([]);
+  useEffect(() => {
+    const id = campaign?.id;
+    if (!id) {
+      setRuleLayers([]);
+      return;
+    }
+    let live = true;
+    listRuleLayers(id)
+      .then((ls) => live && setRuleLayers(ls))
+      .catch(() => live && setRuleLayers([]));
+    return () => {
+      live = false;
+    };
+  }, [campaign?.id]);
   const hostRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<PixiVttApp | null>(null);
   const saveTimer = useRef<number | undefined>(undefined);
@@ -1255,6 +1274,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
       )}
       {campaign && leftPanel === "abilities" && (
         <VttAbilitiesPanel
+          layers={ruleLayers}
           character={abilityChar}
           characters={characters.map((c) => ({ id: c.id, name: c.name }))}
           onPickCharacter={(id) => setAbilityCharId(id)}
