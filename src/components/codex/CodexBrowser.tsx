@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isTauri } from "../../lib/tauri";
+import { pinPageIdentity } from "../../lib/pageIdentity";
 import { renderCodexHtml, pageTitle } from "../../lib/md";
 import { parseCodexEntry } from "../../lib/codexParse";
 import { computeCreature, addToArmory } from "../../lib/codex";
@@ -240,7 +241,26 @@ export function CodexBrowser({
 
   async function savePageDraft(draft: PageDraft) {
     try {
-      const stem = await invoke<string>("wte_save_page", { name: draft.title, content: draft.content });
+      // Pin the page's identity INTO the page before writing it. A generated id
+      // that never reaches disk is not stable — it gets re-derived from the title
+      // on the next load, so renaming the page moves its identity and detaches
+      // every character that had referenced it.
+      let content = draft.content;
+      let idNote = "";
+      const pinned = pinPageIdentity({
+        content,
+        stem: draft.title,
+        previousContent: editor?.initial?.content,
+        campaignId: campaignId ?? undefined,
+      });
+      if (pinned) {
+        content = pinned.content;
+        if (pinned.assigned) idNote = ` Given the permanent id ${pinned.id}.`;
+        if (pinned.aliasAdded) {
+          idNote += ` Kept “${pinned.aliasAdded}” as a former name, so references to it still work.`;
+        }
+      }
+      const stem = await invoke<string>("wte_save_page", { name: draft.title, content });
       setPageMetaMap(savePageMeta(stem, { label: draft.label }));
       invoke<string[]>("wte_list_pages").then(setPages).catch(() => {});
       typeMap.current = null;
@@ -248,7 +268,7 @@ export function CodexBrowser({
       setScanState("idle");
       setEditor(null);
       notifyPagesChanged();
-      setUploadNote(`Saved “${draft.title}” to the ${draft.label} section.`);
+      setUploadNote(`Saved “${draft.title}” to the ${draft.label} section.${idNote}`);
       window.setTimeout(() => setUploadNote(""), 5000);
     } catch (e) {
       setUploadNote("Could not save page: " + (e instanceof Error ? e.message : String(e)));

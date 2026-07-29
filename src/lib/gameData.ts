@@ -20,7 +20,8 @@ import { parseCodexEntry } from "./codexParse";
 import { setCodexCatalog } from "./codex";
 import { allPageMeta, getPageMeta } from "./pageMeta";
 import { isTauri } from "./tauri";
-import { applyCodexPages, noCodexPages, type PageSkip } from "../game/codexService";
+import { applyCodexPages, beginCodexLoad, noCodexPages, type PageSkip } from "../game/codexService";
+import { scanGenusCorpus, type RawPage } from "./genusCorpus";
 import { mergeVisibility, type GenusPage } from "../game/codexGenusSource";
 import { parseId } from "../game/codexId";
 import { getActiveCampaignId } from "./repo";
@@ -245,9 +246,14 @@ export async function loadCodexGameData(): Promise<void> {
     listFailed = e instanceof Error ? e.message : String(e);
     return [] as string[];
   });
+  const token = beginCodexLoad();
   const skipped: PageSkip[] = [];
   const officialMirrors: GenusPage[] = [];
   const campaignPages: GenusPage[] = [];
+  // Raw text of every page, for the grouped-page scan below. The official Genus
+  // corpus is five domain pages of exported wiki HTML, not one page per ability,
+  // so the field-table parser finds nothing genus-shaped in any of them.
+  const raw: RawPage[] = [];
   const meta = allPageMeta();
   const species: Species[] = [];
   const paradigms: Paradigm[] = [];
@@ -264,9 +270,16 @@ export async function loadCodexGameData(): Promise<void> {
     try {
       md = await invoke<string>("wte_load_page", { path: name });
     } catch (e) {
-      skipped.push({ stem: name, reason: `could not be read (${e instanceof Error ? e.message : String(e)})` });
+      // Unreadable, so we cannot know whether it defined a rule. That makes the
+      // whole pass untrustworthy rather than merely incomplete.
+      skipped.push({
+        stem: name,
+        reason: `could not be read (${e instanceof Error ? e.message : String(e)})`,
+        semantic: true,
+      });
       continue;
     }
+    raw.push({ stem: name, text: md });
     const sp = parseSpeciesPage(md, name);
     if (sp) {
       species.push(sp);
@@ -292,7 +305,8 @@ export async function loadCodexGameData(): Promise<void> {
     }
     const entry = parseCodexEntry(md, name);
     if (!entry) {
-      skipped.push({ stem: name, reason: "no recognised Type row" });
+      // Ordinary lore. Not everything in the Codex is a mechanic, and treating
+      // prose as a failed parse would make every load look broken.
       continue;
     }
     if (entry.type === "weapon") weapons.push(entry);
@@ -343,12 +357,19 @@ export async function loadCodexGameData(): Promise<void> {
 
   registerCodexGameData({ species, paradigms, sizes, genus, ciphers, backgrounds });
   setCodexCatalog(weapons, gear);
-  applyCodexPages({
-    officialMirrors,
-    campaignPages,
-    campaignId: getActiveCampaignId() ?? "",
-    skipped,
-    listFailed,
-  });
+  // Where each official ability can actually be read. Provenance only — the
+  // scanner never takes a number off a page.
+  const scan = scanGenusCorpus(raw);
+  applyCodexPages(
+    {
+      officialMirrors: [...officialMirrors, ...scan.pages],
+      campaignPages,
+      campaignId: getActiveCampaignId() ?? "",
+      skipped,
+      listFailed,
+      corpus: scan,
+    },
+    token
+  );
   window.dispatchEvent(new Event("wte-gamedata-changed"));
 }

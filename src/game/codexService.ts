@@ -26,10 +26,21 @@
 //             means the shipped data file is broken.
 import { buildCampaignGenus, buildOfficialGenus, type GenusManifest, type GenusPage } from "./codexGenusSource";
 import { CodexRegistry, type RegistryProblem, type RegistryStatus, type ResolveContext } from "./codexRegistry";
+import { planGenusMigration, type MigrationPlan } from "./genusRef";
 
 export interface PageSkip {
   stem: string;
   reason: string;
+  /**
+   * True when this page could have carried MEANING and we could not read it —
+   * an I/O failure on a page that might define a campaign rule. A page that
+   * simply has no Type row is lore, and lore going unparsed is normal.
+   *
+   * The distinction decides whether a pass is trustworthy enough to replace the
+   * registry, so conflating the two would let one unreadable file discard every
+   * campaign override the app had.
+   */
+  semantic?: boolean;
 }
 
 /** What a page pass found. Every field is something the app can be honest about. */
@@ -44,6 +55,12 @@ export interface CodexPageInput {
   /** The page listing itself failed — so `officialMirrors` being empty means
    *  "we do not know", not "there are none". */
   listFailed?: string;
+  /** What the grouped-page scan found, including official abilities it could not
+   *  locate and domains whose page is missing entirely. */
+  corpus?: {
+    unlocated: string[];
+    domainMismatch: { missingPages: string[]; unknownPages: string[] };
+  };
 }
 
 let registry = new CodexRegistry();
@@ -53,6 +70,39 @@ let pageProblems: RegistryProblem[] = [];
 let skipped: PageSkip[] = [];
 let state: RegistryStatus = "loading";
 let lastPages: CodexPageInput | null = null;
+/** The last page pass that was complete enough to trust. Kept so a transient
+ *  failure degrades the service without rewinding it to official-only. */
+let lastGood: CodexPageInput | null = null;
+/** Monotonic pass counter, so a slow load cannot land on top of a fast one. */
+let newestApplied = -1;
+let nextToken = 0;
+
+/** Claim a place in the ordering. Pass the result to applyCodexPages. */
+export function beginCodexLoad(): number {
+  return nextToken++;
+}
+
+/** Why a pass was not trusted, in words. */
+function describeFailure(input: CodexPageInput): RegistryProblem[] {
+  const out: RegistryProblem[] = [];
+  if (input.listFailed) {
+    out.push({
+      kind: "unusable-record",
+      detail: `the Codex pages could not be listed (${input.listFailed}) — showing the last good load`,
+      ids: [],
+      severity: "error",
+    });
+  }
+  for (const s of input.skipped.filter((x) => x.semantic)) {
+    out.push({
+      kind: "unusable-record",
+      detail: `the page "${s.stem}" could not be read: ${s.reason} — showing the last good load`,
+      ids: [],
+      severity: "error",
+    });
+  }
+  return out;
+}
 
 /** Build the 98 official abilities. Synchronous, and the only thing that can fail
  *  the whole service. */
@@ -91,8 +141,30 @@ function announce(): void {
  * Rebuilds from the data file every time rather than layering onto whatever is
  * already there, so a page that stops existing stops affecting the Codex.
  */
-export function applyCodexPages(input: CodexPageInput): void {
+export function applyCodexPages(input: CodexPageInput, token?: number): void {
   if (state === "failed") return; // nothing to attach pages to
+
+  // Latest result wins. Two page passes can be in flight at once — a campaign
+  // switch while the first is still reading — and without this the SLOWER one
+  // lands last and the Codex ends up describing the campaign you left.
+  if (token !== undefined) {
+    if (token < newestApplied) return;
+    newestApplied = token;
+  }
+
+  // A pass that could not see the pages is not evidence that the rules changed.
+  // Replacing the registry from it would drop every campaign override the last
+  // good pass found and quietly hand the table the official rules instead.
+  const trustworthy = !input.listFailed && !input.skipped.some((s) => s.semantic);
+  if (!trustworthy && lastGood) {
+    skipped = input.skipped;
+    lastPages = input;
+    pageProblems = describeFailure(input);
+    state = "degraded";
+    announce();
+    return;
+  }
+
   lastPages = input;
   skipped = input.skipped;
   const problems: RegistryProblem[] = [];
@@ -125,6 +197,36 @@ export function applyCodexPages(input: CodexPageInput): void {
       severity: "warning",
     });
   }
+  // Content gaps in the corpus. Neither costs anyone a rule — the mechanics are
+  // in the data file — but "this ability has no page" and "this whole domain has
+  // no page" are both worth a Curator's attention rather than a silent blank.
+  if (input.corpus) {
+    const { unlocated, domainMismatch } = input.corpus;
+    if (unlocated.length) {
+      problems.push({
+        kind: "page-drift",
+        detail: `${unlocated.length} official abilities have no page to open (${unlocated.slice(0, 3).join(", ")}${unlocated.length > 3 ? ", …" : ""})`,
+        ids: [],
+        severity: "warning",
+      });
+    }
+    for (const d of domainMismatch.missingPages) {
+      problems.push({
+        kind: "page-drift",
+        detail: `the "${d}" domain has no Codex page installed`,
+        ids: [],
+        severity: "warning",
+      });
+    }
+    for (const stem of domainMismatch.unknownPages) {
+      problems.push({
+        kind: "page-drift",
+        detail: `the Codex page "${stem}" describes a Genus domain the rules data does not have`,
+        ids: [],
+        severity: "warning",
+      });
+    }
+  }
   pageProblems = problems;
 
   // Never empty the registry. replaceAll([]) would discard the 98 official
@@ -132,7 +234,9 @@ export function applyCodexPages(input: CodexPageInput): void {
   const next = [...official.entities, ...campaign.entities];
   if (next.length) registry.replaceAll(next);
 
-  state = registry.status() === "degraded" || problems.some((p) => p.severity === "error") ? "degraded" : "ready";
+  const bad = registry.status() === "degraded" || problems.some((p) => p.severity === "error");
+  state = bad ? "degraded" : "ready";
+  if (!bad) lastGood = input;
   announce();
 }
 
@@ -172,6 +276,32 @@ export function codexCanMigrate(): boolean {
   return state === "ready";
 }
 
+/**
+ * THE way a character's Genus keys get rewritten. There is no other.
+ *
+ * Callers used to have to remember to check codexCanMigrate() before calling
+ * planGenusMigration, which is the kind of rule that holds until the day someone
+ * adds a second call site. The check is in here now, so forgetting is impossible:
+ * a Codex that is loading, degraded or failed returns a plan that changes nothing
+ * and says why.
+ */
+export function planGenusMigrationSafely(
+  spend: Record<string, number>,
+  ctx: ResolveContext
+): MigrationPlan {
+  if (!codexCanMigrate()) {
+    return {
+      next: { ...spend },
+      migrated: [],
+      kept: Object.keys(spend ?? {}).map((stored) => ({ stored, reason: "registry-degraded" as const })),
+      conflicts: [],
+      changed: false,
+      blocked: "registry-degraded",
+    };
+  }
+  return planGenusMigration(spend, registry, { ...ctx, kind: "genus" });
+}
+
 export function onCodexChanged(fn: () => void): () => void {
   if (typeof window === "undefined") return () => {};
   window.addEventListener(CHANGED, fn);
@@ -184,6 +314,9 @@ export function __resetCodexService(): void {
   pageProblems = [];
   skipped = [];
   lastPages = null;
+  lastGood = null;
+  newestApplied = -1;
+  nextToken = 0;
 }
 
 /** What the last page pass was given, for Diagnostics. */

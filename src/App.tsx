@@ -189,12 +189,24 @@ export default function App() {
   // at boot, and re-load whenever the Codex changes pages or pull flags. The
   // tick re-renders the tree so open tools re-read the (mutated-in-place) data.
   const [, setDataTick] = useState(0);
+  // Campaign-scoped Codex rules resolve against the campaign that owns them, so
+  // switching campaigns has to re-run the pull. Without this dependency the
+  // registry kept the previous table's overrides and the new campaign silently
+  // played by the old one's house rules. loadCodexGameData orders its own passes,
+  // so a slow load begun before the switch cannot land after this one.
+  const codexCampaignKey = activeCampaign?.id ?? "";
   useEffect(() => {
     const reload = () => void loadCodexGameData().then(() => setDataTick((t) => t + 1)).catch(() => {});
     reload();
     window.addEventListener("wte-pages-changed", reload);
-    return () => window.removeEventListener("wte-pages-changed", reload);
-  }, []);
+    // A page's Visibility row decides who may resolve it, so a change there has to
+    // rebuild the registry as well.
+    window.addEventListener("wte-page-meta-changed", reload);
+    return () => {
+      window.removeEventListener("wte-pages-changed", reload);
+      window.removeEventListener("wte-page-meta-changed", reload);
+    };
+  }, [codexCampaignKey]);
   // Library updates are OFFERED at launch, never applied. This used to call
   // autoRefreshPulledPages(), which wrote every changed page straight over the
   // local file before the user saw the app — destroying their own edits to a

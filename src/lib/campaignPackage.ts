@@ -26,8 +26,17 @@ import type { RuleLayer } from "../game/ruleLayers";
 import { getDb, sqlAvailable } from "./db";
 import { sheetFromJson } from "./sheetCodec";
 
-/** Bump when the ENVELOPE changes shape. Records inside carry their own versions. */
-export const PACKAGE_VERSION = 1;
+/**
+ * Bump when the ENVELOPE changes shape. Records inside carry their own versions.
+ *
+ * 2 — added `ruleLayers`. This was added at version 1, which was a mistake worth
+ * spelling out: parsePackage only rejects a package NEWER than it understands, so
+ * a v1-era build reading a v1-labelled package containing rule layers accepts it
+ * and drops them silently. The campaign imports looking complete, and plays by
+ * the official rules instead of the table's. Labelling it 2 makes that same old
+ * build refuse the package and say why, which is the outcome you can act on.
+ */
+export const PACKAGE_VERSION = 2;
 
 export interface CampaignPackage {
   wte: "campaign";

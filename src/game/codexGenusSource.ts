@@ -17,7 +17,7 @@
 // stacks on top of the official one.
 import type { CodexEntity } from "./codexEntity";
 import { buildEntity } from "./codexEntity";
-import { slugify } from "./codexId";
+import { parseId, slugify } from "./codexId";
 import { STANDALONE, type RegistryProblem } from "./codexRegistry";
 import { GENUS_DOMAIN_NAMES, getGenusDomain, type GenusAbility } from "./wte";
 
@@ -168,6 +168,10 @@ export function buildOfficialGenus(pages: GenusPage[] = []): OfficialGenusSource
           visibility: mergeVisibility(page?.visibility),
         },
         data: abilityData(a, domain),
+        // The rules come from the shipped data file, not from the page. Marking
+        // the wiki page GM-only hides the PAGE; it must not make the ability
+        // unresolvable, which would quietly remove it from every player's sheet.
+        mechanicAlwaysVisible: true,
       });
       entities.push(built.entity);
 
@@ -243,6 +247,30 @@ export function buildCampaignGenus(pages: GenusPage[], campaignId: string): {
       });
       continue;
     }
+    // Ownership is permanent, and it lives in the page's own id. A page whose id
+    // names a DIFFERENT campaign is refused outright rather than re-owned by
+    // whichever campaign happened to be open — that would silently move one
+    // table's house rules onto another table.
+    const declared = p.id ? parseId(p.id) : null;
+    if (declared && declared.scope === "campaign" && declared.owner !== slugify(campaignId)) {
+      problems.push({
+        kind: "identity-mismatch",
+        detail: `the page "${p.stem}" belongs to another campaign (${declared.owner}) and was not loaded here`,
+        ids: [p.id ?? ""],
+        severity: "warning",
+      });
+      continue;
+    }
+    if (declared && declared.scope !== "campaign") {
+      problems.push({
+        kind: "identity-mismatch",
+        detail: `the campaign page "${p.stem}" declares the ${declared.scope}-scoped id "${p.id}", which is not a campaign id`,
+        ids: [p.id ?? ""],
+        severity: "error",
+      });
+      continue;
+    }
+
     const built = buildEntity({
       kind: "genus",
       title: p.title,

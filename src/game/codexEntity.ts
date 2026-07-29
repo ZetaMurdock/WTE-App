@@ -32,7 +32,22 @@ export interface CodexEntity {
   /** For scoped entities: the campaign/pack/character STABLE ID that owns it.
    *  Never the display name — campaign names change. */
   ownerId?: string;
+  /**
+   * Who may resolve this DEFINITION at all.
+   *
+   * "curator" means the mechanic itself is secret — a campaign's hidden ability
+   * that players must not discover exists.
+   */
   visibility: "player" | "curator";
+  /**
+   * Who may open the source PAGE.
+   *
+   * Deliberately separate. An official ability's mechanics are public whatever a
+   * Curator has done to the wiki page describing it — marking that page GM-only
+   * used to make the ability itself unresolvable for players, which took a rule
+   * out of the game as a side effect of hiding some prose.
+   */
+  pageVisibility: "player" | "curator";
   summary?: string;
   /** The official id this definition replaces, when it is an override. */
   overrides?: string;
@@ -118,6 +133,13 @@ export function buildEntity(args: {
   summary?: string;
   scope?: IdScope;
   ownerId?: string;
+  /**
+   * Force the mechanic to stay resolvable regardless of what the page says about
+   * itself. Used for official abilities, whose rules come from the shipped data
+   * file: a Curator marking the wiki page GM-only should hide the PAGE, not
+   * delete the ability from every player's sheet.
+   */
+  mechanicAlwaysVisible?: boolean;
 }): { entity: CodexEntity; assigned: boolean; malformed?: string; mismatch?: string } {
   const { kind, title, sourcePage, fields, data, summary } = args;
   const ident = resolveIdentity(kind, title, fields, { scope: args.scope, ownerId: args.ownerId });
@@ -127,6 +149,7 @@ export function buildEntity(args: {
 
   const overrides = (fields.overrides ?? "").trim() || undefined;
   const vis = (fields.visibility ?? "").trim().toLowerCase();
+  const restricted = vis === "curator" || vis === "gm";
 
   return {
     entity: {
@@ -140,7 +163,8 @@ export function buildEntity(args: {
       // Default PLAYER-visible: a page nobody classified is ordinary content. The
       // fail-closed rule applies to unreadable STORED settings (see pageMeta), not
       // to an author who simply did not write a Visibility row.
-      visibility: vis === "curator" || vis === "gm" ? "curator" : "player",
+      visibility: args.mechanicAlwaysVisible ? "player" : restricted ? "curator" : "player",
+      pageVisibility: restricted ? "curator" : "player",
       summary,
       overrides,
       data,

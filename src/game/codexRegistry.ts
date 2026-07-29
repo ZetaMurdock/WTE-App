@@ -585,13 +585,22 @@ export class CodexRegistry {
     const owner = this.byId.get(conceptId);
     return {
       conceptId,
-      // Well-formed, and agreeing with whatever record carries it. The registry
-      // already reports both faults; this is the same judgement, per resolution,
-      // for callers that are about to WRITE the id into a character.
+      // Everything that has to hold before this id may be WRITTEN onto a
+      // character. Well-formedness alone was not enough: a declared override
+      // naming a Genus that is not installed, or naming a Cipher, produced a
+      // perfectly well-formed id that pointed at nothing usable.
       conceptIdValid:
         !!parseId(conceptId) &&
+        // The target must EXIST. A dangling override is not a destination.
+        !!owner &&
+        // and be the same kind of thing as what we resolved,
+        owner.kind === winner.kind &&
+        parseId(conceptId)!.kind === winner.kind &&
+        // and belong to the concept we actually resolved, not merely parse,
+        this.keyOf(owner) === this.keyOf(winner) &&
+        // and not be contested or misdescribed by the record carrying it.
         !this.conflicted.has(conceptId) &&
-        (!owner || !this.problems.some((p) => p.kind === "identity-mismatch" && p.ids.includes(conceptId))),
+        !this.problems.some((p) => p.kind === "identity-mismatch" && p.ids.includes(conceptId)),
       ambiguous: false,
       entity: winner,
       resolvedDefinition: winner,
