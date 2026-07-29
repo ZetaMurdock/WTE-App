@@ -4,7 +4,8 @@
 // ability keys, and these are the rules it works under.
 import { beforeEach, describe, expect, it } from "vitest";
 import { applyCodexPages, noCodexPages, planGenusMigrationSafely, __resetCodexService } from "./codexService";
-import { codexCtx, genusFocusFor, genusKeyFor, resolveGenusSpend } from "./resolvedGenus";
+import { codexCtx, genusFocusFor, genusKeyFor, resolveGenusLoadout, resolveGenusSpend } from "./resolvedGenus";
+import { isCodexId } from "./codexId";
 import { GENUS_DOMAIN_NAMES, getGenusDomain } from "./wte";
 
 const CAMPAIGN = "8a93a397-4c21-4a6e-9d0b-1f2e3a4b5c6d";
@@ -131,5 +132,37 @@ describe("an unresolvable choice is preserved, never tidied away", () => {
     });
     const plan = planGenusMigrationSafely({ [first.name]: 3 }, ctx);
     expect(Object.keys(plan.next)).toEqual([first.id!]);
+  });
+});
+
+describe("the compatibility field keeps display names after migration", () => {
+  // genusLoadout is what the legacy sheet, exports and older readers match on,
+  // and they match on NAMES. Keeping it "in step" with the Focus-map keys filled
+  // it with `wte.genus.*` strings after a migration — turning the migration into
+  // visible damage on the exact surface that exists to prevent it.
+  const projection = (spend: Record<string, number>) =>
+    resolveGenusLoadout(Object.keys(spend).filter((k) => spend[k] > 0), ctx).map((r) => r.displayName);
+
+  it("projects names for a migrated, id-keyed character", () => {
+    const migrated = planGenusMigrationSafely({ [first.name]: 3 }, ctx).next;
+    expect(Object.keys(migrated)).toEqual([first.id!]);
+    expect(projection(migrated)).toEqual([first.name]);
+  });
+
+  it("contains no raw ids at all", () => {
+    const migrated = planGenusMigrationSafely({ [first.name]: 3, [second.name]: 1 }, ctx).next;
+    for (const entry of projection(migrated)) {
+      expect(isCodexId(entry), `"${entry}" is a raw id, which no legacy reader matches`).toBe(false);
+    }
+  });
+
+  it("reads identically before and after migrating", () => {
+    const before = projection({ [first.name]: 3, [second.name]: 1 });
+    const after = projection(planGenusMigrationSafely({ [first.name]: 3, [second.name]: 1 }, ctx).next);
+    expect(after.sort()).toEqual(before.sort());
+  });
+
+  it("still carries an unresolved choice through as written", () => {
+    expect(projection({ "Some Homebrew": 2 })).toEqual(["Some Homebrew"]);
   });
 });

@@ -1,3 +1,4 @@
+import { useCodex } from "../game/useCodex";
 import { useMemo, useState } from "react";
 import type { CharacterRecord } from "../lib/characters";
 import { ATTRIBUTES, SPECIALTIES, rollMod, specRollMod, diceExprFromText, signedMod, resolveStatToken } from "../game/wte";
@@ -59,9 +60,16 @@ function armSelf(action: AbilityAction, sheet: CharacterSheet): { label: string;
 // player presses Roll — the legacy sheet's locked-roll flow. Area abilities
 // still prompt their hitbox on use.
 export function VttAbilitiesPanel({ character, characters, onPickCharacter, onArmRoll, onUseAbility, onClose }: Props) {
+  // The Codex REVISION is part of this key, not just the character.
+  //
+  // characterActionSet resolves through the registry, so a campaign override
+  // arriving while the panel is open changes the answer without changing the
+  // character object — and a memo keyed on the character alone kept serving the
+  // pre-override mechanics until something unrelated forced a re-render.
+  const { tick } = useCodex();
   const set = useMemo(
     () => (character ? characterActionSet(character) : { actions: [], genus: [], cipher: [], racial: [] }),
-    [character]
+    [character, tick]
   );
   const [racialIdx, setRacialIdx] = useState(0);
 

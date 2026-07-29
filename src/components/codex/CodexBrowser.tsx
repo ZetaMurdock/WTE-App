@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isTauri } from "../../lib/tauri";
-import { pinPageIdentity } from "../../lib/pageIdentity";
+import { pinPageIdentity, storedPageFor } from "../../lib/pageIdentity";
+import { saveCodexPage } from "../../lib/codexPageRepo";
 import { renderCodexHtml, pageTitle } from "../../lib/md";
 import { parseCodexEntry } from "../../lib/codexParse";
 import { computeCreature, addToArmory } from "../../lib/codex";
@@ -19,6 +20,8 @@ import { publishPage, unpublishPage, fetchPublishedPages } from "../../lib/publi
 import { assertCanPublish } from "../../lib/codexRoles";
 import { LibraryDialog } from "./LibraryDialog";
 import { reportSaveFailure } from "../../lib/appToast";
+import { onOpenCodexPage } from "../../lib/openCodexPage";
+import { slugify } from "../../game/codexId";
 
 // The new Codex: a browser built solely for W.T.E (Remaster slice 1 — the usable
 // shell: tabs, wte:// address bar, history, search, bookmarks, recents, reader).
@@ -170,6 +173,8 @@ export function CodexBrowser({
   const typeMap = useRef<Map<string, string> | null>(null);
   const linkMap = useRef<Map<string, string[]> | null>(null);
   const [lens, setLens] = useState<string | null>(null);
+  /** Section to scroll to once the requested page has rendered. */
+  const pendingAnchor = useRef<string | null>(null);
   // Collapsed record sections + expanded "book" sequences (persisted).
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
     try {
@@ -209,6 +214,37 @@ export function CodexBrowser({
   const publishAvail = firebasePublishConfigured();
   const [publishedStems, setPublishedStems] = useState<Set<string>>(new Set());
   const [libraryOpen, setLibraryOpen] = useState(false);
+
+  // "Open the full Codex page", from the sheet, the VTT or a contextual card.
+  //
+  // App switches to this tab; the destination has to be consumed HERE, because
+  // App does not own the browser's history. Without this the event carried a
+  // stem and an anchor that nothing read, so the button changed tab and left the
+  // reader wherever they already were.
+  useEffect(
+    () =>
+      onOpenCodexPage(({ stem, anchor }) => {
+        go("wte://page/" + encodeURIComponent(stem));
+        pendingAnchor.current = anchor ?? null;
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  // Scroll to the requested section once the page has actually rendered. The
+  // official corpus carries no id attributes, so the anchor is matched by TEXT —
+  // a stem alone lands at the top of a file holding twenty abilities.
+  useEffect(() => {
+    const want = pendingAnchor.current;
+    if (!want || view.kind !== "page") return;
+    pendingAnchor.current = null;
+    const host = readerRef.current;
+    if (!host) return;
+    const target = [...host.querySelectorAll<HTMLElement>("div,h1,h2,h3,h4,p,td,b,strong")].find(
+      (el) => el.children.length === 0 && slugify(el.textContent ?? "") === want
+    );
+    if (target) target.scrollIntoView({ block: "center" });
+  }, [view]);
 
   // Tell the data-driven loader (App) that pages or pull flags changed.
   const notifyPagesChanged = () => window.dispatchEvent(new Event("wte-pages-changed"));
@@ -262,6 +298,20 @@ export function CodexBrowser({
         }
       }
       const stem = await invoke<string>("wte_save_page", { name: draft.title, content });
+      // A campaign-owned page ALSO gets a row, which is what lets two campaigns
+      // hold different versions of one stem. Writing only the file made the store
+      // a table nothing used: package-imported pages could exist while remaining
+      // invisible, unopenable and mechanically inactive.
+      if (pinned && campaignId) {
+        const owned = storedPageFor(stem, content, campaignId);
+        if (owned) {
+          // A refusal here is worth surfacing rather than swallowing: the file is
+          // already written, so a silent failure would leave the two out of step.
+          await saveCodexPage(owned).catch((e) => {
+            setUploadNote(`Saved the file, but not as a campaign rule: ${e instanceof Error ? e.message : String(e)}`);
+          });
+        }
+      }
       setPageMetaMap(savePageMeta(stem, { label: draft.label }));
       invoke<string[]>("wte_list_pages").then(setPages).catch(() => {});
       typeMap.current = null;

@@ -172,8 +172,11 @@ export function Diagnostics({ campaign }: Props) {
       {/* Where to go back to. A restore point nobody can find is not one. */}
       {gate?.backup_dir && (
         <p className="diag-hint">
-          A copy of your data from before this version's storage upgrade is kept at <code>{gate.backup_dir}</code>. To go
-          back to an older W.T.E, close the app and copy those files over the originals.
+          A copy of your data from before this version's storage upgrade is kept at <code>{gate.backup_dir}</code>.
+          <br />
+          To go back to an older W.T.E: close the app, copy <code>wte.db</code> from that folder over your{" "}
+          <code>wte.db</code>, delete any <code>wte.db-wal</code> and <code>wte.db-shm</code> beside it, then start{" "}
+          <b>the older version</b>. Starting this version again would simply apply the upgrade a second time.
         </p>
       )}
 

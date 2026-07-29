@@ -13,6 +13,7 @@
 // page's identity — nothing is inferred at load time.
 import { identityRow, withIdentityRow } from "../game/codexEntity";
 import { makeId, parseId, slugify, type IdKind, type IdScope } from "../game/codexId";
+import type { StoredCodexPage } from "./codexPageRepo";
 
 /** Kinds whose pages carry mechanics and therefore need a permanent identity.
  *  Lore pages are deliberately excluded — they have nothing to reference. */
@@ -113,11 +114,21 @@ export function pinPageIdentity(args: {
     return { content: out, id: declared, assigned: false, aliasAdded };
   }
 
-  // A campaign house rule is owned by its campaign, permanently and in writing.
-  // Ownership used to come from whichever campaign happened to be open when the
-  // page was read, so the same file could be re-owned by the next table.
-  const declaresOverride = !!(readField(out, "Overrides") ?? "").trim();
-  const scope: IdScope = declaresOverride && campaignId ? "campaign" : "wte";
+  // A page authored inside a campaign belongs to that campaign, permanently and
+  // in writing.
+  //
+  // This used to require a non-empty Overrides row, which contradicted the
+  // template the Curator was handed: it says to leave Overrides blank for a new
+  // ability of your own. So a brand-new homebrew Genus got a global `wte.*` id,
+  // the semantic registry treated it as an official concept it had never heard
+  // of, and the legacy picker offered it anyway — a Curator could invest Focus
+  // and get an unresolved 0-SS row on the sheet and in the VTT.
+  //
+  // Authoring context is the signal, not the Overrides row. An OFFICIAL page
+  // never reaches here with a campaign open and no id: official records come
+  // from the shipped data file and the corpus, and any page that already carries
+  // an id kept it above.
+  const scope: IdScope = campaignId ? "campaign" : "wte";
   let id: string;
   try {
     id = scope === "wte" ? makeId(kind, title) : makeId(kind, title, { scope, owner: campaignId! });
@@ -130,4 +141,36 @@ export function pinPageIdentity(args: {
   return { content: out, id, assigned: true, aliasAdded };
 }
 
-export { identityRow };
+/**
+ * Turn a saved page into an OWNED row — or null when it is a global page that
+ * belongs on disk alone.
+ *
+ * One definition of this, used by the editor and by package import alike, so the
+ * two cannot disagree about which pages are owned. The id is read from the page
+ * rather than invented: by the time this runs, pinPageIdentity has already put
+ * one there.
+ */
+export function storedPageFor(stem: string, content: string, campaignId: string): StoredCodexPage | null {
+  const id = (readField(content, "ID") ?? "").trim();
+  const parsed = id ? parseId(id) : null;
+  if (!parsed || parsed.scope !== "campaign") return null;
+  if (!campaignId || parsed.owner !== slugify(campaignId)) return null;
+  const vis = (readField(content, "Visibility") ?? "").toLowerCase();
+  return {
+    id,
+    campaignId,
+    stem,
+    kind: parsed.kind,
+    title: titleOf(content, stem),
+    content,
+    visibility: vis === "curator" || vis === "gm" ? "curator" : "player",
+    aliases: (readField(content, "Aliases") ?? "")
+      .split(/[,;/]/)
+      .map((x) => x.trim())
+      .filter(Boolean),
+    overrides: readField(content, "Overrides") || undefined,
+    updatedAt: Date.now(),
+  };
+}
+
+export { identityRow, readField };

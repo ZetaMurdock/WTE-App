@@ -1,4 +1,4 @@
-import { codexCtx, usableGenusResolved } from "../../game/resolvedGenus";
+import { codexCtx, resolveGenusLoadout, usableGenusResolved } from "../../game/resolvedGenus";
 import { useCodex } from "../../game/useCodex";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getCharacter, updateCharacter, deleteCharacter, type CharacterRecord } from "../../lib/characters";
@@ -376,9 +376,26 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
     persist({ ...rec!, sheet: { ...sheet, gearLoadout: names } });
   }
   function setSpend(next: FocusSpend) {
-    // genusLoadout is kept in step so the VTT, exports and any legacy reader
-    // still see a flat list of what this character knows.
-    persist({ ...rec!, sheet: { ...sheet, focusSpend: next, genusLoadout: knownGenus(next) } });
+    // genusLoadout is the COMPATIBILITY field: a flat list of what this character
+    // knows, for the legacy sheet, exports and any older reader. Those readers
+    // match on DISPLAY NAMES.
+    //
+    // knownGenus returns the raw Focus-map keys, which after a stable-id
+    // migration are ids — so keeping the two literally "in step" filled the
+    // compatibility field with `wte.genus.lark` strings that no legacy reader
+    // matches, turning a migration into visible damage on the exact surface that
+    // exists to prevent it. Project resolved names instead; an unresolved key
+    // still comes through as whatever the character stored, so nothing is lost.
+    persist({
+      ...rec!,
+      sheet: {
+        ...sheet,
+        focusSpend: next,
+        genusLoadout: resolveGenusLoadout(knownGenus(next), codexCtx(campaignId, characterId)).map(
+          (r) => r.displayName
+        ),
+      },
+    });
   }
   function setCiphers(names: string[]) {
     persist({ ...rec!, sheet: { ...sheet, cipherLoadout: names } });

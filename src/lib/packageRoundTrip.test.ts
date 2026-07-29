@@ -73,10 +73,11 @@ describe("the envelope refuses what it cannot fully understand", () => {
     expect(() => parsePackage(pkg)).toThrow(PackageVersionError);
   });
 
-  it("is labelled 2, so a build that predates rule layers refuses it", () => {
-    // A v1-era build only rejects packages NEWER than it knows. Labelling this
-    // package 1 meant it accepted the file and dropped the rules in silence.
-    expect(fullPackage().version).toBe(2);
+  it("is labelled 3, so an older build refuses it rather than damaging itself", () => {
+    // A build only rejects packages NEWER than it knows. At 2 a pre-ownership
+    // build would accept this file and write every campaign page into the shared
+    // folder — globalising one table's rules over everyone else's.
+    expect(fullPackage().version).toBe(3);
   });
 
   it("refuses a file that is not a package at all", () => {

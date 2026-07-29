@@ -25,8 +25,9 @@ import { listRuleLayers, saveRuleLayer } from "./ruleLayerRepo";
 import type { RuleLayer } from "../game/ruleLayers";
 import { getDb, sqlAvailable } from "./db";
 import { sheetFromJson } from "./sheetCodec";
-import { readField, reownPages } from "./campaignPages";
-import { deleteCampaignCodexPages, saveCodexPage, type StoredCodexPage } from "./codexPageRepo";
+import { reownPages } from "./campaignPages";
+import { storedPageFor } from "./pageIdentity";
+import { deleteCampaignCodexPages, saveCodexPage } from "./codexPageRepo";
 import { parseId, slugify, ID_SCOPES } from "../game/codexId";
 import { isTauri } from "./tauri";
 
@@ -54,39 +55,6 @@ export function remapConceptId(id: string, fromCampaign: string, toCampaign: str
   return `campaign.${slugify(toCampaign)}.${p.kind}.${p.slug}`;
 }
 
-/**
- * Turn a package page into a stored, OWNED page — or null when it is a global
- * page that belongs on disk.
- *
- * The id is read from the page rather than invented, and it has already been
- * re-owned for a copy import, so the store's foreign-owner check will agree with
- * the campaign it landed in rather than rejecting our own import.
- */
-function storedPageFrom(page: { stem: string; content: string }, campaignId: string): StoredCodexPage | null {
-  // Uses the SAME reader the ownership check uses. A second copy of this regex
-  // is a second chance to get the escaping wrong, and the first attempt did:
-  // inside a template literal `\s` collapses to `s`, so the pattern matched
-  // nothing and every imported page silently went to disk as a global page.
-  const field = (key: string) => readField(page.content, key);
-  const id = (field("ID") ?? "").trim();
-  const parsed = id ? parseId(id) : null;
-  if (!parsed || parsed.scope !== "campaign") return null;
-  const title = (page.content.match(/^#{1,4}\s+(.+)$/m)?.[1] ?? page.stem).replace(/[*_`]/g, "").trim();
-  const vis = (field("Visibility") ?? "").toLowerCase();
-  return {
-    id,
-    campaignId,
-    stem: page.stem,
-    kind: parsed.kind,
-    title,
-    content: page.content,
-    visibility: vis === "curator" || vis === "gm" ? "curator" : "player",
-    aliases: (field("Aliases") ?? "").split(/[,;/]/).map((x) => x.trim()).filter(Boolean),
-    overrides: field("Overrides") || undefined,
-    updatedAt: Date.now(),
-  };
-}
-
 /** Write an imported Codex page to disk. Desktop only — a browser has nowhere
  *  to put it, and pretending otherwise would report a success that did not happen. */
 async function savePageFile(stem: string, content: string): Promise<void> {
@@ -98,6 +66,12 @@ async function savePageFile(stem: string, content: string): Promise<void> {
 /**
  * Bump when the ENVELOPE changes shape. Records inside carry their own versions.
  *
+ * 3 — campaign PAGE OWNERSHIP. A package's pages may now carry campaign-scoped
+ * ids and be filed into a per-campaign store. A v2 build has no such store, so
+ * it writes every page straight to the shared folder — globalising rules that
+ * belong to one table, and overwriting whatever already had that stem. Refusing
+ * the package is the only outcome that does not quietly damage the importer.
+ *
  * 2 — added `ruleLayers`. This was added at version 1, which was a mistake worth
  * spelling out: parsePackage only rejects a package NEWER than it understands, so
  * a v1-era build reading a v1-labelled package containing rule layers accepts it
@@ -105,7 +79,7 @@ async function savePageFile(stem: string, content: string): Promise<void> {
  * the official rules instead of the table's. Labelling it 2 makes that same old
  * build refuse the package and say why, which is the outcome you can act on.
  */
-export const PACKAGE_VERSION = 2;
+export const PACKAGE_VERSION = 3;
 
 export interface CampaignPackage {
   wte: "campaign";
@@ -414,7 +388,7 @@ export async function importPackage(
       // campaigns can hold different versions of the same stem. A page with no
       // campaign id of its own is a global page and still goes to disk, where
       // one file per stem is the correct model.
-      const stored = storedPageFrom(page, campaignId);
+      const stored = storedPageFor(page.stem, page.content, campaignId);
       if (stored) await saveCodexPage(stored);
       else await savePageFile(page.stem, page.content);
       imported.pages++;

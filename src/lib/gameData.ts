@@ -25,6 +25,7 @@ import { scanGenusCorpus, type RawPage } from "./genusCorpus";
 import { mergeVisibility, type GenusPage } from "../game/codexGenusSource";
 import { parseId } from "../game/codexId";
 import { getActiveCampaignId } from "./repo";
+import { listCodexPages } from "./codexPageRepo";
 import type { Weapon, Equipment } from "../models/codex";
 
 /**
@@ -357,6 +358,49 @@ export async function loadCodexGameData(): Promise<void> {
 
   registerCodexGameData({ species, paradigms, sizes, genus, ciphers, backgrounds });
   setCodexCatalog(weapons, gear);
+  // Database-backed campaign pages. These are the ones a package brought in, and
+  // the ones the editor writes for an owned house rule — without reading them a
+  // stored rule exists, exports fine, and is mechanically inert.
+  //
+  // A read failure is a SEMANTIC skip, not a shrug: not knowing whether this
+  // campaign has house rules is exactly the state that must not be mistaken for
+  // "it has none", because the last good snapshot is better than the official
+  // rules silently taking over.
+  const activeCampaign = getActiveCampaignId() ?? "";
+  if (activeCampaign) {
+    try {
+      for (const sp of await listCodexPages(activeCampaign)) {
+        if (sp.campaignId !== activeCampaign) continue; // global rows come from files
+        const entry = parseCodexEntry(sp.content, sp.stem);
+        if (!entry || entry.type !== "genus") continue;
+        campaignPages.push({
+          stem: sp.stem,
+          title: entry.name,
+          id: sp.id,
+          aliases: sp.aliases,
+          overrides: sp.overrides ?? undefined,
+          visibility: sp.visibility,
+          data: {
+            domain: entry.domain ?? undefined,
+            ss: entry.ss ?? null,
+            activation: entry.activation ?? null,
+            range: entry.range ?? null,
+            target: entry.target ?? null,
+            effect: entry.effect ?? null,
+            limit: entry.limit ?? null,
+            classification: null,
+          },
+        });
+      }
+    } catch (e) {
+      skipped.push({
+        stem: "(stored campaign pages)",
+        reason: e instanceof Error ? e.message : String(e),
+        semantic: true,
+      });
+    }
+  }
+
   // Where each official ability can actually be read. Provenance only — the
   // scanner never takes a number off a page.
   const scan = scanGenusCorpus(raw);

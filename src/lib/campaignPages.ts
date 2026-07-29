@@ -88,13 +88,22 @@ export async function collectCampaignPages(
 ): Promise<{ pages: CampaignPage[]; unreadable: string[]; unowned: string[] }> {
   const pages: CampaignPage[] = [];
   const seen = new Set<string>();
+  const unreadable: string[] = [];
   // Stored pages first — those are owned by construction, not by declaration,
   // so they need no inspection to prove whose they are.
-  for (const sp of await listOwnedCodexPages(campaignId).catch(() => [])) {
-    pages.push({ stem: sp.stem, content: sp.content });
-    seen.add(sp.stem.toLowerCase());
+  //
+  // A failed read here used to become an empty list, which is indistinguishable
+  // from "this campaign has no stored pages" — so the package could omit every
+  // database-backed house rule and still report success. Not knowing is now
+  // reported as not knowing.
+  try {
+    for (const sp of await listOwnedCodexPages(campaignId)) {
+      pages.push({ stem: sp.stem, content: sp.content });
+      seen.add(sp.stem.toLowerCase());
+    }
+  } catch (e) {
+    unreadable.push(`(the stored Codex pages could not be read: ${e instanceof Error ? e.message : String(e)})`);
   }
-  const unreadable: string[] = [];
   const unowned: string[] = [];
   const w = window as unknown as {
     __TAURI__?: { core: { invoke: <T>(c: string, a?: Record<string, unknown>) => Promise<T> } };

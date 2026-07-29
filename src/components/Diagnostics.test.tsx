@@ -36,7 +36,10 @@ describe("the diagnostics screen", () => {
     // A restore point nobody can find is not one.
     const html = renderToStaticMarkup(<Diagnostics campaign={campaign} />);
     expect(html).toContain("backup-pre-v5");
-    expect(html).toMatch(/copy those files over the originals/i);
+    expect(html).toMatch(/copy .{0,60}over your/i);
+    // The step that was missing: restoring alone leaves you on the old data with
+    // a build that will simply migrate it again.
+    expect(html).toMatch(/the older version/i);
   });
 
   it("renders with no campaign selected", () => {
