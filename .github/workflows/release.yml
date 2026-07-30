@@ -20,7 +20,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # Matches the Node the lockfile was generated with. npm 10 (Node 20)
+          # and npm 11 (Node 24) resolve peer dependencies differently, so a lock
+          # authored on one fails `npm ci` on the other — which is what the old
+          # `npm ci || npm install` fallback was quietly papering over on every
+          # release, resolving fresh instead of installing what was locked.
+          node-version: 24
       - name: Install frontend deps
         run: npm ci
       - name: Typecheck
@@ -61,7 +66,12 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # Matches the Node the lockfile was generated with. npm 10 (Node 20)
+          # and npm 11 (Node 24) resolve peer dependencies differently, so a lock
+          # authored on one fails `npm ci` on the other — which is what the old
+          # `npm ci || npm install` fallback was quietly papering over on every
+          # release, resolving fresh instead of installing what was locked.
+          node-version: 24
 
       - name: Install frontend deps
         run: npm ci
