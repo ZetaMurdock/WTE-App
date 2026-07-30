@@ -631,7 +631,17 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     engine.onPing = (x, y) => pingOutRef.current(x, y);
     // Dev-only handle for debugging sync ops in the preview (stripped in prod).
     if (import.meta.env.DEV) (window as unknown as { __vttEngine?: PixiVttApp }).__vttEngine = engine;
-    void engine.init(host);
+    // A failed init must NEVER be a silent black canvas again. That exact
+    // swallow hid a CSP crash in every packaged build: chrome worked, data
+    // saved, and the table was a void with no error anywhere.
+    engine.init(host).catch((e) => {
+      const why = e instanceof Error ? e.message : String(e);
+      pushToast(
+        `The table could not start its renderer: ${why}. The scene chrome still works and nothing has been lost, but the map cannot be drawn.`,
+        "error",
+        0
+      );
+    });
     return () => {
       engineRef.current = null;
       engine.destroy();

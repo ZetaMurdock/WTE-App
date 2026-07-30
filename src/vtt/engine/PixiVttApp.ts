@@ -1,6 +1,15 @@
 // The VTT v2 engine: Pixi draws the map, React drives this class. One instance
 // per mounted VttScreen; scene mutations happen here and are reported upward
 // through onChanged/onSelect so React can persist + reflect UI state.
+// FIRST, before any other Pixi import. Pixi v8 generates its uniform-sync and
+// buffer code with `new Function`, which the packaged app's CSP forbids —
+// script-src has no unsafe-eval, deliberately (Phase 1 closed the code-execution
+// chain in shared content, and eval is that chain's front door). Without this
+// import the renderer THREW during init in production only: dev applies no CSP,
+// the browser preview applies no CSP, every test passed — and the packaged VTT
+// was a black void with the failure swallowed. This entry installs Pixi's
+// CSP-safe implementations instead; the strict CSP stays exactly as it is.
+import "pixi.js/unsafe-eval";
 import { Application, Container } from "pixi.js";
 import { Camera } from "./Camera";
 import { InputController } from "./InputController";
