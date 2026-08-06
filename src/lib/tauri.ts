@@ -272,11 +272,23 @@ export async function signInWithGoogle(): Promise<AuthUser | null> {
       } else {
         clearStoredClientSecret();
       }
+      // Keep GOOGLE'S OWN REASON. invalid_client, unauthorized_client and
+      // invalid_grant all land here and mean different things — a rotated
+      // secret, a client that no longer exists, an expired code — and
+      // collapsing them into one sentence meant nobody could tell which,
+      // including the person who would have to fix it. The reason names the
+      // failure, never the credential.
+      const reason = /error[":\s]+([a-z_]+)/i.exec(msg)?.[1] ?? "";
       throw new Error(
-        "Google sign-in failed: this build's OAuth credentials were rejected.\n\n" +
-          "Nothing you did wrong, and nothing to enter — the shared library still reads and publishes " +
-          "without signing in. Update to the latest version; if it still fails, the app's Google " +
-          "credentials need re-issuing."
+        "Google sign-in failed: this build's OAuth credentials were rejected" +
+          (reason ? ` (${reason})` : "") +
+          ".\n\n" +
+          "Nothing you did wrong, and nothing to enter. Signing in is ONLY for Codex ownership and " +
+          "role grants — joining a lobby, playing at the table, and reading or publishing to the " +
+          "shared library all work without it.\n\n" +
+          "Update to the latest version first. If it still fails there, the app's Google credentials " +
+          "need re-issuing — that is a change the app's owner makes in Google Cloud, not something " +
+          "you can enter here."
       );
     }
     throw new Error(msg);
