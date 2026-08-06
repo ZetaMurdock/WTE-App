@@ -8,6 +8,14 @@ dist/
 src-tauri/target/
 src-tauri/gen/
 
+# local credential overrides — NEVER commit these. The repo is PUBLIC, and a
+# .env holding VITE_GOOGLE_CLIENT_SECRET would publish it on push. CI injects
+# that value from a GitHub Actions secret instead; a .env is only ever for
+# testing a credential locally before releasing it.
+.env
+.env.*
+!.env.example
+
 # updater signing secrets — NEVER commit these
 src-tauri/.tauri/
 *.key
