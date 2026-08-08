@@ -103,6 +103,24 @@
           "effect": "Self (Active) · Instant · Automatic · Limit: twice per 2-turn cycle. Extend any limb up to double its base length, reaching up to 40 feet. Each 10 feet extended beyond base reach costs −1 AP on the associated roll."
         }
       ]
+    },
+    {
+      "name": "Re-Varant",
+      "note": "Beings who find themselves unseen and undignified, wishing to return to the glory from which they came. Re-Varants are bipedal and Tiny. They exist as the stable yet decomposed core of a Tauron: its brain, developed further and grown arms and legs. A Re-Varant can burrow into creatures that are incapacitated or already dead. Weak on their own, their bodies gradually wear down and generally become useless after 4 days. Hyomen dislike them for obvious reasons.",
+      "abilities": [
+        {
+          "name": "Resurrection",
+          "effect": "Target: 1 Creature · Vector: Contact · Duration: Indefinitely · Resolution: forced AP Roll, then Strength Save or Adaptation Check. After losing more than 65% of your combined HP and DHP, you may enter and take over the body of a recently dead or weakened Hyomen. The host body strengthens your abilities, and you may move freely through it, breaking, bending, or twisting whatever is necessary to survive or act."
+        },
+        {
+          "name": "Phylaction",
+          "effect": "Target: 1 Creature · Vector: Contact · Duration: until ceased willingly · Resolution: forced AP Roll, then Adaptation Check · Limit: once per round; a target that resists is immune for the scene. On physical contact, grab onto the creature, crawl across its form, and find a nesting place inside an organ. Create a False Augo gland there that can take over the creature's current body parts and force those parts to obey your rules. To establish that control, succeed on a Control roll at Disadvantage against a Curator-set DC."
+        },
+        {
+          "name": "En-cTusion",
+          "effect": "Self (Active) · Duration: Instant · Automatic · Limit: twice per 2-turn cycle. While inside a creature, when another creature touches your host body, cause the contacting body part—organic or inorganic—to rapidly erode. Roll Adaption; the target rolls Control at double Disadvantage and takes the lowest result. If the target fails, apply an Omen to that body part. If the Omen triggers, even after physical contact ends, you may make a Control roll above the target's roll to spawn another Omen on the same spot."
+        }
+      ]
     }
   ],
   "mirga": [
