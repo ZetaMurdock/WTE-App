@@ -41,6 +41,24 @@
           "effect": "Passive, with Active trigger (Standard, Bonus, or Reaction) · Target: Self · Duration: 1 Hour · Resolution: Curator review. Undergo a rapid physiological shift to activate latent, temporary genetic mutations within your own biology. Mutation Capacity: sustain up to (Recovery Rate Modifier × Rank Multiplier, rounded down) mutations simultaneously. Specific mutations and their physical capabilities are determined by Curator discretion."
         }
       ]
+    },
+    {
+      "name": "Ygloracellia",
+      "note": "The Hollow Will: individuals without purpose or reason, regarded as abominations glorified through an intrusive beauty that conceals their true forms. A Ygloracellia is a bipedal, Moderate–Large hybrid assembled from any number of species: mismatched arms, misplaced eyes, and other impossible anatomy. Regardless of the observer's origin, other species perceive an idealized, beautiful version of themselves. They proclaim Orialian descent and may bear animal traits or appear purely Hyomen, but all share ornate forehead horns that curve upward, often reaching 18 inches. Towering and physically imposing, they adorn themselves with makeup, jewelry, and piercings to proclaim their heritage like royalty. Their horns are the source of genuine magic and replace the body's Augo glands.",
+      "abilities": [
+        {
+          "name": "Uncertainty (Melam Hindrance)",
+          "effect": "Side effect · Trigger: whenever an Innate occurs. Lose 5% of your total HP for each turn the Innate is maintained; if its duration is forcefully extended, lose 10% per turn instead. Once these losses reach 35% of your total HP, permanently lose 20% of your total HP and become incapable of recovering it. After that permanent loss occurs, gain a Torment: a physical or mental ailment with bonuses and drawbacks, determined through Curator's Desecration."
+        },
+        {
+          "name": "Light Eater",
+          "effect": "Self (Reaction) · Duration: 1 roll · Automatic · Limit: none. Take the properties of Trans-Modification and Materialization, using Trans-Modification to invert Materialization's effects. This applies particularly to phenomena with Emission among their properties: take that property and modify it to increase Light Eater's Virulence."
+        },
+        {
+          "name": "Overzealous",
+          "effect": "Self (Bonus) · Duration: 2 minutes · Resolution: after the duration. Using your Melam forces Divination around you, allowing you, once, to see an action one second before it happens. Each turn, lose one Advantage from Dexterity, Evasion, or movement rolls. Modifiers to those rolls are hard-capped at +4; when a roll uses a derived-statistic modifier, it is capped at +10 instead."
+        }
+      ]
     }
   ],
   "voaulton": [
