@@ -42,6 +42,24 @@ describe("species catalog (rebuilt from the wiki pages)", () => {
   });
 
   it("every variant ability has real effect text (no bare-name stubs)", () => {
+    const ygloracellia = getSpecies("hyomen")!.variants.find((v) => v.name === "Ygloracellia")!;
+    expect(ygloracellia.note).toContain("Moderate–Large");
+    expect(ygloracellia.note).toContain("Orialian descent");
+    expect(ygloracellia.abilities.map((a) => a.name)).toEqual([
+      "Uncertainty (Melam Hindrance)", "Light Eater", "Overzealous",
+    ]);
+    expect(ygloracellia.abilities[0].effect).toContain("35% of your total HP");
+    expect(ygloracellia.abilities[1].effect).toContain("Trans-Modification");
+    expect(ygloracellia.abilities[2].effect).toContain("capped at +10");
+
+    const reVarant = getSpecies("voaulton")!.variants.find((v) => v.name === "Re-Varant")!;
+    expect(reVarant.note).toContain("bipedal and Tiny");
+    expect(reVarant.note).toContain("Tauron");
+    expect(reVarant.abilities.map((a) => a.name)).toEqual(["Resurrection", "Phylaction", "En-cTusion"]);
+    expect(reVarant.abilities[0].effect).toContain("65% of your combined HP and DHP");
+    expect(reVarant.abilities[1].effect).toContain("False Augo gland");
+    expect(reVarant.abilities[2].effect).toContain("double Disadvantage");
+
     for (const s of SPECIES) {
       for (const v of s.variants) {
         for (const a of v.abilities) {
