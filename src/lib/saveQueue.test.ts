@@ -144,3 +144,76 @@ describe("the close paths are guarded", () => {
     expect(flush).toHaveBeenCalledOnce();
   });
 });
+
+describe("closing the window is never held hostage to a save", () => {
+  // Registering onCloseRequested hands JS the job of closing: Tauri's wrapper is
+  // `await handler(evt); if (!prevented) await destroy()`. A handler that throws
+  // or never settles therefore leaves the X doing nothing at all, for the rest of
+  // the session — which is exactly what shipped.
+  function installWithFakeTauri() {
+    let handler: (() => Promise<void> | void) | null = null;
+    (window as unknown as Record<string, unknown>).__TAURI__ = {
+      window: {
+        getCurrentWindow: () => ({
+          onCloseRequested: (cb: () => Promise<void> | void) => {
+            handler = cb;
+            return Promise.resolve(() => {});
+          },
+        }),
+      },
+    };
+    installSaveGuards();
+    return () => handler!();
+  }
+
+  beforeEach(() => {
+    __resetSaveQueue();
+    delete (window as unknown as Record<string, unknown>).__TAURI__;
+  });
+
+  it("registers a close handler at all", () => {
+    const fire = installWithFakeTauri();
+    expect(typeof fire).toBe("function");
+  });
+
+  it("returns promptly when a saver HANGS forever", async () => {
+    vi.useFakeTimers();
+    const fire = installWithFakeTauri();
+    const saver = registerSaver("stuck", () => new Promise<void>(() => {}));
+    saver.markPending();
+
+    let settled = false;
+    const closing = Promise.resolve(fire()).then(() => {
+      settled = true;
+    });
+    await vi.advanceTimersByTimeAsync(2999);
+    expect(settled, "still waiting just before the deadline").toBe(false);
+    await vi.advanceTimersByTimeAsync(2);
+    await closing;
+    expect(settled, "a hung save trapped the window").toBe(true);
+    vi.useRealTimers();
+  });
+
+  it("does not reject when a saver throws", async () => {
+    const fire = installWithFakeTauri();
+    registerSaver("angry", () => {
+      throw new Error("disk on fire");
+    }).markPending();
+    // A rejection here means Tauri never reaches destroy() and the X dies.
+    await expect(Promise.resolve(fire())).resolves.toBeUndefined();
+  });
+
+  it("does not reject when a saver rejects asynchronously", async () => {
+    const fire = installWithFakeTauri();
+    registerSaver("async-angry", () => Promise.reject(new Error("locked"))).markPending();
+    await expect(Promise.resolve(fire())).resolves.toBeUndefined();
+  });
+
+  it("still flushes normally when saves are healthy", async () => {
+    const fire = installWithFakeTauri();
+    const flushed = vi.fn().mockResolvedValue(undefined);
+    registerSaver("fine", flushed).markPending();
+    await Promise.resolve(fire());
+    expect(flushed).toHaveBeenCalled();
+  });
+});

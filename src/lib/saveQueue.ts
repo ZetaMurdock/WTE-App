@@ -126,6 +126,11 @@ export async function flushAll(): Promise<void> {
   }
 }
 
+/** How long a close waits for outstanding writes before going through anyway.
+ *  Long enough for a normal sheet save, short enough that nobody thinks the X
+ *  is broken — which is exactly what an unbounded wait looked like. */
+const CLOSE_FLUSH_MS = 3000;
+
 let installed = false;
 /** Kept so the test seam can genuinely detach them; see __resetSaveQueue. */
 let onBeforeUnload: (() => void) | null = null;
@@ -161,8 +166,27 @@ export function installSaveGuards(): void {
     if (typeof getWin === "function") {
       const win = getWin();
       if (win && typeof win.onCloseRequested === "function") {
+        // THE CLOSE MUST NOT DEPEND ON THE SAVE SUCCEEDING.
+        //
+        // Registering this handler hands JS the job of actually closing: Tauri's
+        // wrapper is `await handler(evt); if (!prevented) await destroy()`. So a
+        // handler that throws — or simply never settles — leaves the window
+        // unclosable for the rest of the session, with the X doing nothing at
+        // all. Saving is worth waiting a moment for; it is not worth trapping
+        // someone in the app, which is what an unbounded `await flushAll()` did.
+        //
+        // Bounded, and never rejecting. If the flush outruns the deadline the
+        // window still closes: `beforeunload` has already kicked the same writes
+        // off, and the SQL plugin's in-flight request completes on its own.
         void win.onCloseRequested(async () => {
-          await flushAll();
+          try {
+            await Promise.race([
+              flushAll(),
+              new Promise<void>((resolve) => setTimeout(resolve, CLOSE_FLUSH_MS)),
+            ]);
+          } catch {
+            /* a failed save must not hold the window open */
+          }
         });
       }
     }
