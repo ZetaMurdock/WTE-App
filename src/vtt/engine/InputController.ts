@@ -11,6 +11,7 @@ export class InputController {
   private mode: DragMode = "none";
   private dragTokenId: string | null = null;
   private dragFrom = { x: 0, y: 0 }; // token position at drag start (collision revert)
+  private transformFrom: { rotation?: number; size?: number } = {};
   private last = { x: 0, y: 0 };
   private start = { x: 0, y: 0 }; // world coords for measure
   private moved = false;
@@ -24,6 +25,7 @@ export class InputController {
     canvas.addEventListener("pointerdown", this.onDown);
     canvas.addEventListener("pointermove", this.onMove);
     window.addEventListener("pointerup", this.onUp);
+    window.addEventListener("pointercancel", this.onCancel);
     canvas.addEventListener("wheel", this.onWheel, { passive: false });
     canvas.addEventListener("dblclick", this.onDblClick);
     canvas.addEventListener("contextmenu", (e) => e.preventDefault());
@@ -34,6 +36,7 @@ export class InputController {
     c.removeEventListener("pointerdown", this.onDown);
     c.removeEventListener("pointermove", this.onMove);
     window.removeEventListener("pointerup", this.onUp);
+    window.removeEventListener("pointercancel", this.onCancel);
     c.removeEventListener("wheel", this.onWheel);
     c.removeEventListener("dblclick", this.onDblClick);
   }
@@ -108,21 +111,27 @@ export class InputController {
     // transform handles on the already-selected token take priority
     if (v.selection?.kind === "token") {
       const h = v.tokens.pickHandle(v.scene, v.selection.id, w.x, w.y, v.camera.zoom);
-      if (h) {
+      if (h && v.canControlToken(v.selection.id)) {
         this.mode = h;
         this.dragTokenId = v.selection.id;
+        const token = v.scene.data.tokens.find((candidate) => candidate.id === v.selection!.id);
+        this.transformFrom = { rotation: token?.rotation, size: token?.size };
         return;
       }
     }
     // select — tokens first, then lights, then walls. Props are Curator
     // scenery: a player's click passes straight through them (no select, no
     // drag), so the map furniture can't be rearranged by the party.
-    const hit = v.tokens.pick(v.scene, w.x, w.y);
+    const hit = v.tokens.pick(v.scene, w.x, w.y, () => true, !v.playerView);
     if (hit && !(v.playerView && hit.prop)) {
       v.select({ kind: "token", id: hit.id });
-      this.mode = "token";
-      this.dragTokenId = hit.id;
-      this.dragFrom = { x: hit.x, y: hit.y };
+      if (v.canControlToken(hit.id)) {
+        this.mode = "token";
+        this.dragTokenId = hit.id;
+        this.dragFrom = { x: hit.x, y: hit.y };
+      } else {
+        this.mode = "none";
+      }
       return;
     }
     if (v.playerView) {
@@ -216,30 +225,38 @@ export class InputController {
     }
   };
 
+  private onCancel = (): void => {
+    const v = this.vtt;
+    if (this.dragTokenId) {
+      v.cancelTokenPreview(this.dragTokenId);
+      const token = v.scene?.data.tokens.find((candidate) => candidate.id === this.dragTokenId);
+      if (token) {
+        if (this.mode === "rotate") token.rotation = this.transformFrom.rotation;
+        if (this.mode === "scale" && this.transformFrom.size != null) token.size = this.transformFrom.size;
+        v.redraw();
+      }
+    }
+    this.mode = "none";
+    this.dragTokenId = null;
+    this.transformFrom = {};
+  };
+
   private onUp = (): void => {
     const v = this.vtt;
     if (this.mode === "draw") v.endDraw(); // commit + sync the stroke
     if (this.mode === "token" && this.dragTokenId && this.moved) {
-      const t = v.scene?.data.tokens.find((x) => x.id === this.dragTokenId);
-      if (t) {
-        // COLLISION: players can't drag through walls — a drop whose straight
-        // path from the pick-up point crosses a wall reverts to the origin.
-        // The Curator's drag stays free (GM repositioning tool).
-        if (v.playerView && v.moveBlocked(this.dragFrom.x, this.dragFrom.y, t.x, t.y)) {
-          v.moveToken(this.dragTokenId, this.dragFrom.x, this.dragFrom.y, true);
-        } else {
-          v.moveToken(this.dragTokenId, t.x, t.y, true); // snap on drop
-          // FACING follows movement — directional vision looks where you walked.
-          const fdx = t.x - this.dragFrom.x;
-          const fdy = t.y - this.dragFrom.y;
-          if (Math.hypot(fdx, fdy) > 2) v.updateToken(this.dragTokenId, { facing: Math.atan2(fdy, fdx) });
-        }
-        v.onChanged();
-      }
+      const target = v.tokens.displayPosition(this.dragTokenId);
+      if (target) v.requestTokenMove(this.dragTokenId, this.dragFrom.x, this.dragFrom.y, target.x, target.y);
     }
     if ((this.mode === "rotate" || this.mode === "scale") && this.dragTokenId && this.moved) {
       const t = v.scene?.data.tokens.find((x) => x.id === this.dragTokenId);
-      if (t) v.updateToken(t.id, this.mode === "rotate" ? { rotation: t.rotation } : { size: t.size }); // one op + persist on release
+      if (t) {
+        const requested = this.mode === "rotate" ? { rotation: t.rotation } : { size: t.size };
+        if (this.mode === "rotate") t.rotation = this.transformFrom.rotation;
+        else if (this.transformFrom.size != null) t.size = this.transformFrom.size;
+        v.redraw();
+        v.updateToken(t.id, requested); // one validated op + persist on release
+      }
     }
     if (this.mode === "pan" && this.moved) {
       // fling: keep gliding if the pointer was moving on release (persist on stop)
@@ -259,6 +276,7 @@ export class InputController {
     }
     this.mode = "none";
     this.dragTokenId = null;
+    this.transformFrom = {};
   };
 
   // PING — double-click on the everyman tools pulses "look here" for the room.

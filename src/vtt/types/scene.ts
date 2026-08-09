@@ -27,6 +27,8 @@ export interface VttToken {
    *  no label, no circular mask. Rides the whole token pipeline (drag/rotate/
    *  scale/sync) but reads as scenery, not an actor. */
   prop?: boolean;
+  /** Whether this token reserves grid spaces. Actors default true; props false. */
+  blocksMovement?: boolean;
   /** Facing, degrees clockwise from up — set by the on-canvas rotate handle. */
   rotation?: number;
   /** Owning player (netplay peer id). Player fog reveals only from owned tokens. */

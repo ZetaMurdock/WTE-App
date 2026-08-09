@@ -13,6 +13,8 @@ interface Props {
   creaturesLoading: boolean;
   /** Curator-only: spawn Codex creatures as linked tokens. */
   canSpawnCreatures: boolean;
+  /** Character spawning transfers the canonical token and is Curator-only. */
+  canSpawnCharacters?: boolean;
   /** Curator's on-the-spot stat blocks (saved per campaign). */
   quickCreatures: QuickCreature[];
   onSaveQuick: (qc: QuickCreature) => void;
@@ -46,6 +48,7 @@ export function VttActorsPanel({
   creatures,
   creaturesLoading,
   canSpawnCreatures,
+  canSpawnCharacters = true,
   quickCreatures,
   onSaveQuick,
   onDeleteQuick,
@@ -173,9 +176,11 @@ export function VttActorsPanel({
                   <button className="chip" onClick={() => onOpenSheet(c)} title="Open this character's full sheet — view stats, roll, and edit">
                     Open
                   </button>
-                  <button className="chip" onClick={() => onSpawn(c)} title="Spawn a linked token at the view centre">
-                    Spawn
-                  </button>
+                  {canSpawnCharacters && (
+                    <button className="chip" onClick={() => onSpawn(c)} title="Place or transfer this character's canonical token">
+                      Place
+                    </button>
+                  )}
                 </span>
               </li>
             ))}

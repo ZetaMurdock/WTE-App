@@ -7047,7 +7047,8 @@ body.wte-dot-cursor * {
   gap: 4px;
   align-items: stretch;
 }
-/* Ability-understanding: target saves the effect calls for (info, not a button). */
+/* Ability-understanding: target saves parsed from effect text. When a selected
+   token has a player owner these chips issue a targeted roll request. */
 .vtt2-abil-saves {
   display: flex;
   flex-wrap: wrap;
@@ -7055,13 +7056,26 @@ body.wte-dot-cursor * {
   margin-top: 4px;
 }
 .vtt2-abil-savechip {
+  appearance: none;
+  background: rgba(216, 178, 90, 0.06);
   font-size: 9px;
+  font-family: inherit;
   letter-spacing: 0.3px;
   color: #d8b25a;
   border: 1px solid rgba(216, 178, 90, 0.4);
   border-radius: 5px;
   padding: 1px 5px;
   white-space: nowrap;
+  cursor: pointer;
+}
+.vtt2-abil-savechip:hover:not(:disabled),
+.vtt2-abil-savechip:focus-visible {
+  background: rgba(216, 178, 90, 0.16);
+  border-color: rgba(216, 178, 90, 0.75);
+}
+.vtt2-abil-savechip:disabled {
+  cursor: default;
+  opacity: 0.55;
 }
 
 /* catalog gear stacks: row = main toggle + per-copy steppers */

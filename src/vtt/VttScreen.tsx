@@ -1,12 +1,12 @@
 import { useCodex } from "../game/useCodex";
 import { listRuleLayers } from "../lib/ruleLayerRepo";
 import type { RuleLayer } from "../game/ruleLayers";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { Campaign } from "../models/campaign";
 import { isTauri } from "../lib/tauri";
 import { PixiVttApp, peerInkColor, type VttSelection } from "./engine/PixiVttApp";
 import { listScenes, saveScene, getScene, setActiveScene, deleteScene } from "./data/sceneRepo";
-import { newScene, type VttScene, type VttZoneKind } from "./types/scene";
+import { newId, newScene, type VttScene, type VttToken, type VttZoneKind } from "./types/scene";
 import type { VttTool } from "./types/tool";
 import { VttToolbar } from "./VttToolbar";
 import { VttActionBar } from "./VttActionBar";
@@ -18,8 +18,17 @@ import { VttRadialMenu } from "./VttRadialMenu";
 // class file is kept on disk but is no longer instantiated from the screen.
 import { VttInspector } from "./VttInspector";
 import { useNet } from "../net/NetContext";
-import type { NetMessage } from "../net/protocol";
-import { addSessionRoll } from "./sync/rollSession";
+import {
+  asRollResultMessage,
+  type NetMessage,
+  type RollMessage,
+  type RollRequestMessage,
+  type RollResultMessage,
+  type VttMoveRequestMessage,
+} from "../net/protocol";
+import { addSessionRoll, clearSessionRolls, rollSessionScope } from "./sync/rollSession";
+import { logRoll, validateCompletedRoll } from "../lib/rolls";
+import { resolveStatToken, rollMod, specRollMod } from "../game/wte";
 import { SfxPlayer } from "./audio/sfxPlayer";
 import { getMasterVolume, subscribeMasterVolume } from "../lib/audioPrefs";
 import { reportSaveFailure, pushToast } from "../lib/appToast";
@@ -32,7 +41,7 @@ import { VttAssetPanel } from "./VttAssetPanel";
 import { VttSoundboard } from "./VttSoundboard";
 import { VttDialogue } from "./VttDialogue";
 import { VttDialogueController } from "./VttDialogueController";
-import { VttAbilitiesPanel } from "./VttAbilitiesPanel";
+import { VttAbilitiesPanel, type VttTargetRollIntent } from "./VttAbilitiesPanel";
 import { VttRollToast } from "./VttRollToast";
 import { VttAoePrompt, type AoePlacement, type AoeKind } from "./VttAoePrompt";
 import { hasAoe } from "./data/effectMeta";
@@ -55,6 +64,18 @@ import { listAssets, addAsset, deleteAsset, type AssetKind, type VttAsset } from
 import { useVttSync } from "./sync/vttSync";
 import { applyOp, foreignOpAllowed, type VttOp } from "./sync/patches";
 import { fileToPngDataUrl } from "../lib/image";
+import { validateMoveAuthority } from "./sync/moveAuthority";
+import {
+  customizeCanonicalCharacterToken,
+  ensureCanonicalCharacterToken,
+  findNearestAvailableTokenPosition,
+  loadTokenRegistry,
+  migrateLegacyCharacterTokens,
+  saveTokenRegistry,
+  transferCanonicalCharacterToken,
+  type TokenRegistryState,
+} from "./data/tokenRegistry";
+import { vttSnapshotFits } from "./sync/wireBudget";
 
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -65,9 +86,47 @@ function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
+function diceModSuffix(value: number): string {
+  return value > 0 ? `+${value}` : value < 0 ? String(value) : "";
+}
+
+function requestedStatExpr(record: CharacterRecord, stat?: string): string {
+  const resolved = stat ? resolveStatToken(stat) : null;
+  if (resolved?.kind === "attr") {
+    const value = (record.sheet.attributes as unknown as Record<string, number>)[resolved.key] ?? 0;
+    return `1d20${diceModSuffix(rollMod(value))}`;
+  }
+  if (resolved?.kind === "spec") {
+    const value = (record.sheet.specialties as unknown as Record<string, number>)[resolved.key] ?? 0;
+    return `1d40${diceModSuffix(specRollMod(value))}`;
+  }
+  return "1d20";
+}
+
 // VTT v2 (slice 1): Pixi renders the map; React owns the chrome. Beside the
 // legacy VTT, not inside it — see the rework spec in docs/ / session notes.
-export function VttScreen({ campaign, active = true }: { campaign: Campaign | null; active?: boolean }) {
+export function VttScreen({ campaign: localCampaign, active = true }: { campaign: Campaign | null; active?: boolean }) {
+  const net = useNet();
+  const isNetPlayer = net.status === "connected" && net.role === "player";
+  // A joined player is working in the Curator's table namespace, even when a
+  // different local campaign happens to be selected on their dashboard.
+  const campaign = useMemo<Campaign | null>(() => {
+    if (!isNetPlayer || !net.table?.campaignId) return localCampaign;
+    return {
+      id: net.table.campaignId,
+      name: net.table.campaignName || "Curator's table",
+      // Table-link bookkeeping (purse/inventory/lastSeen) must not create a
+      // new campaign identity and tear down an already-received VTT snapshot.
+      createdAt: 0,
+      updatedAt: 0,
+      archived: false,
+    };
+  }, [isNetPlayer, localCampaign, net.table?.campaignId, net.table?.campaignName]);
+  const campaignIdRef = useRef<string | null>(campaign?.id ?? null);
+  campaignIdRef.current = campaign?.id ?? null;
+  const campaignLoadEpoch = useRef(0);
+  const canPersistRef = useRef(!isNetPlayer);
+  canPersistRef.current = !isNetPlayer;
   // A campaign override loading after the table opened must reach the action
   // lists, exactly as it reaches the sheet. Without this the VTT kept whatever
   // the Codex held when the screen first mounted.
@@ -94,6 +153,19 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
   const saveTimer = useRef<number | undefined>(undefined);
   const [scene, setScene] = useState<VttScene | null>(null);
   const [scenes, setScenes] = useState<VttScene[]>([]);
+  const scenesRef = useRef<VttScene[]>([]);
+  scenesRef.current = scenes;
+  const tokenRegistryRef = useRef<TokenRegistryState | null>(null);
+  const registryOpRef = useRef<(op: VttOp) => void>(() => {});
+  const registrySaveQueue = useRef<Promise<void>>(Promise.resolve());
+  const saveTokenRegistryOrdered = useCallback((state: TokenRegistryState): Promise<void> => {
+    // Appearance edits, portal transfers, spawns, and scene deletion can land
+    // within milliseconds of one another. Preserve invocation order so a slow
+    // older write can never restore a stale presence/profile over a newer one.
+    const task = registrySaveQueue.current.catch(() => {}).then(() => saveTokenRegistry(state));
+    registrySaveQueue.current = task.catch(() => {});
+    return task;
+  }, []);
   // The left dock shows at most one panel at a time.
   const [leftPanel, setLeftPanel] = useState<"scenes" | "actors" | "encounter" | "assets" | "abilities" | null>(null);
   const [abilityCharId, setAbilityCharId] = useState<string | null>(null);
@@ -102,6 +174,8 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
   const [armedSound, setArmedSound] = useState<{ name: string; src: string } | null>(null);
   const [armedAoe, setArmedAoe] = useState<{ kind: AoeKind; cells: number; rounds: number } | null>(null);
   const [rollsOpen, setRollsOpen] = useState(false);
+  const [characters, setCharacters] = useState<CharacterRecord[]>([]);
+  const [charsLoading, setCharsLoading] = useState(false);
   const [gridOpen, setGridOpen] = useState(false);
   const [soundboardOpen, setSoundboardOpen] = useState(false);
   const [dialogueOpen, setDialogueOpen] = useState(false);
@@ -125,20 +199,43 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
   const patchScene = useCallback(
     async (id: string, patch: (s: VttScene) => void) => {
       const eng = engineRef.current;
-      if (eng?.scene?.id === id) {
-        patch(eng.scene);
-        eng.redraw();
-        eng.onChanged();
-      } else {
-        const s = await getScene(id);
-        if (!s) return;
-        patch(s);
-        await saveScene(s);
+      try {
+        if (eng?.scene?.id === id) {
+          patch(eng.scene);
+          eng.redraw();
+          eng.onChanged();
+          await saveScene(eng.scene);
+        } else if (pinnedRef.current === id) {
+          const task = pinnedQueue.current.catch(() => {}).then(async () => {
+            let working = pinnedLive.current;
+            if (!working || working.id !== id) {
+              working = await getScene(id);
+              if (!working || pinnedRef.current !== id) return;
+              pinnedLive.current = working;
+            }
+            patch(working);
+            await saveScene(working);
+          });
+          pinnedQueue.current = task;
+          await task;
+        } else {
+          const stored = await getScene(id);
+          if (!stored) return;
+          patch(stored);
+          await saveScene(stored);
+        }
+      } catch (e) {
+        pushToast(`Couldn't update the scene — ${e instanceof Error ? e.message : String(e)}`, "error", 0);
+        return;
       }
       // refresh the wheel's copies (music badge, names)
-      if (campaign) setScenes(await listScenes(campaign.id).catch(() => []));
+      if (campaign) {
+        const targetCampaignId = campaign.id;
+        const refreshed = await listScenes(targetCampaignId).catch(() => [] as VttScene[]);
+        if (campaignIdRef.current === targetCampaignId) setScenes(refreshed);
+      }
     },
-    [campaign]
+    [campaign?.id]
   );
 
   async function onSceneBgFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -146,30 +243,44 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     e.target.value = "";
     const id = menuTarget.current;
     if (!f || !id) return;
-    const uri = await fileToPngDataUrl(f).catch(() => null);
-    if (uri) await patchScene(id, (s) => (s.data.background.src = uri));
+    const uri = await fileToPngDataUrl(f, 2048, 8 * 1024 * 1024).catch((error) => {
+      pushToast(error instanceof Error ? error.message : "That map image could not be encoded.", "error");
+      return null;
+    });
+    if (uri) await patchScene(id, (s) => {
+      const projected = { ...s, data: { ...s.data, background: { ...s.data.background, src: uri } } };
+      if (!vttSnapshotFits(projected)) throw new Error("That map would make the scene too large for players to receive.");
+      s.data.background.src = uri;
+    });
   }
   async function onSceneMusicFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     e.target.value = "";
     const id = menuTarget.current;
     if (!f || !id) return;
-    if (f.size > 12 * 1024 * 1024) return; // keep scene payloads sane
+    if (f.size > 4 * 1024 * 1024) {
+      pushToast("Scene audio must be 4 MB or smaller so players can receive the map.", "error");
+      return;
+    }
     const uri = await fileToDataUrl(f).catch(() => null);
-    if (uri) await patchScene(id, (s) => (s.data.audio = { src: uri, volume: 0.5 }));
+    if (uri) await patchScene(id, (s) => {
+      const audio = { src: uri, volume: 0.5 };
+      if (!vttSnapshotFits({ ...s, data: { ...s.data, audio } })) {
+        throw new Error("That audio would make the scene too large for players to receive.");
+      }
+      s.data.audio = audio;
+    });
   }
   // Shader-compile feedback surfaced by the Grid panel's atmosphere controls.
   const [shaderError, setShaderError] = useState("");
   // Per-campaign Curator claim: only joining someone else's netplay room as a
   // player demotes you — hide Curator-only scene controls there.
-  const net = useNet();
   // Players see the scene name on their Table tab without opening the VTT.
   const sceneNameForNet = scene?.name ?? "";
   useEffect(() => {
     if (net.status === "connected" && net.role === "host") net.announceScene(sceneNameForNet);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sceneNameForNet, net.status, net.role]);
-  const isNetPlayer = net.status === "connected" && net.role === "player";
 
   // Curator PLAYER VIEW: preview the table exactly as a player would see it —
   // walls/lights hidden, fog from the viewed peer's tokens, builder UI gone.
@@ -246,7 +357,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
   // Player perspective: fog reveals only from the player's OWN tokens (GM sees
   // all). Runs every render so it tracks role/selection changes in the 2D view.
   useEffect(() => {
-    engineRef.current?.setPlayerView(asPlayer, viewId);
+    engineRef.current?.setPlayerView(asPlayer, viewId, isNetPlayer);
   });
   useEffect(() => {
     engineRef.current?.setPlayCam(playMode.on, playMode.range);
@@ -272,21 +383,96 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
   // it on close, which is why the dice roller appeared to reset over a session.)
   const peersRef = useRef(net.peers);
   peersRef.current = net.peers;
+  const rollScope = campaign ? rollSessionScope(campaign.id, net.status === "connected" ? net.room : null) : null;
   useEffect(() => {
-    if (!campaign) return;
-    return net.subscribe("roll", (m, from) => {
-      const r = m as Extract<NetMessage, { t: "roll" }>;
-      const who = from === net.selfId ? "You" : peersRef.current.find((p) => p.id === from)?.name || from.slice(0, 6);
-      addSessionRoll(campaign.id, {
-        id: r.id || "live-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-        who,
-        label: r.label,
-        formula: r.formula,
-        result: r.result,
-        at: Date.now(),
+    return () => {
+      if (rollScope) clearSessionRolls(rollScope);
+    };
+  }, [rollScope]);
+  useEffect(() => {
+    if (!rollScope || !campaign || net.status !== "connected") return;
+    return net.subscribe("roll", (raw, from) => {
+      if (from === net.selfId) return;
+      const wire = raw as RollMessage;
+      const validated = validateCompletedRoll(wire);
+      if (!validated) return;
+
+      const hostId = net.role === "host"
+        ? net.selfId
+        : peersRef.current.find((peer) => peer.role === "host")?.id;
+
+      // Players only display Curator-authored commits. Player broadcasts are
+      // delivered to the host for validation and are never trusted peer-to-peer.
+      if (net.role !== "host") {
+        if (!hostId || from !== hostId) return;
+        const who = wire.actor?.name || "Curator";
+        addSessionRoll(rollScope, {
+          ...validated,
+          who,
+          at: Number.isFinite(wire.at) ? Number(wire.at) : Date.now(),
+          characterId: wire.actor?.characterId,
+          tokenId: wire.actor?.tokenId,
+          requestId: wire.requestId,
+        });
+        return;
+      }
+
+      // Requested rolls have their own one-time correlation channel below.
+      if (wire.requestId) return;
+      const peer = peersRef.current.find((candidate) => candidate.id === from && candidate.role === "player");
+      if (!peer) return;
+      const characterId = typeof wire.actor?.characterId === "string" && wire.actor.characterId.length <= 128
+        ? wire.actor.characterId
+        : undefined;
+      const tokenId = typeof wire.actor?.tokenId === "string" && wire.actor.tokenId.length <= 128
+        ? wire.actor.tokenId
+        : undefined;
+      if (tokenId && !characterId) return;
+
+      if (characterId) {
+        const liveToken = [
+          ...(engineRef.current?.scene?.data.tokens ?? []),
+          ...(pinnedLive.current?.data.tokens ?? []),
+        ].find((token) =>
+          token.characterId === characterId && token.owner === from &&
+          (!tokenId || token.id === tokenId)
+        );
+        const registry = tokenRegistryRef.current;
+        const registryOwned = registry?.profiles[characterId]?.controllerId === from &&
+          (!tokenId || registry.presences[characterId]?.tokenId === tokenId);
+        const sheetOwned = !tokenId && partySheets.some((entry) =>
+          entry.record.id === characterId && entry.ownerId === from
+        );
+        if (!liveToken && !registryOwned && !sheetOwned) return;
+      }
+
+      const actorName = characterId
+        ? characters.find((record) => record.id === characterId)?.name ||
+          partySheets.find((entry) => entry.record.id === characterId)?.record.name || peer.name
+        : peer.name;
+      const at = Date.now();
+      const accepted: RollMessage = {
+        t: "roll",
+        ...validated,
+        at,
+        actor: { peerId: from, characterId, tokenId, name: actorName },
+      };
+      addSessionRoll(rollScope, {
+        ...validated,
+        who: actorName,
+        at,
+        characterId,
+        tokenId,
       });
+      void logRoll(
+        campaign.id,
+        characterId ?? null,
+        { formula: validated.formula, result: validated.result, detail: validated.detail },
+        { id: validated.id, at, baseExpr: validated.baseExpr, actorName, tokenId, mode: validated.mode }
+      );
+      net.publish(accepted);
     });
-  }, [campaign, net.subscribe, net.selfId]);
+  }, [campaign, characters, net.publish, net.role, net.selfId, net.status, net.subscribe, partySheets, rollScope]);
 
   // PING — double-click "look here", every peer sees the pulse in your ink.
   const pingOutRef = useRef<(x: number, y: number) => void>(() => {});
@@ -322,11 +508,132 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
 
   // Armed roll context — the Abilities panel LOCKS a labeled roll (with the
   // ability's own dice pre-filled) into the tray; the player presses Roll there.
-  const [rollLock, setRollLock] = useState<RollLock | null>(null);
-  const armRoll = useCallback((label: string, expr?: string) => {
-    setRollLock({ label, expr });
+  const [rollLocks, setRollLocks] = useState<RollLock[]>([]);
+  const rollLock = rollLocks[0] ?? null;
+  const pendingRollRequests = useRef(new Map<string, { request: RollRequestMessage; ownerPeerId: string; expectedBaseExpr?: string }>());
+  const queueRollLock = useCallback((lock: RollLock) => {
+    setRollLocks((current) => {
+      if (lock.requestId && current.some((item) => item.requestId === lock.requestId)) return current;
+      return [...current, lock];
+    });
     setRollsOpen(true);
   }, []);
+  const armRoll = useCallback((label: string, expr?: string) => {
+    queueRollLock({ label, expr });
+  }, [queueRollLock]);
+
+  // A targeted save/check is armed only on the intended player's bound
+  // character. The modifier is resolved from that player's current sheet.
+  useEffect(() => {
+    if (!isNetPlayer || !campaign) return;
+    return net.subscribe("roll-request", (raw, from) => {
+      const request = raw as RollRequestMessage;
+      const hostId = peersRef.current.find((peer) => peer.role === "host")?.id;
+      if (
+        from !== hostId || request.targetPeerId !== net.selfId ||
+        request.targetCharacterId !== net.table?.inUseCharacterId ||
+        (request.expiresAt != null && request.expiresAt < Date.now())
+      ) return;
+      const token = request.targetTokenId
+        ? engineRef.current?.scene?.data.tokens.find((candidate) => candidate.id === request.targetTokenId)
+        : undefined;
+      if (request.targetTokenId && (!token || token.owner !== net.selfId || token.characterId !== request.targetCharacterId)) return;
+      void getCharacter(request.targetCharacterId).then((record) => {
+        if (!record || record.campaignId !== campaign.id) return;
+        if (request.expiresAt != null && request.expiresAt < Date.now()) return;
+        queueRollLock({
+          label: request.label,
+          expr: requestedStatExpr(record, request.stat),
+          requestId: request.requestId,
+          requestedBy: peersRef.current.find((peer) => peer.id === from)?.name || "Curator",
+          dc: request.dc,
+        });
+      });
+    });
+  }, [campaign, isNetPlayer, net.selfId, net.subscribe, net.table?.inUseCharacterId, queueRollLock]);
+
+  // The host consumes a request exactly once, validates actor correlation, then
+  // publishes the accepted result to the room under the player's identity.
+  useEffect(() => {
+    if (!campaign || net.role !== "host") return;
+    return net.subscribe("roll-result", (raw, from) => {
+      const result = raw as RollResultMessage;
+      const pending = pendingRollRequests.current.get(result.requestId);
+      if (!pending || pending.ownerPeerId !== from) return;
+      const request = pending.request;
+      if (request.expiresAt != null && request.expiresAt < Date.now()) {
+        pendingRollRequests.current.delete(result.requestId);
+        return;
+      }
+      const validated = validateCompletedRoll(result);
+      if (
+        !validated ||
+        result.actor.characterId !== request.targetCharacterId ||
+        result.actor.tokenId !== request.targetTokenId ||
+        (pending.expectedBaseExpr != null && validated.baseExpr !== pending.expectedBaseExpr)
+      ) return;
+      pendingRollRequests.current.delete(result.requestId);
+      const at = Date.now();
+      const actorName = characters.find((record) => record.id === result.actor.characterId)?.name ||
+        peersRef.current.find((peer) => peer.id === from)?.name || "Player";
+      const accepted: RollMessage = {
+        t: "roll",
+        ...validated,
+        requestId: result.requestId,
+        at,
+        actor: { ...result.actor, peerId: from, name: actorName },
+      };
+      if (rollScope) {
+        addSessionRoll(rollScope, {
+          id: validated.id,
+          who: actorName,
+          label: validated.label,
+          formula: validated.formula,
+          result: validated.result,
+          at,
+          characterId: result.actor.characterId,
+          tokenId: result.actor.tokenId,
+          requestId: result.requestId,
+          baseExpr: validated.baseExpr,
+          mode: validated.mode,
+          detail: validated.detail,
+        });
+      }
+      void logRoll(
+        campaign.id,
+        result.actor.characterId,
+        {
+          formula: validated.formula,
+          result: validated.result,
+          detail: validated.detail,
+        },
+        {
+          id: validated.id,
+          at,
+          baseExpr: validated.baseExpr,
+          actorName,
+          tokenId: result.actor.tokenId,
+          requestId: result.requestId,
+          mode: validated.mode,
+        }
+      );
+      net.publish(accepted);
+    });
+  }, [campaign, characters, net.publish, net.role, net.subscribe, rollScope]);
+
+  const publishVttRoll = useCallback(
+    (message: RollMessage) => {
+      const requested = asRollResultMessage(message);
+      if (requested && isNetPlayer) {
+        const hostId = peersRef.current.find((peer) => peer.role === "host")?.id;
+        if (hostId) net.publish(requested, hostId);
+        else pushToast("The requested roll could not reach the Curator.", "error");
+        return;
+      }
+      if (net.status === "connected") net.publish(message);
+    },
+    [isNetPlayer, net]
+  );
 
   // Esc cancels an armed click-to-place AoE / spatial sound.
   useEffect(() => {
@@ -448,8 +755,6 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     apply(getMasterVolume());
     return subscribeMasterVolume(apply);
   });
-  const [characters, setCharacters] = useState<CharacterRecord[]>([]);
-  const [charsLoading, setCharsLoading] = useState(false);
   const [assets, setAssets] = useState<VttAsset[]>([]);
   const [assetsLoading, setAssetsLoading] = useState(false);
   const [tool, setTool] = useState<VttTool>("select");
@@ -458,6 +763,9 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
   const [tick, setTick] = useState(0); // re-render after engine mutations
 
   const persist = useCallback((s: VttScene) => {
+    // Remote table state belongs to the Curator. Players keep it in memory and
+    // never autosave a received snapshot/patch into their local SQLite scenes.
+    if (!canPersistRef.current) return;
     window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => void reportSaveFailure(saveScene(s), "the scene"), 500);
   }, []);
@@ -489,17 +797,11 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
       e.preventDefault();
       const eng = engineRef.current;
       const tok = eng?.scene?.data.tokens.find((x) => x.id === tokenId);
-      if (!eng || !eng.scene || !tok) return;
+      if (!eng || !eng.scene || !tok || !eng.canControlToken(tokenId)) return;
       const g = eng.scene.data.grid.size;
       const nx = tok.x + dx * g;
       const ny = tok.y + dy * g;
-      // FACING follows the step even when blocked — you can turn to face a wall.
-      const facing = Math.atan2(dy, dx);
-      if (tok.facing !== facing) eng.updateToken(tokenId, { facing });
-      // COLLISION: a step through a wall doesn't happen (walking, not teleporting).
-      if (eng.moveBlocked(tok.x, tok.y, nx, ny)) return;
-      eng.moveToken(tokenId, nx, ny, true);
-      eng.onChanged();
+      eng.requestTokenMove(tokenId, tok.x, tok.y, nx, ny);
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -507,10 +809,18 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
 
   // Flush the debounced autosave immediately — used before switching scenes so
   // in-flight edits aren't lost when the engine's scene object is swapped out.
-  const flush = useCallback(async () => {
+  const flush = useCallback(async (): Promise<boolean> => {
+    if (!canPersistRef.current) return true;
     window.clearTimeout(saveTimer.current);
     const s = engineRef.current?.scene;
-    if (s) await reportSaveFailure(saveScene(s), "the scene");
+    if (!s) return true;
+    try {
+      await saveScene(s);
+      return true;
+    } catch (e) {
+      pushToast(`Couldn't save the scene — ${e instanceof Error ? e.message : String(e)}`, "error", 0);
+      return false;
+    }
   }, []);
 
   // Adopt a full scene pushed by a peer (host scene switch / late-join snapshot).
@@ -537,40 +847,148 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
   const pinnedQueue = useRef<Promise<void>>(Promise.resolve());
 
   // Persist the working copy now and let it go (pin released / host returning).
-  const flushPinned = useCallback(async () => {
+  // A queue can grow while a save is in flight, so keep draining/saving until
+  // both the queue and the exact working object we saved are still current.
+  // Only then may the working copy be retired. A failed save leaves the pin and
+  // its in-memory state intact so the Curator can retry without losing a turn.
+  const flushPinned = useCallback(async (): Promise<boolean> => {
     window.clearTimeout(pinnedSaveTimer.current);
-    const s = pinnedLive.current;
-    pinnedLive.current = null;
-    if (s) await reportSaveFailure(saveScene(s), "the scene");
+    for (;;) {
+      const queued = pinnedQueue.current;
+      try {
+        await queued;
+      } catch (e) {
+        pushToast(`Couldn't finish the pinned-scene changes — ${e instanceof Error ? e.message : String(e)}`, "error", 0);
+        return false;
+      }
+      // An op was appended while the previous tail settled. Drain that too.
+      if (queued !== pinnedQueue.current) continue;
+
+      const working = pinnedLive.current;
+      if (!working) return true;
+      try {
+        await saveScene(working);
+      } catch (e) {
+        pushToast(`Couldn't save the pinned scene — ${e instanceof Error ? e.message : String(e)}`, "error", 0);
+        return false;
+      }
+      // An op that arrived during persistence may have mutated this same object;
+      // save it once more before clearing. If nothing changed, this is the exact
+      // copy that reached storage and can safely be handed back to the DB.
+      if (queued !== pinnedQueue.current || working !== pinnedLive.current) continue;
+      window.clearTimeout(pinnedSaveTimer.current);
+      pinnedLive.current = null;
+      return true;
+    }
   }, []);
 
   // A pin can't outlive its context: new campaign or a dropped room means
   // nobody is being held anywhere any more.
   useEffect(() => {
-    setPinnedSceneId(null);
-    pinnedRef.current = null;
-    void flushPinned();
-  }, [campaign, flushPinned]);
-  useEffect(() => {
-    if (net.status !== "connected" && pinnedRef.current) {
+    const pin = pinnedRef.current;
+    if (!pin) return;
+    void flushPinned().then((saved) => {
+      if (!saved || pinnedRef.current !== pin) return;
       setPinnedSceneId(null);
       pinnedRef.current = null;
-      void flushPinned();
+    });
+  }, [campaign?.id, flushPinned]);
+  useEffect(() => {
+    if (net.status !== "connected" && pinnedRef.current) {
+      const pin = pinnedRef.current;
+      void flushPinned().then((saved) => {
+        if (!saved || pinnedRef.current !== pin) return;
+        setPinnedSceneId(null);
+        pinnedRef.current = null;
+      });
     }
   }, [net.status, flushPinned]);
+
+  function schedulePinnedSave(working: VttScene): void {
+    window.clearTimeout(pinnedSaveTimer.current);
+    pinnedSaveTimer.current = window.setTimeout(() => {
+      // Put persistence on the same tail as player ops. flushPinned/deletion can
+      // now await an autosave that has already started instead of racing it and
+      // letting INSERT OR REPLACE recreate a deleted scene afterward.
+      pinnedQueue.current = pinnedQueue.current.catch(() => {}).then(async () => {
+        if (pinnedLive.current === working) {
+          await reportSaveFailure(saveScene(working), "the scene");
+        }
+      });
+    }, 800);
+  }
+
+  /** Keep the canonical character profile in step with whichever authoritative
+   * scene received the op. This deliberately accepts a scene argument: while
+   * the Curator roams, player customization lands in `pinnedLive`, not in the
+   * Pixi engine's current scene. */
+  function syncCanonicalRegistryForScene(op: VttOp, authoritativeScene: VttScene): void {
+    const registry = tokenRegistryRef.current;
+    if (!campaign || !canPersistRef.current || !registry) return;
+
+    const freshest = new Map<string, VttScene>();
+    for (const candidate of scenesRef.current) freshest.set(candidate.id, candidate);
+    const engineScene = engineRef.current?.scene;
+    if (engineScene) freshest.set(engineScene.id, engineScene);
+    const pinned = pinnedLive.current;
+    if (pinned) freshest.set(pinned.id, pinned);
+    freshest.set(authoritativeScene.id, authoritativeScene);
+    const allScenes = [...freshest.values()];
+    let next: TokenRegistryState | null = null;
+
+    if (op.op === "token.update") {
+      const token = authoritativeScene.data.tokens.find((candidate) => candidate.id === op.id);
+      if (token?.characterId) {
+        const customized = customizeCanonicalCharacterToken(
+          registry,
+          allScenes,
+          token.characterId,
+          { name: token.name, color: token.color, size: token.size, img: token.img, vision: token.vision }
+        );
+        next = customized?.state ?? null;
+      }
+    } else if (op.op === "token.assign") {
+      const token = authoritativeScene.data.tokens.find((candidate) => candidate.id === op.id);
+      const profile = token?.characterId ? registry.profiles[token.characterId] : undefined;
+      if (token?.characterId && profile) {
+        next = {
+          ...registry,
+          profiles: {
+            ...registry.profiles,
+            [token.characterId]: { ...profile, controllerId: op.owner, updatedAt: Date.now() },
+          },
+        };
+      }
+    } else if (op.op === "token.remove") {
+      const characterId = Object.keys(registry.presences).find((id) => registry.presences[id].tokenId === op.id);
+      if (characterId) {
+        const presences = { ...registry.presences };
+        delete presences[characterId];
+        next = { ...registry, presences };
+      }
+    }
+
+    if (next) {
+      tokenRegistryRef.current = next;
+      void reportSaveFailure(saveTokenRegistryOrdered(next), "the token profile");
+    }
+  }
 
   // Player activity on the PINNED scene while the Curator roams: those ops
   // arrive scoped to a scene we aren't viewing. Apply them to the working copy
   // under the same authorization the live receive path enforces, then debounce
   // a save. (Fresh closure every render, so `net` is always current.)
-  function onForeignOp(sceneId: string, op: VttOp, from: string) {
-    if (net.status !== "connected" || net.role !== "host" || sceneId !== pinnedRef.current) return;
-    pinnedQueue.current = pinnedQueue.current.then(async () => {
+  async function onForeignOp(sceneId: string, op: VttOp, from: string): Promise<boolean> {
+    if (net.status !== "connected" || net.role !== "host" || sceneId !== pinnedRef.current) return false;
+    let accepted = false;
+    const task = pinnedQueue.current.catch(() => {}).then(async () => {
       if (sceneId !== pinnedRef.current) return; // unpinned while queued
       // The host arrived on the pinned scene while this op waited — apply live.
       const eng = engineRef.current;
       if (eng?.scene?.id === sceneId) {
-        if (foreignOpAllowed(eng.scene.data, op, from)) eng.applyRemote(op);
+        if (foreignOpAllowed(eng.scene.data, op, from)) {
+          accepted = eng.applyRemote(op);
+        }
         return;
       }
       let s = pinnedLive.current;
@@ -582,23 +1000,85 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
       // (The wall-collision defense is skipped here — the mover's own client
       // enforces walls on the scene it is actually standing in.)
       if (!foreignOpAllowed(s.data, op, from)) return;
+      if (op.op === "token.update" && op.patch.img !== undefined && !vttSnapshotFits({
+        ...s,
+        data: {
+          ...s.data,
+          tokens: s.data.tokens.map((token) => token.id === op.id ? { ...token, ...op.patch } : token),
+        },
+      })) return;
       if (!applyOp(s.data, op)) return;
-      window.clearTimeout(pinnedSaveTimer.current);
-      pinnedSaveTimer.current = window.setTimeout(() => {
-        const live = pinnedLive.current;
-        if (live) void reportSaveFailure(saveScene(live), "the scene");
-      }, 800);
+      syncCanonicalRegistryForScene(op, s);
+      accepted = true;
+      schedulePinnedSave(s);
     });
+    pinnedQueue.current = task;
+    try {
+      await task;
+      return accepted;
+    } catch (e) {
+      pushToast(`Couldn't apply a pinned-scene change — ${e instanceof Error ? e.message : String(e)}`, "error", 0);
+      return false;
+    }
+  }
+
+  async function onForeignMoveRequest(request: VttMoveRequestMessage, from: string) {
+    let decision: {
+      ok: boolean;
+      x: number;
+      y: number;
+      reason?: "not-owner" | "stale" | "wall" | "occupied" | "out-of-bounds" | "invalid" | "wrong-scene";
+    } = { ok: false, x: request.fromX, y: request.fromY, reason: "wrong-scene" };
+
+    // The same queue used by pinned patches serializes moves too. Two players
+    // racing for one empty square are therefore evaluated against one ordered
+    // authoritative scene state.
+    pinnedQueue.current = pinnedQueue.current.catch(() => {}).then(async () => {
+      if (net.status !== "connected" || net.role !== "host" || request.scope !== pinnedRef.current) return;
+      let stored = pinnedLive.current;
+      if (!stored || stored.id !== request.scope) {
+        stored = await getScene(request.scope).catch(() => null);
+        if (!stored || request.scope !== pinnedRef.current) return;
+        pinnedLive.current = stored;
+      }
+      const authority = validateMoveAuthority(
+        { grid: stored.data.grid, tokens: stored.data.tokens, walls: stored.data.walls, revision: 0 },
+        { peerId: from, role: "player" },
+        {
+          tokenId: request.tokenId,
+          fromX: request.fromX,
+          fromY: request.fromY,
+          toX: request.toX,
+          toY: request.toY,
+        }
+      );
+      if (!authority.ok) {
+        decision = { ok: false, x: authority.x, y: authority.y, reason: authority.reason };
+        return;
+      }
+      if (!applyOp(stored.data, { op: "token.move", id: authority.tokenId, x: authority.x, y: authority.y })) return;
+      decision = { ok: true, x: authority.x, y: authority.y };
+      // Movement on a scene the Curator is not viewing must still use the same
+      // border-link transfer path as live movement. A completed transfer saves
+      // both scenes directly, so no stale pinned autosave should follow it.
+      const transferred = await tokenMovedRef.current(authority.tokenId, authority.x, authority.y, stored);
+      if (transferred) return;
+      schedulePinnedSave(stored);
+    });
+    await pinnedQueue.current;
+    return decision;
   }
 
   // P2P sync (slice 10). broadcastOp is wired to the engine's local-op emitter;
   // broadcastSnapshot pushes the whole scene on host switches / to late joiners.
   const sync = useVttSync({
     engineRef,
+    expectedCampaignId: campaign?.id ?? null,
     sceneId: scene?.id ?? null,
     getScene: () => engineRef.current?.scene ?? null,
     onSnapshot: adoptSnapshot,
     onForeignOp,
+    onForeignMoveRequest,
     // A late joiner belongs on the players' pinned scene, not wherever the
     // Curator happens to be browsing. Freshest copy wins: the working copy if
     // player ops have landed since the Curator left, else storage.
@@ -610,6 +1090,13 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
   });
   const broadcastRef = useRef(sync.broadcastOp);
   broadcastRef.current = sync.broadcastOp;
+  const moveRequestRef = useRef(sync.requestMove);
+  moveRequestRef.current = sync.requestMove;
+
+  registryOpRef.current = (op: VttOp) => {
+    const liveScene = engineRef.current?.scene;
+    if (liveScene) syncCanonicalRegistryForScene(op, liveScene);
+  };
 
   // Boot the engine once.
   useEffect(() => {
@@ -622,12 +1109,22 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
       setTick((t) => t + 1);
     };
     engine.onSelect = (s) => setSel(s);
-    engine.onOp = (op) => broadcastRef.current(op);
+    engine.onOp = (op) => {
+      registryOpRef.current(op);
+      broadcastRef.current(op);
+    };
+    engine.onRemoteApplied = (op) => registryOpRef.current(op);
     engine.onShaderError = (err) => setShaderError(err);
+    engine.onSceneBudgetError = () => pushToast(
+      "That media would make this scene too large for players to receive. Remove another large map, sound, prop, or token image first.",
+      "error",
+      0
+    );
     // A map that fails to load leaves the plain fill behind, which looks exactly
     // like a scene that never had a map. Say which it is.
     engine.bg.onImageError = (detail) => pushToast(detail, "error", 0);
     engine.onTokenMoved = (id, x, y) => void tokenMovedRef.current(id, x, y);
+    engine.onMoveRequested = (id, fromX, fromY, toX, toY) => moveRequestRef.current(id, fromX, fromY, toX, toY);
     engine.onPing = (x, y) => pingOutRef.current(x, y);
     // Dev-only handle for debugging sync ops in the preview (stripped in prod).
     if (import.meta.env.DEV) (window as unknown as { __vttEngine?: PixiVttApp }).__vttEngine = engine;
@@ -652,10 +1149,26 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
   // Load (or create) the campaign's scene, plus the full scene list for the browser.
   useEffect(() => {
     let alive = true;
+    const epoch = ++campaignLoadEpoch.current;
+    const targetCampaignId = campaign?.id ?? null;
+    const current = () => alive && campaignLoadEpoch.current === epoch && campaignIdRef.current === targetCampaignId;
+    // Never leave the previous campaign interactive while the next campaign's
+    // scenes/registry are still resolving.
+    tokenRegistryRef.current = null;
+    setScene(null);
+    setScenes([]);
+    setSel(null);
+    engineRef.current?.clearScene();
     async function load() {
+      if (isNetPlayer) {
+        // The host snapshot is the only scene source while joined. Do not query
+        // or seed a same-id local scene before that snapshot arrives.
+        return;
+      }
       let s: VttScene | null = null;
       let all: VttScene[] = [];
       let readFailed = false;
+      let loadedTokenRegistry: TokenRegistryState | null = null;
       if (campaign && isTauri()) {
         // Do NOT conflate a failed read with an empty campaign. This used to be
         // `.catch(() => [])` and, finding no scenes, wrote a brand-new "Scene 1"
@@ -665,7 +1178,42 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
         // surfaced either: only the subsequent SAVE was wrapped.
         try {
           all = await listScenes(campaign.id);
+          if (!current()) return;
+          const loadedRegistry = await loadTokenRegistry(campaign.id);
+          if (!current()) return;
+          if (loadedRegistry.status === "corrupt") {
+            pushToast(
+              "The campaign's token registry is damaged. Existing scene tokens were left untouched so they can be recovered safely.",
+              "error",
+              0
+            );
+          } else {
+            const migrated = migrateLegacyCharacterTokens(campaign.id, all, loadedRegistry.state);
+            try {
+              // Archive duplicate snapshots before removing any duplicate scene
+              // presence, keeping migration reversible if a later write fails.
+              await saveTokenRegistryOrdered(migrated.state);
+              if (!current()) return;
+              loadedTokenRegistry = migrated.state;
+              for (let i = 0; i < all.length; i++) {
+                if (JSON.stringify(all[i].data.tokens) !== JSON.stringify(migrated.scenes[i].data.tokens)) {
+                  await saveScene(migrated.scenes[i]);
+                  if (!current()) return;
+                }
+              }
+              all = migrated.scenes;
+              if (migrated.report.deduplicated.length > 0) {
+                const count = migrated.report.deduplicated.reduce((sum, item) => sum + item.retiredTokenIds.length, 0);
+                pushToast(`Consolidated ${count} duplicate character token${count === 1 ? "" : "s"}; archived copies remain recoverable.`, "info");
+              }
+            } catch (e) {
+              if (!current()) return;
+              loadedTokenRegistry = null;
+              pushToast(`Couldn't initialize canonical tokens — ${e instanceof Error ? e.message : String(e)}. Scene tokens were not migrated.`, "error", 0);
+            }
+          }
         } catch (e) {
+          if (!current()) return;
           readFailed = true;
           pushToast(
             `Couldn't read this campaign's scenes: ${e instanceof Error ? e.message : String(e)}. Nothing has been changed — close any other copy of W.T.E, then reopen this tab.`,
@@ -681,11 +1229,20 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
         s = newScene(campaign?.id ?? "sandbox", campaign ? campaign.name + " · Scene 1" : "Sandbox");
         s.active = true;
         if (campaign) {
-          await reportSaveFailure(saveScene(s), "the scene");
-          all = [s];
+          try {
+            await saveScene(s);
+            if (!current()) return;
+            all = [s];
+          } catch (e) {
+            if (!current()) return;
+            pushToast(`Couldn't create the campaign's first scene — ${e instanceof Error ? e.message : String(e)}`, "error", 0);
+            s = null;
+            readFailed = true;
+          }
         }
       }
-      if (!alive) return;
+      if (!current()) return;
+      tokenRegistryRef.current = loadedTokenRegistry;
       setScene(s);
       setScenes(all);
       // `s` is null only when the scene read FAILED — in that case we deliberately
@@ -698,7 +1255,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     return () => {
       alive = false;
     };
-  }, [campaign]);
+  }, [campaign?.id, isNetPlayer]);
 
   const reloadScenes = useCallback(async () => {
     if (!campaign || !isTauri()) return;
@@ -739,7 +1296,18 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     if (!campaign || id === scene?.id || switchingRef.current) return;
     switchingRef.current = true;
     try {
-      await flush();
+      if (!(await flush())) return;
+      // Returning to the players' pinned map transfers ownership of its working
+      // copy back to the live engine. Drain and persist every queued player op
+      // before loading it; on failure, stay on the current scene and keep the
+      // recoverable in-memory copy pinned.
+      if (pinnedRef.current === id) {
+        if (!(await flushPinned())) return;
+        // A queued player move may have crossed a portal while we drained it,
+        // advancing the table pin and adopting that destination. Do not then
+        // pull the table back to the portal's source.
+        if (pinnedRef.current !== id) return;
+      }
       // The pinned scene's working copy is fresher than storage while player
       // ops are still debouncing — never load a stale DB copy over it.
       const target =
@@ -758,38 +1326,132 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
   // the traveller (and optionally the whole party) into the linked scene at the
   // opposite edge, then switches the table there.
   const linkBusy = useRef(false);
-  const onTokenCrossed = async (tokenId: string, x: number, y: number) => {
-    if (isNetPlayer || linkBusy.current || switchingRef.current) return;
-    const liveScene = engineRef.current?.scene;
-    if (!campaign || !liveScene?.data.links?.length) return;
+  const onTokenCrossed = async (tokenId: string, x: number, y: number, sourceOverride?: VttScene): Promise<boolean> => {
+    if (isNetPlayer || (switchingRef.current && !sourceOverride)) return false;
+    const liveScene = sourceOverride ?? engineRef.current?.scene;
+    if (!campaign || !liveScene?.data.links?.length) return false;
     const grid = liveScene.data.grid;
     const link = liveScene.data.links.find((l) => tokenInEdge(grid, l.edge, x, y));
-    if (!link) return;
-    linkBusy.current = true;
-    try {
-      const target = (await getScene(link.targetSceneId).catch(() => null)) ?? scenes.find((s) => s.id === link.targetSceneId) ?? null;
-      if (!target || target.id === liveScene.id) return;
+    if (!link) return false;
+    const transfer = async (): Promise<boolean> => {
+      // Never load a stale DB target over an in-memory scene the Curator is
+      // editing or over the players' pinned working copy.
+      const engineScene = engineRef.current?.scene;
+      const pinned = pinnedLive.current;
+      const target =
+        (engineScene?.id === link.targetSceneId ? engineScene : null) ??
+        (pinned?.id === link.targetSceneId ? pinned : null) ??
+        (await getScene(link.targetSceneId).catch(() => null)) ??
+        scenesRef.current.find((candidate) => candidate.id === link.targetSceneId) ??
+        null;
+      if (!target || target.id === liveScene.id) return false;
       const trigger = liveScene.data.tokens.find((t) => t.id === tokenId);
-      if (!trigger) return;
+      if (!trigger) return false;
       const others = liveScene.data.tokens.filter((t) => t.id !== tokenId && t.owner);
       const party = others.length > 0 && confirm(`Take the whole party through to "${target.name}"?`);
       const moving = party ? [trigger, ...others] : [trigger];
-      liveScene.data.tokens = liveScene.data.tokens.filter((t) => !moving.includes(t));
-      moving.forEach((t, i) => {
-        const p = arrivalPos(grid, target.data.grid, link.edge, t.x, t.y, i);
-        t.x = p.x;
-        t.y = p.y;
-        target.data.tokens.push(t);
-      });
-      await flush();
-      await reportSaveFailure(saveScene(liveScene), "the scene");
-      await reportSaveFailure(saveScene(target), "the scene");
-      await adopt(target); // switches the whole table + snapshots to peers
-    } finally {
-      linkBusy.current = false;
+      // This also clears a pending autosave whose old object could otherwise
+      // overwrite a freshly transferred target after the direct writes below.
+      if (!(await flush())) return false;
+      const freshest = new Map<string, VttScene>();
+      for (const candidate of scenesRef.current) freshest.set(candidate.id, candidate);
+      if (engineScene) freshest.set(engineScene.id, engineScene);
+      if (pinned) freshest.set(pinned.id, pinned);
+      freshest.set(liveScene.id, liveScene);
+      freshest.set(target.id, target);
+      let working: VttScene[] = [...freshest.values()]
+        .map((candidate) => ({
+          ...candidate,
+          data: { ...candidate.data, tokens: candidate.data.tokens.map((token) => ({ ...token, statuses: token.statuses ? [...token.statuses] : undefined })) },
+        }));
+      let registry = tokenRegistryRef.current;
+
+      for (let i = 0; i < moving.length; i++) {
+        const traveller = moving[i];
+        const preferred = arrivalPos(grid, target.data.grid, link.edge, traveller.x, traveller.y, i);
+        if (traveller.characterId) {
+          if (!registry) {
+            pushToast("Canonical token storage is unavailable; the scene transfer was cancelled.", "error");
+            return false;
+          }
+          const transferred = transferCanonicalCharacterToken(registry, working, traveller.characterId, target.id, preferred);
+          if (!transferred.ok) {
+            pushToast(`Couldn't transfer ${traveller.name} (${transferred.reason}).`, "error");
+            return false;
+          }
+          working = transferred.scenes;
+          registry = transferred.state;
+          continue;
+        }
+        const source = working.find((candidate) => candidate.id === liveScene.id)!;
+        const destination = working.find((candidate) => candidate.id === target.id)!;
+        const sourceToken = source.data.tokens.find((candidate) => candidate.id === traveller.id);
+        if (!sourceToken) continue;
+        const point = findNearestAvailableTokenPosition(destination, sourceToken, preferred);
+        if (!point) {
+          pushToast(`There is no open arrival space for ${sourceToken.name}.`, "error");
+          return false;
+        }
+        source.data.tokens = source.data.tokens.filter((candidate) => candidate.id !== sourceToken.id);
+        destination.data.tokens.push({ ...sourceToken, x: point.x, y: point.y });
+      }
+
+      const nextSource = working.find((candidate) => candidate.id === liveScene.id)!;
+      const nextTarget = working.find((candidate) => candidate.id === target.id)!;
+      // Destination-first persistence makes an interrupted transfer recover as
+      // a reversible duplicate, never as a lost actor.
+      try {
+        await saveScene(nextTarget);
+        await saveScene(nextSource);
+      } catch (e) {
+        pushToast(`Couldn't save the scene transfer — ${e instanceof Error ? e.message : String(e)}. The original token was kept.`, "error", 0);
+        return false;
+      }
+      if (registry) {
+        tokenRegistryRef.current = registry;
+        await reportSaveFailure(saveTokenRegistryOrdered(registry), "the token registry");
+      }
+      // A portal departing the table's pinned scene moves the pin with the
+      // players. Set it before adopt(), otherwise adopt suppresses the target
+      // snapshot because it still believes everyone must remain on the source.
+      if (pinnedRef.current === liveScene.id) {
+        setPinnedSceneId(nextTarget.id);
+        pinnedRef.current = nextTarget.id;
+      }
+      if (pinnedLive.current?.id === liveScene.id) {
+        window.clearTimeout(pinnedSaveTimer.current);
+        pinnedLive.current = null;
+      }
+      setScenes(working);
+      await adopt(nextTarget); // switches the whole table + snapshots to peers
+      return true;
+    };
+
+    const runTransfer = async (): Promise<boolean> => {
+      if (linkBusy.current) return false;
+      linkBusy.current = true;
+      try {
+        return await transfer();
+      } finally {
+        linkBusy.current = false;
+      }
+    };
+
+    if (!sourceOverride && pinnedRef.current === link.targetSceneId) {
+      // The destination is the players' off-screen working scene. Put the
+      // entire destination-first transfer on their op queue: earlier edits
+      // become part of the target, and later edits wait until adopt() hands
+      // that exact target to the live engine. No pinned customization/move is
+      // overwritten by a portal arriving from the Curator's roaming scene.
+      const task = pinnedQueue.current.catch(() => {}).then(() =>
+        pinnedRef.current === link.targetSceneId ? runTransfer() : false
+      );
+      pinnedQueue.current = task.then(() => undefined);
+      return await task;
     }
+    return await runTransfer();
   };
-  const tokenMovedRef = useRef(onTokenCrossed);
+  const tokenMovedRef = useRef<(tokenId: string, x: number, y: number, sourceOverride?: VttScene) => Promise<boolean>>(onTokenCrossed);
   tokenMovedRef.current = onTokenCrossed;
 
   // Step to the previous/next scene (wheel + arrow buttons on the scene rail).
@@ -805,7 +1467,9 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
   // prep. Re-pinning the active scene doubles as a "pull drifted players back
   // to my scene" re-sync.
   async function setActiveForEveryone(id: string) {
-    if (pinnedRef.current && pinnedRef.current !== id) await flushPinned(); // moving the pin: bank the old scene first
+    // Moving the pin banks the old working scene first. If storage rejects that
+    // write, leave everyone where they are so no later load can hide the edits.
+    if (pinnedRef.current && pinnedRef.current !== id && !(await flushPinned())) return;
     setPinnedSceneId(id);
     pinnedRef.current = id;
     if (id !== scene?.id) await switchScene(id);
@@ -814,7 +1478,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
 
   // Release the pin: the table follows the Curator again, starting right now.
   async function releasePin() {
-    await flushPinned();
+    if (!(await flushPinned())) return;
     setPinnedSceneId(null);
     pinnedRef.current = null;
     sync.broadcastSnapshot(); // everyone joins the Curator's current scene
@@ -822,50 +1486,124 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
 
   async function createScene() {
     if (!campaign) return;
-    await flush();
+    if (!(await flush())) return;
     const s = newScene(campaign.id, `${campaign.name} · Scene ${scenes.length + 1}`);
-    await reportSaveFailure(saveScene(s), "the scene");
+    try {
+      await saveScene(s);
+    } catch (e) {
+      pushToast(`Couldn't create the scene — ${e instanceof Error ? e.message : String(e)}`, "error", 0);
+      return;
+    }
     await adopt(s);
   }
 
   async function renameSceneById(id: string, name: string) {
-    if (id === scene?.id && engineRef.current?.scene) {
-      engineRef.current.scene.name = name;
-      setScene((s) => (s ? { ...s, name } : s));
-      await reportSaveFailure(saveScene(engineRef.current.scene), "the scene");
-    } else {
-      const target = scenes.find((s) => s.id === id);
-      if (target) await reportSaveFailure(saveScene({ ...target, name }), "the scene");
-    }
-    await reloadScenes();
+    await patchScene(id, (target) => { target.name = name; });
+    if (id === scene?.id) setScene((currentScene) => currentScene ? { ...currentScene, name } : currentScene);
   }
 
   async function deleteSceneById(id: string) {
     if (!campaign) return;
+    const deletingPinnedScene = pinnedRef.current === id;
+    let clearedDeletedPin = false;
+    let deletingLiveScene = scene?.id === id;
+    let liveCopy = deletingLiveScene && engineRef.current?.scene?.id === id ? engineRef.current.scene : null;
+    let liveSelection = deletingLiveScene ? sel : null;
+    if (deletingPinnedScene) {
+      // Deletion is a pin transition too. Drain every player op and persist the
+      // exact working copy first; then detach it before DELETE so neither the
+      // debounce nor a late queued callback can INSERT OR REPLACE it afterward.
+      if (!(await flushPinned())) return;
+      // Draining may itself complete a player's portal and advance the pin. In
+      // that case the requested source is no longer pinned; preserve the new
+      // destination pin instead of releasing the table out from under them.
+      if (pinnedRef.current === id) {
+        window.clearTimeout(pinnedSaveTimer.current);
+        pinnedLive.current = null;
+        setPinnedSceneId(null);
+        pinnedRef.current = null;
+        clearedDeletedPin = true;
+      }
+      // A queued portal can also make this scene live while flushPinned waits.
+      // Re-evaluate against the engine, not React's pre-await render snapshot.
+      if (engineRef.current?.scene?.id === id) {
+        deletingLiveScene = true;
+        liveCopy = engineRef.current.scene;
+        liveSelection = null;
+      }
+    }
     // The pending 500ms autosave holds the LIVE engine scene and saves with
     // INSERT OR REPLACE, so a delete that leaves the timer armed lets the scene
     // RESURRECT itself moments after the user confirmed removing it. Every other
     // scene-swapping path (switchScene, createScene, setActiveForEveryone,
     // releasePin) already flushes first; this one did not.
-    if (id === scene?.id) {
+    if (deletingLiveScene) {
       // Deleting the live scene: cancel the write rather than flush it — there is
-      // no sense persisting a row we are about to remove.
+      // no sense persisting a row we are about to remove. Detach it from the
+      // engine as well so a peer edit arriving during DELETE cannot arm a new
+      // autosave that resurrects the row.
       window.clearTimeout(saveTimer.current);
+      engineRef.current?.clearScene();
     } else {
       // Deleting a different scene: the pending edit belongs to the live scene and
       // must still land.
-      await flush();
+      if (!(await flush())) return;
     }
     // Report a failed delete instead of swallowing it — otherwise the scene stays
     // on disk while the UI acts as though it is gone.
-    await reportSaveFailure(deleteScene(id), "the scene deletion");
-    if (id === scene?.id) {
+    try {
+      await deleteScene(id);
+    } catch (e) {
+      // The row still exists, so restore the table pin players were already on.
+      // flushPinned saved it before deletion was attempted.
+      if (clearedDeletedPin) {
+        setPinnedSceneId(id);
+        pinnedRef.current = id;
+      }
+      if (liveCopy) {
+        engineRef.current?.setScene(liveCopy);
+        if (liveSelection) engineRef.current?.select(liveSelection);
+      }
+      pushToast(`Couldn't delete the scene — ${e instanceof Error ? e.message : String(e)}`, "error", 0);
+      return;
+    }
+    const registry = tokenRegistryRef.current;
+    if (registry) {
+      const presences = Object.fromEntries(
+        Object.entries(registry.presences).filter(([, presence]) => presence.sceneId !== id)
+      );
+      if (Object.keys(presences).length !== Object.keys(registry.presences).length) {
+        const nextRegistry = { ...registry, presences };
+        tokenRegistryRef.current = nextRegistry;
+        await reportSaveFailure(saveTokenRegistryOrdered(nextRegistry), "the token registry");
+      }
+    }
+    if (deletingLiveScene) {
       const remaining = await listScenes(campaign.id).catch(() => [] as VttScene[]);
       const next = remaining.find((x) => x.active) ?? remaining[0] ?? null;
       if (next) await adopt(next);
-      else setScenes(remaining);
+      else {
+        // Keep the renderer and every connected player from continuing to edit
+        // a deleted object. A campaign always has one safe blank scene.
+        const replacement = newScene(campaign.id, `${campaign.name} · Scene 1`);
+        replacement.active = true;
+        try {
+          await saveScene(replacement);
+          await adopt(replacement);
+        } catch (e) {
+          setScene(null);
+          setScenes([]);
+          setSel(null);
+          engineRef.current?.clearScene();
+          pushToast(`The last scene was deleted, but its replacement could not be saved — ${e instanceof Error ? e.message : String(e)}`, "error", 0);
+        }
+      }
     } else {
       await reloadScenes();
+      // Players were looking at the deleted pinned scene. Move them onto the
+      // Curator's still-valid current scene immediately; a denied late patch is
+      // also corrected by this same authoritative snapshot.
+      if (clearedDeletedPin) sync.broadcastSnapshot();
     }
   }
 
@@ -873,13 +1611,16 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
   const loadCharacters = useCallback(async () => {
     if (!campaign || !isTauri()) {
       setCharacters([]);
+      setCharsLoading(false);
       return;
     }
+    const targetCampaignId = campaign.id;
     setCharsLoading(true);
-    const list = await listCharacters(campaign.id).catch(() => [] as CharacterRecord[]);
+    const list = await listCharacters(targetCampaignId).catch(() => [] as CharacterRecord[]);
+    if (campaignIdRef.current !== targetCampaignId) return;
     setCharacters(list);
     setCharsLoading(false);
-  }, [campaign]);
+  }, [campaign?.id]);
 
   // Codex creatures the Curator can spawn as linked tokens (sheets pulled from the Codex).
   const [creatures, setCreatures] = useState<Creature[]>([]);
@@ -923,12 +1664,81 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
     if (leftPanel === "actors") void loadCreatures();
   }, [leftPanel, loadCreatures]);
 
-  function spawnCharacter(rec: CharacterRecord) {
+  async function spawnCharacter(rec: CharacterRecord) {
+    if (isNetPlayer) return;
+    const engine = engineRef.current;
+    const liveScene = engine?.scene;
+    if (!engine || !liveScene) return;
     const spec = characterToTokenSpec(rec);
-    // Net players OWN the tokens they spawn: peers won't apply another player's
-    // moves to it, and player fog-vision reveals from it (both key on `owner`).
-    if (isNetPlayer) spec.owner = net.selfId;
-    engineRef.current?.spawnToken(spec);
+    const sharedOwner = partySheets.find((entry) => entry.record.id === rec.id)?.ownerId;
+    if (sharedOwner) spec.owner = sharedOwner;
+
+    // Sandbox remains scene-local. Persisted campaigns use one canonical
+    // presence and transfer/focus it instead of creating another token.
+    if (!campaign) {
+      engine.spawnToken(spec);
+      return;
+    }
+    const registry = tokenRegistryRef.current;
+    if (!registry) {
+      pushToast("Canonical token storage is unavailable; no duplicate token was created.", "error");
+      return;
+    }
+    const preferred = engine.snap(engine.viewCenterWorld().x, engine.viewCenterWorld().y);
+    const token: VttToken = {
+      ...spec,
+      id: newId("tk"),
+      name: spec.name || rec.name,
+      x: preferred.x,
+      y: preferred.y,
+      size: spec.size ?? 1,
+      color: spec.color || "#689a96",
+      visible: spec.visible ?? true,
+    };
+    const pinned = pinnedLive.current;
+    const baseScenes = scenesRef.current.length
+      ? scenesRef.current.map((candidate) =>
+          candidate.id === liveScene.id ? liveScene : pinned?.id === candidate.id ? pinned : candidate
+        )
+      : [liveScene];
+    const existingPresence = registry.presences[rec.id];
+    if (pinnedRef.current && pinnedRef.current !== liveScene.id && existingPresence?.sceneId === pinnedRef.current) {
+      pushToast("That character is on the pinned player scene. Switch to that scene, or make this scene active for everyone before transferring the token.", "error");
+      return;
+    }
+    const result = ensureCanonicalCharacterToken(registry, baseScenes, liveScene.id, token, preferred);
+    if (!result.ok) {
+      const detail = result.reason === "ambiguous-presence"
+        ? "Legacy duplicates must be reviewed before this character can move."
+        : result.reason === "no-open-space"
+          ? "There is no open space for this token on the current map."
+          : `The token could not be placed (${result.reason}).`;
+      pushToast(detail, "error");
+      return;
+    }
+
+    // Save destination first. If a later source write fails, the recoverable
+    // outcome is a duplicate, never a vanished character token.
+    const changed = result.scenes.filter((next) => {
+      const before = baseScenes.find((candidate) => candidate.id === next.id);
+      return !before || JSON.stringify(before.data.tokens) !== JSON.stringify(next.data.tokens);
+    });
+    changed.sort((a, b) => (a.id === liveScene.id ? -1 : b.id === liveScene.id ? 1 : 0));
+    try {
+      for (const changedScene of changed) await saveScene(changedScene);
+    } catch (e) {
+      pushToast(`Couldn't save the canonical token move — ${e instanceof Error ? e.message : String(e)}`, "error", 0);
+      return;
+    }
+    await reportSaveFailure(saveTokenRegistryOrdered(result.state), "the token registry");
+    tokenRegistryRef.current = result.state;
+    setScenes(result.scenes);
+    const nextLive = result.scenes.find((candidate) => candidate.id === liveScene.id) ?? liveScene;
+    setScene(nextLive);
+    engine.setScene(nextLive);
+    engine.select({ kind: "token", id: result.token.id });
+    engine.centerOn(result.token.x, result.token.y);
+    if (!pinnedRef.current || pinnedRef.current === liveScene.id) sync.broadcastSnapshot();
   }
   /** Spawn a Codex creature as a linked token — HP/DR/size/flags derived from its sheet. */
   function spawnCreature(c: Creature) {
@@ -953,14 +1763,17 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
   const loadAssets = useCallback(async () => {
     if (!campaign || !isTauri()) {
       setAssets([]);
+      setAssetsLoading(false);
       return;
     }
+    const targetCampaignId = campaign.id;
     setAssetsLoading(true);
-    const list = await listAssets(campaign.id).catch(() => [] as VttAsset[]);
+    const list = await listAssets(targetCampaignId).catch(() => [] as VttAsset[]);
+    if (campaignIdRef.current !== targetCampaignId) return;
     // "blob" rows are internal scene-image storage — never shown in the browser.
     setAssets(list.filter((a) => a.kind !== "blob"));
     setAssetsLoading(false);
-  }, [campaign]);
+  }, [campaign?.id]);
 
   useEffect(() => {
     void loadAssets();
@@ -968,8 +1781,9 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
 
   async function addAssetEntry(kind: AssetKind, name: string, uri: string) {
     if (!campaign) return;
-    const a = await addAsset(campaign.id, kind, name, uri).catch(() => null);
-    if (a) setAssets((cur) => [a, ...cur]);
+    const targetCampaignId = campaign.id;
+    const a = await addAsset(targetCampaignId, kind, name, uri).catch(() => null);
+    if (a && campaignIdRef.current === targetCampaignId) setAssets((cur) => [a, ...cur]);
   }
   async function removeAsset(id: string) {
     await reportSaveFailure(deleteAsset(id), "the asset deletion");
@@ -1034,7 +1848,52 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
   // Abilities panel binds to the selected token's linked character, else a chosen
   // one, else the first vault character.
   const selTokenCharId = sel?.kind === "token" ? live?.data.tokens.find((t) => t.id === sel.id)?.characterId ?? null : null;
-  const abilityChar = characters.find((c) => c.id === (abilityCharId ?? selTokenCharId ?? characters[0]?.id)) ?? null;
+  const boundPlayerCharacterId = isNetPlayer ? net.table?.inUseCharacterId ?? null : null;
+  const abilityCharKey = isNetPlayer ? boundPlayerCharacterId : abilityCharId ?? selTokenCharId ?? characters[0]?.id;
+  const abilityChar = characters.find((c) => c.id === abilityCharKey) ?? null;
+  const abilityCharacters = isNetPlayer
+    ? characters.filter((record) => record.id === boundPlayerCharacterId)
+    : characters;
+  const rollActorToken = abilityChar
+    ? live?.data.tokens.find(
+        (token) => token.characterId === abilityChar.id && (!isNetPlayer || token.owner === net.selfId)
+      ) ?? null
+    : null;
+
+  const requestTargetRoll = (intent: VttTargetRollIntent) => {
+    if (net.status !== "connected" || net.role !== "host" || sel?.kind !== "token") return;
+    const target = live?.data.tokens.find((token) => token.id === sel.id);
+    if (!target?.owner || !target.characterId || target.prop) {
+      pushToast("Select a player-controlled character token before requesting that roll.", "error");
+      return;
+    }
+    const requestId = `rr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+    const request: RollRequestMessage = {
+      t: "roll-request",
+      requestId,
+      label: `${intent.abilityName} — ${intent.label}`,
+      stat: intent.stat,
+      dc: intent.dc,
+      targetPeerId: target.owner,
+      targetCharacterId: target.characterId,
+      targetTokenId: target.id,
+      sourceCharacterId: intent.sourceCharacterId,
+      sourceAbilityId: intent.abilityId,
+      sourceAbilityName: intent.abilityName,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 5 * 60_000,
+    };
+    const targetRecord = characters.find((record) => record.id === target.characterId);
+    pendingRollRequests.current.set(requestId, {
+      request,
+      ownerPeerId: target.owner,
+      expectedBaseExpr: targetRecord ? requestedStatExpr(targetRecord, intent.stat) : undefined,
+    });
+    window.setTimeout(() => pendingRollRequests.current.delete(requestId), 5 * 60_000 + 1000);
+    net.publish(request, target.owner);
+    const ownerName = net.peers.find((peer) => peer.id === target.owner)?.name || target.name;
+    pushToast(`Requested ${intent.label} from ${ownerName}.`, "info");
+  };
 
   // Place an ability's area template at the chosen anchor (caster token / selected
   // token / view centre). placeAoeAt leaves it selected so it can be nudged/resized.
@@ -1114,7 +1973,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
         </div>
       )}
       <div className="vtt2-stage" ref={hostRef}>
-        {sel?.kind === "token" && engine && (
+        {sel?.kind === "token" && engine?.canControlToken(sel.id) && (
           <VttRadialMenu engine={engine} tokenId={sel.id} />
         )}
       </div>
@@ -1123,7 +1982,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
           tool={tool}
           onTool={pickTool}
           builder={!asPlayer}
-          canDraw={live?.data.allowPlayerDraw !== false}
+          canDraw={isNetPlayer && live?.data.allowPlayerDraw !== false}
           fogOn={fogOn}
           onToggleFog={!asPlayer ? () => engine?.toggleFog() : undefined}
           onResetFog={!asPlayer ? () => engine?.resetFog() : undefined}
@@ -1219,11 +2078,12 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
       )}
       {campaign && leftPanel === "actors" && (
         <VttActorsPanel
-          characters={characters}
+          characters={isNetPlayer ? abilityCharacters : characters}
           loading={charsLoading}
           creatures={creatures}
           creaturesLoading={creaturesLoading}
           canSpawnCreatures={!asPlayer}
+          canSpawnCharacters={!asPlayer}
           quickCreatures={quickCreatures}
           onSaveQuick={(qc) => setQuickCreatures(saveQuickCreature(qcCampaign, qc))}
           onDeleteQuick={(id) => setQuickCreatures(deleteQuickCreature(qcCampaign, id))}
@@ -1286,13 +2146,19 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
         <VttAbilitiesPanel
           layers={ruleLayers}
           character={abilityChar}
-          characters={characters.map((c) => ({ id: c.id, name: c.name }))}
+          characters={abilityCharacters.map((c) => ({ id: c.id, name: c.name }))}
           onPickCharacter={(id) => setAbilityCharId(id)}
+          lockCharacter={isNetPlayer}
           onArmRoll={armRoll}
+          onRequestTargetRoll={
+            net.status === "connected" && net.role === "host" && sel?.kind === "token" && !!live?.data.tokens.find((token) => token.id === sel.id)?.owner
+              ? requestTargetRoll
+              : undefined
+          }
           onUseAbility={(ability) => {
             // The roll already fired; if the ability implies an area, prompt to
             // place an editable hitbox.
-            if (hasAoe(ability.meta)) setPendingAoe(ability);
+            if (!asPlayer && hasAoe(ability.meta)) setPendingAoe(ability);
           }}
           onClose={() => setLeftPanel(null)}
         />
@@ -1356,9 +2222,17 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
       {campaign && dialogueOpen && net.role === "host" && (
         <VttDialogueController campaignId={campaign.id} onClose={() => setDialogueOpen(false)} />
       )}
-      {campaign && <VttRollToast campaignId={campaign.id} />}
+      {rollScope && <VttRollToast campaignId={rollScope} />}
       {campaign && rollsOpen && (
-        <VttRollFeed campaignId={campaign.id} lock={rollLock} onClearLock={() => setRollLock(null)} onClose={() => setRollsOpen(false)} />
+        <VttRollFeed
+          campaignId={campaign.id}
+          sessionKey={rollScope ?? campaign.id}
+          actor={{ characterId: abilityChar?.id, tokenId: rollActorToken?.id, name: abilityChar?.name }}
+          publishRoll={publishVttRoll}
+          lock={rollLock}
+          onClearLock={() => setRollLocks((current) => current.slice(1))}
+          onClose={() => setRollsOpen(false)}
+        />
       )}
       {campaign && soundboardOpen && (
         <VttSoundboard
@@ -1389,11 +2263,26 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
         </div>
       )}
       {!campaign && <div className="vtt2-sandbox-note">Sandbox table — pick a campaign on the Dashboard to persist scenes.</div>}
-      {sel && engine && live && (
+      {sel && engine && live && (!asPlayer || (sel.kind === "token" && engine.canControlToken(sel.id))) && (
         <VttInspector
           sel={sel}
           scene={live}
           onToken={(patch) => engine.updateToken(sel.id, patch)}
+          onRecoverTokenOwner={sel.kind === "token" ? () => {
+            const token = live.data.tokens.find((candidate) => candidate.id === sel.id);
+            if (!token?.owner) return;
+            const ownerName = net.peers.find((peer) => peer.id === token.owner)?.name || token.owner;
+            if (!confirm(`Recover ${token.name} from ${ownerName}? This only clears ownership; no token position or character data changes.`)) return;
+            if (engine.administrativelyAssignToken(sel.id, null)) {
+              pushToast(`${token.name} is now Curator-controlled and can be reassigned.`, "info");
+            }
+          } : undefined}
+          onTokenImage={(file) => {
+            if (!file) return;
+            void fileToPngDataUrl(file, 1024, 1024 * 1024)
+              .then((uri) => engine.updateToken(sel.id, { img: uri }))
+              .catch(() => pushToast("That image could not be used for the token.", "error"));
+          }}
           onWall={(patch) => engine.updateWall(sel.id, patch)}
           onLight={(patch) => engine.updateLight(sel.id, patch)}
           onEmitter={(patch) => engine.updateEmitter(sel.id, patch)}
@@ -1403,6 +2292,7 @@ export function VttScreen({ campaign, active = true }: { campaign: Campaign | nu
           onClose={() => engine.select(null)}
           peers={net.status === "connected" ? net.peers.map((p) => ({ id: p.id, name: p.name })) : []}
           selfId={net.selfId}
+          curator={!asPlayer}
         />
       )}
     </div>

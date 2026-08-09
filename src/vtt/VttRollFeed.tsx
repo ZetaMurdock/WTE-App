@@ -1,20 +1,38 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { recentRolls, logRoll } from "../lib/rolls";
+import { canonicalRollExpr, createRollId, recentRolls, logRoll } from "../lib/rolls";
 import { rollDiceExpr, type RollMode, type RollResult } from "../game/wte";
 import { useNet } from "../net/NetContext";
-import { addSessionRoll, getSessionRolls, hydrateSessionRolls, subscribeSessionRolls } from "./sync/rollSession";
+import { addSessionRoll, getSessionRolls, hydrateSessionRolls, subscribeSessionRolls, type SessionRoll } from "./sync/rollSession";
+import type { RollMessage } from "../net/protocol";
 
 const DICE = [4, 6, 8, 10, 12, 20, 40, 100];
 // Stable reference for the "no campaign" snapshot (useSyncExternalStore needs it).
-const EMPTY_ROWS: readonly { id: string; who: string; label: string; formula: string; result: number; at: number }[] = [];
+const EMPTY_ROWS: readonly SessionRoll[] = [];
 
 export interface RollLock {
   label: string;
   expr?: string;
+  /** Correlates a player-made roll with the Curator request that armed it. */
+  requestId?: string;
+  requestedBy?: string;
+  dc?: number;
+}
+
+export interface VttRollActor {
+  characterId?: string | null;
+  tokenId?: string;
+  name?: string;
 }
 
 interface Props {
   campaignId: string | null;
+  /** Optional table-qualified roll-session key. Defaults to campaignId for
+   * compatibility; use rollSessionScope(campaignId, room) in connected play. */
+  sessionKey?: string;
+  actor?: VttRollActor;
+  /** Overrides the default room broadcast. Requested-roll integrations use
+   * this to whisper a `roll-result` to the host for validation first. */
+  publishRoll?: (message: RollMessage) => void;
   /** Armed roll context from the Abilities panel (the legacy sheet's "Locked:
    *  X — press Roll" flow). Pre-fills the expression; Roll logs under the label. */
   lock: RollLock | null;
@@ -22,66 +40,135 @@ interface Props {
   onClose: () => void;
 }
 
-function newRollId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
-  return "r-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
-}
-
 // The dice tray, legacy-sheet style: NOTHING auto-rolls. Die chips and the
 // Abilities panel fill the expression box (abilities also LOCK their name over
 // the roller); the one big Roll button rolls it, records it in the durable
 // store, persists it, and publishes to the party.
-export function VttRollFeed({ campaignId, lock, onClearLock, onClose }: Props) {
+export function VttRollFeed({ campaignId, sessionKey, actor, publishRoll, lock, onClearLock, onClose }: Props) {
   const net = useNet();
-  const rows = useSyncExternalStore(subscribeSessionRolls, () => (campaignId ? getSessionRolls(campaignId) : EMPTY_ROWS));
+  const feedKey = sessionKey ?? campaignId;
+  const rows = useSyncExternalStore(subscribeSessionRolls, () => (feedKey ? getSessionRolls(feedKey) : EMPTY_ROWS));
   const [expr, setExpr] = useState("1d20");
   const [exprBad, setExprBad] = useState(false);
+  const requested = !!lock?.requestId;
 
-  // A newly-armed lock takes over the expression box (when it suggests dice).
+  // A newly-armed lock always takes over the expression box. Clearing it when
+  // an ability has no suggested dice prevents a previous ability's formula from
+  // being submitted under the new label.
   useEffect(() => {
-    if (lock?.expr) setExpr(lock.expr);
+    if (lock) setExpr(lock.expr ?? "");
     setExprBad(false);
   }, [lock]);
 
   // Seed the session store from SQLite history the first time this campaign opens.
   const reload = useCallback(async () => {
-    if (!campaignId) return;
+    if (!campaignId || !feedKey) return;
     const recent = await recentRolls(campaignId, 30).catch(() => []);
     hydrateSessionRolls(
-      campaignId,
-      recent.map((r) => ({ id: r.id, who: "", label: r.label, formula: r.formula, result: r.result, at: r.at }))
+      feedKey,
+      recent.map((r) => ({
+        id: r.id,
+        who: r.actorName || "History",
+        label: r.label,
+        formula: r.formula,
+        result: r.result,
+        at: r.at,
+        characterId: r.characterId,
+        tokenId: r.tokenId,
+        requestId: r.requestId,
+        baseExpr: r.baseExpr,
+        mode: r.mode,
+        detail: r.detail,
+      }))
     );
-  }, [campaignId]);
+  }, [campaignId, feedKey]);
 
   useEffect(() => {
     void reload();
   }, [reload]);
 
   const commit = useCallback(
-    (roll: RollResult) => {
-      const id = newRollId();
-      if (campaignId) {
-        addSessionRoll(campaignId, { id, who: "You", label: roll.detail.label, formula: roll.formula, result: roll.result, at: Date.now() });
-        void logRoll(campaignId, null, roll);
+    (roll: RollResult, baseExpr: string, context: RollLock | null = lock) => {
+      const id = createRollId();
+      const at = Date.now();
+      const mode = roll.detail.mode ?? "normal";
+      const message: RollMessage = {
+        t: "roll",
+        id,
+        label: roll.detail.label,
+        formula: roll.formula,
+        baseExpr,
+        result: roll.result,
+        detail: roll.detail,
+        mode,
+        at,
+        requestId: context?.requestId,
+        actor: {
+          peerId: net.selfId,
+          characterId: actor?.characterId ?? undefined,
+          tokenId: actor?.tokenId,
+          name: actor?.name,
+        },
+      };
+      if (feedKey) {
+        addSessionRoll(feedKey, {
+          id,
+          who: actor?.name || "You",
+          label: message.label,
+          formula: message.formula,
+          result: message.result,
+          at,
+          characterId: actor?.characterId,
+          tokenId: actor?.tokenId,
+          requestId: message.requestId,
+          baseExpr,
+          mode,
+          detail: roll.detail,
+        });
       }
-      if (net.status === "connected") net.publish({ t: "roll", label: roll.detail.label, formula: roll.formula, result: roll.result, id });
+      if (campaignId) {
+        void logRoll(campaignId, actor?.characterId ?? null, roll, {
+          id,
+          at,
+          baseExpr,
+          actorName: actor?.name || "You",
+          tokenId: actor?.tokenId,
+          requestId: context?.requestId,
+          mode,
+        });
+      }
+      if (publishRoll) publishRoll(message);
+      else if (net.status === "connected") net.publish(message);
+      if (context?.requestId) onClearLock();
     },
-    [campaignId, net]
+    [actor, campaignId, feedKey, lock, net, onClearLock, publishRoll]
   );
 
   // Shift-click = Advantage, ctrl/alt-click or right-click = Disadvantage —
   // the roll message names the posture and shows both totals.
   function rollNow(mode: RollMode = "normal") {
-    const roll = rollDiceExpr(lock?.label ?? expr, expr, mode);
-    if (!roll) {
+    const baseExpr = canonicalRollExpr(expr);
+    if (!baseExpr) {
       setExprBad(true);
       return;
     }
+    const roll = rollDiceExpr(lock?.label ?? expr, baseExpr, mode);
+    if (!roll) return; // canonicalRollExpr and rollDiceExpr share the same parser.
     setExprBad(false);
-    commit(roll);
+    commit(roll, baseExpr);
   }
   function rollClick(e: React.MouseEvent) {
     rollNow(e.shiftKey ? "adv" : e.ctrlKey || e.altKey ? "dis" : "normal");
+  }
+
+  function reroll(baseExpr: string, label: string, mode: RollMode = "normal") {
+    const canonical = canonicalRollExpr(baseExpr);
+    if (!canonical) return;
+    const roll = rollDiceExpr(label || canonical, canonical, mode);
+    if (!roll) return;
+    onClearLock();
+    setExpr(canonical);
+    commit(roll, canonical, null);
   }
 
   return (
@@ -102,7 +189,12 @@ export function VttRollFeed({ campaignId, lock, onClearLock, onClose }: Props) {
 
       {lock && (
         <div className="vtt2-roll-lock">
-          <span className="vtt2-roll-lock-name">Rolling: {lock.label}</span>
+          <span className="vtt2-roll-lock-name">
+            {lock.requestId ? "Requested: " : "Rolling: "}
+            {lock.label}
+            {lock.dc != null ? ` (DC ${lock.dc})` : ""}
+            {lock.requestedBy ? ` · ${lock.requestedBy}` : ""}
+          </span>
           <button className="cdx-tab-x" onClick={onClearLock} title="Unlock — back to freeform rolling">
             ×
           </button>
@@ -111,7 +203,7 @@ export function VttRollFeed({ campaignId, lock, onClearLock, onClose }: Props) {
 
       <div className="vtt2-dicetray">
         {DICE.map((d) => (
-          <button key={d} className="vtt2-die" onClick={() => { setExpr(`1d${d}`); setExprBad(false); }} title={`Set the roll to 1d${d}`}>
+          <button key={d} className="vtt2-die" disabled={requested} onClick={() => { setExpr(`1d${d}`); setExprBad(false); }} title={requested ? "The Curator's request fixes this roll formula" : `Set the roll to 1d${d}`}>
             d{d}
           </button>
         ))}
@@ -121,6 +213,8 @@ export function VttRollFeed({ campaignId, lock, onClearLock, onClose }: Props) {
           className={"bg-select vtt2-roll-expr" + (exprBad ? " bad" : "")}
           value={expr}
           placeholder="2d6+3"
+          readOnly={requested}
+          title={requested ? "This formula comes from your selected character's current sheet" : undefined}
           onChange={(e) => { setExpr(e.target.value); setExprBad(false); }}
           onKeyDown={(e) => e.key === "Enter" && rollNow(e.shiftKey ? "adv" : e.ctrlKey || e.altKey ? "dis" : "normal")}
         />
@@ -149,6 +243,11 @@ export function VttRollFeed({ campaignId, lock, onClearLock, onClose }: Props) {
               <span className="vtt2-roll-who">{r.who}</span>
               <span className="vtt2-roll-label">{r.label || r.formula}</span>
               <span className="vtt2-roll-result">{r.result}</span>
+              {r.baseExpr && (
+                <button className="chip" onClick={() => reroll(r.baseExpr!, r.label, r.mode ?? "normal")} title="Roll this again with your own dice">
+                  Roll again
+                </button>
+              )}
             </li>
           ))}
         </ul>

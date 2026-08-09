@@ -60,15 +60,21 @@ export function VttAssetPanel({
     setBusy(true);
     setNote("");
     try {
-      const dataUrl = await fileToPngDataUrl(file);
+      const dataUrl = await fileToPngDataUrl(
+        file,
+        kind === "background" ? 2048 : 1024,
+        kind === "background" ? 8 * 1024 * 1024 : kind === "prop" ? 2 * 1024 * 1024 : 1024 * 1024
+      );
       const nm = name.trim() || file.name.replace(/\.[^.]+$/, "") || KIND_LABEL[kind] || "Map";
       onAdd(kind, nm, dataUrl);
       if (kind === "background") onUseBackground(dataUrl);
       else if (kind === "prop") onPlaceProp(nm, dataUrl);
       else if (kind === "token" && hasSelectedToken) onApplyToToken(dataUrl);
       setName("");
-    } catch {
-      setNote("Couldn't read that file — is it an image?");
+    } catch (error) {
+      setNote(error instanceof Error && /media budget/.test(error.message)
+        ? "That image could not be reduced enough for netplay. Try a smaller PNG."
+        : "Couldn't read that file — is it an image?");
     } finally {
       setBusy(false);
     }

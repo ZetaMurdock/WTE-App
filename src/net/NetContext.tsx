@@ -87,7 +87,13 @@ export function useNet(): NetApi {
 }
 
 // Wire event types re-dispatched to React subscribers.
-const FANOUT: NetMessageType[] = ["roll", "chat", "party", "presence", "sheet-patch", "sheet-request", "vtt-patch", "snapshot", "bp", "unit-note", "purse", "inv", "dialogue", "sfx", "room-locked", "room-info", "vtt-ping", "play-mode", "cine"];
+const FANOUT: NetMessageType[] = [
+  "roll", "roll-request", "roll-result", "chat", "party", "presence",
+  "sheet-patch", "sheet-request", "vtt-patch", "snapshot", "vtt-snapshot-request", "vtt-snapshot-error",
+  "vtt-move-request", "vtt-move-commit", "vtt-move-reject",
+  "bp", "unit-note", "purse", "inv", "dialogue", "sfx", "room-locked",
+  "room-info", "vtt-ping", "play-mode", "cine",
+];
 
 export function NetProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>("idle");
@@ -367,15 +373,57 @@ export function NetProvider({ children }: { children: ReactNode }) {
       // (signaling down, bad URL, closed the app) used to lose the code entirely,
       // because this only ran after a successful start.
       upsertSavedRoom({ code: c, role: asRole });
+      let session: NetSession | null = null;
       try {
         const name = myPeerName();
         const iceServers = await buildIceServers(cfg);
         const transport = new WebRtcTransport({ signalUrl: cfg.signalUrl.trim(), room: c, peerId: selfId, role: asRole, name, iceServers });
-        const session = new NetSession(transport, { name, role: asRole });
+        session = new NetSession(transport, { name, role: asRole });
+        // Install the in-flight session before awaiting transport/signaling so
+        // Leave (or a second connect) can actually cancel it.
+        sessionRef.current?.close();
+        sessionRef.current = session;
         session.onPeers(setPeers);
         for (const t of FANOUT) session.on(t, (m, from) => emit(t, m, from));
-        await session.start();
-        sessionRef.current = session;
+        session.onFatal((fatal) => {
+          if (sessionRef.current !== session) return;
+          sessionRef.current = null;
+          void unadvertise().catch(() => {});
+          setStatus("idle");
+          setPeers([]);
+          setRoom("");
+          setLockedState(false);
+          setNextSessionState("");
+          setTable(null);
+          setSceneName("");
+          setDialogueState(null);
+          setPurses({});
+          setUnitPurseState(0);
+          setInvs({});
+          setUnitInvState([]);
+          setError(fatal.message);
+        });
+        // Bound the whole path: signaling admission, ICE/data-channel setup,
+        // and the application welcome. A dead TURN route must not leave the UI
+        // saying "Connecting" forever.
+        let handshakeTimer: number | undefined;
+        try {
+          await Promise.race([
+            (async () => {
+              await session!.start();
+              await session!.whenReady();
+            })(),
+            new Promise<void>((_resolve, reject) => {
+              handshakeTimer = window.setTimeout(
+                () => reject(new Error("The table connection timed out before the Curator handshake completed.")),
+                20_000
+              );
+            }),
+          ]);
+        } finally {
+          window.clearTimeout(handshakeTimer);
+        }
+        if (sessionRef.current !== session) return;
         setRoom(c);
         setStatus("connected");
         // Touch it again so a room that actually connected sorts above one that
@@ -398,8 +446,12 @@ export function NetProvider({ children }: { children: ReactNode }) {
         setLockedState(false);
         if (asRole === "host") await advertise(c).catch(() => {});
       } catch (e) {
-        setStatus("idle");
-        setError(e instanceof Error ? e.message : "Connection failed.");
+        if (sessionRef.current === session) {
+          session?.close();
+          sessionRef.current = null;
+          setStatus("idle");
+          setError(e instanceof Error ? e.message : "Connection failed.");
+        }
       }
     },
     [selfId]

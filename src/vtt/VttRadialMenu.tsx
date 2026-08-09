@@ -25,8 +25,9 @@ export function VttRadialMenu({ engine, tokenId }: Props) {
         return;
       }
       const cam = engine.camera;
-      const sx = tok.x * cam.zoom + cam.x;
-      const sy = tok.y * cam.zoom + cam.y;
+      const display = engine.tokens.displayPosition(tokenId) ?? tok;
+      const sx = display.x * cam.zoom + cam.x;
+      const sy = display.y * cam.zoom + cam.y;
       const r = (((tok.size || 1) * (engine.scene?.data.grid.size ?? 70)) / 2) * cam.zoom + 30;
       ring.style.display = "block";
       ring.style.left = `${sx}px`;
@@ -51,7 +52,7 @@ export function VttRadialMenu({ engine, tokenId }: Props) {
   const actions: { label: string; title: string; onClick: () => void }[] = [
     { label: "+", title: "Bigger (size +1)", onClick: () => { const t = live(); if (t) engine.updateToken(tokenId, { size: Math.min(6, (t.size || 1) + 1) }); } },
     { label: "−", title: "Smaller (size −1)", onClick: () => { const t = live(); if (t) engine.updateToken(tokenId, { size: Math.max(1, (t.size || 1) - 1) }); } },
-    { label: "Dup", title: "Duplicate this token", onClick: () => { const t = live(); if (t) engine.spawnToken({ ...t }); } },
+    { label: "◎", title: "Center view on this token", onClick: () => { const t = live(); if (t) engine.centerOn(t.x, t.y); } },
     { label: "Del", title: "Delete this token", onClick: () => engine.deleteSelected() },
   ];
 

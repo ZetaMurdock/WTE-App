@@ -22,7 +22,7 @@ import { FogLayer } from "./layers/FogLayer";
 import { MeasurementLayer } from "./layers/MeasurementLayer";
 import { EffectLayer } from "./layers/EffectLayer";
 import { AtmosphereLayer } from "./layers/AtmosphereLayer";
-import { computeVisibleCells, pathBlocked } from "./systems/VisionSystem";
+import { computeVisibleCells, lightVisibleTo, pathBlocked } from "./systems/VisionSystem";
 import { burnMechanicOn } from "./systems/lightState";
 import { CustomShaderFilter, validateShaderBody, validateFragmentSource } from "./filters/CustomShaderFilter";
 import { ZoneLayer, ZONE_DEFAULT_BODIES, buildZoneFragment } from "./layers/ZoneLayer";
@@ -54,8 +54,11 @@ import {
   type VttToken,
   type VttWall,
 } from "../types/scene";
-import { applyOp, type VttOp } from "../sync/patches";
+import { applyOp, sanitizePlayerTokenUpdatePatch, sanitizeTokenUpdatePatch, type VttOp } from "../sync/patches";
+import { canControlToken as tokenControlAllowed } from "../sync/tokenPermissions";
+import { canOccupy, nearestFreeCell } from "../data/occupancy";
 import type { VttTool } from "../types/tool";
+import { vttSnapshotFits } from "../sync/wireBudget";
 
 export type VttSelection = { kind: "token" | "wall" | "light" | "effect" | "emitter"; id: string } | null;
 
@@ -103,11 +106,19 @@ export class PixiVttApp {
   /** Emitted on each LOCAL scene mutation for P2P sync (slice 10). Remote ops
    *  arrive via applyRemote(), which never calls this — so no echo loops. */
   onOp: (op: VttOp) => void = () => {};
+  /** Applied remote mutations are not re-emitted, but persistence layers may
+   * still need to update campaign-global token metadata. */
+  onRemoteApplied: (op: VttOp) => void = () => {};
   /** A custom 2D GLSL chunk failed to compile (message is the GL info log). */
   onShaderError: (err: string) => void = () => {};
+  /** A local media mutation would make the scene impossible to send. */
+  onSceneBudgetError: () => void = () => {};
   /** A token finished a move (local drop/step or a remote peer's) — the host
    *  listens to detect border-portal crossings (multi-map links). */
   onTokenMoved: (id: string, x: number, y: number) => void = () => {};
+  /** Movement intent leaves the renderer without mutating scene state. React's
+   * sync layer validates it locally or asks the authoritative host. */
+  onMoveRequested: (id: string, fromX: number, fromY: number, toX: number, toY: number) => void = () => {};
   /** THIS client pinged the map (double-click) — React broadcasts it. */
   onPing: (x: number, y: number) => void = () => {};
 
@@ -226,8 +237,15 @@ export class PixiVttApp {
   setScene(scene: VttScene): void {
     this.scene = scene;
     if (!this.ready) return;
+    this.app.stage.visible = true;
     this.camera.set(scene.data.camera);
     this.redraw();
+  }
+  clearScene(): void {
+    this.scene = null;
+    this.selection = null;
+    this.onSelect(null);
+    if (this.ready) this.app.stage.visible = false;
   }
   /** Where spatial sound is heard FROM: a player's own token (no token = hears
    *  nothing), the Curator's camera centre. */
@@ -350,12 +368,24 @@ export class PixiVttApp {
    *  them (GMs keep the semi-transparent reveal). Set from the netplay role. */
   playerView = false;
   selfId: string | null = null;
-  setPlayerView(v: boolean, selfId: string | null = this.selfId): void {
-    if (this.playerView === v && this.selfId === selfId) return;
+  private playerCanAct = true;
+  setPlayerView(v: boolean, selfId: string | null = this.selfId, canAct = true): void {
+    if (this.playerView === v && this.selfId === selfId && this.playerCanAct === canAct) return;
     this.playerView = v;
     this.selfId = selfId;
+    this.playerCanAct = canAct;
     this.applyPlayCam();
     this.redraw();
+  }
+
+  /** One authority check shared by pointer, keyboard and React controls.
+   * Unowned actors/props are Curator-controlled; assigned actors are controlled
+   * only by their owner, including against ordinary Curator manipulation. */
+  canControlToken(id: string): boolean {
+    const token = this.scene?.data.tokens.find((t) => t.id === id);
+    if (!token) return false;
+    if (this.playerView && !this.playerCanAct) return false;
+    return tokenControlAllowed({ peerId: this.selfId ?? "", role: this.playerView ? "player" : "host" }, token);
   }
 
   // ── Play Mode camera (session, not scene): players lose free pan, their view
@@ -418,7 +448,7 @@ export class PixiVttApp {
   }
   /** Set (or clear) the whole-map ambient FX field (Curator, synced). */
   setSceneEnvFx(envFx: { preset: string; intensity: number } | null): void {
-    if (!this.scene) return;
+    if (!this.scene || this.playerView) return;
     this.scene.data.envFx = envFx;
     this.onChanged();
     this.onOp({ op: "envfx.set", envFx });
@@ -504,8 +534,10 @@ export class PixiVttApp {
     return { x: Math.round(wx / s) * s, y: Math.round(wy / s) * s };
   }
   addTokenAt(wx: number, wy: number): void {
-    if (!this.scene) return;
-    const p = this.snap(wx, wy);
+    if (!this.scene || this.playerView) return;
+    const desired = this.snap(wx, wy);
+    const p = nearestFreeCell(this.scene.data.grid, this.scene.data.tokens, { ...desired, size: 1 });
+    if (!p) return;
     const n = this.scene.data.tokens.length;
     const t: VttToken = {
       id: newId("tk"),
@@ -525,40 +557,37 @@ export class PixiVttApp {
    *  the nearest free cell so repeated spawns don't stack. Used by the Actors
    *  panel and the Codex creature-spawn bridge. */
   spawnToken(spec: Partial<VttToken>): VttToken | null {
-    if (!this.scene) return null;
-    const s = this.scene.data.grid.size;
+    if (!this.scene || this.playerView) return null;
+    if (spec.characterId) {
+      const existing = this.scene.data.tokens.find((token) => token.characterId === spec.characterId && !token.prop);
+      if (existing) {
+        this.select({ kind: "token", id: existing.id });
+        this.centerOn(existing.x, existing.y);
+        return existing;
+      }
+    }
     const cw = this.app.canvas.clientWidth || this.app.renderer.width;
     const ch = this.app.canvas.clientHeight || this.app.renderer.height;
     const wc = this.camera.screenToWorld(cw / 2, ch / 2);
     const center = this.snap(wc.x, wc.y);
-    const ccol = Math.round(center.x / s);
-    const crow = Math.round(center.y / s);
-    const occupied = new Set(this.scene.data.tokens.map((t) => `${Math.round(t.x / s)},${Math.round(t.y / s)}`));
-    let px = center.x;
-    let py = center.y;
-    scan: for (let ring = 0; ring < 8; ring++) {
-      for (let dx = -ring; dx <= ring; dx++) {
-        for (let dy = -ring; dy <= ring; dy++) {
-          if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;
-          if (!occupied.has(`${ccol + dx},${crow + dy}`)) {
-            px = (ccol + dx + 0.5) * s;
-            py = (crow + dy + 0.5) * s;
-            break scan;
-          }
-        }
-      }
-    }
     const n = this.scene.data.tokens.length;
+    const size = Math.max(1, Math.min(6, Number(spec.size) || 1));
+    const placement = nearestFreeCell(this.scene.data.grid, this.scene.data.tokens, { ...center, size });
+    if (!placement) return null;
     const t: VttToken = {
       visible: true,
-      size: 1,
       color: TOKEN_COLORS[n % TOKEN_COLORS.length],
       name: `Token ${n + 1}`,
       ...spec,
       id: newId("tk"),
-      x: px,
-      y: py,
+      size,
+      x: placement.x,
+      y: placement.y,
     };
+    if (!vttSnapshotFits({ ...this.scene, data: { ...this.scene.data, tokens: [...this.scene.data.tokens, t] } })) {
+      this.onSceneBudgetError();
+      return null;
+    }
     this.scene.data.tokens.push(t);
     this.select({ kind: "token", id: t.id });
     this.onChanged();
@@ -566,7 +595,7 @@ export class PixiVttApp {
     return t;
   }
   addWall(x1: number, y1: number, x2: number, y2: number): void {
-    if (!this.scene || (x1 === x2 && y1 === y2)) return;
+    if (!this.scene || this.playerView || (x1 === x2 && y1 === y2)) return;
     const w: VttWall = { id: newId("wl"), x1, y1, x2, y2, blocksLight: true };
     this.scene.data.walls.push(w);
     this.select({ kind: "wall", id: w.id });
@@ -574,7 +603,7 @@ export class PixiVttApp {
     this.onOp({ op: "wall.add", wall: w });
   }
   addLightAt(wx: number, wy: number): void {
-    if (!this.scene) return;
+    if (!this.scene || this.playerView) return;
     const p = this.snap(wx, wy);
     const l: VttLight = { id: newId("lt"), x: p.x, y: p.y, radius: 6, color: "#a08a4f", intensity: 0.5 };
     this.scene.data.lights.push(l);
@@ -584,15 +613,20 @@ export class PixiVttApp {
   }
   /** Pin a soundboard clip to the world as a spatial emitter (synced). */
   addEmitterAt(wx: number, wy: number, spec: { name: string; src: string }): void {
-    if (!this.scene) return;
+    if (!this.scene || this.playerView) return;
     const p = this.snap(wx, wy);
     const e: VttEmitter = { id: newId("em"), x: p.x, y: p.y, radius: 8, name: spec.name, src: spec.src, volume: 0.9, loop: true };
+    if (!vttSnapshotFits({ ...this.scene, data: { ...this.scene.data, emitters: [...(this.scene.data.emitters ?? []), e] } })) {
+      this.onSceneBudgetError();
+      return;
+    }
     (this.scene.data.emitters ??= []).push(e);
     this.select({ kind: "emitter", id: e.id });
     this.onChanged();
     this.onOp({ op: "emitter.add", emitter: e });
   }
   updateEmitter(id: string, patch: Partial<VttEmitter>): void {
+    if (this.playerView) return;
     const e = this.scene?.data.emitters?.find((x) => x.id === id);
     if (!e) return;
     Object.assign(e, patch);
@@ -601,7 +635,7 @@ export class PixiVttApp {
     this.onOp({ op: "emitter.update", id, patch });
   }
   addEffectAt(kind: VttEffectKind, wx: number, wy: number): void {
-    if (!this.scene) return;
+    if (!this.scene || this.playerView) return;
     const round = this.scene.data.timeline.round || 0;
     // zones anchor top-left at the clicked cell corner; circles/cones at the centre.
     const p = kind === "zone" ? this.snapVertex(wx, wy) : this.snap(wx, wy);
@@ -644,6 +678,7 @@ export class PixiVttApp {
     if (Object.keys(patch).length) this.updateEffect(sel.id, patch);
   }
   updateEffect(id: string, patch: Partial<VttEffectData>): void {
+    if (this.playerView) return;
     const e = this.scene?.data.effects.find((x) => x.id === id);
     if (!e) return;
     Object.assign(e.data, patch);
@@ -654,6 +689,7 @@ export class PixiVttApp {
   /** Change an effect's kind in place (reseeds the shape defaults, keeps colour /
    *  lifetime / status). Syncs as a remove + re-add of the same id. */
   setEffectKind(id: string, kind: VttEffectKind): void {
+    if (this.playerView) return;
     const d = this.scene?.data;
     if (!d) return;
     const idx = d.effects.findIndex((e) => e.id === id);
@@ -671,6 +707,7 @@ export class PixiVttApp {
     this.onOp({ op: "effect.add", effect: next });
   }
   updateWall(id: string, patch: Partial<VttWall>): void {
+    if (this.playerView) return;
     const w = this.scene?.data.walls.find((x) => x.id === id);
     if (!w) return;
     Object.assign(w, patch);
@@ -680,6 +717,7 @@ export class PixiVttApp {
   }
   /** Configure EVERY light in the scene at once (Curator bulk edit, synced). */
   updateAllLights(patch: Partial<VttLight>): void {
+    if (this.playerView) return;
     const lights = this.scene?.data.lights;
     if (!lights?.length) return;
     for (const l of lights) Object.assign(l, patch);
@@ -688,6 +726,7 @@ export class PixiVttApp {
     this.onOp({ op: "light.all", patch });
   }
   updateLight(id: string, patch: Partial<VttLight>): void {
+    if (this.playerView) return;
     const l = this.scene?.data.lights.find((x) => x.id === id);
     if (!l) return;
     Object.assign(l, patch);
@@ -699,11 +738,18 @@ export class PixiVttApp {
    *  refreshes it to full ("until it has been relit again"). Synced. */
   igniteLight(id: string): void {
     if (!this.scene || !burnMechanicOn(this.scene.data.fog)) return;
-    this.updateLight(id, { lit: true, litAt: Date.now() });
+    const light = this.scene.data.lights.find((candidate) => candidate.id === id);
+    if (!light || light.alwaysOn || (this.playerView && !lightVisibleTo(this.scene.data, light, this.selfId ?? undefined))) return;
+    const op: VttOp = { op: "light.ignite", id };
+    if (!applyOp(this.scene.data, op)) return;
+    this.redraw();
+    this.onChanged();
+    this.onOp(op);
   }
   deleteSelected(): void {
     if (!this.scene || !this.selection) return;
     const { kind, id } = this.selection;
+    if (kind === "token" ? !this.canControlToken(id) : this.playerView) return;
     const d = this.scene.data;
     if (kind === "token") d.tokens = d.tokens.filter((x) => x.id !== id);
     if (kind === "wall") d.walls = d.walls.filter((x) => x.id !== id);
@@ -719,7 +765,7 @@ export class PixiVttApp {
     else if (kind === "effect") this.onOp({ op: "effect.remove", id });
   }
   toggleFog(): void {
-    if (!this.scene) return;
+    if (!this.scene || this.playerView) return;
     this.scene.data.fog.enabled = !this.scene.data.fog.enabled;
     this.redraw();
     this.onChanged();
@@ -729,7 +775,7 @@ export class PixiVttApp {
   private stroke: number[] | null = null;
   /** May THIS client draw right now? Players obey the Curator's switch. */
   canDraw(): boolean {
-    return !this.playerView || this.scene?.data.allowPlayerDraw !== false;
+    return !this.playerView || (this.playerCanAct && this.scene?.data.allowPlayerDraw !== false);
   }
   /** This client's ink color — Curator draws gold; each player a hashed hue. */
   inkColor(): string {
@@ -769,7 +815,7 @@ export class PixiVttApp {
   }
   /** Curator: wipe every annotation (synced). */
   clearDrawings(): void {
-    if (!this.scene?.data.drawings?.length) return;
+    if (this.playerView || !this.scene?.data.drawings?.length) return;
     this.scene.data.drawings = [];
     this.redraw();
     this.onChanged();
@@ -777,7 +823,7 @@ export class PixiVttApp {
   }
   /** Curator: allow/forbid player drawing (synced live). */
   setAllowPlayerDraw(allow: boolean): void {
-    if (!this.scene || (this.scene.data.allowPlayerDraw ?? true) === allow) return;
+    if (!this.scene || this.playerView || (this.scene.data.allowPlayerDraw ?? true) === allow) return;
     this.scene.data.allowPlayerDraw = allow;
     this.onChanged();
     this.onOp({ op: "draw.allow", allow });
@@ -787,7 +833,7 @@ export class PixiVttApp {
   zoneBrush: { kind: VttZoneKind; erase: boolean } | null = null;
   /** Paint (or erase) the zone cell under a world point with the active brush. */
   paintZoneAt(wx: number, wy: number): void {
-    if (!this.scene || !this.zoneBrush) return;
+    if (!this.scene || this.playerView || !this.zoneBrush) return;
     const g = this.scene.data.grid;
     const c = Math.floor(wx / g.size);
     const r = Math.floor(wy / g.size);
@@ -806,7 +852,7 @@ export class PixiVttApp {
   /** Set (or clear, with "") a zone slot's custom GLSL body — validated on
    *  apply on every client, synced, persisted with the scene. */
   setZoneGlsl(kind: VttZoneKind, body: string): void {
-    if (!this.scene) return;
+    if (!this.scene || this.playerView) return;
     const zg = (this.scene.data.zoneGlsl ??= {});
     if ((zg[kind] ?? "") === body) return;
     zg[kind] = body;
@@ -816,6 +862,7 @@ export class PixiVttApp {
   }
   /** Clear every cell of one zone kind (synced). */
   clearZone(kind: VttZoneKind): void {
+    if (this.playerView) return;
     const zones = this.scene?.data.zones;
     const cells = zones?.[kind];
     if (!zones || !cells?.length) return;
@@ -827,7 +874,7 @@ export class PixiVttApp {
 
   /** Wipe exploration progress — every visited area goes back to unexplored dark. */
   resetFog(): void {
-    if (!this.scene) return;
+    if (!this.scene || this.playerView) return;
     const f = this.scene.data.fog;
     if (f.revealed.length === 0 && !f.seen) return;
     f.revealed = [];
@@ -838,7 +885,7 @@ export class PixiVttApp {
   }
   /** Change the fog darkness level / decay speed (Curator, synced). */
   setFogConfig(patch: { mode?: VttFogMode; decaySeconds?: number; lanterns?: boolean }): void {
-    if (!this.scene) return;
+    if (!this.scene || this.playerView) return;
     Object.assign(this.scene.data.fog, patch);
     this.redraw();
     this.onChanged();
@@ -850,7 +897,14 @@ export class PixiVttApp {
   }
   /** Patch background properties (src / fit / scale / position). */
   setBackgroundProps(patch: Partial<VttBackground>): void {
-    if (!this.scene) return;
+    if (!this.scene || this.playerView) return;
+    if (patch.src !== undefined && !vttSnapshotFits({
+      ...this.scene,
+      data: { ...this.scene.data, background: { ...this.scene.data.background, ...patch } },
+    })) {
+      this.onSceneBudgetError();
+      return;
+    }
     Object.assign(this.scene.data.background, patch);
     this.redraw();
     this.onChanged();
@@ -858,7 +912,7 @@ export class PixiVttApp {
   }
   /** Patch the grid (cell size / cols / rows / visibility) — Curator resize. */
   setGrid(patch: Partial<VttGrid>): void {
-    if (!this.scene) return;
+    if (!this.scene || this.playerView) return;
     Object.assign(this.scene.data.grid, patch);
     this.redraw();
     this.onChanged();
@@ -866,14 +920,14 @@ export class PixiVttApp {
   }
   /** Set (or clear) the terrain heightmap (renders in the 3D view). */
   setTerrain(terrain: VttTerrain | null): void {
-    if (!this.scene) return;
+    if (!this.scene || this.playerView) return;
     this.scene.data.terrain = terrain;
     this.onChanged();
     this.onOp({ op: "terrain.set", terrain });
   }
   /** Set the 3D atmosphere (backdrop / fog / mist / particles / mood / shadows). */
   setAtmosphere(atmo: VttAtmosphere): void {
-    if (!this.scene) return;
+    if (!this.scene || this.playerView) return;
     this.scene.data.atmosphere = atmo;
     this.redraw();
     this.onChanged();
@@ -885,27 +939,100 @@ export class PixiVttApp {
   }
   moveToken(id: string, wx: number, wy: number, snap: boolean): void {
     const t = this.scene?.data.tokens.find((x) => x.id === id);
-    if (!t) return;
+    if (!t || !this.canControlToken(id)) return;
     const p = snap ? this.snap(wx, wy) : { x: wx, y: wy };
-    t.x = p.x;
-    t.y = p.y;
+    if (!snap) this.previewTokenMove(id, p.x, p.y);
+    else this.requestTokenMove(id, t.x, t.y, p.x, p.y);
+  }
+  /** Visual-only pointer preview; never changes fog, persistence or sync state. */
+  previewTokenMove(id: string, wx: number, wy: number): void {
+    if (!this.canControlToken(id)) return;
+    this.tokens.setPreview(id, wx, wy);
     this.redraw();
-    // Broadcast the final resting place only (on drop) — not every drag frame.
-    if (snap) {
-      this.onOp({ op: "token.move", id, x: t.x, y: t.y });
-      this.onTokenMoved(id, t.x, t.y);
-      // Play mode: the camera walks WITH the player's own token.
-      if (this.playLocked() && t.owner === this.selfId) this.centerOn(t.x, t.y);
+  }
+  cancelTokenPreview(id: string): void {
+    this.tokens.clearPreview(id);
+    this.redraw();
+  }
+  requestTokenMove(id: string, fromX: number, fromY: number, toX: number, toY: number): void {
+    if (!this.canControlToken(id)) return;
+    const p = this.snap(toX, toY);
+    this.tokens.clearPreview(id);
+    this.redraw();
+    this.onMoveRequested(id, fromX, fromY, p.x, p.y);
+  }
+  /** Apply an already-authorized move. `emit` is false for a network commit. */
+  commitTokenMove(id: string, x: number, y: number, emit = true, authoritative = false): boolean {
+    const t = this.scene?.data.tokens.find((token) => token.id === id);
+    if (!t || !Number.isFinite(x) || !Number.isFinite(y)) return false;
+    const oldX = t.x;
+    const oldY = t.y;
+    const occupancy = canOccupy(this.scene!.data.grid, this.scene!.data.tokens, { x, y, size: t.size }, { ignoreTokenId: id });
+    if (!authoritative && (!occupancy.ok || this.moveBlocked(oldX, oldY, x, y))) {
+      this.rejectTokenMove(id, x, y);
+      return false;
     }
+    this.tokens.clearPreview(id);
+    t.x = x;
+    t.y = y;
+    const dx = x - oldX;
+    const dy = y - oldY;
+    if (Math.hypot(dx, dy) > 2) t.facing = Math.atan2(dy, dx);
+    this.redraw();
+    this.onChanged();
+    if (emit) this.onOp({ op: "token.move", id, x, y });
+    this.onTokenMoved(id, x, y);
+    if (this.playLocked() && t.owner === this.selfId) this.centerOn(x, y);
+    return true;
+  }
+  rejectTokenMove(id: string, attemptedX: number, attemptedY: number): void {
+    this.tokens.bounce(id, attemptedX, attemptedY, this.scene?.data.grid.size ?? 70);
+    this.redraw();
   }
   updateToken(id: string, patch: Partial<VttToken>): void {
     if (!this.scene) return;
     const t = this.scene.data.tokens.find((x) => x.id === id);
-    if (!t) return;
-    Object.assign(t, patch);
+    if (!t || !this.canControlToken(id)) return;
+    const safe = this.playerView ? sanitizePlayerTokenUpdatePatch(patch) : sanitizeTokenUpdatePatch(patch);
+    // Curators may assign an unowned actor once. Recovery/reassignment is an
+    // explicit administrative action, never an ordinary inspector edit.
+    if (
+      safe.size !== undefined &&
+      !canOccupy(this.scene.data.grid, this.scene.data.tokens, { x: t.x, y: t.y, size: safe.size }, { ignoreTokenId: t.id }).ok
+    ) return;
+    if (safe.img !== undefined && !vttSnapshotFits({
+      ...this.scene,
+      data: {
+        ...this.scene.data,
+        tokens: this.scene.data.tokens.map((candidate) => candidate.id === id ? { ...candidate, ...safe } : candidate),
+      },
+    })) {
+      this.onSceneBudgetError();
+      return;
+    }
+    const ownerChange = "owner" in patch && !this.playerView && !t.owner ? patch.owner || null : undefined;
+    if (ownerChange !== undefined) t.owner = ownerChange || undefined;
+    Object.assign(t, safe);
     this.redraw();
     this.onChanged();
-    this.onOp({ op: "token.update", id, patch });
+    if (ownerChange !== undefined) this.onOp({ op: "token.assign", id, owner: ownerChange });
+    if (Object.keys(safe).length) this.onOp({ op: "token.update", id, patch: safe });
+  }
+  /** Explicit Curator recovery path for a mistaken/stale ownership binding.
+   * Ordinary Curator input still cannot move, edit, or remove another player's
+   * token; only this separately-confirmed identity operation bypasses it. */
+  administrativelyAssignToken(id: string, owner: string | null): boolean {
+    if (!this.scene || this.playerView) return false;
+    const token = this.scene.data.tokens.find((candidate) => candidate.id === id);
+    if (!token || token.prop || (owner != null && (!owner.trim() || owner.length > 128))) return false;
+    const next = owner?.trim() || null;
+    if ((token.owner ?? null) === next) return false;
+    token.owner = next ?? undefined;
+    delete token.ownerPeer;
+    this.redraw();
+    this.onChanged();
+    this.onOp({ op: "token.assign", id, owner: next });
+    return true;
   }
   persistCamera(): void {
     if (!this.scene) return;
@@ -914,14 +1041,14 @@ export class PixiVttApp {
   }
   /** Link (or unlink) the scene's active encounter. */
   setEncounterId(id: string | null): void {
-    if (!this.scene) return;
+    if (!this.scene || this.playerView) return;
     this.scene.data.encounterId = id;
     this.onChanged();
   }
   /** Mirror the encounter's round/turn into the scene timeline. When the round
    *  advances, run the engine systems (expire timed effects + zone-status sim). */
   setTimeline(round: number, turn: number): void {
-    if (!this.scene) return;
+    if (!this.scene || this.playerView) return;
     const prevRound = this.scene.data.timeline.round;
     this.scene.data.timeline = { round, turn };
     if (round !== prevRound && round > 0) {
@@ -933,10 +1060,20 @@ export class PixiVttApp {
   /** Apply a remote op from a peer. Mutates the scene without re-emitting (no
    *  onOp call here → no echo loop) and persists locally. scene.switch is handled
    *  by the sync layer, so it never reaches this method. */
-  applyRemote(op: VttOp): void {
-    if (!this.scene) return;
+  applyRemote(op: VttOp): boolean {
+    if (!this.scene) return false;
+    if (op.op === "token.update" && op.patch.img !== undefined && !vttSnapshotFits({
+      ...this.scene,
+      data: {
+        ...this.scene.data,
+        tokens: this.scene.data.tokens.map((token) => token.id === op.id ? { ...token, ...op.patch } : token),
+      },
+    })) {
+      this.onSceneBudgetError();
+      return false;
+    }
     const changed = applyOp(this.scene.data, op);
-    if (!changed) return;
+    if (!changed) return false;
     // If the selected entity was removed remotely, drop the stale selection.
     if (op.op.endsWith(".remove") && this.selection && "id" in op && this.selection.id === op.id) {
       this.select(null);
@@ -944,12 +1081,14 @@ export class PixiVttApp {
       this.redraw();
     }
     this.onChanged();
+    this.onRemoteApplied(op);
     // Portal detection is host-side: a player's move must trigger links too.
     if (op.op === "token.move") {
       this.onTokenMoved(op.id, op.x, op.y);
       // Host teleported/moved MY token while playing → my view goes with it.
       if (this.playLocked() && this.ownToken()?.id === op.id) this.centerOn(op.x, op.y);
     }
+    return true;
   }
 
   destroy(): void {

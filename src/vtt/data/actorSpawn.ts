@@ -56,6 +56,7 @@ export function characterToTokenSpec(rec: CharacterRecord): Partial<VttToken> {
     hpMax,
     size: SIZE_TO_CELLS[size.key] ?? 1,
     color: colorFor(rec.id),
+    img: sheet.portrait || undefined,
     vision: 5,
     meta: { cls: sheet.rank ?? 0, stats: { ...sheet.attributes } },
   };

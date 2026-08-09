@@ -28,7 +28,7 @@ const DAMAGE_TYPES = "Force|Radiant|Antimatter|Psychic|Spirit|Entropy|Fire|Cold|
 
 // Stat words the resolver in wte.ts understands, as an alternation for scanning.
 const STAT_WORDS =
-  "Physical|Strength|Dexterity|Endurance|Action Priority|Wisdom|Charisma|Intelligence|" +
+  "Physical|Strength|Dexterity|Endurance|Action Priority|AP|Wisdom|Charisma|Intelligence|" +
   "Inspiration|Balance|Weight|Precision|Control|Weapon Mastery|Mental Fortitude|Perception|Adaptation|Adaption|Cunning|Influence";
 
 /** Parse ability effect prose into the concrete actions a table clicks. */
@@ -36,11 +36,22 @@ export function parseAbilityActions(effect: string | null | undefined): AbilityA
   const text = String(effect || "");
   if (!text.trim()) return [];
   const out: AbilityAction[] = [];
-  const seen = new Set<string>();
+  const seen = new Map<string, number>();
   const push = (a: AbilityAction) => {
-    const k = `${a.kind}|${a.label}`;
-    if (seen.has(k)) return;
-    seen.add(k);
+    const stat = a.stat?.trim().toLowerCase();
+    const k = a.kind === "damage"
+      ? `${a.kind}|${a.expr ?? a.label}|${a.damageType ?? ""}`
+      : `${a.kind}|${stat ?? a.label.toLowerCase()}`;
+    const priorIndex = seen.get(k);
+    if (priorIndex != null) {
+      const prior = out[priorIndex];
+      // A broad natural-language match may find "target makes Endurance Save"
+      // before the explicit save parser reaches "(DC 12)". Enrich that one
+      // action instead of rendering a second, weaker request button.
+      if (a.kind === "save" && prior.dc == null && a.dc != null) out[priorIndex] = a;
+      return;
+    }
+    seen.set(k, out.length);
     out.push(a);
   };
 
@@ -62,6 +73,30 @@ export function parseAbilityActions(effect: string | null | undefined): AbilityA
   // "roll a d20 + Ode Level", "d20 + Code Level" → a flat level-scaled d20.
   if (/\bd20\s*\+\s*(?:ode|code|rank)\b/i.test(text)) {
     push({ kind: "self", label: "d20 + level", expr: "1d20" });
+  }
+
+  // Natural "roll Stat" phrasing used by species/variant abilities. Explicit
+  // actor words decide which side rolls; a forced roll is target-side.
+  const selfRollRe = new RegExp(
+    `(?:\\b(?:you|your character|the inquisitor)\\b[^.;]{0,50}?\\b(?:roll|rolls|make|makes)\\s+(?:an?\\s+)?|\\bsucceed\\s+on\\s+(?:an?\\s+)?|(?:^|[.;]\\s*)\\broll\\s+)(${STAT_WORDS})(?:\\s+(?:roll|check))?`,
+    "gi"
+  );
+  let sr: RegExpExecArray | null;
+  while ((sr = selfRollRe.exec(text))) {
+    push({ kind: "self", label: `${sr[1]} check`, expr: "1d20", stat: sr[1] });
+  }
+  const targetRollRe = new RegExp(
+    `\\b(?:the\\s+target|target|they|the\\s+creature|opponent)\\b[^.;]{0,45}?\\b(?:roll|rolls|make|makes)\\s+(?:an?\\s+)?(${STAT_WORDS})(?:\\s+(?:roll|check|save))?`,
+    "gi"
+  );
+  let tr: RegExpExecArray | null;
+  while ((tr = targetRollRe.exec(text))) {
+    push({ kind: "save", label: `${tr[1]} save`, stat: tr[1] });
+  }
+  const forcedRollRe = new RegExp(`\\bforced\\s+(${STAT_WORDS})\\s+Roll`, "gi");
+  let fr: RegExpExecArray | null;
+  while ((fr = forcedRollRe.exec(text))) {
+    push({ kind: "save", label: `${fr[1]} save`, stat: fr[1] });
   }
 
   // ── Target saves / checks with a DC: "Endurance Save (DC 18)", "Wisdom Save DC 16" ──

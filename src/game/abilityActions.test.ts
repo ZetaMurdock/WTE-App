@@ -17,6 +17,13 @@ describe("ability action parser", () => {
     expect(acts.some((a) => a.kind === "self")).toBe(false);
   });
 
+  it("merges a natural target save with its explicit DC", () => {
+    const acts = parseAbilityActions("The target makes an Endurance Save (DC 12) or is knocked prone.");
+    expect(acts.filter((action) => action.kind === "save" && action.stat === "Endurance")).toEqual([
+      expect.objectContaining({ label: "Endurance save · DC 12", dc: 12 }),
+    ]);
+  });
+
   it("treats an opposed check as the character's own roll", () => {
     const acts = parseAbilityActions("Resolution: opposed Inspiration + Influence Check vs their Wisdom.");
     const self = acts.find((a) => a.kind === "self");
@@ -26,6 +33,22 @@ describe("ability action parser", () => {
   it("recognizes a d20 + level self roll", () => {
     const acts = parseAbilityActions("the Inquisitor rolls d20 + Ode Level to achieve success.");
     expect(acts.some((a) => a.kind === "self" && a.expr === "1d20")).toBe(true);
+  });
+
+  it("understands Re-Varant forced, self, and target roll wording", () => {
+    const forced = parseAbilityActions("Resolution: forced AP Roll, then Strength Save or Adaptation Check.");
+    expect(forced.filter((action) => action.kind === "save").map((action) => action.stat)).toEqual(
+      expect.arrayContaining(["AP", "Strength", "Adaptation"])
+    );
+
+    const contact = parseAbilityActions(
+      "Roll Adaption; the target rolls Control at double Disadvantage. You may make a Control roll above the target's roll."
+    );
+    expect(contact).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "self", stat: "Adaption" }),
+      expect.objectContaining({ kind: "self", stat: "Control" }),
+      expect.objectContaining({ kind: "save", stat: "Control" }),
+    ]));
   });
 
   it("returns nothing actionable for pure flavor prose", () => {

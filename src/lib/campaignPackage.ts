@@ -30,6 +30,72 @@ import { storedPageFor } from "./pageIdentity";
 import { deleteCampaignCodexPages, saveCodexPage } from "./codexPageRepo";
 import { parseId, slugify, ID_SCOPES } from "../game/codexId";
 import { isTauri } from "./tauri";
+import {
+  TOKEN_REGISTRY_KEY,
+  parseTokenRegistry,
+  remapTokenRegistryForCampaignCopy,
+} from "../vtt/data/tokenRegistry";
+
+const SCENE_BLOB_PREFIX = "wte-blob:";
+
+function plainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function remapBlobRef(value: unknown, remapId: (id: string) => string): unknown {
+  if (typeof value !== "string" || !value.startsWith(SCENE_BLOB_PREFIX)) return value;
+  return SCENE_BLOB_PREFIX + remapId(value.slice(SCENE_BLOB_PREFIX.length));
+}
+
+/**
+ * Rewrite ids embedded inside a copied scene row. Scene.data is stored as JSON,
+ * so remapping only the row id left linked tokens pointing at characters in the
+ * original campaign and moved blob assets out from under their refs.
+ *
+ * Invalid scene bytes are returned verbatim. The ordinary corrupt-scene guard
+ * can then surface/recover them; an import must not replace damage with `{}`.
+ */
+export function remapSceneDataForCampaignCopy(raw: unknown, remapId: (id: string) => string): unknown {
+  const encoded = typeof raw === "string";
+  let value = raw;
+  if (encoded) {
+    try {
+      value = JSON.parse(raw);
+    } catch {
+      return raw;
+    }
+  }
+  if (!plainRecord(value)) return raw;
+  const out: Record<string, unknown> = { ...value };
+
+  if (plainRecord(out.background)) {
+    out.background = { ...out.background, src: remapBlobRef(out.background.src, remapId) };
+  }
+  if (Array.isArray(out.tokens)) {
+    out.tokens = out.tokens.map((entry) => {
+      if (!plainRecord(entry)) return entry;
+      const token = { ...entry };
+      if (typeof token.characterId === "string" && token.characterId) token.characterId = remapId(token.characterId);
+      token.img = remapBlobRef(token.img, remapId);
+      return token;
+    });
+  }
+  if (Array.isArray(out.emitters)) {
+    out.emitters = out.emitters.map((entry) =>
+      plainRecord(entry) ? { ...entry, src: remapBlobRef(entry.src, remapId) } : entry
+    );
+  }
+  if (plainRecord(out.audio)) out.audio = { ...out.audio, src: remapBlobRef(out.audio.src, remapId) };
+  if (Array.isArray(out.links)) {
+    out.links = out.links.map((entry) =>
+      plainRecord(entry) && typeof entry.targetSceneId === "string"
+        ? { ...entry, targetSceneId: remapId(entry.targetSceneId) }
+        : entry
+    );
+  }
+  if (typeof out.encounterId === "string" && out.encounterId) out.encounterId = remapId(out.encounterId);
+  return encoded ? JSON.stringify(out) : out;
+}
 
 /** Why an incoming rule layer cannot be stored, or null when it is fine.
  *
@@ -329,7 +395,8 @@ export async function importPackage(
         if (label === "assets") {
           await db.execute(sql, [id, campaignId, r.kind ?? "blob", r.name ?? "", r.uri ?? "", r.created_at ?? now]);
         } else if (label === "scenes") {
-          await db.execute(sql, [id, campaignId, r.name ?? "", r.active ? 1 : 0, r.data ?? null, r.created_at ?? now, now]);
+          const data = mode === "copy" ? remapSceneDataForCampaignCopy(r.data ?? null, remap) : r.data ?? null;
+          await db.execute(sql, [id, campaignId, r.name ?? "", r.active ? 1 : 0, data, r.created_at ?? now, now]);
         } else {
           const sceneId = typeof r.scene_id === "string" ? remap(r.scene_id) : null;
           await db.execute(sql, [id, campaignId, r.name ?? "", sceneId, r.data ?? null, r.created_at ?? now, now]);
@@ -343,7 +410,18 @@ export async function importPackage(
 
   for (const entry of pkg.kv) {
     try {
-      await kvSet(campaignId, entry.scope as KvScope, entry.key, entry.value);
+      let value = entry.value;
+      if (mode === "copy" && entry.scope === "misc" && entry.key === TOKEN_REGISTRY_KEY) {
+        if (!parseTokenRegistry(entry.value, pkg.campaign.id)) {
+          failed.push({
+            what: `setting ${entry.scope}/${entry.key}`,
+            error: "the token registry is damaged or belongs to a different campaign",
+          });
+          continue;
+        }
+        value = remapTokenRegistryForCampaignCopy(entry.value, pkg.campaign.id, campaignId, remap);
+      }
+      await kvSet(campaignId, entry.scope as KvScope, entry.key, value);
     } catch (e) {
       failed.push({ what: `setting ${entry.scope}/${entry.key}`, error: e instanceof Error ? e.message : String(e) });
     }

@@ -13,6 +13,8 @@ export interface Transport {
   onEnvelope(cb: (env: Envelope) => void): void;
   onPeerUp(cb: (peerId: string) => void): void;
   onPeerDown(cb: (peerId: string) => void): void;
+  /** Fatal startup/session error (optional for in-process transports). */
+  onError?(cb: (error: Error) => void): void;
   close(): void;
 }
 

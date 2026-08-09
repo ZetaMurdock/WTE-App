@@ -8,6 +8,17 @@ import { parseAbilityActions, type AbilityAction } from "../game/abilityActions"
 import { characterActionSet, type VttAbility } from "./data/characterAbilities";
 import { hasAoe, suggestedTemplate } from "./data/effectMeta";
 
+/** A target-side check parsed from an ability. The VTT shell supplies the
+ * selected target and turns this intent into a targeted network roll request. */
+export interface VttTargetRollIntent {
+  abilityId: string;
+  abilityName: string;
+  sourceCharacterId?: string;
+  label: string;
+  stat?: string;
+  dc?: number;
+}
+
 interface Props {
   character: CharacterRecord | null;
   characters: { id: string; name: string }[];
@@ -16,6 +27,11 @@ interface Props {
    *  rolls until the player presses Roll (the legacy sheet's locked flow). */
   onArmRoll: (label: string, expr?: string) => void;
   onUseAbility: (ability: VttAbility) => void;
+  /** Request that the selected target's owner make this parsed save/check. The
+   * callback owns target selection and network delivery. */
+  onRequestTargetRoll?: (intent: VttTargetRollIntent) => void;
+  /** Players are bound to their table character and cannot switch roll source. */
+  lockCharacter?: boolean;
   onClose: () => void;
   /** Numeric rule layers for this campaign, so the SS shown at the table is the
    *  SS the contextual card explains. */
@@ -63,7 +79,17 @@ function armSelf(action: AbilityAction, sheet: CharacterSheet): { label: string;
 // (attribute d20s, specialty d40s, an ability's own damage dice) and the
 // player presses Roll — the legacy sheet's locked-roll flow. Area abilities
 // still prompt their hitbox on use.
-export function VttAbilitiesPanel({ character, characters, onPickCharacter, onArmRoll, onUseAbility, onClose, layers }: Props) {
+export function VttAbilitiesPanel({
+  character,
+  characters,
+  onPickCharacter,
+  onArmRoll,
+  onUseAbility,
+  onRequestTargetRoll,
+  lockCharacter = false,
+  onClose,
+  layers,
+}: Props) {
   // The Codex REVISION is part of this key, not just the character.
   //
   // characterActionSet resolves through the registry, so a campaign override
@@ -110,9 +136,29 @@ export function VttAbilitiesPanel({ character, characters, onPickCharacter, onAr
           {saves.length > 0 && (
             <div className="vtt2-abil-saves">
               {saves.map((s, i) => (
-                <span key={i} className="vtt2-abil-savechip" title="The target makes this roll against your ability">
+                <button
+                  key={i}
+                  type="button"
+                  className="vtt2-abil-savechip"
+                  disabled={!onRequestTargetRoll}
+                  onClick={() =>
+                    onRequestTargetRoll?.({
+                      abilityId: a.id,
+                      abilityName: a.name,
+                      sourceCharacterId: character?.id,
+                      label: s.label,
+                      stat: s.stat,
+                      dc: s.dc,
+                    })
+                  }
+                  title={
+                    onRequestTargetRoll
+                      ? "Ask the selected target's player to make this roll"
+                      : "Select a player-controlled target to request this roll"
+                  }
+                >
                   vs {s.label}
-                </span>
+                </button>
               ))}
             </div>
           )}
@@ -180,7 +226,7 @@ export function VttAbilitiesPanel({ character, characters, onPickCharacter, onAr
         <button className="cdx-tab-x" onClick={onClose} title="Close">×</button>
       </div>
 
-      {characters.length > 0 && (
+      {!lockCharacter && characters.length > 0 && (
         <select
           className="bg-select full"
           style={{ marginBottom: 8 }}
@@ -257,11 +303,9 @@ export function VttAbilitiesPanel({ character, characters, onPickCharacter, onAr
                   ))}
                 </select>
                 {racialSel && (
-                  <>
-                    {racialSel.effect && <div className="vtt2-abil-effect" style={{ margin: "6px 2px" }}>{racialSel.effect}</div>}
-                    {aoeTag(racialSel) && <div className="vtt2-abil-aoe">{aoeTag(racialSel)}</div>}
-                    <button className="chip" style={{ marginTop: 6 }} onClick={() => use(racialSel)}>Use {racialSel.name}</button>
-                  </>
+                  <ul className="vtt2-abil-list" style={{ marginTop: 6 }}>
+                    <Row a={racialSel} />
+                  </ul>
                 )}
               </div>
             </>

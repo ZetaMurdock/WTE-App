@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { applyOp, foreignOpAllowed } from "./patches";
+import { applyOp, foreignOpAllowed, isVttOp, sanitizePlayerTokenUpdatePatch, sanitizeTokenUpdatePatch } from "./patches";
 import { defaultSceneData, type VttSceneData, type VttToken } from "../types/scene";
 
 const tok = (id: string, x = 0, y = 0): VttToken => ({ id, name: id, x, y, size: 1, color: "#fff", hp: 10, visible: true });
@@ -26,6 +26,68 @@ describe("applyOp", () => {
     expect(applyOp(d, { op: "token.move", id: "ghost", x: 0, y: 0 })).toBe(false);
     expect(applyOp(d, { op: "token.remove", id: "t1" })).toBe(true);
     expect(applyOp(d, { op: "token.remove", id: "t1" })).toBe(false);
+  });
+
+  it("keeps generic token updates away from identity, ownership, and position", () => {
+    const d = fresh();
+    const original = { ...tok("t1"), owner: "peer-a", characterId: "char-a" };
+    d.tokens.push(original);
+    const malicious = {
+      id: "stolen-id",
+      owner: "peer-b",
+      ownerPeer: "peer-b",
+      prop: true,
+      x: 999,
+      y: 999,
+      characterId: "char-b",
+      actorId: "actor-b",
+      hp: 4,
+    };
+    expect(applyOp(d, { op: "token.update", id: "t1", patch: malicious })).toBe(true);
+    expect(d.tokens[0]).toMatchObject({ id: "t1", owner: "peer-a", characterId: "char-a", x: 0, y: 0, hp: 4 });
+    expect(d.tokens[0].prop).toBeUndefined();
+    expect(sanitizeTokenUpdatePatch(malicious)).toEqual({ hp: 4 });
+  });
+
+  it("uses an explicit assignment op instead of generic owner patches", () => {
+    const d = fresh();
+    d.tokens.push(tok("t1"));
+    expect(applyOp(d, { op: "token.assign", id: "t1", owner: "peer-a" })).toBe(true);
+    expect(d.tokens[0].owner).toBe("peer-a");
+    expect(applyOp(d, { op: "token.assign", id: "t1", owner: "peer-a" })).toBe(false);
+    expect(applyOp(d, { op: "token.assign", id: "t1", owner: null })).toBe(true);
+    expect(d.tokens[0].owner).toBeUndefined();
+  });
+
+  it("drops invalid customization values from local generic patches", () => {
+    const d = fresh();
+    d.tokens.push(tok("t1"));
+    expect(applyOp(d, { op: "token.update", id: "t1", patch: { size: Number.NaN, visible: "yes" as unknown as boolean } })).toBe(false);
+    expect(d.tokens[0]).toMatchObject({ size: 1, visible: true });
+  });
+
+  it("keeps rejected Curator-only fields out of a player's local preview", () => {
+    expect(
+      sanitizePlayerTokenUpdatePatch({ name: "Mine", img: "hero.png", hp: 8, vision: 99, visible: false, blocksMovement: false })
+    ).toEqual({ name: "Mine", img: "hero.png", hp: 8 });
+  });
+
+  it("bounds owner-controlled strings and drawing payloads", () => {
+    expect(sanitizePlayerTokenUpdatePatch({
+      name: "N".repeat(121),
+      statuses: ["S".repeat(81)],
+      img: "data:image/png;base64," + "A".repeat(6 * 1024 * 1024),
+    })).toEqual({});
+    expect(isVttOp({ op: "draw.add", drawing: { id: "bad", color: "#fff", width: 2 } })).toBe(false);
+    expect(isVttOp({ op: "draw.add", drawing: { id: "bad", points: [0, 0, Number.NaN, 5], color: "#fff", width: 2 } })).toBe(false);
+    expect(isVttOp({ op: "draw.add", drawing: { id: "ok", points: [0, 0, 5, 5], color: "#fff", width: 2 } })).toBe(true);
+  });
+
+  it("rejects unchanged and non-finite movement", () => {
+    const d = fresh();
+    d.tokens.push(tok("t1"));
+    expect(applyOp(d, { op: "token.move", id: "t1", x: 0, y: 0 })).toBe(false);
+    expect(applyOp(d, { op: "token.move", id: "t1", x: Number.NaN, y: 5 })).toBe(false);
   });
 
   it("handles fog enable + reveal accumulation without duplicates", () => {
@@ -111,14 +173,32 @@ describe("applyOp", () => {
 // Scene pinning: while the Curator roams, players' ops on the pinned scene are
 // applied to the stored copy — under the same policy the live path enforces.
 describe("foreignOpAllowed (pinned-scene op policy)", () => {
-  it("owner-locked tokens obey their owner; unowned tokens stay free-for-all", () => {
+  it("owner-locked tokens obey their owner; unowned tokens stay Curator-only", () => {
     const d = fresh();
     d.tokens.push({ ...tok("mine"), owner: "peer-a" }, tok("npc"));
     expect(foreignOpAllowed(d, { op: "token.move", id: "mine", x: 5, y: 5 }, "peer-a")).toBe(true);
+    expect(foreignOpAllowed(d, { op: "token.update", id: "mine", patch: { hp: 5, color: "#123456" } }, "peer-a")).toBe(true);
     expect(foreignOpAllowed(d, { op: "token.move", id: "mine", x: 5, y: 5 }, "peer-b")).toBe(false);
     expect(foreignOpAllowed(d, { op: "token.update", id: "mine", patch: { hp: 0 } }, "peer-b")).toBe(false);
     expect(foreignOpAllowed(d, { op: "token.remove", id: "mine" }, "peer-b")).toBe(false);
-    expect(foreignOpAllowed(d, { op: "token.move", id: "npc", x: 1, y: 1 }, "peer-b")).toBe(true);
+    expect(foreignOpAllowed(d, { op: "token.move", id: "npc", x: 1, y: 1 }, "peer-b")).toBe(false);
+  });
+
+  it("rejects an owner's generic attempt to rewrite protected fields", () => {
+    const d = fresh();
+    d.tokens.push({ ...tok("mine"), owner: "peer-a", characterId: "char-a" });
+    expect(foreignOpAllowed(d, { op: "token.update", id: "mine", patch: { owner: "peer-b" } }, "peer-a")).toBe(false);
+    expect(foreignOpAllowed(d, { op: "token.update", id: "mine", patch: { x: 200, hp: 1 } }, "peer-a")).toBe(false);
+    expect(foreignOpAllowed(d, { op: "token.update", id: "mine", patch: { characterId: "char-b" } }, "peer-a")).toBe(false);
+    expect(foreignOpAllowed(d, { op: "token.update", id: "mine", patch: { vision: 100 } }, "peer-a")).toBe(false);
+    expect(foreignOpAllowed(d, { op: "token.update", id: "mine", patch: { blocksMovement: false } }, "peer-a")).toBe(false);
+  });
+
+  it("refuses a player resize that would overlap another token", () => {
+    const d = fresh();
+    d.tokens.push({ ...tok("mine", 35, 35), owner: "peer-a" }, tok("blocker", 105, 35));
+    expect(foreignOpAllowed(d, { op: "token.update", id: "mine", patch: { size: 2 } }, "peer-a")).toBe(false);
+    expect(foreignOpAllowed(d, { op: "token.update", id: "mine", patch: { size: 1 } }, "peer-a")).toBe(true);
   });
 
   it("props are Curator scenery — players can't move, edit, or remove them", () => {
@@ -131,6 +211,10 @@ describe("foreignOpAllowed (pinned-scene op policy)", () => {
 
   it("scene-building ops stay Curator-only, so a player's are refused", () => {
     const d = fresh();
+    expect(foreignOpAllowed(d, { op: "token.add", token: tok("summon") }, "peer-a")).toBe(false);
+    expect(foreignOpAllowed(d, { op: "token.assign", id: "mine", owner: "peer-a" }, "peer-a")).toBe(false);
+    expect(foreignOpAllowed(d, { op: "wall.remove", id: "w1" }, "peer-a")).toBe(false);
+    expect(foreignOpAllowed(d, { op: "light.remove", id: "l1" }, "peer-a")).toBe(false);
     expect(foreignOpAllowed(d, { op: "emitter.remove", id: "e1" }, "peer-a")).toBe(false);
     expect(foreignOpAllowed(d, { op: "envfx.set", envFx: null }, "peer-a")).toBe(false);
     expect(foreignOpAllowed(d, { op: "draw.allow", allow: true }, "peer-a")).toBe(false);
@@ -145,9 +229,35 @@ describe("foreignOpAllowed (pinned-scene op policy)", () => {
     expect(foreignOpAllowed(d, { op: "draw.add", drawing: stroke }, "peer-a")).toBe(false);
   });
 
-  it("ordinary play ops pass through", () => {
+  it("lets a player relight only a lantern visible from their own token", () => {
     const d = fresh();
-    expect(foreignOpAllowed(d, { op: "fog.reveal", cells: ["1,1"] }, "peer-a")).toBe(true);
-    expect(foreignOpAllowed(d, { op: "token.add", token: tok("summon") }, "peer-a")).toBe(true);
+    d.fog.mode = "realistic";
+    d.tokens.push({ ...tok("mine", 35, 35), owner: "peer-a" });
+    d.lights.push({ id: "near", x: 105, y: 35, radius: 4, color: "#fff", intensity: 1, lit: false });
+    expect(foreignOpAllowed(d, { op: "light.ignite", id: "near" }, "peer-a")).toBe(true);
+    expect(foreignOpAllowed(d, { op: "light.ignite", id: "near" }, "peer-b")).toBe(false);
+    expect(applyOp(d, { op: "light.ignite", id: "near" })).toBe(true);
+    expect(d.lights[0]).toMatchObject({ lit: true });
+    expect(typeof d.lights[0].litAt).toBe("number");
+  });
+
+  it("does not let a player directly rewrite shared fog exploration", () => {
+    const d = fresh();
+    expect(foreignOpAllowed(d, { op: "fog.reveal", cells: ["1,1"] }, "peer-a")).toBe(false);
+  });
+});
+
+describe("isVttOp", () => {
+  it("accepts valid operations and rejects malformed wire payloads", () => {
+    expect(isVttOp({ op: "token.move", id: "t1", x: 1, y: 2 })).toBe(true);
+    expect(isVttOp({ op: "token.assign", id: "t1", owner: "peer-a" })).toBe(true);
+    expect(isVttOp({ op: "fog.reveal", cells: ["1,1"] })).toBe(true);
+    expect(isVttOp({ op: "token.move", id: "t1", x: "far", y: 2 })).toBe(false);
+    expect(isVttOp({ op: "fog.reveal", cells: null })).toBe(false);
+    expect(isVttOp({ op: "wall.update", id: "w1" })).toBe(false);
+    expect(isVttOp({ op: "token.update", id: "t1", patch: { size: Number.NaN } })).toBe(false);
+    expect(isVttOp({ op: "token.update", id: "t1", patch: { owner: "peer-b" } })).toBe(false);
+    expect(isVttOp({ op: "system.erase-everything" })).toBe(false);
+    expect(isVttOp(null)).toBe(false);
   });
 });

@@ -1,27 +1,45 @@
-// The store is a module-level singleton, so these cases run as one ordered
-// sequence against a shared instance (mirrors app runtime).
-import { describe, it, expect } from "vitest";
-import { addSessionRoll, getSessionRolls, hydrateSessionRolls, subscribeSessionRolls, type SessionRoll } from "./rollSession";
+import { beforeEach, describe, it, expect } from "vitest";
+import {
+  addSessionRoll,
+  clearSessionRolls,
+  getSessionRolls,
+  hydrateSessionRolls,
+  rollSessionScope,
+  subscribeSessionRolls,
+  type SessionRoll,
+} from "./rollSession";
 
-const R = (id: string, who: string, result: number): SessionRoll => ({ id, who, label: "d20", formula: "1d20", result, at: Date.now() });
+const R = (id: string, who: string, result: number, at = Date.now()): SessionRoll => ({
+  id,
+  who,
+  label: "d20",
+  formula: "1d20",
+  result,
+  at,
+});
 
 describe("rollSession store", () => {
+  beforeEach(() => clearSessionRolls());
+
   it("prepends live rolls newest-first", () => {
-    addSessionRoll("c1", R("a", "You", 5));
-    addSessionRoll("c1", R("b", "Kai", 12));
+    addSessionRoll("c1", R("a", "You", 5, 10));
+    addSessionRoll("c1", R("b", "Kai", 12, 20));
     expect(getSessionRolls("c1").map((r) => r.id)).toEqual(["b", "a"]);
   });
 
-  it("dedupes by id (self-echo cannot double-count)", () => {
+  it("dedupes by id, keeps first-seen dice, and fills legacy metadata", () => {
     addSessionRoll("c1", R("a", "You", 5));
-    expect(getSessionRolls("c1")).toHaveLength(2);
+    addSessionRoll("c1", { ...R("a", "Kai", 99), baseExpr: "1d20", characterId: "char-1" });
+    expect(getSessionRolls("c1")).toHaveLength(1);
+    expect(getSessionRolls("c1")[0]).toMatchObject({ result: 5, who: "You", baseExpr: "1d20", characterId: "char-1" });
   });
 
-  it("hydrates DB history UNDER live rolls, de-duped, only once", () => {
-    hydrateSessionRolls("c1", [R("a", "", 5), R("hist1", "", 9), R("hist2", "", 3)]);
-    expect(getSessionRolls("c1").map((r) => r.id)).toEqual(["b", "a", "hist1", "hist2"]);
-    hydrateSessionRolls("c1", [R("hist3", "", 1)]); // second hydrate is a no-op
-    expect(getSessionRolls("c1").some((r) => r.id === "hist3")).toBe(false);
+  it("merges repeated DB reloads without clobbering live rolls", () => {
+    addSessionRoll("c1", R("live", "You", 17, 40));
+    hydrateSessionRolls("c1", [R("live", "History", 99, 40), R("hist1", "History", 9, 20)]);
+    hydrateSessionRolls("c1", [R("hist1", "History", 9, 20), R("hist2", "History", 3, 10)]);
+    expect(getSessionRolls("c1").map((r) => r.id)).toEqual(["live", "hist1", "hist2"]);
+    expect(getSessionRolls("c1")[0].result).toBe(17);
   });
 
   it("returns a stable empty reference for unknown campaigns", () => {
@@ -37,6 +55,12 @@ describe("rollSession store", () => {
     off();
     addSessionRoll("c1", R("d", "You", 1));
     expect(n).toBe(1);
+  });
+
+  it("qualifies connected table scopes while preserving offline keys", () => {
+    expect(rollSessionScope("campaign", null)).toBe("campaign");
+    expect(rollSessionScope("campaign", "room 7")).toBe("campaign::table:room%207");
+    expect(rollSessionScope("campaign", "room 7")).not.toBe(rollSessionScope("campaign", "room 8"));
   });
 
   it("caps the log at 100 entries", () => {

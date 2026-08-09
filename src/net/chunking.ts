@@ -11,9 +11,14 @@
 // so a simple accumulator suffices.
 
 export const CHUNK_SIZE = 45_000; // chars — safely under the 64KB floor
+export const MAX_CHUNKED_PAYLOAD = 24 * 1024 * 1024;
+export const MAX_PENDING_MESSAGES = 8;
+const MAX_CHUNKS = Math.ceil(MAX_CHUNKED_PAYLOAD / CHUNK_SIZE);
 const TAG = "@@c|";
 
 export function frameChunks(payload: string, chunkSize = CHUNK_SIZE): string[] {
+  if (!Number.isFinite(chunkSize) || chunkSize < 1 || chunkSize > CHUNK_SIZE) return [];
+  if (payload.length > MAX_CHUNKED_PAYLOAD) return [];
   if (payload.length <= chunkSize) return [payload];
   const id = Math.random().toString(36).slice(2, 10);
   const total = Math.ceil(payload.length / chunkSize);
@@ -27,6 +32,7 @@ export function frameChunks(payload: string, chunkSize = CHUNK_SIZE): string[] {
 interface Pending {
   total: number;
   got: number;
+  chars: number;
   parts: string[];
   at: number;
 }
@@ -38,7 +44,7 @@ export class ChunkAssembler {
   private pending = new Map<string, Pending>();
 
   feed(raw: string, now = Date.now()): string | null {
-    if (!raw.startsWith(TAG)) return raw; // small message — passes straight through
+    if (!raw.startsWith(TAG)) return raw.length <= MAX_CHUNKED_PAYLOAD ? raw : null;
     const p1 = raw.indexOf("|", TAG.length);
     const p2 = raw.indexOf("|", p1 + 1);
     const p3 = raw.indexOf("|", p2 + 1);
@@ -46,18 +52,42 @@ export class ChunkAssembler {
     const id = raw.slice(TAG.length, p1);
     const idx = parseInt(raw.slice(p1 + 1, p2), 10);
     const total = parseInt(raw.slice(p2 + 1, p3), 10);
-    if (!Number.isFinite(idx) || !Number.isFinite(total) || total <= 0 || idx < 0 || idx >= total) return null;
+    if (
+      !/^[a-z0-9]{1,24}$/i.test(id) || !Number.isInteger(idx) || !Number.isInteger(total) ||
+      total <= 0 || total > MAX_CHUNKS || idx < 0 || idx >= total ||
+      raw.length - (p3 + 1) > CHUNK_SIZE
+    ) return null;
 
     // opportunistic stale cleanup
     for (const [k, v] of this.pending) if (now - v.at > 30_000) this.pending.delete(k);
 
     let entry = this.pending.get(id);
     if (!entry) {
-      entry = { total, got: 0, parts: new Array<string>(total), at: now };
+      if (this.pending.size >= MAX_PENDING_MESSAGES) {
+        let oldestId: string | null = null;
+        let oldestAt = Infinity;
+        for (const [key, value] of this.pending) {
+          if (value.at < oldestAt) {
+            oldestId = key;
+            oldestAt = value.at;
+          }
+        }
+        if (oldestId) this.pending.delete(oldestId);
+      }
+      entry = { total, got: 0, chars: 0, parts: new Array<string>(total), at: now };
       this.pending.set(id, entry);
+    } else if (entry.total !== total) {
+      this.pending.delete(id);
+      return null;
     }
     if (entry.parts[idx] === undefined) {
-      entry.parts[idx] = raw.slice(p3 + 1);
+      const part = raw.slice(p3 + 1);
+      entry.chars += part.length;
+      if (entry.chars > MAX_CHUNKED_PAYLOAD) {
+        this.pending.delete(id);
+        return null;
+      }
+      entry.parts[idx] = part;
       entry.got++;
       entry.at = now;
     }

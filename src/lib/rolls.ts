@@ -1,6 +1,7 @@
 // Roll feed persisted to the SQLite `rolls` table (migration v2). Foundation for the
 // Phase 6 VTT roll feed. Desktop-only; no-ops outside Tauri.
-import type { RollResult } from "../game/wte";
+import { parseDiceExpr, type RollResult } from "../game/wte";
+import type { NetRollMode } from "../net/protocol";
 import { getDb, sqlAvailable } from "./db";
 
 export interface RollEntry {
@@ -11,6 +12,23 @@ export interface RollEntry {
   result: number;
   label: string;
   at: number;
+  baseExpr?: string;
+  actorName?: string;
+  tokenId?: string;
+  requestId?: string;
+  mode?: NetRollMode;
+  detail?: unknown;
+}
+
+export interface RollLogMeta {
+  /** Reuse the id already placed in the live feed/wire message. */
+  id?: string;
+  at?: number;
+  baseExpr?: string;
+  actorName?: string;
+  tokenId?: string;
+  requestId?: string;
+  mode?: NetRollMode;
 }
 
 interface RollRow {
@@ -23,22 +41,137 @@ interface RollRow {
   at: number;
 }
 
-function newId(): string {
+interface StoredRollMeta {
+  version: 1;
+  baseExpr?: string;
+  actorName?: string;
+  tokenId?: string;
+  requestId?: string;
+  mode?: NetRollMode;
+}
+
+export function createRollId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
   return "r-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+}
+
+/** Normalize user-entered dice into the expression used for request
+ * correlation (for example ` d20 + 03 ` -> `1d20+3`). */
+export function canonicalRollExpr(raw: string): string | null {
+  const parsed = parseDiceExpr(raw);
+  if (!parsed) return null;
+  const mod = parsed.mod > 0 ? `+${parsed.mod}` : parsed.mod < 0 ? String(parsed.mod) : "";
+  return `${parsed.count}d${parsed.sides}${mod}`;
+}
+
+export interface ValidatedCompletedRoll {
+  id: string;
+  label: string;
+  formula: string;
+  baseExpr: string;
+  result: number;
+  mode: NetRollMode;
+  detail: RollResult["detail"];
+}
+
+/**
+ * Validate a completed roll received from the network and rebuild its display
+ * formula from the actual dice detail. This is deliberately stricter than the
+ * local dice parser: a peer cannot claim a result that does not match the
+ * supplied die totals, modifier, posture, and canonical base expression.
+ */
+export function validateCompletedRoll(value: unknown): ValidatedCompletedRoll | null {
+  const roll = asRecord(value);
+  if (!roll) return null;
+  const id = typeof roll.id === "string" ? roll.id.trim() : "";
+  const label = typeof roll.label === "string" ? roll.label.trim() : "";
+  const rawBaseExpr = typeof roll.baseExpr === "string" ? roll.baseExpr : "";
+  const baseExpr = canonicalRollExpr(rawBaseExpr);
+  const mode = rollMode(roll.mode);
+  const detail = asRecord(roll.detail);
+  if (
+    !id || id.length > 128 || label.length > 160 ||
+    typeof roll.formula !== "string" || roll.formula.length > 240 ||
+    !baseExpr || baseExpr !== rawBaseExpr || !mode || !detail
+  ) return null;
+
+  const parsed = parseDiceExpr(baseExpr);
+  if (!parsed || !Number.isFinite(parsed.mod)) return null;
+  const expectedRollCount = mode === "normal" ? 1 : 2;
+  const totals = Array.isArray(detail.rolls) ? detail.rolls : null;
+  if (
+    detail.die !== parsed.sides || detail.modifier !== parsed.mod ||
+    detail.label !== label || detail.mode !== mode ||
+    !totals || totals.length !== expectedRollCount
+  ) return null;
+  const low = parsed.count;
+  const high = parsed.count * parsed.sides;
+  if (!totals.every((total) => Number.isInteger(total) && total >= low && total <= high)) return null;
+  const selected = mode === "adv" ? Math.max(...totals) : mode === "dis" ? Math.min(...totals) : totals[0];
+  const result = roll.result;
+  if (
+    detail.roll !== selected || typeof result !== "number" || !Number.isInteger(result) ||
+    result !== selected + parsed.mod
+  ) return null;
+
+  const posture = mode === "normal"
+    ? ""
+    : ` · ${mode === "adv" ? "Advantage" : "Disadvantage"} (${totals.join("/")})`;
+  return {
+    id,
+    label,
+    formula: `${baseExpr}${posture}`,
+    baseExpr,
+    result,
+    mode,
+    detail: {
+      die: parsed.sides,
+      roll: selected,
+      modifier: parsed.mod,
+      label,
+      mode,
+      rolls: [...totals],
+    },
+  };
 }
 
 export async function logRoll(
   campaignId: string | null,
   characterId: string | null,
-  roll: RollResult
+  roll: RollResult,
+  meta: RollLogMeta = {}
 ): Promise<void> {
   if (!sqlAvailable()) return;
+  const id = meta.id || createRollId();
+  const at = Number.isFinite(meta.at) ? Number(meta.at) : Date.now();
+  const storedMeta: StoredRollMeta = {
+    version: 1,
+    baseExpr: meta.baseExpr,
+    actorName: meta.actorName,
+    tokenId: meta.tokenId,
+    requestId: meta.requestId,
+    mode: meta.mode ?? roll.detail.mode,
+  };
+  // Keep the legacy label/die fields at the root so older builds still render
+  // the row; namespaced metadata is additive and safe for them to ignore.
+  const detail = JSON.stringify({ ...roll.detail, _wte: storedMeta });
   const db = await getDb();
   await db.execute(
-    "INSERT INTO rolls (id, campaign_id, character_id, formula, result, detail, at) VALUES ($1,$2,$3,$4,$5,$6,$7)",
-    [newId(), campaignId, characterId, roll.formula, roll.result, JSON.stringify(roll.detail), Date.now()]
+    "INSERT OR IGNORE INTO rolls (id, campaign_id, character_id, formula, result, detail, at) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+    [id, campaignId, characterId, roll.formula, roll.result, detail, at]
   );
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function rollMode(value: unknown): NetRollMode | undefined {
+  return value === "normal" || value === "adv" || value === "dis" ? value : undefined;
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value ? value : undefined;
 }
 
 export async function recentRolls(campaignId: string, limit = 12): Promise<RollEntry[]> {
@@ -50,8 +183,13 @@ export async function recentRolls(campaignId: string, limit = 12): Promise<RollE
   );
   return rows.map((r) => {
     let label = "";
+    let detail: unknown;
+    let meta: Record<string, unknown> | null = null;
     try {
-      label = r.detail ? (JSON.parse(r.detail).label as string) || "" : "";
+      detail = r.detail ? JSON.parse(r.detail) : undefined;
+      const parsed = asRecord(detail);
+      label = optionalString(parsed?.label) ?? "";
+      meta = asRecord(parsed?._wte);
     } catch {
       /* ignore */
     }
@@ -63,6 +201,12 @@ export async function recentRolls(campaignId: string, limit = 12): Promise<RollE
       result: r.result,
       label,
       at: r.at,
+      baseExpr: optionalString(meta?.baseExpr),
+      actorName: optionalString(meta?.actorName),
+      tokenId: optionalString(meta?.tokenId),
+      requestId: optionalString(meta?.requestId),
+      mode: rollMode(meta?.mode),
+      detail,
     };
   });
 }

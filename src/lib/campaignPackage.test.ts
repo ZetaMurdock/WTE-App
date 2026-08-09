@@ -60,6 +60,7 @@ const {
   planImport,
   importPackage,
   packageFilename,
+  remapSceneDataForCampaignCopy,
   serializePackage,
 } = await import("./campaignPackage");
 
@@ -199,6 +200,78 @@ describe("copy mode lands alongside, merge mode lands on top", () => {
     expect(enc.scene_id).not.toBe("sc1");
   });
 
+  it("copy mode remaps character, scene, encounter and blob ids embedded in scene JSON", async () => {
+    const tokenRegistry = {
+      version: 1,
+      campaignId: "c-ashen",
+      profiles: {
+        ch1: {
+          id: "character:ch1",
+          campaignId: "c-ashen",
+          sourceKind: "character",
+          sourceId: "ch1",
+          appearance: { name: "One", color: "#123456", size: 1, img: "wte-blob:blob1" },
+          controllerId: "durable-player",
+          updatedAt: 1,
+        },
+      },
+      presences: {
+        ch1: { profileId: "character:ch1", tokenId: "tok1", sceneId: "sc1", revision: 2, updatedAt: 1 },
+      },
+      retired: [],
+    };
+    const withRefs = {
+      ...incoming,
+      scenes: [
+        {
+          id: "sc1",
+          campaign_id: "c-ashen",
+          name: "Source Room",
+          active: 1,
+          data: JSON.stringify({
+            background: { src: "wte-blob:blob1" },
+            tokens: [{ id: "tok1", characterId: "ch1", img: "wte-blob:blob1" }],
+            emitters: [{ id: "sound1", src: "wte-blob:blob1" }],
+            links: [{ id: "link1", targetSceneId: "sc2", edge: "east" }],
+            encounterId: "e1",
+          }),
+        },
+        { id: "sc2", campaign_id: "c-ashen", name: "Target Room", active: 0, data: "{}" },
+      ],
+      encounters: [{ id: "e1", campaign_id: "c-ashen", name: "Fight", scene_id: "sc1", data: "{}" }],
+      assets: [{ id: "blob1", campaign_id: "c-ashen", kind: "blob", name: "scene-blob", uri: "data:image/png;base64,abc" }],
+      kv: [{ scope: "misc", key: "vtt-token-registry-v1", value: tokenRegistry }],
+    };
+
+    const result = await importPackage(parsePackage(withRefs), "copy");
+    expect(result.failed).toEqual([]);
+    const copiedCharacter = tables.characters.find((row) => row.campaign_id === result.campaignId)!;
+    const source = tables.scenes.find((row) => row.campaign_id === result.campaignId && row.name === "Source Room")!;
+    const target = tables.scenes.find((row) => row.campaign_id === result.campaignId && row.name === "Target Room")!;
+    const encounter = tables.encounters.find((row) => row.campaign_id === result.campaignId)!;
+    const blob = tables.assets.find((row) => row.campaign_id === result.campaignId)!;
+    const data = JSON.parse(String(source.data));
+
+    expect(data.tokens[0]).toMatchObject({ characterId: copiedCharacter.id, img: `wte-blob:${blob.id}` });
+    expect(data.background.src).toBe(`wte-blob:${blob.id}`);
+    expect(data.emitters[0].src).toBe(`wte-blob:${blob.id}`);
+    expect(data.links[0].targetSceneId).toBe(target.id);
+    expect(data.encounterId).toBe(encounter.id);
+
+    const registryRow = tables.campaign_kv.find(
+      (row) => row.campaign_id === result.campaignId && row.key === "vtt-token-registry-v1"
+    )!;
+    const registry = JSON.parse(String(registryRow.value));
+    expect(registry.campaignId).toBe(result.campaignId);
+    expect(registry.profiles[copiedCharacter.id]).toMatchObject({
+      campaignId: result.campaignId,
+      sourceId: copiedCharacter.id,
+      controllerId: "durable-player",
+      appearance: { img: `wte-blob:${blob.id}` },
+    });
+    expect(registry.presences[copiedCharacter.id]).toMatchObject({ tokenId: "tok1", sceneId: source.id });
+  });
+
   it("merge mode updates in place", async () => {
     const r = await importPackage(parsePackage(incoming), "merge");
     expect(r.campaignId).toBe("c-ashen");
@@ -223,5 +296,19 @@ describe("copy mode lands alongside, merge mode lands on top", () => {
     // Strings where numbers belong are dropped, not stored to rot.
     expect(sheet.rank).toBe(0);
     expect(sheet.morality).toBeUndefined();
+  });
+});
+
+describe("scene reference copy transform", () => {
+  it("keeps malformed or non-object scene bytes verbatim", () => {
+    expect(remapSceneDataForCampaignCopy("{truncated", (id: string) => `${id}-copy`)).toBe("{truncated");
+    expect(remapSceneDataForCampaignCopy("[]", (id: string) => `${id}-copy`)).toBe("[]");
+  });
+
+  it("does not mutate an object-form scene payload", () => {
+    const source = { tokens: [{ characterId: "char", img: "wte-blob:blob" }] };
+    const copied = remapSceneDataForCampaignCopy(source, (id: string) => `${id}-copy`) as typeof source;
+    expect(copied.tokens[0]).toEqual({ characterId: "char-copy", img: "wte-blob:blob-copy" });
+    expect(source.tokens[0]).toEqual({ characterId: "char", img: "wte-blob:blob" });
   });
 });

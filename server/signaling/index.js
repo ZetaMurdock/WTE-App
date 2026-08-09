@@ -56,14 +56,31 @@ function createSignalingServer(port = Number(process.env.PORT) || 8787) {
       }
 
       if (m.t === "join") {
-        room = String(m.room || "").slice(0, 64);
-        peer = String(m.peer || "").slice(0, 64);
+        if (room || peer) {
+          send(ws, { t: "error", message: "socket already joined" });
+          return;
+        }
+        const requestedRoom = String(m.room || "").slice(0, 64);
+        const requestedPeer = String(m.peer || "").slice(0, 64);
         const role = m.role === "host" ? "host" : "player";
         const name = String(m.name || "Player").slice(0, 40);
-        if (!room || !peer) return send(ws, { t: "error", message: "room and peer required" });
-        let r = rooms.get(room);
-        if (!r) rooms.set(room, (r = new Map()));
-        if (r.size >= MAX_PEERS_PER_ROOM && !r.has(peer)) return send(ws, { t: "error", message: "room full" });
+        if (!requestedRoom || !requestedPeer) return send(ws, { t: "error", message: "room and peer required" });
+        let r = rooms.get(requestedRoom);
+        if (!r) rooms.set(requestedRoom, (r = new Map()));
+        const existing = r.get(requestedPeer);
+        if (existing && existing.ws !== ws) {
+          send(ws, { t: "error", message: "peer id already connected" });
+          ws.close(1008, "duplicate peer id");
+          return;
+        }
+        if (role === "host" && [...r.values()].some((entry) => entry.role === "host" && entry.ws !== ws)) {
+          send(ws, { t: "error", message: "room already has a host" });
+          ws.close(1008, "duplicate host");
+          return;
+        }
+        if (r.size >= MAX_PEERS_PER_ROOM && !existing) return send(ws, { t: "error", message: "room full" });
+        room = requestedRoom;
+        peer = requestedPeer;
         r.set(peer, { ws, role, name });
         // Tell the joiner who's already in the room…
         const peers = [...r.entries()]
@@ -81,8 +98,10 @@ function createSignalingServer(port = Number(process.env.PORT) || 8787) {
 
       if (m.t === "signal") {
         // Relay an SDP offer/answer or ICE candidate to one peer in the room.
+        const sender = r.get(peer);
         const target = r.get(String(m.to));
-        if (target) send(target.ws, { t: "signal", from: peer, data: m.data });
+        const validRoute = sender && target && sender.role !== target.role && (sender.role === "host" || target.role === "host");
+        if (validRoute) send(target.ws, { t: "signal", from: peer, data: m.data });
         return;
       }
       if (m.t === "leave") cleanup();

@@ -16,6 +16,8 @@ interface Props {
   sel: NonNullable<VttSelection>;
   scene: VttScene;
   onToken: (patch: Partial<VttToken>) => void;
+  onRecoverTokenOwner?: () => void;
+  onTokenImage?: (file: File | null) => void;
   onWall: (patch: Partial<VttWall>) => void;
   onLight: (patch: Partial<VttLight>) => void;
   onEmitter: (patch: Partial<VttEmitter>) => void;
@@ -26,12 +28,14 @@ interface Props {
   /** Connected peers for token-ownership assignment (empty when solo). */
   peers?: { id: string; name: string }[];
   selfId?: string | null;
+  /** Mechanical visibility and ownership settings remain Curator-authoritative. */
+  curator?: boolean;
 }
 
 const LIGHT_COLORS = ["#a08a4f", "#689a96", "#837aae", "#a1584a", "#a7aebd"];
 const EFFECT_COLORS = ["#837aae", "#a1584a", "#a08a4f", "#689a96", "#6f9a68"];
 
-export function VttInspector({ sel, scene, onToken, onWall, onLight, onEmitter, onEffect, onEffectKind, onDelete, onClose, peers = [], selfId }: Props) {
+export function VttInspector({ sel, scene, onToken, onTokenImage, onRecoverTokenOwner, onWall, onLight, onEmitter, onEffect, onEffectKind, onDelete, onClose, peers = [], selfId, curator = true }: Props) {
   const token = sel.kind === "token" ? scene.data.tokens.find((t) => t.id === sel.id) : null;
   const wall = sel.kind === "wall" ? scene.data.walls.find((w) => w.id === sel.id) : null;
   const light = sel.kind === "light" ? scene.data.lights.find((l) => l.id === sel.id) : null;
@@ -81,17 +85,19 @@ export function VttInspector({ sel, scene, onToken, onWall, onLight, onEmitter, 
                 onChange={(e) => onToken({ size: Math.max(1, Math.min(6, parseInt(e.target.value, 10) || 1)) })}
               />
             </label>
-            <label className="lobby-field">
-              <span>Vision (cells)</span>
-              <input
-                className="bg-select full"
-                type="number"
-                min={0}
-                max={30}
-                value={token.vision ?? 5}
-                onChange={(e) => onToken({ vision: Math.max(0, Math.min(30, parseInt(e.target.value, 10) || 0)) })}
-              />
-            </label>
+            {curator && (
+              <label className="lobby-field">
+                <span>Vision (cells)</span>
+                <input
+                  className="bg-select full"
+                  type="number"
+                  min={0}
+                  max={30}
+                  value={token.vision ?? 5}
+                  onChange={(e) => onToken({ vision: Math.max(0, Math.min(30, parseInt(e.target.value, 10) || 0)) })}
+                />
+              </label>
+            )}
           </div>
           <div className="lobby-field mt">
             <span>Color</span>
@@ -101,6 +107,32 @@ export function VttInspector({ sel, scene, onToken, onWall, onLight, onEmitter, 
               ))}
             </div>
           </div>
+          {curator && (
+            <button className={"chip" + (token.visible !== false ? " active" : "")} onClick={() => onToken({ visible: token.visible === false })}>
+              {token.visible === false ? "Hidden from players · Show" : "Shown to players"}
+            </button>
+          )}
+          {onTokenImage && (
+            <div className="lobby-field mt">
+              <span>Token art</span>
+              <div className="vtt2-asset-add-row">
+                <label className="chip" style={{ cursor: "pointer" }}>
+                  Choose image
+                  <input
+                    type="file"
+                    accept="image/*"
+                    hidden
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null;
+                      e.target.value = "";
+                      if (file) onTokenImage(file);
+                    }}
+                  />
+                </label>
+                {token.img && <button className="chip" onClick={() => onToken({ img: null })}>Clear</button>}
+              </div>
+            </div>
+          )}
           <div className="vtt2-hp-row">
             <label className="lobby-field">
               <span>HP</span>
@@ -111,14 +143,15 @@ export function VttInspector({ sel, scene, onToken, onWall, onLight, onEmitter, 
               <input className="bg-select full" type="number" value={token.hpMax ?? 0} onChange={(e) => onToken({ hpMax: parseInt(e.target.value, 10) || 0 })} />
             </label>
           </div>
-          {(peers.length > 0 || selfId) && (
-            <label className="lobby-field mt">
+          {curator && (peers.length > 0 || selfId) && (
+            <div className="lobby-field mt">
               <span>Owner (player fog)</span>
               <select
                 className="bg-select full"
                 value={token.owner ?? ""}
                 onChange={(e) => onToken({ owner: e.target.value || undefined })}
-                title="Which player's vision this token provides — enemy tokens stay hidden in a player's fog"
+                disabled={!!token.owner}
+                title={token.owner ? "Ownership is locked; use the explicit recovery action below" : "Assign this unowned token to one player"}
               >
                 <option value="">GM / none</option>
                 {selfId && !peers.some((p) => p.id === selfId) && <option value={selfId}>Me</option>}
@@ -128,7 +161,12 @@ export function VttInspector({ sel, scene, onToken, onWall, onLight, onEmitter, 
                   </option>
                 ))}
               </select>
-            </label>
+              {token.owner && onRecoverTokenOwner && (
+                <button className="chip" style={{ marginTop: 6 }} onClick={onRecoverTokenOwner}>
+                  Recover ownership
+                </button>
+              )}
+            </div>
           )}
           <div className="lobby-field mt">
             <span>Statuses</span>

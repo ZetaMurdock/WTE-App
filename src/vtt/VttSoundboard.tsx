@@ -3,7 +3,7 @@ import { addAsset, deleteAsset, listAssets, type VttAsset } from "./data/assetRe
 import { groupSounds, soundDisplayName, soundNameFromFile } from "./data/soundLib";
 import { getMasterVolume } from "../lib/audioPrefs";
 import { useNet } from "../net/NetContext";
-import { reportSaveFailure } from "../lib/appToast";
+import { pushToast, reportSaveFailure } from "../lib/appToast";
 import { ConfirmButton } from "../components/ui/ConfirmButton";
 
 interface Props {
@@ -75,6 +75,10 @@ export function VttSoundboard({ campaignId, sceneName, onClose, onPlaceEmitter }
       if (net.status !== "connected") return;
       const id = s?.id ?? "";
       const first = s ? !sentSfx.has(id) : false;
+      if (first && s && s.uri.length > 8 * 1024 * 1024) {
+        pushToast("That sound is too large to send to the table. Re-import a clip under 4 MB.", "error");
+        return;
+      }
       if (s) sentSfx.add(id);
       net.publish({ t: "sfx", action, id, name: s?.name, uri: first ? s?.uri : undefined, volume: vol });
     },
@@ -132,6 +136,10 @@ export function VttSoundboard({ campaignId, sceneName, onClose, onPlaceEmitter }
   async function addFiles(files: File[], useRelativePath: boolean) {
     for (const f of files) {
       if (!f.type.startsWith("audio/") && !/\.(mp3|ogg|wav|m4a|flac|webm)$/i.test(f.name)) continue;
+      if (f.size > 4 * 1024 * 1024) {
+        pushToast(`${f.name} was skipped; table sounds must be 4 MB or smaller.`, "error");
+        continue;
+      }
       const uri = await fileToDataUrl(f).catch(() => null);
       const rel = useRelativePath ? ((f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name) : f.name;
       if (uri) await reportSaveFailure(addAsset(campaignId, "sound", soundNameFromFile(rel), uri), "the sound");

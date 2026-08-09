@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { frameChunks, ChunkAssembler, CHUNK_SIZE } from "./chunking";
+import { frameChunks, ChunkAssembler, CHUNK_SIZE, MAX_CHUNKED_PAYLOAD, MAX_PENDING_MESSAGES } from "./chunking";
 
 describe("chunking (large-message transport framing)", () => {
   it("passes small payloads through untouched", () => {
@@ -59,5 +59,21 @@ describe("chunking (large-message transport framing)", () => {
     // so its late second half can never complete it.
     expect(rx.feed('{"t":"chat"}', 41_000)).toBe('{"t":"chat"}');
     expect(rx.feed(big[1], 41_001)).toBeNull();
+  });
+
+  it("bounds attacker-controlled chunk counts and payload sizes", () => {
+    const rx = new ChunkAssembler();
+    expect(rx.feed("@@c|evil|0|999999999|x")).toBeNull();
+    expect(rx.feed("Z".repeat(MAX_CHUNKED_PAYLOAD + 1))).toBeNull();
+    expect(frameChunks("Z".repeat(MAX_CHUNKED_PAYLOAD + 1))).toEqual([]);
+  });
+
+  it("caps simultaneous partial assemblies", () => {
+    const rx = new ChunkAssembler();
+    for (let i = 0; i <= MAX_PENDING_MESSAGES; i++) {
+      expect(rx.feed(`@@c|id${i}|0|2|first`, 1000 + i)).toBeNull();
+    }
+    // The first assembly was evicted, so its final frame cannot complete it.
+    expect(rx.feed("@@c|id0|1|2|second", 2000)).toBeNull();
   });
 });

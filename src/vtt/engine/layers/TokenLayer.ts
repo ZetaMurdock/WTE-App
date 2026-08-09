@@ -31,9 +31,21 @@ interface Node {
   token: VttToken;
 }
 
+interface BounceMotion {
+  dx: number;
+  dy: number;
+  elapsed: number;
+  duration: number;
+}
+
 export class TokenLayer {
   readonly view = new Container();
   private nodes = new Map<string, Node>();
+  /** Dragging is a visual preview only. The authoritative scene coordinate is
+   *  untouched until the host commits the move, so fog/saves never observe an
+   *  illegal intermediate position. */
+  private previews = new Map<string, { x: number; y: number }>();
+  private bounces = new Map<string, BounceMotion>();
   /** On-canvas transform handles for the selected token (rotate + scale). */
   private handles = new Graphics();
 
@@ -70,6 +82,35 @@ export class TokenLayer {
   /** True while every token has settled at its target opacity. */
   settled = true;
 
+  setPreview(id: string, x: number, y: number): void {
+    this.previews.set(id, { x, y });
+    this.settled = false;
+  }
+
+  clearPreview(id: string): void {
+    this.previews.delete(id);
+  }
+
+  /** Briefly nudge toward a refused destination and spring home. This affects
+   *  only the Pixi node; the scene model remains at its authoritative point. */
+  bounce(id: string, attemptedX: number, attemptedY: number, cell = 70): void {
+    const token = this.nodes.get(id)?.token;
+    if (!token) return;
+    this.previews.delete(id);
+    const dx = attemptedX - token.x;
+    const dy = attemptedY - token.y;
+    const length = Math.hypot(dx, dy) || 1;
+    const amplitude = Math.min(cell * 0.2, Math.max(8, length * 0.18));
+    this.bounces.set(id, { dx: (dx / length) * amplitude, dy: (dy / length) * amplitude, elapsed: 0, duration: 0.28 });
+    this.settled = false;
+  }
+
+  displayPosition(id: string): { x: number; y: number } | null {
+    const token = this.nodes.get(id)?.token;
+    if (!token) return null;
+    return this.previews.get(id) ?? { x: token.x, y: token.y };
+  }
+
   sync(scene: VttScene, selectedId: string | null, visible: Set<string> | null = null, dt = 1 / 60): void {
     const { tokens, layers } = scene.data;
     this.view.visible = layers.tokens;
@@ -79,6 +120,8 @@ export class TokenLayer {
       if (!live.has(id)) {
         n.root.destroy({ children: true });
         this.nodes.delete(id);
+        this.previews.delete(id);
+        this.bounces.delete(id);
       }
     }
     const cell = scene.data.grid.size;
@@ -104,11 +147,30 @@ export class TokenLayer {
       }
       n.token = t;
       const r = ((t.size || 1) * cell) / 2 - 4;
-      n.root.position.set(t.x, t.y);
+      const preview = this.previews.get(t.id);
+      const baseX = preview?.x ?? t.x;
+      const baseY = preview?.y ?? t.y;
+      const bounce = this.bounces.get(t.id);
+      let ox = 0;
+      let oy = 0;
+      if (bounce) {
+        bounce.elapsed += dt;
+        const p = Math.min(1, bounce.elapsed / bounce.duration);
+        // One damped outward-and-home pulse.
+        const k = Math.sin(Math.PI * p) * (1 - p * 0.35);
+        ox = bounce.dx * k;
+        oy = bounce.dy * k;
+        if (p >= 1) this.bounces.delete(t.id);
+        else this.settled = false;
+      }
+      if (preview) this.settled = false;
+      n.root.position.set(baseX + ox, baseY + oy);
       // Player view: a token in an unseen cell is hidden by the fog of war —
       // faded out over a beat, not blinked away.
       const inFog = visible !== null && !visible.has(cellKey(Math.floor(t.x / cell), Math.floor(t.y / cell)));
-      const target = t.visible !== false && !inFog ? 1 : 0;
+      // Curators retain a faint recovery ghost for explicitly hidden tokens;
+      // players receive a non-null visibility set and never see that ghost.
+      const target = inFog ? 0 : t.visible === false ? (visible === null ? 0.18 : 0) : 1;
       const prev = this.shown.get(t.id);
       let op: number;
       if (prev == null) op = target; // first sight — no fade from nothing
@@ -256,13 +318,22 @@ export class TokenLayer {
   }
 
   /** Topmost token whose disc contains the world point. */
-  pick(scene: VttScene, wx: number, wy: number): VttToken | null {
+  pick(
+    scene: VttScene,
+    wx: number,
+    wy: number,
+    allowed: (token: VttToken) => boolean = () => true,
+    includeHidden = false
+  ): VttToken | null {
     const cell = scene.data.grid.size;
     const list = scene.data.tokens;
     for (let i = list.length - 1; i >= 0; i--) {
       const t = list[i];
+      const node = this.nodes.get(t.id);
+      if (!allowed(t) || (!includeHidden && t.visible === false) || (node && (!node.root.visible || node.root.alpha <= 0.004))) continue;
       const r = ((t.size || 1) * cell) / 2;
-      if ((wx - t.x) ** 2 + (wy - t.y) ** 2 <= r * r) return t;
+      const pos = this.previews.get(t.id) ?? t;
+      if ((wx - pos.x) ** 2 + (wy - pos.y) ** 2 <= r * r) return t;
     }
     return null;
   }
