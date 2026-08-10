@@ -93,6 +93,7 @@ const FANOUT: NetMessageType[] = [
   "vtt-move-request", "vtt-move-commit", "vtt-move-reject",
   "bp", "unit-note", "purse", "inv", "dialogue", "sfx", "room-locked",
   "room-info", "vtt-ping", "play-mode", "cine",
+  "atlas", "atlas-request", "atlas-focus",
 ];
 
 export function NetProvider({ children }: { children: ReactNode }) {

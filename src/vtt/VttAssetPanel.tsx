@@ -62,8 +62,8 @@ export function VttAssetPanel({
     try {
       const dataUrl = await fileToPngDataUrl(
         file,
-        kind === "background" ? 2048 : 1024,
-        kind === "background" ? 8 * 1024 * 1024 : kind === "prop" ? 2 * 1024 * 1024 : 1024 * 1024
+        kind === "background" ? 4096 : 2048,
+        kind === "background" ? 16 * 1024 * 1024 : kind === "prop" ? 8 * 1024 * 1024 : 4 * 1024 * 1024
       );
       const nm = name.trim() || file.name.replace(/\.[^.]+$/, "") || KIND_LABEL[kind] || "Map";
       onAdd(kind, nm, dataUrl);

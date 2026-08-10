@@ -265,3 +265,99 @@ export function nullReadout(p: AtlasPoint, salt: number): string {
   const h = Math.abs(Math.sin(p.x * 12.9898 + p.y * 78.233 + salt) * 43758.5453);
   return NULL_TEXT[Math.floor(h % NULL_TEXT.length)];
 }
+
+// ── Camera flight ────────────────────────────────────────────────────────────
+
+export interface FlyTarget {
+  x: number;
+  y: number;
+  zoom: number;
+}
+
+/**
+ * The camera at progress `t` (0..1) of a flight from `from` to `to`.
+ *
+ * Position eases with smoothstep; zoom interpolates in LOG space, because zoom
+ * is multiplicative — halfway between 1 px/mi and 100 px/mi should look like
+ * 10 px/mi, not 50. Velocity is zeroed so a glide never fights the flight.
+ */
+export function flyCamera(from: AtlasCamera, to: FlyTarget, t: number): AtlasCamera {
+  const k = Math.min(1, Math.max(0, t));
+  const e = k * k * (3 - 2 * k); // smoothstep
+  const zoom = clampZoom(Math.exp(Math.log(from.zoom) + (Math.log(clampZoom(to.zoom)) - Math.log(from.zoom)) * e));
+  return {
+    x: from.x + (to.x - from.x) * e,
+    y: from.y + (to.y - from.y) * e,
+    zoom,
+    vx: 0,
+    vy: 0,
+  };
+}
+
+// ── Day / night ──────────────────────────────────────────────────────────────
+
+/**
+ * The night shade for a world-clock hour (0..24): how dark the world is, and
+ * how warm the light. `dark` is 0 at midday and peaks at midnight; `warmth`
+ * peaks at dawn (~6) and dusk (~18) so sunrise and sunset read as light, not
+ * just as less darkness.
+ */
+export function dayNightShade(hour: number): { dark: number; warmth: number } {
+  const h = ((hour % 24) + 24) % 24;
+  // Cosine day curve: 0 at 12:00, 1 at 00:00.
+  const night = (1 + Math.cos((h / 24) * Math.PI * 2)) / 2;
+  const dark = Math.pow(night, 1.4) * 0.62;
+  // Warmth: bumps centred on 6:00 and 18:00, ~2h wide.
+  const bump = (c: number) => Math.max(0, 1 - Math.abs(h - c) / 2);
+  const warmth = Math.max(bump(6), bump(18));
+  return { dark, warmth };
+}
+
+/** "06:00", "14:30" — the WORLD TIME readout. */
+export function formatWorldClock(hour: number): string {
+  const h = ((hour % 24) + 24) % 24;
+  const hh = Math.floor(h);
+  const mm = Math.floor((h - hh) * 60);
+  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+}
+
+// ── Path simplification ──────────────────────────────────────────────────────
+
+/**
+ * Ramer–Douglas–Peucker. Fluid zone drawing captures a point every few pixels;
+ * a minute of tracing would store thousands of vertices. Simplified within
+ * `epsilon` (world miles), the shape the Curator drew survives, the noise does
+ * not.
+ */
+export function simplifyPath(pts: AtlasPoint[], epsilon: number): AtlasPoint[] {
+  if (pts.length <= 2 || epsilon <= 0) return pts.slice();
+  const keep = new Array<boolean>(pts.length).fill(false);
+  keep[0] = keep[pts.length - 1] = true;
+  const stack: [number, number][] = [[0, pts.length - 1]];
+  while (stack.length) {
+    const [a, b] = stack.pop()!;
+    let worst = -1;
+    let worstD = epsilon;
+    for (let i = a + 1; i < b; i++) {
+      const d = pointToSegment(pts[i], pts[a], pts[b]);
+      if (d > worstD) {
+        worstD = d;
+        worst = i;
+      }
+    }
+    if (worst >= 0) {
+      keep[worst] = true;
+      stack.push([a, worst], [worst, b]);
+    }
+  }
+  return pts.filter((_, i) => keep[i]);
+}
+
+function pointToSegment(p: AtlasPoint, a: AtlasPoint, b: AtlasPoint): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+  const t = Math.min(1, Math.max(0, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}

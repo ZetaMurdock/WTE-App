@@ -76,7 +76,9 @@ describe("applyOp", () => {
     expect(sanitizePlayerTokenUpdatePatch({
       name: "N".repeat(121),
       statuses: ["S".repeat(81)],
-      img: "data:image/png;base64," + "A".repeat(6 * 1024 * 1024),
+      // just past the 9 MB bound — raised with the upload caps, or an 8 MB
+      // prop image would be silently rejected here and desync every peer
+      img: "data:image/png;base64," + "A".repeat(9 * 1024 * 1024),
     })).toEqual({});
     expect(isVttOp({ op: "draw.add", drawing: { id: "bad", color: "#fff", width: 2 } })).toBe(false);
     expect(isVttOp({ op: "draw.add", drawing: { id: "bad", points: [0, 0, Number.NaN, 5], color: "#fff", width: 2 } })).toBe(false);

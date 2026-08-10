@@ -143,15 +143,26 @@ around real geography rather than a placeholder.
 Storage is `campaign_kv` scope `"atlas"` — the general scoped store added in
 schema v5 exists precisely so a new campaign-scoped blob needs no migration.
 
-1. **Foundation (in progress)** — atlas model + persistence; floating Atlas
-   window over the VTT; inertial pan / zoom-to-cursor camera; adaptive scale
-   bar with Imperial/Metric/Both; click-drag measurement; nodes with zoom
-   gating and info cards; zone polygons with all five states; null rejection
-   on hover/click; Curator edit mode (place nodes, draw zones, set states);
-   map image upload. Pure math and model fully unit-tested.
-2. **Live sharing** — BROADCAST VIEW over the existing netplay op channel;
-   `CARTOGRAPHIC UPDATE RECEIVED`; Focus Everyone; player/Unit markers driven
-   by the session; signal-lost states.
+1. **Foundation (SHIPPED, v0.8.66)** — atlas model + persistence; floating
+   Atlas window over the VTT; inertial pan / zoom-to-cursor camera; adaptive
+   scale bar with Imperial/Metric/Both; click-drag measurement; nodes with
+   zoom gating and info cards; zone polygons with all five states; null
+   rejection on hover/click; Curator edit mode (place nodes, draw zones, set
+   states); map image upload. Pure math and model fully unit-tested.
+2. **Live sharing (BUILT on the atlas branch)** — the host serves players the
+   role-filtered document over typed `atlas` / `atlas-request` messages (they
+   have none of the host's campaign data); BROADCAST VIEW via `atlas-focus`
+   with `CARTOGRAPHIC UPDATE RECEIVED`, Focus Everyone or one chosen player
+   (a player's Atlas opens itself). Also landed in this pass, pulled forward
+   from later slices by request: resizable instrument window; circular world
+   shape with a rim; floating round widget controls + zoom/FIT; fluid
+   drag-to-draw zones that auto-close (Douglas-Peucker simplified); zone
+   cards (rename/state/particles/sprite/delete); node FOCUS fly-to +
+   double-click fly; the world clock with a day/night shade (manual or
+   auto-advancing); custom sprites on nodes and zones — animated GIFs stay
+   animated (WebCodecs, static fallback); stateless zone particle weather
+   (embers/motes/snow/fog). STILL OPEN from this slice: live player/Unit
+   markers driven by the session; signal-lost states.
 3. **Waypoints & transit** — request/approve flow, the camera transition, and
    the scene-switch + token-spawn integration.
 4. **Layers & dynamics** — information layers with per-player access; dynamic
