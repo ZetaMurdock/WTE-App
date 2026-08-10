@@ -12,6 +12,7 @@ interface Props {
   assetsOpen: boolean;
   abilitiesOpen: boolean;
   rollsOpen: boolean;
+  atlasOpen: boolean;
   gridOpen: boolean;
   /** Undefined disables these (no campaign → no persisted scenes / vault). */
   onToggleScenes?: () => void;
@@ -20,6 +21,7 @@ interface Props {
   onToggleAssets?: () => void;
   onToggleAbilities?: () => void;
   onToggleRolls?: () => void;
+  onToggleAtlas?: () => void;
   /** Undefined hides Grid & Map (netplay players don't get Curator controls). */
   onToggleGrid?: () => void;
   syncOn: boolean;
@@ -45,6 +47,7 @@ export function VttToolbar({
   assetsOpen,
   abilitiesOpen,
   rollsOpen,
+  atlasOpen,
   gridOpen,
   onToggleScenes,
   onToggleActors,
@@ -52,6 +55,7 @@ export function VttToolbar({
   onToggleAssets,
   onToggleAbilities,
   onToggleRolls,
+  onToggleAtlas,
   onToggleGrid,
   syncOn,
   syncPeers,
@@ -77,6 +81,9 @@ export function VttToolbar({
       </button>
       <button className={"chip" + (abilitiesOpen ? " active" : "")} onClick={onToggleAbilities} disabled={!onToggleAbilities} title="Abilities — your character's actions, abilities, and base rolls">
         Abilities
+      </button>
+      <button className={"chip" + (atlasOpen ? " active" : "")} onClick={onToggleAtlas} disabled={!onToggleAtlas} title="The Curator Atlas — where you are in the world, not just in the scene">
+        Atlas
       </button>
       <button className={"chip" + (rollsOpen ? " active" : "")} onClick={onToggleRolls} disabled={!onToggleRolls} title="Roll feed — recent + live dice rolls">
         Rolls
