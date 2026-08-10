@@ -19,7 +19,7 @@ import { getDb, sqlAvailable } from "./db";
 import { readJson } from "./localJson";
 
 /** Namespaces within a campaign's key-value store. */
-export type KvScope = "desk" | "folders" | "armory" | "pagemeta" | "misc";
+export type KvScope = "desk" | "folders" | "armory" | "pagemeta" | "atlas" | "misc";
 
 interface KvRow {
   campaign_id: string;

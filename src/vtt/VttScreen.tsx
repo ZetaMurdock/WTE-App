@@ -1,4 +1,5 @@
 import { useCodex } from "../game/useCodex";
+import { AtlasWindow } from "./atlas/AtlasWindow";
 import { listRuleLayers } from "../lib/ruleLayerRepo";
 import type { RuleLayer } from "../game/ruleLayers";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -174,6 +175,7 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
   const [armedSound, setArmedSound] = useState<{ name: string; src: string } | null>(null);
   const [armedAoe, setArmedAoe] = useState<{ kind: AoeKind; cells: number; rounds: number } | null>(null);
   const [rollsOpen, setRollsOpen] = useState(false);
+  const [atlasOpen, setAtlasOpen] = useState(false);
   const [characters, setCharacters] = useState<CharacterRecord[]>([]);
   const [charsLoading, setCharsLoading] = useState(false);
   const [gridOpen, setGridOpen] = useState(false);
@@ -1928,7 +1930,9 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
         assetsOpen={leftPanel === "assets"}
         abilitiesOpen={leftPanel === "abilities"}
         rollsOpen={rollsOpen}
+        atlasOpen={atlasOpen}
         gridOpen={gridOpen}
+        onToggleAtlas={campaign ? () => setAtlasOpen((v) => !v) : undefined}
         onToggleScenes={campaign && !asPlayer ? () => setLeftPanel((p) => (p === "scenes" ? null : "scenes")) : undefined}
         onToggleActors={campaign ? () => setLeftPanel((p) => (p === "actors" ? null : "actors")) : undefined}
         onToggleEncounter={campaign && !asPlayer ? () => setLeftPanel((p) => (p === "encounter" ? null : "encounter")) : undefined}
@@ -1963,6 +1967,11 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
           {campaign && (
             <button className={"chip" + (rollsOpen ? " active" : "")} onClick={() => setRollsOpen((v) => !v)}>
               Rolls
+            </button>
+          )}
+          {campaign && (
+            <button className={"chip" + (atlasOpen ? " active" : "")} onClick={() => setAtlasOpen((v) => !v)} title="The world map — where you are in the world, not just in the scene">
+              Atlas
             </button>
           )}
           {!isNetPlayer && (
@@ -2223,6 +2232,9 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
         <VttDialogueController campaignId={campaign.id} onClose={() => setDialogueOpen(false)} />
       )}
       {rollScope && <VttRollToast campaignId={rollScope} />}
+      {campaign && atlasOpen && (
+        <AtlasWindow campaignId={campaign.id} curator={!asPlayer} onClose={() => setAtlasOpen(false)} />
+      )}
       {campaign && rollsOpen && (
         <VttRollFeed
           campaignId={campaign.id}

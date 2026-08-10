@@ -8558,3 +8558,100 @@ body.wte-dot-cursor * {
   color: var(--muted);
   word-break: break-all;
 }
+
+/* ── The Curator Atlas (slice 1) ─────────────────────────────────────────────
+   A floating world-map instrument over the VTT. Military satellite display ×
+   old cartography: dark charcoal ground, thin pale lines, small technical
+   type, restrained blue-green highlights. */
+.atlas-window {
+  position: absolute;
+  top: 64px;
+  right: 16px;
+  width: min(720px, calc(100vw - 120px));
+  height: min(520px, calc(100vh - 160px));
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  z-index: 40;
+  overflow: hidden;
+}
+.atlas-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--panel-line);
+}
+.atlas-width {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.atlas-width input {
+  width: 70px;
+}
+.atlas-canvas-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.atlas-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: crosshair;
+}
+.atlas-status {
+  display: flex;
+  gap: 18px;
+  padding: 5px 10px;
+  border-top: 1px solid var(--panel-line);
+  font-family: Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--muted);
+}
+.atlas-status b {
+  color: var(--accent);
+  font-weight: 600;
+}
+.atlas-note {
+  margin: 6px 10px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.atlas-node-card {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  width: 240px;
+  background: var(--bar);
+  border: 1px solid var(--panel-line);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.atlas-node-kind {
+  margin: 4px 0;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.atlas-node-status {
+  margin: 3px 0;
+  font-family: Consolas, monospace;
+  font-size: 10px;
+  color: var(--accent);
+}
+.atlas-node-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 6px;
+}
