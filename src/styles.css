@@ -8569,6 +8569,13 @@ body.wte-dot-cursor * {
   right: 16px;
   width: min(720px, calc(100vw - 120px));
   height: min(520px, calc(100vh - 160px));
+  /* The instrument is freely resizable — the render loop keeps the canvas
+     backing store in step, so the world just grows with the frame. */
+  resize: both;
+  min-width: 420px;
+  min-height: 320px;
+  max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 80px);
   display: flex;
   flex-direction: column;
   background: var(--panel);
@@ -8578,13 +8585,105 @@ body.wte-dot-cursor * {
   z-index: 40;
   overflow: hidden;
 }
-.atlas-toolbar {
+/* Floating round widget controls over the map, Google Earth style. */
+.atlas-widgets {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 3;
+}
+.atlas-widgets.zoomers {
+  left: auto;
+  top: auto;
+  right: 10px;
+  bottom: 12px;
+}
+.atlas-widget {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid var(--panel-line);
+  background: rgba(13, 16, 20, 0.85);
+  color: var(--muted);
+  font-family: Consolas, monospace;
+  font-size: 9px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+.atlas-widget:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.atlas-widget.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 12px rgba(126, 207, 202, 0.25);
+}
+.atlas-widget.lg {
+  font-size: 18px;
+}
+.atlas-config {
+  position: absolute;
+  left: 62px;
+  top: 10px;
+  width: 250px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  background: var(--bar);
+  border: 1px solid var(--panel-line);
+  border-radius: 6px;
+  padding: 9px 10px;
+  z-index: 4;
+}
+.atlas-config.zone-cfg {
+  top: auto;
+  bottom: 12px;
+  width: 230px;
+}
+.atlas-cfg-row {
   display: flex;
   align-items: center;
   gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.atlas-cfg-row input[type="range"] {
+  flex: 1;
+  min-width: 0;
+}
+.atlas-clock-readout {
+  font-family: Consolas, monospace;
+  color: var(--accent);
+  font-size: 11px;
+}
+.atlas-banner {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 80%;
+  padding: 6px 16px;
+  background: rgba(10, 13, 16, 0.88);
+  border: 1px solid var(--panel-line);
+  border-radius: 4px;
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--accent);
+  text-align: center;
+  z-index: 5;
+  pointer-events: none;
+}
+.atlas-bring-row {
   flex-wrap: wrap;
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--panel-line);
 }
 .atlas-width {
   display: inline-flex;

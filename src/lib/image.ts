@@ -1,6 +1,41 @@
-// Shared image helper: read a user-picked image file and re-encode it to a PNG
-// data URL via canvas (downscaling only past maxSide, to bound stored/synced
-// size). Works in the browser and the Tauri webview alike — no native file APIs.
+// Shared image helpers. Work in the browser and the Tauri webview alike — no
+// native file APIs.
+
+/**
+ * Read a user-picked image, KEEPING animated GIFs animated.
+ *
+ * A GIF cannot pass through the canvas re-encode below without being flattened
+ * to its first frame, so GIFs are stored byte-for-byte (their size checked
+ * against `maxChars`, since there is no client-side way to shrink one).
+ * Everything else takes the PNG re-encode path, which can downscale to fit.
+ */
+export async function fileToImageDataUrl(file: File, maxSide = 4096, maxChars = Infinity): Promise<string> {
+  if (file.type === "image/gif" && (await isReallyGif(file))) {
+    const uri = await new Promise<string>((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result));
+      r.onerror = () => reject(new Error("read failed"));
+      r.readAsDataURL(file);
+    });
+    if (!uri.startsWith("data:image/")) throw new Error("decode failed");
+    if (uri.length > maxChars) {
+      throw new Error(`That GIF is too large to share (${Math.ceil(file.size / 1024 / 1024)} MB). GIFs cannot be shrunk on import; export a smaller one.`);
+    }
+    return uri;
+  }
+  return fileToPngDataUrl(file, maxSide, maxChars);
+}
+
+// file.type comes from the extension, not the bytes. A renamed PNG must take
+// the re-encode path, not be stored raw under a false image/gif label.
+async function isReallyGif(file: File): Promise<boolean> {
+  const head = new Uint8Array(await file.slice(0, 6).arrayBuffer());
+  const magic = String.fromCharCode(...head);
+  return magic === "GIF87a" || magic === "GIF89a";
+}
+
+// Re-encode to a PNG data URL via canvas (downscaling only past maxSide, to
+// bound stored/synced size).
 export async function fileToPngDataUrl(file: File, maxSide = 4096, maxChars = Infinity): Promise<string> {
   const url = URL.createObjectURL(file);
   try {

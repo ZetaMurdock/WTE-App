@@ -71,7 +71,7 @@ function tokenUpdateValueAllowed(field: keyof VttToken, value: unknown): boolean
     case "name":
       return typeof value === "string" && value.length <= 120;
     case "color": return typeof value === "string" && value.length <= 32;
-    case "img": return value === null || (typeof value === "string" && value.length <= 6 * 1024 * 1024);
+    case "img": return value === null || (typeof value === "string" && value.length <= 9 * 1024 * 1024 /* props may carry 8 MB data URLs since the cap raise; below this the patch was silently rejected and peers desynced */);
     case "size": return typeof value === "number" && Number.isFinite(value) && value >= 1 && value <= 6;
     case "rotation":
     case "facing": return typeof value === "number" && Number.isFinite(value) && Math.abs(value) <= 1_000_000;

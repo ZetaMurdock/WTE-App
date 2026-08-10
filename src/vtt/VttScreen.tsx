@@ -1,5 +1,7 @@
 import { useCodex } from "../game/useCodex";
-import { AtlasWindow } from "./atlas/AtlasWindow";
+import { AtlasWindow, type AtlasFocus } from "./atlas/AtlasWindow";
+import { loadAtlas } from "./atlas/atlasRepo";
+import { atlasForRole, MAX_ATLAS_WIRE_CHARS } from "./atlas/atlasModel";
 import { listRuleLayers } from "../lib/ruleLayerRepo";
 import type { RuleLayer } from "../game/ruleLayers";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -176,6 +178,8 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
   const [armedAoe, setArmedAoe] = useState<{ kind: AoeKind; cells: number; rounds: number } | null>(null);
   const [rollsOpen, setRollsOpen] = useState(false);
   const [atlasOpen, setAtlasOpen] = useState(false);
+  const [atlasFocus, setAtlasFocus] = useState<AtlasFocus | null>(null);
+  const atlasFocusNonce = useRef(0);
   const [characters, setCharacters] = useState<CharacterRecord[]>([]);
   const [charsLoading, setCharsLoading] = useState(false);
   const [gridOpen, setGridOpen] = useState(false);
@@ -245,7 +249,7 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
     e.target.value = "";
     const id = menuTarget.current;
     if (!f || !id) return;
-    const uri = await fileToPngDataUrl(f, 2048, 8 * 1024 * 1024).catch((error) => {
+    const uri = await fileToPngDataUrl(f, 4096, 16 * 1024 * 1024).catch((error) => {
       pushToast(error instanceof Error ? error.message : "That map image could not be encoded.", "error");
       return null;
     });
@@ -260,8 +264,8 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
     e.target.value = "";
     const id = menuTarget.current;
     if (!f || !id) return;
-    if (f.size > 4 * 1024 * 1024) {
-      pushToast("Scene audio must be 4 MB or smaller so players can receive the map.", "error");
+    if (f.size > 16 * 1024 * 1024) {
+      pushToast("Scene audio must be 16 MB or smaller — netplay carries at most 24 MB in one message.", "error");
       return;
     }
     const uri = await fileToDataUrl(f).catch(() => null);
@@ -312,6 +316,56 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
       setPlayModeState({ on: pm.on, range: pm.range });
     });
   }, [net.subscribe, net.selfId]);
+  // The Curator Atlas over the wire. The host answers atlas-request whispers
+  // even while their own Atlas window is closed — the campaign store is the
+  // source, and only the role-FILTERED document ever leaves this machine.
+  const atlasReqAt = useRef(new Map<string, number>());
+  const atlasTooBigToastAt = useRef(0);
+  useEffect(() => {
+    if (net.status !== "connected" || net.role !== "host") return;
+    return net.subscribe("atlas-request", (_m, from) => {
+      const cid = campaignIdRef.current;
+      if (!cid) return;
+      // Players retry politely every 4s; anything faster is not a player.
+      const nowT = Date.now();
+      if (nowT - (atlasReqAt.current.get(from) ?? 0) < 2000) return;
+      atlasReqAt.current.set(from, nowT);
+      void loadAtlas(cid).then(({ doc, refused }) => {
+        // A refused load yields an EMPTY placeholder — serving that would
+        // present a blank world as authoritative. Silence lets the player's
+        // retry find us after the store recovers.
+        if (refused) return;
+        const msg = { t: "atlas" as const, doc: atlasForRole(doc, "player") };
+        if (JSON.stringify(msg).length > MAX_ATLAS_WIRE_CHARS) {
+          if (nowT - atlasTooBigToastAt.current > 60_000) {
+            atlasTooBigToastAt.current = nowT;
+            pushToast("A player asked for the Atlas, but it is too large to send (over 20 MB). Use a smaller map image or smaller sprites.", "error");
+          }
+          return;
+        }
+        net.publish(msg, from);
+      });
+    });
+  }, [net.subscribe, net.publish, net.status, net.role]);
+  // BROADCAST VIEW: the Curator flies this player's Atlas somewhere. The window
+  // opens if it was closed — a cartographic update is not an ignorable ping.
+  useEffect(() => {
+    if (net.status !== "connected" || net.role !== "player") return;
+    return net.subscribe("atlas-focus", (m, from) => {
+      const hostId = peersRef.current.find((p) => p.role === "host")?.id;
+      if (from !== hostId) return;
+      const f = m as Extract<NetMessage, { t: "atlas-focus" }>;
+      if (!Number.isFinite(f.x) || !Number.isFinite(f.y)) return;
+      setAtlasOpen(true);
+      setAtlasFocus({
+        x: f.x,
+        y: f.y,
+        zoom: typeof f.zoom === "number" && Number.isFinite(f.zoom) ? f.zoom : undefined,
+        label: typeof f.label === "string" ? f.label.slice(0, 80) : undefined,
+        nonce: ++atlasFocusNonce.current,
+      });
+    });
+  }, [net.subscribe, net.status, net.role]);
   // Cinematic Mode (Curator-directed): synced like play-mode, applied by the engine.
   const [cine, setCineState] = useState<CineConfig>({ on: false });
   const [cineOpen, setCineOpen] = useState(false);
@@ -2233,7 +2287,16 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
       )}
       {rollScope && <VttRollToast campaignId={rollScope} />}
       {campaign && atlasOpen && (
-        <AtlasWindow campaignId={campaign.id} curator={!asPlayer} onClose={() => setAtlasOpen(false)} />
+        <AtlasWindow
+          campaignId={campaign.id}
+          curator={!asPlayer}
+          focus={atlasFocus}
+          onClose={() => {
+            setAtlasOpen(false);
+            // A consumed broadcast must not replay on the next manual open.
+            setAtlasFocus(null);
+          }}
+        />
       )}
       {campaign && rollsOpen && (
         <VttRollFeed
@@ -2291,7 +2354,7 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
           } : undefined}
           onTokenImage={(file) => {
             if (!file) return;
-            void fileToPngDataUrl(file, 1024, 1024 * 1024)
+            void fileToPngDataUrl(file, 2048, 4 * 1024 * 1024)
               .then((uri) => engine.updateToken(sel.id, { img: uri }))
               .catch(() => pushToast("That image could not be used for the token.", "error"));
           }}

@@ -183,7 +183,17 @@ export type NetMessage =
   // Cinematic Mode — the director's cut: lock every player's camera onto a
   // token (follows as it moves), shake the frame, and run a full-screen GLSL
   // effect (validated per client; bad bodies fall back to none).
-  | { t: "cine"; on: boolean; tokenId?: string; glsl?: string; shake?: number };
+  | { t: "cine"; on: boolean; tokenId?: string; glsl?: string; shake?: number }
+  // The Curator Atlas over the wire. Players have none of the host's campaign
+  // data, so the host serves the world map itself: `atlas` carries the
+  // role-FILTERED document (curator-only material never leaves the host;
+  // receivers re-validate with parseAtlas like any untrusted input, and big
+  // maps ride the chunked transport). `atlas-request` is a player's whisper to
+  // the host on opening their Atlas. `atlas-focus` is BROADCAST VIEW: the
+  // Curator flies one player's — or everyone's — Atlas camera to a place.
+  | { t: "atlas"; doc: unknown }
+  | { t: "atlas-request" }
+  | { t: "atlas-focus"; x: number; y: number; zoom?: number; label?: string };
 
 export type NetMessageType = NetMessage["t"];
 

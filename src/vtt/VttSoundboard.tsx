@@ -75,8 +75,8 @@ export function VttSoundboard({ campaignId, sceneName, onClose, onPlaceEmitter }
       if (net.status !== "connected") return;
       const id = s?.id ?? "";
       const first = s ? !sentSfx.has(id) : false;
-      if (first && s && s.uri.length > 8 * 1024 * 1024) {
-        pushToast("That sound is too large to send to the table. Re-import a clip under 4 MB.", "error");
+      if (first && s && s.uri.length > 22 * 1024 * 1024) {
+        pushToast("That sound is too large to send to the table. Re-import a clip under 16 MB.", "error");
         return;
       }
       if (s) sentSfx.add(id);
@@ -136,8 +136,8 @@ export function VttSoundboard({ campaignId, sceneName, onClose, onPlaceEmitter }
   async function addFiles(files: File[], useRelativePath: boolean) {
     for (const f of files) {
       if (!f.type.startsWith("audio/") && !/\.(mp3|ogg|wav|m4a|flac|webm)$/i.test(f.name)) continue;
-      if (f.size > 4 * 1024 * 1024) {
-        pushToast(`${f.name} was skipped; table sounds must be 4 MB or smaller.`, "error");
+      if (f.size > 16 * 1024 * 1024) {
+        pushToast(`${f.name} was skipped; table sounds must be 16 MB or smaller.`, "error");
         continue;
       }
       const uri = await fileToDataUrl(f).catch(() => null);
