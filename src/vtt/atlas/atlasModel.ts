@@ -163,8 +163,9 @@ export interface AtlasDoc {
   /** The map image, as a data URL (re-encoded on upload, same as scene art). */
   image?: string;
   /** Real-world width of the image, in miles. Height derives from the image's
-   *  aspect ratio; keeping one authoritative dimension avoids the two drifting.
-   *  A circular world is a disc of diameter widthMi, so heightMi === widthMi. */
+   *  aspect ratio in EVERY shape; a circular world is a disc drawn AROUND the
+   *  artwork (radius = half the larger extent), never a square it is
+   *  stretched into. */
   widthMi: number;
   heightMi: number;
   units: AtlasUnits;
@@ -232,8 +233,10 @@ export function parseAtlas(raw: unknown): AtlasDoc | null {
     name: str(o.name, "Atlas"),
     image: dataImage(o.image),
     widthMi,
-    // A disc has one diameter; rectangles keep their aspect.
-    heightMi: shape === "circle" ? widthMi : Math.max(1, num(o.heightMi, widthMi * 0.6)),
+    // The artwork keeps its aspect in EVERY shape — a circular world is a
+    // disc AROUND the map, not a square the map is stretched into. (Forcing
+    // height = width here once slid every zone off the artwork.)
+    heightMi: Math.max(1, num(o.heightMi, widthMi * 0.6)),
     units: o.units === "metric" || o.units === "both" ? o.units : "imperial",
     shape,
     clock: {
@@ -395,6 +398,19 @@ function zoneForPlayer(z: AtlasZone): AtlasZone {
 }
 
 /**
+ * Restore the world's height from the artwork's true aspect, touching nothing
+ * else. Idempotent on healthy documents; on one whose height was corrupted by
+ * the old circle-stretch, this realigns every zone and node in one call —
+ * their coordinates were never wrong, only the declared canvas was.
+ */
+export function recoverAspect(doc: AtlasDoc, imageHeightOverWidth: number): AtlasDoc {
+  if (!Number.isFinite(imageHeightOverWidth) || imageHeightOverWidth <= 0) return doc;
+  const heightMi = +(doc.widthMi * imageHeightOverWidth).toFixed(2);
+  if (Math.abs(heightMi - doc.heightMi) < 0.01) return doc;
+  return { ...doc, heightMi };
+}
+
+/**
  * Re-declare the world's real size, keeping every anchored object glued to the
  * SAME spot on the artwork. Positions live in miles, so declaring "this map is
  * 1,000 miles across" is a proportional rescale of everything — zones, nodes,
@@ -409,7 +425,7 @@ export function rescaleAtlas(doc: AtlasDoc, newWidthMi: number): AtlasDoc {
   return {
     ...doc,
     widthMi: +w.toFixed(2),
-    heightMi: doc.shape === "circle" ? +w.toFixed(2) : +(doc.heightMi * k).toFixed(2),
+    heightMi: +(doc.heightMi * k).toFixed(2),
     nodes: doc.nodes.map((n) => ({ ...n, x: n.x * k, y: n.y * k, minZoom: gate(n.minZoom), maxZoom: gate(n.maxZoom) })),
     zones: doc.zones.map((z) => ({
       ...z,
