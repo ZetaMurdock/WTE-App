@@ -4,7 +4,7 @@
 // to exercise burgs, markers, scale, and the border tracer in BOTH shapes
 // Azgaar has shipped (cells as parallel arrays, cells as object rows).
 import { describe, expect, it } from "vitest";
-import { importAzgaar, importAzgaarMapFile } from "./azgaarImport";
+import { importAzgaar, importAzgaarMapFile, stripSvgToGeography } from "./azgaarImport";
 import { pointInPolygon } from "./atlasMath";
 
 const VERTICES_P = [
@@ -181,6 +181,28 @@ describe("the native .map save", () => {
     expect(out.zones).toHaveLength(0);
     expect(out.nodes.length).toBe(3);
     expect(out.dropped.join(" ")).toMatch(/States layer/);
+  });
+
+  it("strips annotation layers to bare geography, balance-aware", () => {
+    const svg =
+      '<svg><g id="terrain"><path d="M0 0"/></g>' +
+      '<g id="labels"><g id="states"><text>Dominion of Ephia</text></g><g id="burgLabels"><text>Yav</text></g></g>' +
+      '<g id="statesBody"><path d="M1 1"/></g>' +
+      '<g id="borders"><path d="M2 2"/></g>' +
+      '<g id="icons"><g id="burgIcons"><circle/></g></g>' +
+      "</svg>";
+    const out = stripSvgToGeography(svg);
+    expect(out).toContain('id="terrain"'); // geography survives
+    expect(out).toContain('id="statesBody"'); // region colors survive
+    expect(out).not.toContain("Dominion of Ephia"); // names do not
+    expect(out).not.toContain("Yav");
+    expect(out).not.toContain('id="borders"');
+    expect(out).not.toContain('id="burgIcons"');
+  });
+
+  it("leaves a malformed svg alone rather than breaking the artwork", () => {
+    const broken = '<svg><g id="labels"><text>Never closed</svg>';
+    expect(stripSvgToGeography(broken)).toBe(broken);
   });
 
   it("refuses text that is not a map save", () => {

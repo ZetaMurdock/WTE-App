@@ -8778,6 +8778,19 @@ body.wte-dot-cursor * {
   border-radius: 6px;
   padding: 8px 10px;
 }
+.atlas-zone-card {
+  max-height: calc(100% - 20px);
+  overflow-y: auto;
+  width: 300px;
+}
+.atlas-prop-row input {
+  min-width: 0;
+  flex: 1;
+}
+.atlas-withheld {
+  color: #c99a4b;
+  letter-spacing: 1px;
+}
 .atlas-node-kind {
   margin: 4px 0;
   font-size: 10px;
