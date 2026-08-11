@@ -32,6 +32,46 @@ export interface AtlasClock {
   speed: number;
 }
 
+/** Information layers over the world. One concept covers heat AND height:
+ *  an image layer is extra art aligned to the map's mile-space; a FIELD layer
+ *  is a grayscale source + a palette + a readout — terrain data makes it a
+ *  heightmap (ELEV at the cursor, hillshade, contours), fyber or hazard data
+ *  makes it a heatmap. Same sampler, different palette. */
+export const LAYER_KINDS = ["image", "field"] as const;
+export type LayerKind = (typeof LAYER_KINDS)[number];
+export const LAYER_PALETTES = ["gray", "terrain", "thermal", "toxin"] as const;
+export type LayerPalette = (typeof LAYER_PALETTES)[number];
+export const LAYER_STYLES = ["tint", "hillshade", "contours"] as const;
+export type LayerStyle = (typeof LAYER_STYLES)[number];
+export const LAYER_BLENDS = ["normal", "multiply", "screen", "overlay"] as const;
+export type LayerBlend = (typeof LAYER_BLENDS)[number];
+
+export interface AtlasLayer {
+  id: string;
+  name: string;
+  kind: LayerKind;
+  /** Aligned to [0,widthMi]x[0,heightMi]. ABSENT on a locked layer in a
+   *  player's document — the name may be known; the pixels may not. */
+  src?: string;
+  opacity: number;
+  /** Image layers only; fields always draw source-over. */
+  blend: LayerBlend;
+  /** "player" shows to everyone; "curator" exists only on the Curator's Atlas;
+   *  "locked" shows players its NAME but answers CLEARANCE INSUFFICIENT. */
+  visibility: "player" | "curator" | "locked";
+  /** The Curator's default-on flag; every viewer toggles locally from there. */
+  enabled: boolean;
+  // field layers
+  palette: LayerPalette;
+  style: LayerStyle;
+  /** Cursor readout label, e.g. "ELEV" or "FYBER". No label, no readout. */
+  label?: string;
+  /** Sample 0 maps to min, sample 1 to max, in `unit`. */
+  min: number;
+  max: number;
+  unit?: string;
+}
+
 export const NODE_KINDS = [
   "settlement",
   "landmark",
@@ -101,6 +141,7 @@ export interface AtlasDoc {
   units: AtlasUnits;
   shape: MapShape;
   clock: AtlasClock;
+  layers: AtlasLayer[];
   nodes: AtlasNode[];
   zones: AtlasZone[];
 }
@@ -121,6 +162,7 @@ export function emptyAtlas(name = "Atlas"): AtlasDoc {
     units: "imperial",
     shape: "rect",
     clock: { hour: 12, auto: false, speed: 1 },
+    layers: [],
     nodes: [],
     zones: [],
   };
@@ -170,9 +212,34 @@ export function parseAtlas(raw: unknown): AtlasDoc | null {
       auto: rawClock.auto === true,
       speed: Math.min(120, Math.max(0.1, num(rawClock.speed, 1))),
     },
+    layers: [],
     nodes: [],
     zones: [],
   };
+
+  if (Array.isArray(o.layers)) {
+    for (const l of o.layers.slice(0, 12)) {
+      if (!l || typeof l !== "object") continue;
+      const r = l as Record<string, unknown>;
+      if (typeof r.id !== "string" || !r.id) continue;
+      doc.layers.push({
+        id: r.id,
+        name: str(r.name, "Layer"),
+        kind: r.kind === "field" ? "field" : "image",
+        src: dataImage(r.src),
+        opacity: Math.min(1, Math.max(0.05, num(r.opacity, 0.7))),
+        blend: LAYER_BLENDS.includes(r.blend as LayerBlend) ? (r.blend as LayerBlend) : "normal",
+        visibility: r.visibility === "curator" || r.visibility === "locked" ? r.visibility : "player",
+        enabled: r.enabled !== false,
+        palette: LAYER_PALETTES.includes(r.palette as LayerPalette) ? (r.palette as LayerPalette) : "terrain",
+        style: LAYER_STYLES.includes(r.style as LayerStyle) ? (r.style as LayerStyle) : "tint",
+        label: typeof r.label === "string" && r.label ? r.label.slice(0, 24) : undefined,
+        min: num(r.min, 0),
+        max: num(r.max, 100),
+        unit: typeof r.unit === "string" && r.unit ? r.unit.slice(0, 12) : undefined,
+      });
+    }
+  }
 
   if (Array.isArray(o.nodes)) {
     for (const n of o.nodes) {
@@ -232,6 +299,11 @@ export function atlasForRole(doc: AtlasDoc, role: "player" | "curator"): AtlasDo
   const inVoid = (p: AtlasPoint) => voids.some((z) => polygonContains(p, z.polygon));
   return {
     ...doc,
+    // A locked layer keeps its NAME in the player's list — that it exists is
+    // information — but its pixels never reach their machine.
+    layers: doc.layers
+      .filter((l) => l.visibility !== "curator")
+      .map((l) => (l.visibility === "locked" ? { ...l, src: undefined, enabled: false } : l)),
     nodes: doc.nodes.filter((n) => n.visibility !== "curator" && !inVoid(n)),
     zones: doc.zones
       .filter((z) => z.state !== "curator-only")

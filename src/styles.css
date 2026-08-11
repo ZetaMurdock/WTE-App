@@ -8680,6 +8680,28 @@ body.wte-dot-cursor * {
   flex: 1;
   min-width: 0;
 }
+.atlas-config.atlas-layers {
+  width: 300px;
+  max-height: calc(100% - 20px);
+  overflow-y: auto;
+}
+.atlas-lyr-name {
+  font-size: 11px;
+  color: var(--ink, #cfd8dc);
+}
+.atlas-lyr-locked {
+  color: var(--muted);
+  letter-spacing: 1px;
+}
+.atlas-lyr-num {
+  width: 64px;
+}
+.atlas-lyr-small {
+  width: 90px;
+}
+.atlas-field-readout {
+  color: var(--accent);
+}
 .atlas-clock-readout {
   font-family: Consolas, monospace;
   color: var(--accent);

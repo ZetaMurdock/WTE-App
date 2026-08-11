@@ -6,11 +6,16 @@ import {
   parseAtlas,
   ZONE_FX,
   type AtlasDoc,
+  type AtlasLayer,
   type AtlasNode,
   type AtlasPoint,
   type AtlasZone,
+  type LayerBlend,
+  type LayerPalette,
+  type LayerStyle,
   type ZoneState,
 } from "./atlasModel";
+import { FieldData, formatFieldValue } from "./atlasField";
 import {
   clampToMap,
   clampZoom,
@@ -101,11 +106,16 @@ const MAX_SPRITE_CHARS = 12 * 1024 * 1024;
 export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, bridgePlayer, onPopOut }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const layerFileRef = useRef<HTMLInputElement>(null);
   const [doc, setDoc] = useState<AtlasDoc>(() => emptyAtlas());
   const [readOnly, setReadOnly] = useState(false);
   const [netReady, setNetReady] = useState(false);
   const [tool, setTool] = useState<Tool>("pan");
   const [cfgOpen, setCfgOpen] = useState(false);
+  const [lyrOpen, setLyrOpen] = useState(false);
+  const [selLayerId, setSelLayerId] = useState<string | null>(null);
+  // Per-VIEWER layer toggles: the Curator's `enabled` is only the default.
+  const [layerOn, setLayerOn] = useState<Record<string, boolean>>({});
   const [zoneState, setZoneState] = useState<ZoneState>("null-locked");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selZoneId, setSelZoneId] = useState<string | null>(null);
@@ -114,7 +124,7 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
   const [bridgePeers, setBridgePeers] = useState<{ id: string; name: string }[]>([]);
   // The DOM readout (SCALE / COORD / WORLD TIME) cannot watch camRef mutate, so
   // the render loop pushes the strings into state when they change.
-  const [hud, setHud] = useState({ scale: "", coord: "—", clock: "" });
+  const [hud, setHud] = useState({ scale: "", coord: "—", clock: "", fields: "" });
   const camRef = useRef<AtlasCamera>(makeCamera(250, 150, 1.2));
   const hoverRef = useRef<{ x: number; y: number } | null>(null);
   const burstsRef = useRef<NullBurst[]>([]);
@@ -361,14 +371,17 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
   }
 
   const bannerTimer = useRef<number | undefined>(undefined);
+  const flashBanner = useCallback((text: string, ms = 4200) => {
+    setBanner(text);
+    window.clearTimeout(bannerTimer.current);
+    bannerTimer.current = window.setTimeout(() => setBanner(null), ms);
+  }, []);
   const applyFocus = useCallback(
     (f: { x: number; y: number; zoom?: number; label?: string }) => {
       startFlight({ x: f.x, y: f.y, zoom: f.zoom ?? camRef.current.zoom }, 1300);
-      setBanner("CARTOGRAPHIC UPDATE RECEIVED" + (f.label ? " // " + f.label.toUpperCase() : ""));
-      window.clearTimeout(bannerTimer.current);
-      bannerTimer.current = window.setTimeout(() => setBanner(null), 4200);
+      flashBanner("CARTOGRAPHIC UPDATE RECEIVED" + (f.label ? " // " + f.label.toUpperCase() : ""));
     },
-    [startFlight]
+    [startFlight, flashBanner]
   );
   useEffect(() => () => window.clearTimeout(bannerTimer.current), []);
   useEffect(() => {
@@ -440,6 +453,28 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
     } else if (!circle) {
       ctx.strokeStyle = "#232a33";
       ctx.strokeRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y);
+    }
+    // information layers, in document order, clipped to the world's shape
+    for (const l of visible.layers) {
+      if (!(layerOn[l.id] ?? l.enabled) || !l.src) continue;
+      if (l.kind === "image") {
+        const art = AtlasArt.get(l.src);
+        const f = art.frame(now);
+        if (f) {
+          ctx.globalAlpha = l.opacity;
+          ctx.globalCompositeOperation = l.blend === "normal" ? "source-over" : l.blend;
+          ctx.drawImage(f, tl.x, tl.y, br.x - tl.x, br.y - tl.y);
+          ctx.globalAlpha = 1;
+          ctx.globalCompositeOperation = "source-over";
+        }
+      } else {
+        const rc = FieldData.get(l.src).rendered(l.palette, l.style);
+        if (rc) {
+          ctx.globalAlpha = l.opacity;
+          ctx.drawImage(rc, tl.x, tl.y, br.x - tl.x, br.y - tl.y);
+          ctx.globalAlpha = 1;
+        }
+      }
     }
     if (circle) {
       ctx.restore();
@@ -711,7 +746,7 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
         ctx.fillRect(b.x + Math.cos(ang) * d, b.y + Math.sin(ang) * d, 4 + h1 * 30, 3 + h1 * 6);
       }
     }
-  }, [visible, curator, editing, measure, selectedId, selZoneId, displayHour]);
+  }, [visible, curator, editing, measure, selectedId, selZoneId, displayHour, layerOn]);
 
   // rAF loop: flight, inertia, redraw. stepInertia returns the identical object
   // at rest, but the glitch effects animate, so the loop runs while the window
@@ -747,7 +782,26 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
       const h = hoverRef.current;
       const coord = h ? coordLabel(screenToWorld(camRef.current, sizeOf(), h), visible.name) : "—";
       const clock = formatWorldClock(displayHour(now));
-      setHud((prev) => (prev.scale === bar2.label && prev.coord === coord && prev.clock === clock ? prev : { scale: bar2.label, coord, clock }));
+      // Field readouts at the cursor: the instrument answering questions.
+      let fields = "";
+      if (h) {
+        const wp = screenToWorld(camRef.current, sizeOf(), h);
+        const u = wp.x / Math.max(1, visible.widthMi);
+        const v = wp.y / Math.max(1, visible.heightMi);
+        for (const l of visible.layers) {
+          if (l.kind !== "field" || !l.src || !l.label) continue;
+          if (!(layerOn[l.id] ?? l.enabled)) continue;
+          const sVal = FieldData.get(l.src).sample(u, v);
+          if (sVal === null) continue;
+          const text = formatFieldValue(sVal, l);
+          if (text) fields += (fields ? "   " : "") + text;
+        }
+      }
+      setHud((prev) =>
+        prev.scale === bar2.label && prev.coord === coord && prev.clock === clock && prev.fields === fields
+          ? prev
+          : { scale: bar2.label, coord, clock, fields }
+      );
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
@@ -760,7 +814,7 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
       // would otherwise resurrect a self-rescheduling rAF forever.
       if (import.meta.env.DEV) delete (window as unknown as { __atlasTick?: () => void }).__atlasTick;
     };
-  }, [draw, doc.widthMi, doc.heightMi, visible.units, visible.name, displayHour]);
+  }, [draw, doc.widthMi, doc.heightMi, visible.units, visible.name, visible.layers, displayHour, layerOn]);
 
   function sizeOf() {
     const c = canvasRef.current;
@@ -912,6 +966,51 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
     );
   }
 
+  const patchLayer = (id: string, patch: Partial<AtlasLayer>) =>
+    mutate((d) => ({ ...d, layers: d.layers.map((l) => (l.id === id ? { ...l, ...patch } : l)) }));
+  const moveLayer = (id: string, dir: -1 | 1) =>
+    mutate((d) => {
+      const i = d.layers.findIndex((l) => l.id === id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= d.layers.length) return d;
+      const layers = d.layers.slice();
+      [layers[i], layers[j]] = [layers[j], layers[i]];
+      return { ...d, layers };
+    });
+  async function onLayerFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    const uri = await fileToImageDataUrl(f, 2048, MAX_SPRITE_CHARS).catch((err: Error) => {
+      pushToast(err.message || "That image could not be used as a layer.", "error");
+      return null;
+    });
+    if (!uri) return;
+    const id = uid();
+    mutate((d) => ({
+      ...d,
+      layers: [
+        ...d.layers,
+        {
+          id,
+          name: f.name.replace(/\.[^.]+$/, "") || "Layer",
+          kind: "image" as const,
+          src: uri,
+          opacity: 0.7,
+          blend: "normal" as const,
+          visibility: "player" as const,
+          enabled: true,
+          palette: "terrain" as const,
+          style: "tint" as const,
+          min: 0,
+          max: 100,
+        },
+      ],
+    }));
+    setSelLayerId(id);
+  }
+  const selLayer = visible.layers.find((l) => l.id === selLayerId) ?? null;
+
   const waiting = (isNetPlayer || feedFromBridge) && !netReady;
 
   return (
@@ -961,6 +1060,18 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
           <button className={"atlas-widget" + (tool === "measure" ? " active" : "")} onClick={() => { setTool("measure"); setMeasure(null); }} title="Measure — drag a line to read the distance">
             MEA
           </button>
+          {(editing || visible.layers.length > 0) && (
+            <button
+              className={"atlas-widget" + (lyrOpen ? " active" : "")}
+              onClick={() => {
+                setLyrOpen((v) => !v);
+                setCfgOpen(false);
+              }}
+              title="Information layers — terrain, heat, borders; toggle what YOUR instrument shows"
+            >
+              LYR
+            </button>
+          )}
           {editing && (
             <>
               <button className={"atlas-widget" + (tool === "node" ? " active" : "")} onClick={() => setTool("node")} title="Place a node">
@@ -969,7 +1080,14 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
               <button className={"atlas-widget" + (tool === "zone" ? " active" : "")} onClick={() => { setTool("zone"); draftRef.current = []; }} title="Draw a zone — drag its outline; release closes the shape">
                 ZONE
               </button>
-              <button className={"atlas-widget" + (cfgOpen ? " active" : "")} onClick={() => setCfgOpen((v) => !v)} title="Map setup — image, shape, size, units, world clock">
+              <button
+                className={"atlas-widget" + (cfgOpen ? " active" : "")}
+                onClick={() => {
+                  setCfgOpen((v) => !v);
+                  setLyrOpen(false);
+                }}
+                title="Map setup — image, shape, size, units, world clock"
+              >
                 CFG
               </button>
             </>
@@ -1001,6 +1119,178 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
               </select>
             </div>
             <p className="atlas-note" style={{ margin: 0 }}>Drag the outline; release closes the shape.</p>
+          </div>
+        )}
+
+        {lyrOpen && (
+          <div className="atlas-config atlas-layers">
+            {visible.layers.length === 0 && <p className="atlas-note" style={{ margin: 0 }}>No layers yet. Add terrain, heat, or border overlays.</p>}
+            {visible.layers.map((l) => (
+              <div key={l.id} className="atlas-cfg-row">
+                {l.visibility === "locked" && !editing ? (
+                  <button
+                    className="ghost-btn xs atlas-lyr-locked"
+                    onClick={() => flashBanner("CLEARANCE INSUFFICIENT // " + l.name.toUpperCase(), 3000)}
+                    title="This layer exists. That is all you are cleared to know."
+                  >
+                    {l.name} [LOCKED]
+                  </button>
+                ) : (
+                  <>
+                    <input
+                      type="checkbox"
+                      checked={layerOn[l.id] ?? l.enabled}
+                      onChange={(e) => setLayerOn((cur) => ({ ...cur, [l.id]: e.target.checked }))}
+                      title="Show this layer on your instrument"
+                    />
+                    {editing ? (
+                      <button
+                        className={"ghost-btn xs" + (selLayerId === l.id ? " strong" : "")}
+                        onClick={() => setSelLayerId(selLayerId === l.id ? null : l.id)}
+                        title="Edit this layer"
+                      >
+                        {l.name}
+                        {l.visibility !== "player" ? ` · ${l.visibility}` : ""}
+                      </button>
+                    ) : (
+                      <span className="atlas-lyr-name">{l.name}</span>
+                    )}
+                  </>
+                )}
+              </div>
+            ))}
+            {editing && (
+              <div className="atlas-cfg-row">
+                <button className="ghost-btn xs" onClick={() => layerFileRef.current?.click()} title="Upload an image aligned to the map's bounds">
+                  Add layer…
+                </button>
+              </div>
+            )}
+            {editing && selLayer && (
+              <>
+                <div className="atlas-cfg-row">
+                  <input
+                    className="bg-select"
+                    value={selLayer.name}
+                    onChange={(e) => patchLayer(selLayer.id, { name: e.target.value })}
+                  />
+                  <button className="ghost-btn xs" onClick={() => moveLayer(selLayer.id, -1)} title="Draw earlier (further down the stack)">
+                    Up
+                  </button>
+                  <button className="ghost-btn xs" onClick={() => moveLayer(selLayer.id, 1)} title="Draw later (nearer the top)">
+                    Down
+                  </button>
+                  <button
+                    className="icon-btn danger sm"
+                    onClick={() => {
+                      mutate((d) => ({ ...d, layers: d.layers.filter((x) => x.id !== selLayer.id) }));
+                      setSelLayerId(null);
+                    }}
+                    title="Remove this layer"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="atlas-cfg-row">
+                  <select
+                    className="bg-select"
+                    value={selLayer.kind}
+                    onChange={(e) => patchLayer(selLayer.id, { kind: e.target.value === "field" ? "field" : "image" })}
+                    title="Image = extra art. Field = grayscale data with a palette and a cursor readout."
+                  >
+                    <option value="image">image</option>
+                    <option value="field">scalar field</option>
+                  </select>
+                  <select
+                    className="bg-select"
+                    value={selLayer.visibility}
+                    onChange={(e) => patchLayer(selLayer.id, { visibility: e.target.value as AtlasLayer["visibility"] })}
+                  >
+                    <option value="player">visible to players</option>
+                    <option value="locked">locked (name only)</option>
+                    <option value="curator">curator only</option>
+                  </select>
+                </div>
+                <div className="atlas-cfg-row">
+                  <span>Opacity</span>
+                  <input
+                    type="range"
+                    min={0.05}
+                    max={1}
+                    step={0.05}
+                    value={selLayer.opacity}
+                    onChange={(e) => patchLayer(selLayer.id, { opacity: parseFloat(e.target.value) })}
+                  />
+                  {selLayer.kind === "image" && (
+                    <select
+                      className="bg-select"
+                      value={selLayer.blend}
+                      onChange={(e) => patchLayer(selLayer.id, { blend: e.target.value as LayerBlend })}
+                    >
+                      <option value="normal">normal</option>
+                      <option value="multiply">multiply</option>
+                      <option value="screen">screen</option>
+                      <option value="overlay">overlay</option>
+                    </select>
+                  )}
+                </div>
+                {selLayer.kind === "field" && (
+                  <>
+                    <div className="atlas-cfg-row">
+                      <select
+                        className="bg-select"
+                        value={selLayer.palette}
+                        onChange={(e) => patchLayer(selLayer.id, { palette: e.target.value as LayerPalette })}
+                      >
+                        <option value="terrain">terrain</option>
+                        <option value="thermal">thermal</option>
+                        <option value="toxin">toxin</option>
+                        <option value="gray">gray</option>
+                      </select>
+                      <select
+                        className="bg-select"
+                        value={selLayer.style}
+                        onChange={(e) => patchLayer(selLayer.id, { style: e.target.value as LayerStyle })}
+                      >
+                        <option value="tint">tint</option>
+                        <option value="hillshade">hillshade</option>
+                        <option value="contours">contours</option>
+                      </select>
+                    </div>
+                    <div className="atlas-cfg-row">
+                      <input
+                        className="bg-select atlas-lyr-small"
+                        placeholder="Readout, e.g. ELEV"
+                        value={selLayer.label ?? ""}
+                        onChange={(e) => patchLayer(selLayer.id, { label: e.target.value || undefined })}
+                        title="Cursor readout label; empty = no readout"
+                      />
+                      <input
+                        className="bg-select atlas-lyr-num"
+                        type="number"
+                        value={selLayer.min}
+                        onChange={(e) => patchLayer(selLayer.id, { min: parseFloat(e.target.value) || 0 })}
+                        title="Value at black"
+                      />
+                      <input
+                        className="bg-select atlas-lyr-num"
+                        type="number"
+                        value={selLayer.max}
+                        onChange={(e) => patchLayer(selLayer.id, { max: parseFloat(e.target.value) || 0 })}
+                        title="Value at white"
+                      />
+                      <input
+                        className="bg-select atlas-lyr-small"
+                        placeholder="Unit"
+                        value={selLayer.unit ?? ""}
+                        onChange={(e) => patchLayer(selLayer.id, { unit: e.target.value || undefined })}
+                        title="FT, %, KM…"
+                      />
+                    </div>
+                  </>
+                )}
+              </>
+            )}
           </div>
         )}
 
@@ -1127,11 +1417,13 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
         </span>
         <span>COORD | {hud.coord}</span>
         <span>WORLD TIME | {hud.clock}</span>
+        {hud.fields && <span className="atlas-field-readout">{hud.fields}</span>}
         {measure && <span>MEASURE | {formatDistance(distanceMi(measure.a, measure.b), visible.units)}</span>}
         <span>OBSERVATIONAL RESOLUTION: {curator ? "FULL" : "PARTIAL"}</span>
       </div>
 
       <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => void onMapFile(e)} />
+      <input ref={layerFileRef} type="file" accept="image/*" hidden onChange={(e) => void onLayerFile(e)} />
     </div>
   );
 }
