@@ -47,6 +47,7 @@ import { pushToast, reportSaveFailure } from "../../lib/appToast";
 import { useNet } from "../../net/NetContext";
 import type { NetMessage } from "../../net/protocol";
 import { bridgeEmit, bridgeListen } from "./atlasBridge";
+import { importAzgaar } from "./azgaarImport";
 
 /** BROADCAST VIEW arriving from the Curator. VttScreen opens the window and
  *  hands the target in; a fresh nonce restarts the flight. */
@@ -107,6 +108,7 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const layerFileRef = useRef<HTMLInputElement>(null);
+  const azgaarFileRef = useRef<HTMLInputElement>(null);
   const [doc, setDoc] = useState<AtlasDoc>(() => emptyAtlas());
   const [readOnly, setReadOnly] = useState(false);
   const [netReady, setNetReady] = useState(false);
@@ -1011,6 +1013,66 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
   }
   const selLayer = visible.layers.find((l) => l.id === selLayerId) ?? null;
 
+  // Azgaar Fantasy Map Generator: a designed world arrives as data — burgs as
+  // settlement nodes, markers as landmarks, each state's territory traced into
+  // a zone. What remains is the Curator's actual job: deciding what each
+  // territory IS on the instrument (visible / surveyed / null-locked / ...).
+  async function onAzgaarFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    let raw: unknown;
+    try {
+      raw = JSON.parse(await f.text());
+    } catch {
+      pushToast("That file is not readable JSON. Export from Azgaar with Export -> full JSON.", "error");
+      return;
+    }
+    const imp = importAzgaar(raw);
+    if (!imp) {
+      pushToast("That JSON does not look like an Azgaar map export (no burgs, states, or map size found).", "error");
+      return;
+    }
+    mutate((d) => {
+      // A rectangular world adopts Azgaar's real size — true miles are a gift.
+      // A disc keeps its diameter and the survey scales onto it.
+      const adoptSize = imp.suggestedWidthMi !== undefined && imp.suggestedHeightMi !== undefined && d.shape === "rect";
+      const W = adoptSize ? imp.suggestedWidthMi! : d.widthMi;
+      const H = adoptSize ? imp.suggestedHeightMi! : d.heightMi;
+      return {
+        ...d,
+        widthMi: W,
+        heightMi: H,
+        nodes: [
+          ...d.nodes,
+          ...imp.nodes.map((n) => ({
+            id: uid(),
+            name: n.name,
+            kind: n.kind,
+            x: n.u * W,
+            y: n.v * H,
+            visibility: "player" as const,
+            status: n.capital ? ["STATE CAPITAL"] : undefined,
+          })),
+        ],
+        zones: [
+          ...d.zones,
+          ...imp.zones.map((z) => ({
+            id: uid(),
+            name: z.name,
+            state: "visible" as const,
+            polygon: simplifyPath(z.polygon.map((pt) => ({ x: pt.u * W, y: pt.v * H })), W / 500),
+          })),
+        ],
+      };
+    });
+    const summary = `Assimilated ${imp.nodes.length} places and ${imp.zones.length} territories` +
+      (imp.mapName ? ` from ${imp.mapName}` : "") +
+      (imp.dropped.length ? `. Left out: ${imp.dropped.join("; ")}.` : ".");
+    pushToast(summary, "info", 9000);
+    flashBanner("SURVEY DATA ASSIMILATED" + (imp.mapName ? " // " + imp.mapName.toUpperCase() : ""));
+  }
+
   const waiting = (isNetPlayer || feedFromBridge) && !netReady;
 
   return (
@@ -1300,6 +1362,13 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
               <button className="ghost-btn xs" onClick={() => fileRef.current?.click()}>
                 Map image…
               </button>
+              <button
+                className="ghost-btn xs"
+                onClick={() => azgaarFileRef.current?.click()}
+                title="Import an Azgaar Fantasy Map Generator full-JSON export: settlements and markers arrive as nodes, each state's territory as a zone"
+              >
+                Import Azgaar…
+              </button>
               <select
                 className="bg-select"
                 value={doc.shape}
@@ -1424,6 +1493,7 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
 
       <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => void onMapFile(e)} />
       <input ref={layerFileRef} type="file" accept="image/*" hidden onChange={(e) => void onLayerFile(e)} />
+      <input ref={azgaarFileRef} type="file" accept=".json,application/json" hidden onChange={(e) => void onAzgaarFile(e)} />
     </div>
   );
 }
