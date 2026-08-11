@@ -35,6 +35,7 @@ import {
   zoomAt,
 } from "./atlasMath";
 import { pickFrame } from "./animatedImage";
+import { zoneLabelPx } from "./atlasMath";
 
 const view = { width: 800, height: 600 };
 
@@ -311,6 +312,18 @@ describe("technical dressing", () => {
     const a = nullReadout({ x: 3, y: 7 }, 1);
     expect(nullReadout({ x: 3, y: 7 }, 1)).toBe(a);
     expect(a.length).toBeGreaterThan(0);
+  });
+});
+
+describe("zone labels", () => {
+  it("hides tiny footprints, scales with the territory, and caps", () => {
+    expect(zoneLabelPx(500)).toBe(0); // a speck stays quiet
+    expect(zoneLabelPx(3000)).toBeGreaterThanOrEqual(9);
+    const region = zoneLabelPx(120_000);
+    const empire = zoneLabelPx(450_000);
+    expect(empire).toBeGreaterThan(region); // bigger reads bigger
+    expect(zoneLabelPx(5_000_000)).toBe(30); // but never a billboard
+    expect(zoneLabelPx(Number.NaN)).toBe(0);
   });
 });
 

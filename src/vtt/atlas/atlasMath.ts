@@ -321,6 +321,16 @@ export function formatWorldClock(hour: number): string {
   return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 }
 
+/**
+ * Zone label size from the zone's on-screen footprint: a continent-sized
+ * territory reads from orbit, a barony's name waits until you descend.
+ * 0 means "don't label yet".
+ */
+export function zoneLabelPx(screenArea: number): number {
+  if (!Number.isFinite(screenArea) || screenArea < 2200) return 0;
+  return Math.min(30, Math.max(9, Math.sqrt(screenArea) / 14));
+}
+
 // ── Path simplification ──────────────────────────────────────────────────────
 
 /**

@@ -103,6 +103,14 @@ describe("the Azgaar import", () => {
     expect(m.u).toBeCloseTo(0.5);
   });
 
+  it("tiers settlements by importance for zoom reveal", () => {
+    const out = importAzgaar(fixture("arrays"))!;
+    const byName = Object.fromEntries(out.nodes.map((n) => [n.name, n.tier]));
+    expect(byName["Rivenbark"]).toBe("capital");
+    expect(byName["Lowmarsh"]).toBe("major"); // under the major cap in a small fixture
+    expect(byName["The Sunken Gate"]).toBe("minor"); // markers wait for the descent
+  });
+
   it("skips the Neutrals and removed states", () => {
     const out = importAzgaar(fixture("arrays"))!;
     expect(out.zones.map((z) => z.name)).not.toContain("Neutrals");

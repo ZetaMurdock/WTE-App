@@ -34,6 +34,39 @@ async function isReallyGif(file: File): Promise<boolean> {
   return magic === "GIF87a" || magic === "GIF89a";
 }
 
+/**
+ * Rasterize an SVG document into an image data URL. Rendered at `maxSide`
+ * regardless of the SVG's own size — vectors upscale for free, and a world
+ * map deserves the pixels. External resources inside the SVG (web fonts,
+ * linked textures) are skipped by the browser's SVG-in-img rules; everything
+ * self-contained renders. WebP keeps a map at a fraction of PNG's weight;
+ * browsers that can't encode it silently hand back PNG.
+ */
+export async function svgToImageDataUrl(svg: string, maxSide = 2048): Promise<string> {
+  const blob = new Blob([svg], { type: "image/svg+xml" });
+  const url = URL.createObjectURL(blob);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error("the map's artwork could not be rendered"));
+      i.src = url;
+    });
+    const w = img.naturalWidth || 1;
+    const h = img.naturalHeight || 1;
+    const k = maxSide / Math.max(w, h);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(w * k));
+    canvas.height = Math.max(1, Math.round(h * k));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("no 2d context");
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/webp", 0.92);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 // Re-encode to a PNG data URL via canvas (downscaling only past maxSide, to
 // bound stored/synced size).
 export async function fileToPngDataUrl(file: File, maxSide = 4096, maxChars = Infinity): Promise<string> {
