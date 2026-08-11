@@ -47,7 +47,7 @@ import { pushToast, reportSaveFailure } from "../../lib/appToast";
 import { useNet } from "../../net/NetContext";
 import type { NetMessage } from "../../net/protocol";
 import { bridgeEmit, bridgeListen } from "./atlasBridge";
-import { importAzgaar } from "./azgaarImport";
+import { importAzgaar, importAzgaarMapFile } from "./azgaarImport";
 
 /** BROADCAST VIEW arriving from the Curator. VttScreen opens the window and
  *  hands the target in; a fresh nonce restarts the flight. */
@@ -1021,16 +1021,24 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
     const f = e.target.files?.[0];
     e.target.value = "";
     if (!f) return;
-    let raw: unknown;
-    try {
-      raw = JSON.parse(await f.text());
-    } catch {
-      pushToast("That file is not readable JSON. Export from Azgaar with Export -> full JSON.", "error");
-      return;
+    const text = await f.text();
+    let imp = null;
+    if (text.trimStart().startsWith("{")) {
+      // the full-JSON export
+      let raw: unknown;
+      try {
+        raw = JSON.parse(text);
+      } catch {
+        pushToast("That file is not readable JSON. Export from Azgaar with Export -> full JSON, or save the .map itself.", "error");
+        return;
+      }
+      imp = importAzgaar(raw);
+    } else {
+      // the native .map save
+      imp = importAzgaarMapFile(text);
     }
-    const imp = importAzgaar(raw);
     if (!imp) {
-      pushToast("That JSON does not look like an Azgaar map export (no burgs, states, or map size found).", "error");
+      pushToast("That file does not look like an Azgaar map (no burgs, states, or map size found).", "error");
       return;
     }
     mutate((d) => {
@@ -1365,7 +1373,7 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
               <button
                 className="ghost-btn xs"
                 onClick={() => azgaarFileRef.current?.click()}
-                title="Import an Azgaar Fantasy Map Generator full-JSON export: settlements and markers arrive as nodes, each state's territory as a zone"
+                title="Import an Azgaar Fantasy Map Generator save (.map) or full-JSON export: settlements and markers arrive as nodes, each state's territory as a zone"
               >
                 Import Azgaar…
               </button>
@@ -1493,7 +1501,7 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
 
       <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => void onMapFile(e)} />
       <input ref={layerFileRef} type="file" accept="image/*" hidden onChange={(e) => void onLayerFile(e)} />
-      <input ref={azgaarFileRef} type="file" accept=".json,application/json" hidden onChange={(e) => void onAzgaarFile(e)} />
+      <input ref={azgaarFileRef} type="file" accept=".json,.map" hidden onChange={(e) => void onAzgaarFile(e)} />
     </div>
   );
 }

@@ -4,7 +4,7 @@
 // to exercise burgs, markers, scale, and the border tracer in BOTH shapes
 // Azgaar has shipped (cells as parallel arrays, cells as object rows).
 import { describe, expect, it } from "vitest";
-import { importAzgaar } from "./azgaarImport";
+import { importAzgaar, importAzgaarMapFile } from "./azgaarImport";
 import { pointInPolygon } from "./atlasMath";
 
 const VERTICES_P = [
@@ -122,5 +122,62 @@ describe("the Azgaar import", () => {
     expect(importAzgaar(null)).toBeNull();
     expect(importAzgaar({ hello: "world" })).toBeNull();
     expect(importAzgaar({ pack: {}, info: { width: 0, height: 0 } })).toBeNull();
+  });
+});
+
+describe("the native .map save", () => {
+  // A minimal but honest .map: CRLF-joined sections in DIFFERENT order than
+  // current Azgaar emits (order has drifted in real files, so the reader must
+  // not care), with territories carried by the SVG's statesBody paths.
+  function mapFile(): string {
+    const params = "1.139.11|credits|2026-8-11|519590615|30|20|123";
+    const settings = 'mi|3|square|ft|2|F|||||||1000|1||||||{"year":937,"era":"Kinbury Era"}|Lasia|1|default';
+    const svg =
+      '<svg id="map" width="30" height="20"><g id="regions">' +
+      '<g id="statesBody" opacity="0.4">' +
+      '<path d="M0,0 L15 0 15 20 0 20 Z" fill="#66c2a5" id="state1"/>' +
+      '<path d="M0,0 L15 0 15 20 0 20 Z" fill="none" stroke="#66c2a5" id="state-gap1"/>' +
+      '<path d="M15,0 L30 0 30 20 15 20 Z" fill="#fc8d62" id="state2"/>' +
+      "</g></g></svg>";
+    const notes = JSON.stringify([{ id: "marker7", name: "The Sunken Gate", legend: "old door" }]);
+    const states = JSON.stringify([
+      { i: 0, name: "Neutrals", neighbors: [] },
+      { i: 1, name: "Redland", formName: "Dominion", fullName: "Dominion of Redland", diplomacy: [], neighbors: [2] },
+      { i: 2, name: "Bluemoor", formName: "Compact", fullName: "Bluemoor Compact", diplomacy: [], neighbors: [1] },
+    ]);
+    const burgs = JSON.stringify([
+      0,
+      { i: 1, cell: 10, name: "Rivenbark", x: 7.5, y: 5, state: 1, capital: 1, population: 20, culture: 1 },
+      { i: 2, cell: 11, name: "Bluehaven", x: 22.5, y: 10, state: 2, population: 11, culture: 1 },
+    ]);
+    const markers = JSON.stringify([{ i: 7, icon: "X", type: "portal", x: 15, y: 10, cell: 12 }]);
+    // deliberately shuffled section order after the two fixed leading lines
+    return [params, settings, svg, markers, states, notes, burgs].join("\r\n");
+  }
+
+  it("imports burgs, markers, and SVG-traced territories", () => {
+    const out = importAzgaarMapFile(mapFile())!;
+    expect(out).not.toBeNull();
+    expect(out.mapName).toBe("Lasia");
+    expect(out.suggestedWidthMi).toBeCloseTo(90); // 30px * 3 mi/px
+    expect(out.nodes.map((n) => n.name).sort()).toEqual(["Bluehaven", "Rivenbark", "The Sunken Gate"]);
+    expect(out.zones.map((z) => z.name).sort()).toEqual(["Bluemoor", "Redland"]);
+    const red = out.zones.find((z) => z.name === "Redland")!;
+    expect(pointInPolygon({ x: 0.25, y: 0.5 }, red.polygon.map((p) => ({ x: p.u, y: p.v })))).toBe(true);
+    expect(pointInPolygon({ x: 0.75, y: 0.5 }, red.polygon.map((p) => ({ x: p.u, y: p.v })))).toBe(false);
+  });
+
+  it("still imports places when the SVG has no states layer, and says so", () => {
+    const noSvg = mapFile().replace(/<g id="statesBody"[^]*?<\/g>/, "");
+    const out = importAzgaarMapFile(noSvg)!;
+    expect(out.zones).toHaveLength(0);
+    expect(out.nodes.length).toBe(3);
+    expect(out.dropped.join(" ")).toMatch(/States layer/);
+  });
+
+  it("refuses text that is not a map save", () => {
+    expect(importAzgaarMapFile("")).toBeNull();
+    expect(importAzgaarMapFile("hello|world")).toBeNull();
+    expect(importAzgaarMapFile('{"pack":{}}')).toBeNull();
   });
 });

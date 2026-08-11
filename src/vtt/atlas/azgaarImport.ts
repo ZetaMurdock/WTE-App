@@ -206,7 +206,14 @@ function traceState(stateId: number, cells: CellsView, vx: VerticesView): number
 
 // ── the import ───────────────────────────────────────────────────────────────
 
-export function importAzgaar(raw: unknown): AzgaarImportResult | null {
+export interface AzgaarImportOpts {
+  /** Pre-traced state territories (px coords), keyed by state id — used by the
+   *  .map path, whose files carry no cell mesh but DO carry the rendered
+   *  borders. When present, cell tracing is skipped entirely. */
+  statePolygons?: Map<number, [number, number][][]>;
+}
+
+export function importAzgaar(raw: unknown, opts?: AzgaarImportOpts): AzgaarImportResult | null {
   const root = rec(raw);
   if (!root) return null;
   const pack = rec(root.pack);
@@ -271,9 +278,27 @@ export function importAzgaar(raw: unknown): AzgaarImportResult | null {
   }
 
   // ── states → territory zones ────────────────────────────────────────────────
+  const states = arr(pack.states) ?? [];
+  if (opts?.statePolygons) {
+    // borders arrive pre-traced (from the .map file's rendered SVG)
+    for (const st of states) {
+      const ss = rec(st);
+      const id = ss && fin(ss.i);
+      if (!ss || id === null || id === 0 || ss.removed === true) continue;
+      const rings = opts.statePolygons.get(id);
+      if (!rings || rings.length === 0) continue;
+      const name = typeof ss.name === "string" && ss.name ? ss.name : `State ${id}`;
+      if (rings.length > MAX_RINGS_PER_STATE) dropped.push(`${rings.length - MAX_RINGS_PER_STATE} small exclaves of ${name}`);
+      rings.slice(0, MAX_RINGS_PER_STATE).forEach((ring, li) => {
+        const polygon = ring.map(([x, y]) => norm(x, y));
+        if (polygon.length >= 3) out.zones.push({ name: li === 0 ? name : `${name} (exclave)`, polygon });
+      });
+    }
+    if (out.nodes.length === 0 && out.zones.length === 0) return null;
+    return out;
+  }
   const cells = cellsOf(pack);
   const vx = cells ? verticesOf(pack) : null;
-  const states = arr(pack.states) ?? [];
   if (!cells || !vx) {
     if (states.length > 1) dropped.push("territories (the file has no readable cell mesh)");
   } else {
@@ -298,4 +323,140 @@ export function importAzgaar(raw: unknown): AzgaarImportResult | null {
 
   if (out.nodes.length === 0 && out.zones.length === 0) return null;
   return out;
+}
+
+// ── the .map file (Azgaar's native save) ─────────────────────────────────────
+//
+// A .map is not the JSON export: it is a CRLF-joined list of sections whose
+// ORDER has drifted across versions, and it carries no cell mesh at all (the
+// generator rebuilds the voronoi on load). So sections are identified by what
+// they CONTAIN, and territories come from the one part of the file that
+// really does know the borders: the rendered SVG's statesBody paths.
+
+/** Shoelace area of a pixel ring, for keeping each state's main landmass. */
+function pxRingArea(ring: [number, number][]): number {
+  let a = 0;
+  for (let i = 0; i < ring.length; i++) {
+    const [x1, y1] = ring[i];
+    const [x2, y2] = ring[(i + 1) % ring.length];
+    a += x1 * y2 - x2 * y1;
+  }
+  return Math.abs(a / 2);
+}
+
+/** "M x,y L x y x y ... Z M ... Z" into rings. Azgaar draws state bodies with
+ *  straight segments, so only M/L/Z appear; anything else ends a ring safely. */
+function pathToRings(d: string): [number, number][][] {
+  const rings: [number, number][][] = [];
+  let ring: [number, number][] = [];
+  const tokens = d.match(/[A-Za-z]|-?\d*\.?\d+(?:e-?\d+)?/g) ?? [];
+  let i = 0;
+  const flush = () => {
+    if (ring.length >= 3) rings.push(ring);
+    ring = [];
+  };
+  while (i < tokens.length) {
+    const t = tokens[i];
+    if (t === "M" || t === "L") {
+      i++;
+      while (i + 1 < tokens.length && !/[A-Za-z]/.test(tokens[i])) {
+        const x = parseFloat(tokens[i]);
+        const y = parseFloat(tokens[i + 1]);
+        if (Number.isFinite(x) && Number.isFinite(y)) ring.push([x, y]);
+        i += 2;
+      }
+      continue;
+    }
+    if (t === "Z" || t === "z") flush();
+    i++;
+  }
+  flush();
+  return rings.sort((a, b) => pxRingArea(b) - pxRingArea(a));
+}
+
+/** The statesBody layer of the map's SVG: state id → its border rings. */
+function statePolygonsFromSvg(svg: string): Map<number, [number, number][][]> {
+  const out = new Map<number, [number, number][][]>();
+  const start = svg.indexOf('<g id="statesBody"');
+  if (start < 0) return out;
+  const end = svg.indexOf("</g>", start);
+  const block = svg.slice(start, end < 0 ? undefined : end);
+  for (const m of block.matchAll(/<path\s+d="([^"]+)"[^>]*?\bid="state(\d+)"/g)) {
+    const id = parseInt(m[2], 10);
+    if (!Number.isFinite(id)) continue;
+    const rings = pathToRings(m[1]);
+    if (rings.length > 0) out.set(id, rings);
+  }
+  return out;
+}
+
+/**
+ * Import Azgaar's native .map save. Returns the same shape as the JSON path —
+ * burgs and markers as nodes, states as zones, real-world size from the
+ * distance scale — or null when the text is not a readable .map.
+ */
+export function importAzgaarMapFile(text: string): AzgaarImportResult | null {
+  const parts = text.split("\r\n");
+  if (parts.length < 5) return null;
+
+  // line 0: version|credits|date|seed|width|height|id — positionally stable
+  const params = parts[0].split("|");
+  const width = fin(parseFloat(params[4]));
+  const height = fin(parseFloat(params[5]));
+  if (!width || !height || width <= 0 || height <= 0) return null;
+
+  // line 1: distanceUnit|distanceScale|…|{options JSON}|mapName|… — the two
+  // leading fields are stable; the map name sits right after the options JSON
+  const settingsFields = parts[1]?.split("|") ?? [];
+  const distanceUnit = settingsFields[0] || "mi";
+  const distanceScale = fin(parseFloat(settingsFields[1] ?? ""));
+  let mapName = "";
+  const optEnd = parts[1]?.lastIndexOf("}");
+  if (optEnd !== undefined && optEnd >= 0) {
+    mapName = parts[1].slice(optEnd + 1).split("|").filter(Boolean)[0] ?? "";
+  }
+
+  // Everything else is found by what it PARSES to — section order has drifted
+  // across versions, and string sniffing misleads (states mention "cell" and
+  // "capital" too). Each candidate array is parsed once and probed by the
+  // keys its object entries actually carry.
+  const sections: unknown[][] = [];
+  for (const p of parts) {
+    if (!p.startsWith("[")) continue;
+    try {
+      const v = JSON.parse(p);
+      if (Array.isArray(v)) sections.push(v);
+    } catch {
+      // a section that looks like an array but doesn't parse is not data
+    }
+  }
+  const objs = (v: unknown[]): Rec[] => v.map((e) => rec(e)).filter((e): e is Rec => e !== null);
+  const pick = (test: (entries: Rec[]) => boolean): unknown[] | null =>
+    sections.find((v) => {
+      const entries = objs(v);
+      return entries.length > 0 && test(entries);
+    }) ?? null;
+
+  const states = pick((e) => e.some((x) => "formName" in x) && e.some((x) => "diplomacy" in x || "neighbors" in x));
+  const burgs = pick((e) => e.slice(0, 5).some((x) => "cell" in x && "x" in x && "y" in x && "name" in x && !("icon" in x)));
+  const markers = pick((e) => e.slice(0, 5).some((x) => "icon" in x && "cell" in x && "x" in x && !("name" in x)));
+  const notes = pick((e) => e.slice(0, 5).some((x) => "legend" in x && "id" in x));
+  const svg = parts.find((p) => p.startsWith("<svg"));
+
+  const raw = {
+    info: { width, height, mapName },
+    settings: distanceScale ? { distanceScale, distanceUnit } : {},
+    notes: notes ?? [],
+    pack: {
+      burgs: burgs ?? [],
+      markers: markers ?? [],
+      states: states ?? [],
+    },
+  };
+  const statePolygons = svg ? statePolygonsFromSvg(svg) : new Map<number, [number, number][][]>();
+  const result = importAzgaar(raw, { statePolygons });
+  if (result && statePolygons.size === 0 && (states?.length ?? 0) > 1) {
+    result.dropped.push("territories (the map's SVG carries no state borders — enable the States layer in Azgaar before saving)");
+  }
+  return result;
 }
