@@ -28,6 +28,7 @@ import {
   makeCamera,
   nodeVisibleAtZoom,
   nullReadout,
+  zoneLabelPx,
   panBy,
   pickScaleBar,
   pointInPolygon,
@@ -41,7 +42,7 @@ import {
 } from "./atlasMath";
 import { AtlasArt } from "./animatedImage";
 import { loadAtlas, saveAtlas } from "./atlasRepo";
-import { fileToImageDataUrl } from "../../lib/image";
+import { fileToImageDataUrl, svgToImageDataUrl } from "../../lib/image";
 import { registerSaver } from "../../lib/saveQueue";
 import { pushToast, reportSaveFailure } from "../../lib/appToast";
 import { useNet } from "../../net/NetContext";
@@ -114,6 +115,7 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
   const [netReady, setNetReady] = useState(false);
   const [tool, setTool] = useState<Tool>("pan");
   const [cfgOpen, setCfgOpen] = useState(false);
+  const [resetArmed, setResetArmed] = useState(false);
   const [lyrOpen, setLyrOpen] = useState(false);
   const [selLayerId, setSelLayerId] = useState<string | null>(null);
   // Per-VIEWER layer toggles: the Curator's `enabled` is only the default.
@@ -616,15 +618,27 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
       if (z.fx && (curator || z.state === "visible" || z.state === "surveyed")) {
         drawZoneFx(ctx, cam, view, z, now);
       }
-      // the name, at the centroid — never over the void for players
+      // The name, at the centroid — sized by the territory's on-screen
+      // footprint, so empires read from orbit and baronies wait for the
+      // descent. Never over the void for players.
       if (z.name && (curator || z.state === "visible" || z.state === "surveyed" || z.state === "unconfirmed")) {
         let cx = 0, cy = 0;
-        for (const p of z.polygon) { cx += p.x; cy += p.y; }
-        const c = worldToScreen(cam, view, { x: cx / z.polygon.length, y: cy / z.polygon.length });
-        ctx.font = "10px Consolas, monospace";
-        ctx.fillStyle = "rgba(160,180,190,0.6)";
-        const label = z.name.toUpperCase();
-        ctx.fillText(label, c.x - ctx.measureText(label).width / 2, c.y);
+        let zMinX = Infinity, zMinY = Infinity, zMaxX = -Infinity, zMaxY = -Infinity;
+        for (const p of z.polygon) {
+          cx += p.x;
+          cy += p.y;
+          const sp = worldToScreen(cam, view, p);
+          zMinX = Math.min(zMinX, sp.x); zMinY = Math.min(zMinY, sp.y);
+          zMaxX = Math.max(zMaxX, sp.x); zMaxY = Math.max(zMaxY, sp.y);
+        }
+        const labelPx = zoneLabelPx((zMaxX - zMinX) * (zMaxY - zMinY));
+        if (labelPx > 0) {
+          const c = worldToScreen(cam, view, { x: cx / z.polygon.length, y: cy / z.polygon.length });
+          ctx.font = `${Math.round(labelPx)}px Consolas, monospace`;
+          ctx.fillStyle = `rgba(160,180,190,${(0.35 + Math.min(0.35, labelPx / 60)).toFixed(2)})`;
+          const label = z.name.toUpperCase();
+          ctx.fillText(label, c.x - ctx.measureText(label).width / 2, c.y);
+        }
       }
     }
 
@@ -1041,32 +1055,44 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
       pushToast("That file does not look like an Azgaar map (no burgs, states, or map size found).", "error");
       return;
     }
+    let replaced = 0;
     mutate((d) => {
       // A rectangular world adopts Azgaar's real size — true miles are a gift.
       // A disc keeps its diameter and the survey scales onto it.
       const adoptSize = imp.suggestedWidthMi !== undefined && imp.suggestedHeightMi !== undefined && d.shape === "rect";
       const W = adoptSize ? imp.suggestedWidthMi! : d.widthMi;
       const H = adoptSize ? imp.suggestedHeightMi! : d.heightMi;
+      // Imported entries carry an "az-" id prefix, so re-importing REPLACES the
+      // previous import instead of doubling it; hand-placed work is untouched.
+      const keptNodes = d.nodes.filter((n) => !n.id.startsWith("az-"));
+      const keptZones = d.zones.filter((z) => !z.id.startsWith("az-"));
+      replaced = d.nodes.length - keptNodes.length + (d.zones.length - keptZones.length);
+      // Zoom reveal by importance: capitals read from orbit; major towns from a
+      // regional view; villages and survey markers only up close. Thresholds
+      // scale with the world so they mean the same thing on any map.
+      const tierZoom = (tier: "capital" | "major" | "minor"): number | undefined =>
+        tier === "capital" ? undefined : tier === "major" ? +(1400 / W).toFixed(4) : +(4500 / W).toFixed(4);
       return {
         ...d,
         widthMi: W,
         heightMi: H,
         nodes: [
-          ...d.nodes,
+          ...keptNodes,
           ...imp.nodes.map((n) => ({
-            id: uid(),
+            id: "az-" + uid(),
             name: n.name,
             kind: n.kind,
             x: n.u * W,
             y: n.v * H,
             visibility: "player" as const,
             status: n.capital ? ["STATE CAPITAL"] : undefined,
+            minZoom: tierZoom(n.tier),
           })),
         ],
         zones: [
-          ...d.zones,
+          ...keptZones,
           ...imp.zones.map((z) => ({
-            id: uid(),
+            id: "az-" + uid(),
             name: z.name,
             state: "visible" as const,
             polygon: simplifyPath(z.polygon.map((pt) => ({ x: pt.u * W, y: pt.v * H })), W / 500),
@@ -1074,8 +1100,15 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
         ],
       };
     });
+    // The .map save carries the whole rendered map — it BECOMES the base image.
+    if (imp.svgText) {
+      void svgToImageDataUrl(imp.svgText, 2048)
+        .then((uri) => mutate((d) => ({ ...d, image: uri })))
+        .catch(() => pushToast("The map's artwork could not be rendered into a base image; the survey data still imported.", "error"));
+    }
     const summary = `Assimilated ${imp.nodes.length} places and ${imp.zones.length} territories` +
       (imp.mapName ? ` from ${imp.mapName}` : "") +
+      (replaced > 0 ? ` (replacing ${replaced} previously imported)` : "") +
       (imp.dropped.length ? `. Left out: ${imp.dropped.join("; ")}.` : ".");
     pushToast(summary, "info", 9000);
     flashBanner("SURVEY DATA ASSIMILATED" + (imp.mapName ? " // " + imp.mapName.toUpperCase() : ""));
@@ -1377,6 +1410,11 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
               >
                 Import Azgaar…
               </button>
+              {doc.image && (
+                <button className="ghost-btn xs" onClick={() => mutate((d) => ({ ...d, image: undefined }))} title="Remove the map image; everything placed on it stays">
+                  Clear image
+                </button>
+              )}
               <select
                 className="bg-select"
                 value={doc.shape}
@@ -1389,6 +1427,27 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
                 <option value="rect">rectangular</option>
                 <option value="circle">circular</option>
               </select>
+            </div>
+            <div className="atlas-cfg-row">
+              <button
+                className={"ghost-btn xs" + (resetArmed ? " strong" : "")}
+                onClick={() => {
+                  if (!resetArmed) {
+                    setResetArmed(true);
+                    window.setTimeout(() => setResetArmed(false), 4000);
+                    return;
+                  }
+                  setResetArmed(false);
+                  setSelectedId(null);
+                  setSelZoneId(null);
+                  setSelLayerId(null);
+                  mutate((d) => emptyAtlas(d.name));
+                  flashBanner("SURVEY WIPED // BEGIN AGAIN", 3000);
+                }}
+                title="Erase EVERYTHING on this Atlas — image, nodes, zones, layers, clock. Click twice."
+              >
+                {resetArmed ? "Confirm reset" : "Reset atlas…"}
+              </button>
             </div>
             <div className="atlas-cfg-row">
               <label className="atlas-width">
@@ -1463,6 +1522,7 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
           <NodeCard
             node={selected}
             editing={editing}
+            worldW={visible.widthMi}
             players={standalone ? bridgePeers : netPlayers}
             canBring={curator && !readOnly && (isNetHost || (!!standalone && bridgePeers.length > 0))}
             onFocus={() => flyToNode(selected)}
@@ -1645,6 +1705,7 @@ function SpritePicker({ current, onPick, onClear }: { current?: string; onPick: 
 function NodeCard({
   node,
   editing,
+  worldW,
   players,
   canBring,
   onFocus,
@@ -1655,6 +1716,7 @@ function NodeCard({
 }: {
   node: AtlasNode;
   editing: boolean;
+  worldW: number;
   players: { id: string; name: string }[];
   canBring: boolean;
   onFocus: () => void;
@@ -1722,6 +1784,20 @@ function NodeCard({
           >
             <option value="player">visible to players</option>
             <option value="curator">curator only</option>
+          </select>
+          <select
+            className="bg-select"
+            value={node.minZoom === undefined ? "always" : node.minZoom < 3000 / Math.max(1, worldW) ? "region" : "close"}
+            onChange={(e) => {
+              const v = e.target.value;
+              const minZoom = v === "always" ? undefined : v === "region" ? +(1400 / Math.max(1, worldW)).toFixed(4) : +(4500 / Math.max(1, worldW)).toFixed(4);
+              onChange({ ...node, minZoom });
+            }}
+            title="When this marker reveals itself: from orbit, at a regional view, or only up close"
+          >
+            <option value="always">always shown</option>
+            <option value="region">regional zoom</option>
+            <option value="close">close zoom</option>
           </select>
           <SpritePicker
             current={node.sprite}

@@ -23,6 +23,9 @@ export interface AzgaarNode extends AzgaarPoint {
   name: string;
   kind: "settlement" | "landmark";
   capital: boolean;
+  /** Importance tier, for zoom-gating: capitals read from orbit, major towns
+   *  from a regional view, the rest only up close. */
+  tier: "capital" | "major" | "minor";
 }
 
 export interface AzgaarZone {
@@ -37,9 +40,16 @@ export interface AzgaarImportResult {
   suggestedHeightMi?: number;
   nodes: AzgaarNode[];
   zones: AzgaarZone[];
+  /** The map's rendered SVG (native .map saves only) — the caller can
+   *  rasterize it into the Atlas's base image. */
+  svgText?: string;
   /** Honest accounting for the summary toast. */
   dropped: string[];
 }
+
+/** How many settlements count as "major" (regional-zoom reveal); capitals are
+ *  always their own tier above this. */
+const MAJOR_BURGS = 25;
 
 const MAX_BURGS = 150;
 const MAX_MARKERS = 50;
@@ -249,9 +259,16 @@ export function importAzgaar(raw: unknown, opts?: AzgaarImportOpts): AzgaarImpor
     .filter((b): b is Rec => !!b && typeof b.name === "string" && !!b.name && fin(b.x) !== null && fin(b.y) !== null && b.removed !== true);
   const byImportance = live.sort((a, b) => (fin(b.capital) ?? 0) - (fin(a.capital) ?? 0) || (fin(b.population) ?? 0) - (fin(a.population) ?? 0));
   if (byImportance.length > MAX_BURGS) dropped.push(`${byImportance.length - MAX_BURGS} smaller settlements past the ${MAX_BURGS} cap`);
-  for (const b of byImportance.slice(0, MAX_BURGS)) {
-    out.nodes.push({ ...norm(fin(b.x)!, fin(b.y)!), name: String(b.name), kind: "settlement", capital: fin(b.capital) === 1 || b.capital === true });
-  }
+  byImportance.slice(0, MAX_BURGS).forEach((b, rank) => {
+    const capital = fin(b.capital) === 1 || b.capital === true;
+    out.nodes.push({
+      ...norm(fin(b.x)!, fin(b.y)!),
+      name: String(b.name),
+      kind: "settlement",
+      capital,
+      tier: capital ? "capital" : rank < MAJOR_BURGS ? "major" : "minor",
+    });
+  });
 
   // ── markers → landmark nodes (names live in the notes legend) ───────────────
   const notes = arr(root.notes) ?? [];
@@ -273,7 +290,7 @@ export function importAzgaar(raw: unknown, opts?: AzgaarImportOpts): AzgaarImpor
     }
     const id = fin(mm.i);
     const name = (id !== null && noteName(`marker${id}`)) || (typeof mm.type === "string" && mm.type) || "Marker";
-    out.nodes.push({ ...norm(fin(mm.x)!, fin(mm.y)!), name, kind: "landmark", capital: false });
+    out.nodes.push({ ...norm(fin(mm.x)!, fin(mm.y)!), name, kind: "landmark", capital: false, tier: "minor" });
     markerCount++;
   }
 
@@ -455,6 +472,7 @@ export function importAzgaarMapFile(text: string): AzgaarImportResult | null {
   };
   const statePolygons = svg ? statePolygonsFromSvg(svg) : new Map<number, [number, number][][]>();
   const result = importAzgaar(raw, { statePolygons });
+  if (result && svg) result.svgText = svg;
   if (result && statePolygons.size === 0 && (states?.length ?? 0) > 1) {
     result.dropped.push("territories (the map's SVG carries no state borders — enable the States layer in Azgaar before saving)");
   }
