@@ -2,6 +2,7 @@ import { useCodex } from "../game/useCodex";
 import { AtlasWindow, type AtlasFocus } from "./atlas/AtlasWindow";
 import { loadAtlas } from "./atlas/atlasRepo";
 import { atlasForRole, MAX_ATLAS_WIRE_CHARS } from "./atlas/atlasModel";
+import { bridgeEmit, bridgeListen, focusAtlasWindow, openAtlasWindow } from "./atlas/atlasBridge";
 import { listRuleLayers } from "../lib/ruleLayerRepo";
 import type { RuleLayer } from "../game/ruleLayers";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -180,6 +181,12 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
   const [atlasOpen, setAtlasOpen] = useState(false);
   const [atlasFocus, setAtlasFocus] = useState<AtlasFocus | null>(null);
   const atlasFocusNonce = useRef(0);
+  // The Atlas popped out into its own OS window. While it exists the inline
+  // window stays closed, and this screen proxies its netplay traffic — the
+  // WebRTC session lives here, not in the popped webview.
+  const [atlasPopped, setAtlasPopped] = useState(false);
+  const atlasPoppedRef = useRef(false);
+  atlasPoppedRef.current = atlasPopped;
   const [characters, setCharacters] = useState<CharacterRecord[]>([]);
   const [charsLoading, setCharsLoading] = useState(false);
   const [gridOpen, setGridOpen] = useState(false);
@@ -321,32 +328,75 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
   // source, and only the role-FILTERED document ever leaves this machine.
   const atlasReqAt = useRef(new Map<string, number>());
   const atlasTooBigToastAt = useRef(0);
+  // Serve the role-filtered Atlas from the campaign store: targeted (a
+  // player's request) or broadcast (a popped-out curator window just saved).
+  const serveAtlas = useRef<(to?: string) => void>(() => {});
+  serveAtlas.current = (to?: string) => {
+    if (net.status !== "connected" || net.role !== "host") return;
+    const cid = campaignIdRef.current;
+    if (!cid) return;
+    void loadAtlas(cid).then(({ doc, refused }) => {
+      // A refused load yields an EMPTY placeholder — serving that would
+      // present a blank world as authoritative. Silence lets the player's
+      // retry find us after the store recovers.
+      if (refused) return;
+      const msg = { t: "atlas" as const, doc: atlasForRole(doc, "player") };
+      if (JSON.stringify(msg).length > MAX_ATLAS_WIRE_CHARS) {
+        const nowT = Date.now();
+        if (nowT - atlasTooBigToastAt.current > 60_000) {
+          atlasTooBigToastAt.current = nowT;
+          pushToast("A player asked for the Atlas, but it is too large to send (over 20 MB). Use a smaller map image or smaller sprites.", "error");
+        }
+        return;
+      }
+      net.publish(msg, to);
+    });
+  };
   useEffect(() => {
     if (net.status !== "connected" || net.role !== "host") return;
     return net.subscribe("atlas-request", (_m, from) => {
-      const cid = campaignIdRef.current;
-      if (!cid) return;
       // Players retry politely every 4s; anything faster is not a player.
       const nowT = Date.now();
       if (nowT - (atlasReqAt.current.get(from) ?? 0) < 2000) return;
       atlasReqAt.current.set(from, nowT);
-      void loadAtlas(cid).then(({ doc, refused }) => {
-        // A refused load yields an EMPTY placeholder — serving that would
-        // present a blank world as authoritative. Silence lets the player's
-        // retry find us after the store recovers.
-        if (refused) return;
-        const msg = { t: "atlas" as const, doc: atlasForRole(doc, "player") };
-        if (JSON.stringify(msg).length > MAX_ATLAS_WIRE_CHARS) {
-          if (nowT - atlasTooBigToastAt.current > 60_000) {
-            atlasTooBigToastAt.current = nowT;
-            pushToast("A player asked for the Atlas, but it is too large to send (over 20 MB). Use a smaller map image or smaller sprites.", "error");
-          }
-          return;
-        }
-        net.publish(msg, from);
-      });
+      serveAtlas.current(from);
     });
-  }, [net.subscribe, net.publish, net.status, net.role]);
+  }, [net.subscribe, net.status, net.role]);
+  // The main-window side of the pop-out bridge: do wire work the popped
+  // webview cannot (it has no session), in both directions.
+  useEffect(() => {
+    if (!atlasPopped) return;
+    return bridgeListen((m) => {
+      if (m.kind === "saved") {
+        serveAtlas.current(); // broadcast, if hosting
+      } else if (m.kind === "want") {
+        const hostId = peersRef.current.find((p) => p.role === "host")?.id;
+        if (net.status === "connected" && net.role === "player" && hostId) net.publish({ t: "atlas-request" }, hostId);
+      } else if (m.kind === "bring") {
+        if (net.status === "connected" && net.role === "host") {
+          net.publish({ t: "atlas-focus", x: m.x, y: m.y, zoom: m.zoom, label: m.label }, m.to);
+        }
+      } else if (m.kind === "hello") {
+        if (net.status === "connected" && net.role === "host") {
+          bridgeEmit({ kind: "peers", players: peersRef.current.filter((pr) => pr.role === "player").map((pr) => ({ id: pr.id, name: pr.name })) });
+        }
+      }
+    });
+  }, [atlasPopped, net.publish, net.status, net.role]);
+  // Popped + joined: the host's documents arrive on THIS session — forward them.
+  useEffect(() => {
+    if (!atlasPopped || net.status !== "connected" || net.role !== "player") return;
+    return net.subscribe("atlas", (m, from) => {
+      const hostId = peersRef.current.find((pr) => pr.role === "host")?.id;
+      if (from !== hostId) return;
+      bridgeEmit({ kind: "netDoc", doc: (m as Extract<NetMessage, { t: "atlas" }>).doc });
+    });
+  }, [atlasPopped, net.subscribe, net.status, net.role]);
+  // Popped + hosting: keep the popped window's BRING roster current.
+  useEffect(() => {
+    if (!atlasPopped || net.status !== "connected" || net.role !== "host") return;
+    bridgeEmit({ kind: "peers", players: net.peers.filter((pr) => pr.role === "player").map((pr) => ({ id: pr.id, name: pr.name })) });
+  }, [atlasPopped, net.peers, net.status, net.role]);
   // BROADCAST VIEW: the Curator flies this player's Atlas somewhere. The window
   // opens if it was closed — a cartographic update is not an ignorable ping.
   useEffect(() => {
@@ -356,14 +406,17 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
       if (from !== hostId) return;
       const f = m as Extract<NetMessage, { t: "atlas-focus" }>;
       if (!Number.isFinite(f.x) || !Number.isFinite(f.y)) return;
+      const zoom = typeof f.zoom === "number" && Number.isFinite(f.zoom) ? f.zoom : undefined;
+      const label = typeof f.label === "string" ? f.label.slice(0, 80) : undefined;
+      if (atlasPoppedRef.current) {
+        // The Atlas lives in its own OS window right now — fly THAT, and
+        // surface it.
+        bridgeEmit({ kind: "focus", x: f.x, y: f.y, zoom, label });
+        focusAtlasWindow();
+        return;
+      }
       setAtlasOpen(true);
-      setAtlasFocus({
-        x: f.x,
-        y: f.y,
-        zoom: typeof f.zoom === "number" && Number.isFinite(f.zoom) ? f.zoom : undefined,
-        label: typeof f.label === "string" ? f.label.slice(0, 80) : undefined,
-        nonce: ++atlasFocusNonce.current,
-      });
+      setAtlasFocus({ x: f.x, y: f.y, zoom, label, nonce: ++atlasFocusNonce.current });
     });
   }, [net.subscribe, net.status, net.role]);
   // Cinematic Mode (Curator-directed): synced like play-mode, applied by the engine.
@@ -1986,7 +2039,7 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
         rollsOpen={rollsOpen}
         atlasOpen={atlasOpen}
         gridOpen={gridOpen}
-        onToggleAtlas={campaign ? () => setAtlasOpen((v) => !v) : undefined}
+        onToggleAtlas={campaign ? () => { if (atlasPoppedRef.current) focusAtlasWindow(); else setAtlasOpen((v) => !v); } : undefined}
         onToggleScenes={campaign && !asPlayer ? () => setLeftPanel((p) => (p === "scenes" ? null : "scenes")) : undefined}
         onToggleActors={campaign ? () => setLeftPanel((p) => (p === "actors" ? null : "actors")) : undefined}
         onToggleEncounter={campaign && !asPlayer ? () => setLeftPanel((p) => (p === "encounter" ? null : "encounter")) : undefined}
@@ -2024,7 +2077,7 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
             </button>
           )}
           {campaign && (
-            <button className={"chip" + (atlasOpen ? " active" : "")} onClick={() => setAtlasOpen((v) => !v)} title="The world map — where you are in the world, not just in the scene">
+            <button className={"chip" + (atlasOpen ? " active" : "")} onClick={() => { if (atlasPoppedRef.current) focusAtlasWindow(); else setAtlasOpen((v) => !v); }} title="The world map — where you are in the world, not just in the scene">
               Atlas
             </button>
           )}
@@ -2295,6 +2348,20 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
             setAtlasOpen(false);
             // A consumed broadcast must not replay on the next manual open.
             setAtlasFocus(null);
+          }}
+          onPopOut={() => {
+            void openAtlasWindow(
+              { campaignId: campaign.id, curator: !asPlayer, netPlayer: isNetPlayer },
+              () => setAtlasPopped(false)
+            ).then((ok) => {
+              if (ok !== true) {
+                pushToast("The Atlas window could not be opened: " + ok, "error");
+                return;
+              }
+              setAtlasPopped(true);
+              setAtlasOpen(false);
+              setAtlasFocus(null);
+            });
           }}
         />
       )}

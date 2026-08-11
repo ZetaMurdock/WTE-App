@@ -1,13 +1,16 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Core, updater and process permissions for the main window. Includes window:allow-destroy because the app registers onCloseRequested, which makes JS responsible for actually closing the window.",
+  "description": "Core, updater and process permissions for the app windows. Includes window:allow-destroy because the app registers onCloseRequested, which makes JS responsible for actually closing the window; webview:allow-create-webview-window because the Atlas can pop out into its own OS window ('atlas' label, which needs this same capability set — notably sql — hence its presence in windows).",
   "windows": [
-    "main"
+    "main",
+    "atlas"
   ],
   "permissions": [
     "core:default",
     "core:window:allow-destroy",
+    "core:webview:allow-create-webview-window",
+    "core:window:allow-set-focus",
     "updater:default",
     "process:allow-restart",
     "process:allow-exit",
