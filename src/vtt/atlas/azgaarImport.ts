@@ -1,0 +1,301 @@
+// Azgaar Fantasy Map Generator import.
+//
+// The Curator designs a whole world in Azgaar, exports the full JSON, and the
+// Atlas assimilates it: BURGS (settlements) become nodes, MARKERS become
+// landmarks, and each STATE's territory becomes a zone — traced from the cell
+// mesh by walking the edges where a state's cells meet someone else's. The
+// Curator is left with exactly the work that is theirs: deciding what each
+// territory IS on the instrument — visible, surveyed, null-locked, curator's.
+//
+// Azgaar's export format has drifted across versions (cells as an array of
+// objects vs an object of parallel arrays), so everything here reads through
+// normalizing accessors and treats the file as untrusted input: a malformed
+// entry costs that entry, never the import. Output coordinates are NORMALIZED
+// (0..1 across the map) — the caller scales them into miles, because only it
+// knows whether the document adopts Azgaar's real-world size.
+
+export interface AzgaarPoint {
+  u: number;
+  v: number;
+}
+
+export interface AzgaarNode extends AzgaarPoint {
+  name: string;
+  kind: "settlement" | "landmark";
+  capital: boolean;
+}
+
+export interface AzgaarZone {
+  name: string;
+  polygon: AzgaarPoint[];
+}
+
+export interface AzgaarImportResult {
+  mapName?: string;
+  /** Azgaar's real-world size, when the file carries a distance scale. */
+  suggestedWidthMi?: number;
+  suggestedHeightMi?: number;
+  nodes: AzgaarNode[];
+  zones: AzgaarZone[];
+  /** Honest accounting for the summary toast. */
+  dropped: string[];
+}
+
+const MAX_BURGS = 150;
+const MAX_MARKERS = 50;
+const MAX_RINGS_PER_STATE = 2;
+const MIN_RING_VERTICES = 4; // a one-cell statelet is still a territory
+
+type Rec = Record<string, unknown>;
+const rec = (v: unknown): Rec | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Rec) : null);
+const arr = (v: unknown): unknown[] | null => (Array.isArray(v) ? v : null);
+const fin = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
+// ── normalized views over the two cell/vertex shapes ─────────────────────────
+
+interface CellsView {
+  count: number;
+  ring(i: number): number[] | null;
+  state(i: number): number;
+}
+
+function cellsOf(pack: Rec): CellsView | null {
+  const cells = pack.cells;
+  const asArr = arr(cells);
+  if (asArr) {
+    // array of per-cell objects: { v: number[], state: number }
+    return {
+      count: asArr.length,
+      ring: (i) => {
+        const c = rec(asArr[i]);
+        const v = c && arr(c.v);
+        return v ? v.filter((x): x is number => fin(x) !== null) : null;
+      },
+      state: (i) => {
+        const c = rec(asArr[i]);
+        return (c && fin(c.state)) ?? 0;
+      },
+    };
+  }
+  const o = rec(cells);
+  if (o) {
+    // object of parallel arrays: { v: number[][], state: number[] }
+    const v = arr(o.v);
+    const state = arr(o.state);
+    if (!v) return null;
+    return {
+      count: v.length,
+      ring: (i) => {
+        const r = arr(v[i]);
+        return r ? r.filter((x): x is number => fin(x) !== null) : null;
+      },
+      state: (i) => (state && fin(state[i])) ?? 0,
+    };
+  }
+  return null;
+}
+
+interface VerticesView {
+  point(i: number): [number, number] | null;
+  cells(i: number): number[];
+}
+
+function verticesOf(pack: Rec): VerticesView | null {
+  const vertices = pack.vertices;
+  const asArr = arr(vertices);
+  if (asArr) {
+    return {
+      point: (i) => {
+        const v = rec(asArr[i]);
+        const p = v && arr(v.p);
+        const x = p && fin(p[0]);
+        const y = p && fin(p[1]);
+        return x !== null && y !== null ? [x, y] : null;
+      },
+      cells: (i) => {
+        const v = rec(asArr[i]);
+        const c = v && arr(v.c);
+        return c ? c.filter((x): x is number => fin(x) !== null) : [];
+      },
+    };
+  }
+  const o = rec(vertices);
+  if (o) {
+    const p = arr(o.p);
+    const c = arr(o.c);
+    if (!p) return null;
+    return {
+      point: (i) => {
+        const pt = arr(p[i]);
+        const x = pt && fin(pt[0]);
+        const y = pt && fin(pt[1]);
+        return x !== null && y !== null ? [x, y] : null;
+      },
+      cells: (i) => {
+        const cc = c && arr(c[i]);
+        return cc ? cc.filter((x): x is number => fin(x) !== null) : [];
+      },
+    };
+  }
+  return null;
+}
+
+// ── border tracing ───────────────────────────────────────────────────────────
+
+/** Shoelace area of a vertex-id ring, for picking a state's main landmass. */
+function ringArea(ring: number[], vx: VerticesView): number {
+  let a = 0;
+  for (let i = 0; i < ring.length; i++) {
+    const p = vx.point(ring[i]);
+    const q = vx.point(ring[(i + 1) % ring.length]);
+    if (!p || !q) return 0;
+    a += p[0] * q[1] - q[0] * p[1];
+  }
+  return Math.abs(a / 2);
+}
+
+/**
+ * The border of one state: every cell-ring edge whose far side belongs to a
+ * different state (or to nothing — the sea), chained into closed loops.
+ */
+function traceState(stateId: number, cells: CellsView, vx: VerticesView): number[][] {
+  // border edges as vertex pairs, deduplicated
+  const edges = new Map<string, [number, number]>();
+  for (let i = 0; i < cells.count; i++) {
+    if (cells.state(i) !== stateId) continue;
+    const ring = cells.ring(i);
+    if (!ring || ring.length < 3) continue;
+    for (let k = 0; k < ring.length; k++) {
+      const a = ring[k];
+      const b = ring[(k + 1) % ring.length];
+      // the cell across edge (a,b) is adjacent to both vertices and isn't me
+      const across = vx.cells(a).find((c) => c !== i && vx.cells(b).includes(c));
+      if (across === undefined || cells.state(across) !== stateId) {
+        const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+        if (!edges.has(key)) edges.set(key, [a, b]);
+      }
+    }
+  }
+  // chain edges into loops
+  const adj = new Map<number, number[]>();
+  for (const [a, b] of edges.values()) {
+    (adj.get(a) ?? adj.set(a, []).get(a)!).push(b);
+    (adj.get(b) ?? adj.set(b, []).get(b)!).push(a);
+  }
+  const usedEdge = new Set<string>();
+  const loops: number[][] = [];
+  for (const [start] of adj) {
+    let cur = start;
+    const loop: number[] = [];
+    for (;;) {
+      const next = (adj.get(cur) ?? []).find((n) => {
+        const key = cur < n ? `${cur}|${n}` : `${n}|${cur}`;
+        return edges.has(key) && !usedEdge.has(key);
+      });
+      if (next === undefined) break;
+      const key = cur < next ? `${cur}|${next}` : `${next}|${cur}`;
+      usedEdge.add(key);
+      loop.push(next);
+      cur = next;
+      if (cur === start) break;
+    }
+    if (loop.length >= MIN_RING_VERTICES && cur === start) loops.push(loop);
+  }
+  return loops.sort((a, b) => ringArea(b, vx) - ringArea(a, vx));
+}
+
+// ── the import ───────────────────────────────────────────────────────────────
+
+export function importAzgaar(raw: unknown): AzgaarImportResult | null {
+  const root = rec(raw);
+  if (!root) return null;
+  const pack = rec(root.pack);
+  const info = rec(root.info);
+  const settings = rec(root.settings);
+  if (!pack) return null;
+
+  const graphW = (info && fin(info.width)) ?? (settings && fin(settings.mapWidth)) ?? null;
+  const graphH = (info && fin(info.height)) ?? (settings && fin(settings.mapHeight)) ?? null;
+  if (!graphW || !graphH || graphW <= 0 || graphH <= 0) return null;
+  const norm = (x: number, y: number): AzgaarPoint => ({ u: x / graphW, v: y / graphH });
+
+  const dropped: string[] = [];
+  const out: AzgaarImportResult = { nodes: [], zones: [], dropped };
+
+  const mapName = (info && typeof info.mapName === "string" && info.mapName) || (settings && typeof settings.mapName === "string" && settings.mapName) || "";
+  if (mapName) out.mapName = mapName;
+
+  // real-world size, when the file says how big a pixel is
+  const scaleRaw = settings ? settings.distanceScale : null;
+  const scale = fin(scaleRaw) ?? (typeof scaleRaw === "string" ? fin(parseFloat(scaleRaw)) : null);
+  const unit = settings && typeof settings.distanceUnit === "string" ? settings.distanceUnit.toLowerCase() : "mi";
+  if (scale && scale > 0) {
+    const toMi = unit.startsWith("km") ? 0.621371 : 1;
+    out.suggestedWidthMi = +(graphW * scale * toMi).toFixed(1);
+    out.suggestedHeightMi = +(graphH * scale * toMi).toFixed(1);
+  }
+
+  // ── burgs → settlement nodes ────────────────────────────────────────────────
+  const burgs = arr(pack.burgs) ?? [];
+  const live = burgs
+    .map((b) => rec(b))
+    .filter((b): b is Rec => !!b && typeof b.name === "string" && !!b.name && fin(b.x) !== null && fin(b.y) !== null && b.removed !== true);
+  const byImportance = live.sort((a, b) => (fin(b.capital) ?? 0) - (fin(a.capital) ?? 0) || (fin(b.population) ?? 0) - (fin(a.population) ?? 0));
+  if (byImportance.length > MAX_BURGS) dropped.push(`${byImportance.length - MAX_BURGS} smaller settlements past the ${MAX_BURGS} cap`);
+  for (const b of byImportance.slice(0, MAX_BURGS)) {
+    out.nodes.push({ ...norm(fin(b.x)!, fin(b.y)!), name: String(b.name), kind: "settlement", capital: fin(b.capital) === 1 || b.capital === true });
+  }
+
+  // ── markers → landmark nodes (names live in the notes legend) ───────────────
+  const notes = arr(root.notes) ?? [];
+  const noteName = (id: string): string | null => {
+    for (const n of notes) {
+      const nn = rec(n);
+      if (nn && nn.id === id && typeof nn.name === "string" && nn.name) return nn.name;
+    }
+    return null;
+  };
+  const markers = arr(pack.markers) ?? [];
+  let markerCount = 0;
+  for (const m of markers) {
+    const mm = rec(m);
+    if (!mm || fin(mm.x) === null || fin(mm.y) === null) continue;
+    if (markerCount >= MAX_MARKERS) {
+      dropped.push(`markers past the ${MAX_MARKERS} cap`);
+      break;
+    }
+    const id = fin(mm.i);
+    const name = (id !== null && noteName(`marker${id}`)) || (typeof mm.type === "string" && mm.type) || "Marker";
+    out.nodes.push({ ...norm(fin(mm.x)!, fin(mm.y)!), name, kind: "landmark", capital: false });
+    markerCount++;
+  }
+
+  // ── states → territory zones ────────────────────────────────────────────────
+  const cells = cellsOf(pack);
+  const vx = cells ? verticesOf(pack) : null;
+  const states = arr(pack.states) ?? [];
+  if (!cells || !vx) {
+    if (states.length > 1) dropped.push("territories (the file has no readable cell mesh)");
+  } else {
+    for (const s of states) {
+      const ss = rec(s);
+      const id = ss && fin(ss.i);
+      if (!ss || id === null || id === 0 || ss.removed === true) continue; // 0 = the unclaimed Neutrals
+      const name = typeof ss.name === "string" && ss.name ? ss.name : `State ${id}`;
+      const loops = traceState(id, cells, vx);
+      if (loops.length === 0) continue;
+      if (loops.length > MAX_RINGS_PER_STATE) dropped.push(`${loops.length - MAX_RINGS_PER_STATE} small exclaves of ${name}`);
+      loops.slice(0, MAX_RINGS_PER_STATE).forEach((loop, li) => {
+        const polygon: AzgaarPoint[] = [];
+        for (const vid of loop) {
+          const p = vx.point(vid);
+          if (p) polygon.push(norm(p[0], p[1]));
+        }
+        if (polygon.length >= 3) out.zones.push({ name: li === 0 ? name : `${name} (exclave)`, polygon });
+      });
+    }
+  }
+
+  if (out.nodes.length === 0 && out.zones.length === 0) return null;
+  return out;
+}
