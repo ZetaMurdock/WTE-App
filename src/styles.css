@@ -8585,6 +8585,27 @@ body.wte-dot-cursor * {
   z-index: 40;
   overflow: hidden;
 }
+/* Popped out into its own OS window: the window IS the frame, so the floating
+   chrome goes away and the instrument fills everything. */
+.atlas-standalone-page {
+  position: fixed;
+  inset: 0;
+  display: flex;
+}
+.atlas-window.standalone {
+  position: static;
+  flex: 1;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  max-width: none;
+  max-height: none;
+  resize: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
 /* Floating round widget controls over the map, Google Earth style. */
 .atlas-widgets {
   position: absolute;

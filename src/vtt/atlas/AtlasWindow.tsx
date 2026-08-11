@@ -40,7 +40,8 @@ import { fileToImageDataUrl } from "../../lib/image";
 import { registerSaver } from "../../lib/saveQueue";
 import { pushToast, reportSaveFailure } from "../../lib/appToast";
 import { useNet } from "../../net/NetContext";
-import type { NetMessage, Peer } from "../../net/protocol";
+import type { NetMessage } from "../../net/protocol";
+import { bridgeEmit, bridgeListen } from "./atlasBridge";
 
 /** BROADCAST VIEW arriving from the Curator. VttScreen opens the window and
  *  hands the target in; a fresh nonce restarts the flight. */
@@ -57,6 +58,14 @@ interface Props {
   curator: boolean;
   onClose: () => void;
   focus?: AtlasFocus | null;
+  /** Running as its own OS window: net traffic is proxied over the bridge by
+   *  the main window, which owns the only WebRTC session. */
+  standalone?: boolean;
+  /** Standalone on a joined player's machine: no local campaign data — the
+   *  world arrives over the bridge, read-only. */
+  bridgePlayer?: boolean;
+  /** Offered in the inline header; opens the OS window and closes this one. */
+  onPopOut?: () => void;
 }
 
 type Tool = "pan" | "measure" | "node" | "zone";
@@ -89,7 +98,7 @@ const MAX_SPRITE_CHARS = 12 * 1024 * 1024;
 // it is tested). In a netplay session the host serves players the role-filtered
 // document over the wire (they have none of the host's campaign data), and
 // BROADCAST VIEW flies any or every player's camera to a place.
-export function AtlasWindow({ campaignId, curator, onClose, focus }: Props) {
+export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, bridgePlayer, onPopOut }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [doc, setDoc] = useState<AtlasDoc>(() => emptyAtlas());
@@ -102,6 +111,7 @@ export function AtlasWindow({ campaignId, curator, onClose, focus }: Props) {
   const [selZoneId, setSelZoneId] = useState<string | null>(null);
   const [measure, setMeasure] = useState<Measure | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
+  const [bridgePeers, setBridgePeers] = useState<{ id: string; name: string }[]>([]);
   // The DOM readout (SCALE / COORD / WORLD TIME) cannot watch camRef mutate, so
   // the render loop pushes the strings into state when they change.
   const [hud, setHud] = useState({ scale: "", coord: "—", clock: "" });
@@ -121,11 +131,15 @@ export function AtlasWindow({ campaignId, curator, onClose, focus }: Props) {
   const netRef = useRef(net);
   netRef.current = net;
 
+  // A popped-out window on a joined player's machine has no local campaign
+  // data at all: the bridge is its only source, and it is read-only.
+  const feedFromBridge = !!standalone && !!bridgePlayer;
+
   // What this viewer is ALLOWED to have. Players never receive curator-only
   // material in their document at all — over the wire it was filtered by the
   // host before sending; locally this same filter applies.
   const visible = useMemo(() => atlasForRole(doc, curator ? "curator" : "player"), [doc, curator]);
-  const locked = readOnly || isNetPlayer;
+  const locked = readOnly || isNetPlayer || feedFromBridge;
   const editing = curator && !locked;
 
   // The live selected node/zone, derived from the document — a SNAPSHOT here
@@ -136,7 +150,7 @@ export function AtlasWindow({ campaignId, curator, onClose, focus }: Props) {
 
   // ── load / save ────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (isNetPlayer) return; // the wire is the only source while joined
+    if (isNetPlayer || feedFromBridge) return; // the wire/bridge is the only source
     let live = true;
     void loadAtlas(campaignId).then(({ doc: d, refused }) => {
       if (!live) return;
@@ -147,26 +161,29 @@ export function AtlasWindow({ campaignId, curator, onClose, focus }: Props) {
     return () => {
       live = false;
     };
-  }, [campaignId, isNetPlayer]);
+  }, [campaignId, isNetPlayer, feedFromBridge]);
 
   // Joined player: ask the host for the world, adopt whatever arrives (it is
   // untrusted input like any other — parseAtlas gates it).
   const gotNetDoc = useRef(false);
+  const adoptDoc = useCallback((raw: unknown) => {
+    const d = parseAtlas(raw);
+    if (!d) return;
+    setDoc(d);
+    setNetReady(true);
+    // Frame the world on the FIRST document only — a Curator edit arriving
+    // mid-pan must never yank the player's camera home.
+    if (!gotNetDoc.current) {
+      gotNetDoc.current = true;
+      camRef.current = makeCamera(d.widthMi / 2, d.heightMi / 2, Math.max(0.05, 500 / Math.max(d.widthMi, 1)));
+    }
+  }, []);
   useEffect(() => {
-    if (!isNetPlayer || !hostId) return;
+    if (!isNetPlayer || !hostId || standalone) return;
     const n = netRef.current;
     const un = n.subscribe("atlas", (m, from) => {
       if (from !== hostId) return;
-      const d = parseAtlas((m as Extract<NetMessage, { t: "atlas" }>).doc);
-      if (!d) return;
-      setDoc(d);
-      setNetReady(true);
-      // Frame the world on the FIRST document only — a Curator edit arriving
-      // mid-pan must never yank the player's camera home.
-      if (!gotNetDoc.current) {
-        gotNetDoc.current = true;
-        camRef.current = makeCamera(d.widthMi / 2, d.heightMi / 2, Math.max(0.05, 500 / Math.max(d.widthMi, 1)));
-      }
+      adoptDoc((m as Extract<NetMessage, { t: "atlas" }>).doc);
     });
     n.publish({ t: "atlas-request" }, hostId);
     // The reply can be legitimately lost (host mid-load, transport hiccup, an
@@ -182,13 +199,13 @@ export function AtlasWindow({ campaignId, curator, onClose, focus }: Props) {
       window.clearInterval(retry);
       un();
     };
-  }, [isNetPlayer, hostId]);
+  }, [isNetPlayer, hostId, standalone, adoptDoc]);
 
   const saveTimer = useRef<number | undefined>(undefined);
   const pending = useRef<AtlasDoc | null>(null);
   const saver = useRef<ReturnType<typeof registerSaver> | null>(null);
   useEffect(() => {
-    if (isNetPlayer) return; // nothing of the host's is ours to persist
+    if (isNetPlayer || feedFromBridge) return; // nothing of the host's is ours to persist
     const s = registerSaver("the Atlas", async () => {
       const p = pending.current;
       if (!p) return;
@@ -214,13 +231,19 @@ export function AtlasWindow({ campaignId, curator, onClose, focus }: Props) {
       s.unregister();
       saver.current = null;
     };
-  }, [campaignId, isNetPlayer]);
+  }, [campaignId, isNetPlayer, feedFromBridge]);
 
   // The host serves the table: every debounced save also broadcasts the
   // role-FILTERED document, so players' maps follow the Curator's edits.
   const warnedWire = useRef(false);
   const publishDoc = useRef<(d: AtlasDoc) => void>(() => {});
   publishDoc.current = (d) => {
+    if (standalone) {
+      // The main window owns the session; it re-reads the DB (just written by
+      // this save) and broadcasts the filtered doc if it is hosting.
+      bridgeEmit({ kind: "saved", campaignId });
+      return;
+    }
     if (!isNetHost) return;
     const msg = { t: "atlas" as const, doc: atlasForRole(d, "player") };
     if (JSON.stringify(msg).length > MAX_ATLAS_WIRE_CHARS) {
@@ -328,19 +351,55 @@ export function AtlasWindow({ campaignId, curator, onClose, focus }: Props) {
 
   /** BROADCAST VIEW: fly one player — or the whole table — to a node. */
   function bring(n: AtlasNode, to?: string) {
-    const msg: NetMessage = { t: "atlas-focus", x: n.x, y: n.y, zoom: frameZoom(), label: n.name };
-    net.publish(msg, to);
+    if (standalone) {
+      bridgeEmit({ kind: "bring", x: n.x, y: n.y, zoom: frameZoom(), label: n.name, to });
+    } else {
+      const msg: NetMessage = { t: "atlas-focus", x: n.x, y: n.y, zoom: frameZoom(), label: n.name };
+      net.publish(msg, to);
+    }
     if (!to) flyToNode(n); // Focus Everyone includes the Curator
   }
 
+  const bannerTimer = useRef<number | undefined>(undefined);
+  const applyFocus = useCallback(
+    (f: { x: number; y: number; zoom?: number; label?: string }) => {
+      startFlight({ x: f.x, y: f.y, zoom: f.zoom ?? camRef.current.zoom }, 1300);
+      setBanner("CARTOGRAPHIC UPDATE RECEIVED" + (f.label ? " // " + f.label.toUpperCase() : ""));
+      window.clearTimeout(bannerTimer.current);
+      bannerTimer.current = window.setTimeout(() => setBanner(null), 4200);
+    },
+    [startFlight]
+  );
+  useEffect(() => () => window.clearTimeout(bannerTimer.current), []);
   useEffect(() => {
-    if (!focus) return;
-    startFlight({ x: focus.x, y: focus.y, zoom: focus.zoom ?? camRef.current.zoom }, 1300);
-    setBanner("CARTOGRAPHIC UPDATE RECEIVED" + (focus.label ? " // " + focus.label.toUpperCase() : ""));
-    const t = window.setTimeout(() => setBanner(null), 4200);
-    return () => window.clearTimeout(t);
+    if (focus) applyFocus(focus);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus?.nonce]);
+
+  // The popped window's side of the bridge: adopt forwarded documents, fly on
+  // forwarded broadcasts, keep the BRING roster fresh — and if this machine is
+  // a joined player's, keep asking for the world until it arrives.
+  useEffect(() => {
+    if (!standalone) return;
+    const un = bridgeListen((m) => {
+      if (m.kind === "netDoc" && feedFromBridge) adoptDoc(m.doc);
+      else if (m.kind === "focus") applyFocus(m);
+      else if (m.kind === "peers") setBridgePeers(m.players);
+    });
+    bridgeEmit({ kind: "hello" });
+    let retry: number | undefined;
+    if (feedFromBridge) {
+      bridgeEmit({ kind: "want" });
+      retry = window.setInterval(() => {
+        if (gotNetDoc.current) window.clearInterval(retry);
+        else bridgeEmit({ kind: "want" });
+      }, 4000);
+    }
+    return () => {
+      window.clearInterval(retry);
+      un();
+    };
+  }, [standalone, feedFromBridge, adoptDoc, applyFocus]);
 
   // ── the render loop ────────────────────────────────────────────────────────
   const draw = useCallback(() => {
@@ -853,14 +912,19 @@ export function AtlasWindow({ campaignId, curator, onClose, focus }: Props) {
     );
   }
 
-  const waiting = isNetPlayer && !netReady;
+  const waiting = (isNetPlayer || feedFromBridge) && !netReady;
 
   return (
-    <div className="atlas-window">
+    <div className={"atlas-window" + (standalone ? " standalone" : "")}>
       <div className="vtt2-insp-head">
         <span className="panel-title" style={{ margin: 0 }}>
           {visible.name.toUpperCase()} // MOGUL SURVEY CARTOGRAPH
         </span>
+        {!standalone && onPopOut && (
+          <button className="ghost-btn xs" onClick={onPopOut} title="Open the Atlas as its own window — drag it to another monitor">
+            Pop out
+          </button>
+        )}
         <button className="cdx-tab-x" onClick={onClose} title="Close the Atlas">
           ×
         </button>
@@ -1032,8 +1096,8 @@ export function AtlasWindow({ campaignId, curator, onClose, focus }: Props) {
           <NodeCard
             node={selected}
             editing={editing}
-            players={netPlayers}
-            canBring={isNetHost && curator}
+            players={standalone ? bridgePeers : netPlayers}
+            canBring={curator && !readOnly && (isNetHost || (!!standalone && bridgePeers.length > 0))}
             onFocus={() => flyToNode(selected)}
             onBring={(to) => bring(selected, to)}
             onChange={(next) => mutate((d) => ({ ...d, nodes: d.nodes.map((n) => (n.id === next.id ? next : n)) }))}
@@ -1221,7 +1285,7 @@ function NodeCard({
 }: {
   node: AtlasNode;
   editing: boolean;
-  players: Peer[];
+  players: { id: string; name: string }[];
   canBring: boolean;
   onFocus: () => void;
   onBring: (to?: string) => void;
