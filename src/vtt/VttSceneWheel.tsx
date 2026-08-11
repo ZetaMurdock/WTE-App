@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { VttScene } from "./types/scene";
+import { folderNames, groupScenes } from "./data/sceneFolders";
 
 interface Props {
   scenes: VttScene[];
@@ -25,6 +26,8 @@ interface Props {
   pinnedId: string | null;
   /** Release the pin — the table follows the Curator again. */
   onReleasePin: () => void;
+  /** Put a scene in a folder (null = ungroup) — the rail's nesting. */
+  onSetFolder: (id: string, folder: string | null) => void;
   /** Number of connected players (0 when solo) — shows/labels the broadcast action. */
   playerCount: number;
 }
@@ -84,9 +87,42 @@ const IconPin = () => (
 // up/down buttons or the scroll wheel. Replaces the old tiny dots, whose hover
 // tooltip overlapped neighbouring dots and ate their clicks. The menu is
 // PORTALED to <body> so no transform/overflow ancestor can clip it.
-export function VttSceneWheel({ scenes, activeId, onSwitch, onStep, onSetBackground, onSetMusic, onClearMusic, onOpenSettings, onOpenSoundboard, onOpenDialogue, onSetActiveForEveryone, pinnedId, onReleasePin, playerCount }: Props) {
+const FOLD_KEY = "wte-rail-folds";
+
+function loadFolds(): Record<string, boolean> {
+  try {
+    return JSON.parse(localStorage.getItem(FOLD_KEY) ?? "{}") as Record<string, boolean>;
+  } catch {
+    return {};
+  }
+}
+
+const IconFolder = () => (
+  <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round">
+    <path d="M1.5 4.5a1 1 0 011-1h3.6l1.6 1.8h5.8a1 1 0 011 1v6.2a1 1 0 01-1 1h-11a1 1 0 01-1-1z" />
+  </svg>
+);
+
+export function VttSceneWheel({ scenes, activeId, onSwitch, onStep, onSetBackground, onSetMusic, onClearMusic, onOpenSettings, onOpenSoundboard, onOpenDialogue, onSetActiveForEveryone, pinnedId, onReleasePin, onSetFolder, playerCount }: Props) {
   const [open, setOpen] = useState(true);
   const [menu, setMenu] = useState<{ id: string; y: number } | null>(null);
+  const [menuMode, setMenuMode] = useState<"main" | "folder">("main");
+  const [newFolder, setNewFolder] = useState("");
+  // Collapsed folders survive restarts; the ACTIVE scene's folder always
+  // reopens so a switch never lands somewhere invisible.
+  const [folds, setFolds] = useState<Record<string, boolean>>(loadFolds);
+  const toggleFold = (name: string) =>
+    setFolds((cur) => {
+      const next = { ...cur, [name]: !cur[name] };
+      try {
+        localStorage.setItem(FOLD_KEY, JSON.stringify(next));
+      } catch {
+        // storage full or blocked: collapse state is a comfort, not data
+      }
+      return next;
+    });
+  const groups = useMemo(() => groupScenes(scenes), [scenes]);
+  const activeFolder = useMemo(() => scenes.find((sc) => sc.id === activeId)?.data.folder?.trim() || null, [scenes, activeId]);
   const listRef = useRef<HTMLDivElement>(null);
   const onStepRef = useRef(onStep);
   onStepRef.current = onStep;
@@ -95,6 +131,8 @@ export function VttSceneWheel({ scenes, activeId, onSwitch, onStep, onSetBackgro
 
   useEffect(() => {
     if (!menu) return;
+    setMenuMode("main");
+    setNewFolder("");
     const close = () => setMenu(null);
     const onEsc = (e: KeyboardEvent) => e.key === "Escape" && close();
     window.addEventListener("mousedown", close);
@@ -144,6 +182,53 @@ export function VttSceneWheel({ scenes, activeId, onSwitch, onStep, onSetBackgro
         onContextMenu={(e) => e.preventDefault()}
       >
         <div className="vtt2-scene-menu-head">{menuScene.name}</div>
+        {menuMode === "folder" ? (
+          <>
+            {folderNames(scenes)
+              .filter((f) => f !== (menuScene.data.folder?.trim() || null))
+              .map((f) => (
+                <button key={f} className="profile-row" onClick={() => { onSetFolder(menu.id, f); setMenu(null); }}>
+                  <IconFolder />
+                  <span>{f}</span>
+                </button>
+              ))}
+            <div className="vtt2-rail-newfolder" onMouseDown={(e) => e.stopPropagation()}>
+              <input
+                className="bg-select"
+                placeholder="New folder…"
+                value={newFolder}
+                autoFocus
+                onChange={(e) => setNewFolder(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newFolder.trim()) {
+                    onSetFolder(menu.id, newFolder.trim());
+                    setMenu(null);
+                  }
+                }}
+              />
+              <button
+                className="ghost-btn xs"
+                disabled={!newFolder.trim()}
+                onClick={() => {
+                  onSetFolder(menu.id, newFolder.trim());
+                  setMenu(null);
+                }}
+              >
+                Create
+              </button>
+            </div>
+            {(menuScene.data.folder?.trim() || null) !== null && (
+              <button className="profile-row sub" onClick={() => { onSetFolder(menu.id, null); setMenu(null); }}>
+                <IconX />
+                <span>Remove from folder</span>
+              </button>
+            )}
+            <button className="profile-row sub" onClick={() => setMenuMode("main")}>
+              <span>‹ Back</span>
+            </button>
+          </>
+        ) : (
+        <>
         <button
           className="profile-row strong"
           onClick={() => { onSetActiveForEveryone(menu.id); setMenu(null); }}
@@ -204,7 +289,13 @@ export function VttSceneWheel({ scenes, activeId, onSwitch, onStep, onSetBackgro
           <IconSliders />
           <span>Scene settings · atmosphere &amp; shaders…</span>
         </button>
+        <button className="profile-row" onClick={() => setMenuMode("folder")} title="Group this scene under a folder on the rail">
+          <IconFolder />
+          <span>{menuScene.data.folder?.trim() ? `Folder: ${menuScene.data.folder.trim()}…` : "Move to folder…"}</span>
+        </button>
         <div className="vtt2-scene-menu-foot">settings stay with this scene</div>
+        </>
+        )}
       </div>
     ) : null;
 
@@ -219,26 +310,45 @@ export function VttSceneWheel({ scenes, activeId, onSwitch, onStep, onSetBackgro
             ▲
           </button>
           <div className="vtt2-rail-list" ref={listRef}>
-            {scenes.map((s) => (
-              <button
-                key={s.id}
-                className={"vtt2-rail-card" + (s.id === activeId ? " active" : "") + (s.id === pinnedId ? " pinned" : "") + (s.data.audio ? " has-audio" : "")}
-                onClick={() => s.id !== activeId && onSwitch(s.id)}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  setMenu({ id: s.id, y: e.clientY });
-                }}
-                title={`${s.name}${s.id === pinnedId ? " — pinned for the table" : ""} — right-click for scene tools`}
-              >
-                <span className="vtt2-rail-init">{initials(s.name)}</span>
-                <span className="vtt2-rail-name">{s.name}</span>
-                {s.id === pinnedId && (
-                  <span className="vtt2-rail-pin" aria-label="Pinned for the table">
-                    <IconPin />
-                  </span>
-                )}
-              </button>
-            ))}
+            {groups.map((g) => {
+              const folded = g.folder !== null && folds[g.folder] === true && g.folder !== activeFolder;
+              return (
+                <div key={g.folder ?? "·"} className="vtt2-rail-group">
+                  {g.folder !== null && (
+                    <button
+                      className={"vtt2-rail-folder" + (folded ? " folded" : "")}
+                      onClick={() => toggleFold(g.folder!)}
+                      title={folded ? `Expand ${g.folder}` : `Collapse ${g.folder}`}
+                    >
+                      <span className="vtt2-rail-chev">{folded ? "›" : "⌄"}</span>
+                      <span className="vtt2-rail-foldername">{g.folder}</span>
+                      <span className="vtt2-rail-foldcount">{g.scenes.length}</span>
+                    </button>
+                  )}
+                  {!folded &&
+                    g.scenes.map((s) => (
+                      <button
+                        key={s.id}
+                        className={"vtt2-rail-card" + (s.id === activeId ? " active" : "") + (s.id === pinnedId ? " pinned" : "") + (s.data.audio ? " has-audio" : "") + (g.folder !== null ? " infolder" : "")}
+                        onClick={() => s.id !== activeId && onSwitch(s.id)}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          setMenu({ id: s.id, y: e.clientY });
+                        }}
+                        title={`${s.name}${s.id === pinnedId ? " — pinned for the table" : ""} — right-click for scene tools`}
+                      >
+                        <span className="vtt2-rail-init">{initials(s.name)}</span>
+                        <span className="vtt2-rail-name">{s.name}</span>
+                        {s.id === pinnedId && (
+                          <span className="vtt2-rail-pin" aria-label="Pinned for the table">
+                            <IconPin />
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                </div>
+              );
+            })}
           </div>
           <button className="vtt2-rail-step" onClick={() => onStep(1)} title="Next scene">
             ▼

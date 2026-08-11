@@ -8778,6 +8778,59 @@ body.wte-dot-cursor * {
   border-radius: 6px;
   padding: 8px 10px;
 }
+/* Scene Rail folders: collapsible one-level grouping. */
+.vtt2-rail-group {
+  display: flex;
+  flex-direction: column;
+}
+.vtt2-rail-folder {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--panel-line);
+  color: var(--muted);
+  font-family: Georgia, serif;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 6px 8px 4px;
+  cursor: pointer;
+  text-align: left;
+}
+.vtt2-rail-folder:hover {
+  color: var(--ink);
+}
+.vtt2-rail-chev {
+  width: 10px;
+  color: var(--accent);
+}
+.vtt2-rail-foldername {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vtt2-rail-foldcount {
+  color: var(--accent);
+  font-family: Consolas, monospace;
+  font-size: 9px;
+}
+.vtt2-rail-card.infolder {
+  padding-left: 16px;
+}
+.vtt2-rail-newfolder {
+  display: flex;
+  gap: 4px;
+  padding: 4px 10px;
+}
+.vtt2-rail-newfolder input {
+  flex: 1;
+  min-width: 0;
+}
+
 .atlas-zone-card {
   max-height: calc(100% - 20px);
   overflow-y: auto;
