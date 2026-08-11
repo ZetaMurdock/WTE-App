@@ -12,7 +12,7 @@
 // arithmetic rather than a calibration afterthought.
 
 /** Who may see a zone, and how much of it. Ordered from open to closed. */
-export const ZONE_STATES = ["visible", "surveyed", "unconfirmed", "null-locked", "curator-only"] as const;
+export const ZONE_STATES = ["visible", "surveyed", "unconfirmed", "restricted", "null-locked", "curator-only"] as const;
 export type ZoneState = (typeof ZONE_STATES)[number];
 
 /** Ambient particle weather a zone can carry. Drawn statelessly each frame. */
@@ -113,6 +113,18 @@ export interface AtlasNode extends AtlasPoint {
   sprite?: string;
 }
 
+/** One Curator-authored line of a zone's dossier. Visibility is per-field:
+ *  "player" shows everything; "partial" shows the NAME but withholds the value
+ *  (the player knows the question exists, not the answer); "curator" never
+ *  leaves the Curator's machine. "Discovery" is the Curator flipping a field
+ *  from curator or partial to player, live at the table. */
+export interface ZoneProp {
+  id: string;
+  name: string;
+  value: string;
+  visibility: "player" | "partial" | "curator";
+}
+
 export interface AtlasZone {
   id: string;
   name?: string;
@@ -123,6 +135,23 @@ export interface AtlasZone {
   fx?: ZoneFx;
   /** Custom art (data URL; GIFs stay animated) clipped to the zone's shape. */
   sprite?: string;
+  /** Technology Level — a CORE dossier field, present on every zone card. */
+  tl?: string;
+  /** Population, drawn as representative density dots when shown. */
+  population?: number;
+  /** What the dots represent: population, settlements, active signals… */
+  popKind?: string;
+  showPop?: boolean;
+  /** What a denied observer is told (restricted zones). */
+  denial?: string;
+  /** The Curator-authored dossier. */
+  props?: ZoneProp[];
+  /** Label reveal: footprint-scaled by default, or forced/silenced. */
+  labelReveal?: "auto" | "always" | "hidden";
+  /** Zoom gates (px-per-mile): districts wait for the descent, exactly like
+   *  nodes — this is what makes the hierarchy FEEL nested. */
+  minZoom?: number;
+  maxZoom?: number;
 }
 
 export type AtlasUnits = "imperial" | "metric" | "both";
@@ -272,6 +301,20 @@ export function parseAtlas(raw: unknown): AtlasDoc | null {
         : [];
       // Fewer than three vertices is not an area.
       if (polygon.length < 3) continue;
+      const props: ZoneProp[] = [];
+      if (Array.isArray(r.props)) {
+        for (const pr of r.props.slice(0, 24)) {
+          if (!pr || typeof pr !== "object") continue;
+          const q = pr as Record<string, unknown>;
+          if (typeof q.id !== "string" || !q.id || typeof q.name !== "string") continue;
+          props.push({
+            id: q.id,
+            name: q.name.slice(0, 60),
+            value: typeof q.value === "string" ? q.value.slice(0, 400) : "",
+            visibility: q.visibility === "player" || q.visibility === "partial" ? q.visibility : "curator",
+          });
+        }
+      }
       doc.zones.push({
         id: r.id,
         name: typeof r.name === "string" ? r.name : undefined,
@@ -279,6 +322,15 @@ export function parseAtlas(raw: unknown): AtlasDoc | null {
         polygon,
         fx: ZONE_FX.includes(r.fx as ZoneFx) ? (r.fx as ZoneFx) : undefined,
         sprite: dataImage(r.sprite),
+        tl: typeof r.tl === "string" && r.tl ? r.tl.slice(0, 40) : undefined,
+        population: typeof r.population === "number" && Number.isFinite(r.population) && r.population >= 0 ? r.population : undefined,
+        popKind: typeof r.popKind === "string" && r.popKind ? r.popKind.slice(0, 40) : undefined,
+        showPop: r.showPop === true ? true : undefined,
+        denial: typeof r.denial === "string" && r.denial ? r.denial.slice(0, 80) : undefined,
+        props: props.length > 0 ? props : undefined,
+        labelReveal: r.labelReveal === "always" || r.labelReveal === "hidden" ? r.labelReveal : undefined,
+        minZoom: typeof r.minZoom === "number" && Number.isFinite(r.minZoom) ? r.minZoom : undefined,
+        maxZoom: typeof r.maxZoom === "number" && Number.isFinite(r.maxZoom) ? r.maxZoom : undefined,
       });
     }
   }
@@ -305,9 +357,66 @@ export function atlasForRole(doc: AtlasDoc, role: "player" | "curator"): AtlasDo
       .filter((l) => l.visibility !== "curator")
       .map((l) => (l.visibility === "locked" ? { ...l, src: undefined, enabled: false } : l)),
     nodes: doc.nodes.filter((n) => n.visibility !== "curator" && !inVoid(n)),
-    zones: doc.zones
-      .filter((z) => z.state !== "curator-only")
-      .map((z) => (z.state === "null-locked" ? { id: z.id, state: z.state, polygon: z.polygon } : z)),
+    zones: doc.zones.filter((z) => z.state !== "curator-only").map((z) => zoneForPlayer(z)),
+  };
+}
+
+/** What one zone looks like to a player. Hidden states shed their dossier
+ *  entirely; open states filter it field by field. */
+function zoneForPlayer(z: AtlasZone): AtlasZone {
+  if (z.state === "null-locked") {
+    // bare geometry: the void carries nothing, not even its name
+    return { id: z.id, state: z.state, polygon: z.polygon };
+  }
+  if (z.state === "restricted" || z.state === "unconfirmed") {
+    // the region exists and may be named; its dossier does not leave the host
+    return {
+      id: z.id,
+      name: z.name,
+      state: z.state,
+      polygon: z.polygon,
+      fx: z.fx,
+      sprite: z.sprite,
+      denial: z.denial,
+      labelReveal: z.labelReveal,
+      minZoom: z.minZoom,
+      maxZoom: z.maxZoom,
+    };
+  }
+  // visible / surveyed: dossier passes, filtered per field
+  return {
+    ...z,
+    population: z.showPop ? z.population : undefined,
+    popKind: z.showPop ? z.popKind : undefined,
+    props: z.props
+      ?.filter((p) => p.visibility !== "curator")
+      .map((p) => (p.visibility === "partial" ? { ...p, value: "" } : p)),
+  };
+}
+
+/**
+ * Re-declare the world's real size, keeping every anchored object glued to the
+ * SAME spot on the artwork. Positions live in miles, so declaring "this map is
+ * 1,000 miles across" is a proportional rescale of everything — zones, nodes,
+ * and the zoom gates whose px-per-mile thresholds mean something else at the
+ * new scale.
+ */
+export function rescaleAtlas(doc: AtlasDoc, newWidthMi: number): AtlasDoc {
+  const w = Math.max(1, newWidthMi);
+  const k = w / Math.max(1, doc.widthMi);
+  if (k === 1) return doc;
+  const gate = (v: number | undefined) => (v === undefined ? undefined : +(v / k).toFixed(5));
+  return {
+    ...doc,
+    widthMi: +w.toFixed(2),
+    heightMi: doc.shape === "circle" ? +w.toFixed(2) : +(doc.heightMi * k).toFixed(2),
+    nodes: doc.nodes.map((n) => ({ ...n, x: n.x * k, y: n.y * k, minZoom: gate(n.minZoom), maxZoom: gate(n.maxZoom) })),
+    zones: doc.zones.map((z) => ({
+      ...z,
+      polygon: z.polygon.map((p) => ({ x: p.x * k, y: p.y * k })),
+      minZoom: gate(z.minZoom),
+      maxZoom: gate(z.maxZoom),
+    })),
   };
 }
 

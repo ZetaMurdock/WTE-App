@@ -10,6 +10,7 @@ import {
   atlasForRole,
   emptyAtlas,
   parseAtlas,
+  rescaleAtlas,
   type AtlasDoc,
 } from "./atlasModel";
 import {
@@ -291,6 +292,96 @@ describe("the document", () => {
     const player = atlasForRole(doc, "player");
     expect(player.nodes.map((n) => n.id)).toEqual(["n1"]); // n3 is inside z1's triangle
     expect(atlasForRole(doc, "curator").nodes.map((n) => n.id)).toContain("n3");
+  });
+});
+
+describe("declaring the world's true size", () => {
+  it("rescales everything anchored to the map, keeping it glued to the artwork", () => {
+    const d = emptyAtlas("Vadruna");
+    d.widthMi = 500;
+    d.heightMi = 300;
+    d.nodes.push({ id: "n1", name: "Mid", kind: "landmark", x: 250, y: 150, visibility: "player", minZoom: 2.8 });
+    d.zones.push({ id: "z1", state: "visible", polygon: [{ x: 100, y: 100 }, { x: 400, y: 100 }, { x: 400, y: 200 }], minZoom: 9 });
+    const r = rescaleAtlas(d, 1000);
+    expect(r.widthMi).toBe(1000);
+    expect(r.heightMi).toBe(600); // aspect preserved
+    // the node stays at the CENTER of the artwork
+    expect(r.nodes[0].x).toBeCloseTo(500);
+    expect(r.nodes[0].y).toBeCloseTo(300);
+    expect(r.zones[0].polygon[1]).toEqual({ x: 800, y: 200 });
+    // zoom gates are px-per-mile: the same VIEW happens at half the zoom now
+    expect(r.nodes[0].minZoom).toBeCloseTo(1.4);
+    expect(r.zones[0].minZoom).toBeCloseTo(4.5);
+  });
+
+  it("is the identity at the same size", () => {
+    const d = emptyAtlas();
+    expect(rescaleAtlas(d, d.widthMi)).toBe(d);
+  });
+});
+
+describe("the zone dossier", () => {
+  function dossierDoc(): AtlasDoc {
+    const d = emptyAtlas("Vadruna");
+    d.zones.push({
+      id: "z1",
+      name: "Rivenbark Reach",
+      state: "visible",
+      polygon: [{ x: 0, y: 0 }, { x: 50, y: 0 }, { x: 50, y: 50 }],
+      tl: "4",
+      population: 1_200_000,
+      popKind: "settlements",
+      showPop: true,
+      props: [
+        { id: "p1", name: "Faction", value: "Unguk Compact", visibility: "player" },
+        { id: "p2", name: "Threat Rating", value: "SEVERE", visibility: "partial" },
+        { id: "p3", name: "True Purpose", value: "fyber siphon", visibility: "curator" },
+      ],
+    });
+    d.zones.push({
+      id: "z2",
+      name: "The Shuttered Coast",
+      state: "restricted",
+      polygon: [{ x: 100, y: 100 }, { x: 150, y: 100 }, { x: 150, y: 150 }],
+      denial: "CLEARANCE TIER 3 REQUIRED",
+      tl: "7",
+      population: 900,
+      showPop: true,
+      props: [{ id: "p4", name: "Garrison", value: "3rd Voidship Wing", visibility: "player" }],
+    });
+    return d;
+  }
+
+  it("round-trips through parse unchanged", () => {
+    const d = dossierDoc();
+    expect(parseAtlas(JSON.parse(JSON.stringify(d)))).toEqual(d);
+  });
+
+  it("filters the dossier per field for players", () => {
+    const player = atlasForRole(dossierDoc(), "player");
+    const z = player.zones.find((x) => x.id === "z1")!;
+    expect(z.tl).toBe("4");
+    expect(z.population).toBe(1_200_000); // showPop granted it
+    expect(z.props!.map((pr) => pr.name)).toEqual(["Faction", "Threat Rating"]); // curator field GONE
+    expect(z.props![0].value).toBe("Unguk Compact");
+    expect(z.props![1].value).toBe(""); // partial: the question, not the answer
+  });
+
+  it("strips a restricted zone to name and refusal — the dossier stays home", () => {
+    const player = atlasForRole(dossierDoc(), "player");
+    const z = player.zones.find((x) => x.id === "z2")!;
+    expect(z.name).toBe("The Shuttered Coast");
+    expect(z.denial).toBe("CLEARANCE TIER 3 REQUIRED");
+    expect(z.tl).toBeUndefined();
+    expect(z.population).toBeUndefined();
+    expect(z.props).toBeUndefined();
+  });
+
+  it("withholds population entirely when the Curator has not enabled it", () => {
+    const d = dossierDoc();
+    d.zones[0].showPop = false;
+    const player = atlasForRole(d, "player");
+    expect(player.zones.find((x) => x.id === "z1")!.population).toBeUndefined();
   });
 });
 

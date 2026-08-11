@@ -407,6 +407,79 @@ function statePolygonsFromSvg(svg: string): Map<number, [number, number][][]> {
   return out;
 }
 
+/** Azgaar layers that are ANNOTATION, not geography: names, icons, borders,
+ *  markers, military, chrome. The Atlas renders all of that itself, live —
+ *  the artwork should carry only terrain and the regions' colors. */
+const SVG_ANNOTATION_IDS = [
+  "labels",
+  "burgLabels",
+  "burgIcons",
+  "icons",
+  "anchors",
+  "markers",
+  "armies",
+  "regiments",
+  "borders",
+  "routes",
+  "searoutes",
+  "emblems",
+  "ruler",
+  "rulers",
+  "scaleBar",
+  "legend",
+  "compass",
+  "coordinates",
+  "zones",
+  "population",
+];
+
+/**
+ * Strip a map SVG down to geography before it becomes the base image. Group
+ * removal is balance-aware — Azgaar nests <g> heavily, so the closing tag of
+ * a layer is found by counting, not by the next </g>.
+ */
+export function stripSvgToGeography(svg: string): string {
+  let out = svg;
+  for (const id of SVG_ANNOTATION_IDS) out = removeSvgGroup(out, id);
+  return out;
+}
+
+function removeSvgGroup(svg: string, id: string): string {
+  for (;;) {
+    const start = svg.indexOf(`<g id="${id}"`);
+    if (start < 0) return svg;
+    let i = start;
+    let depth = 0;
+    let end = -1;
+    while (i < svg.length) {
+      // next group OPEN ("<g" followed by a delimiter — "<glyph" is not a group)
+      let open = -1;
+      for (let j = svg.indexOf("<g", i); j >= 0; j = svg.indexOf("<g", j + 2)) {
+        const c = svg[j + 2];
+        if (c === " " || c === ">" || c === "\t" || c === "\n" || c === "\r") {
+          open = j;
+          break;
+        }
+      }
+      const close = svg.indexOf("</g>", i);
+      if (close < 0) return svg; // malformed: better the labels than a broken image
+      if (open >= 0 && open < close) {
+        depth++;
+        i = open + 2;
+      } else {
+        depth--;
+        i = close + 4;
+        if (depth === 0) {
+          end = close + 4;
+          break;
+        }
+      }
+    }
+    if (end < 0) return svg;
+    svg = svg.slice(0, start) + svg.slice(end);
+  }
+}
+
 /**
  * Import Azgaar's native .map save. Returns the same shape as the JSON path —
  * burgs and markers as nodes, states as zones, real-world size from the

@@ -4,7 +4,9 @@ import {
   emptyAtlas,
   MAX_ATLAS_WIRE_CHARS,
   parseAtlas,
+  rescaleAtlas,
   ZONE_FX,
+  type ZoneProp,
   type AtlasDoc,
   type AtlasLayer,
   type AtlasNode,
@@ -48,7 +50,7 @@ import { pushToast, reportSaveFailure } from "../../lib/appToast";
 import { useNet } from "../../net/NetContext";
 import type { NetMessage } from "../../net/protocol";
 import { bridgeEmit, bridgeListen } from "./atlasBridge";
-import { importAzgaar, importAzgaarMapFile } from "./azgaarImport";
+import { importAzgaar, importAzgaarMapFile, stripSvgToGeography } from "./azgaarImport";
 
 /** BROADCAST VIEW arriving from the Curator. VttScreen opens the window and
  *  hands the target in; a fresh nonce restarts the flight. */
@@ -82,13 +84,18 @@ interface Measure {
   b: AtlasPoint;
 }
 
-/** A click on a null-locked region: a black distortion that spreads and
- *  collapses back into the hidden area. */
+/** A click on a hidden region: a black distortion that spreads and collapses
+ *  back into it. Null zones burst harder than restricted ones. */
 interface NullBurst {
   x: number;
   y: number;
   at: number;
+  kind: "null" | "restricted";
 }
+
+/** Characters the failing interface bleeds when it cannot resolve a region.
+ *  Typographic marks only — corruption, not decoration. */
+const GLITCH_GLYPHS = ["▓", "▒", "░", "Ø", "Δ", "□", "◈", "╳", "¤", "§"];
 
 const uid = () => "a" + Math.random().toString(36).slice(2, 9);
 
@@ -123,6 +130,7 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
   const [zoneState, setZoneState] = useState<ZoneState>("null-locked");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selZoneId, setSelZoneId] = useState<string | null>(null);
+  const [infoZoneId, setInfoZoneId] = useState<string | null>(null);
   const [measure, setMeasure] = useState<Measure | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
   const [bridgePeers, setBridgePeers] = useState<{ id: string; name: string }[]>([]);
@@ -161,6 +169,7 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
   // keystroke snapped back to the old name.
   const selected = useMemo(() => visible.nodes.find((n) => n.id === selectedId) ?? null, [visible, selectedId]);
   const selZone = useMemo(() => visible.zones.find((z) => z.id === selZoneId) ?? null, [visible, selZoneId]);
+  const infoZone = useMemo(() => visible.zones.find((z) => z.id === infoZoneId) ?? null, [visible, infoZoneId]);
 
   // ── load / save ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -363,6 +372,21 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
     [startFlight, visible.widthMi]
   );
 
+  /** Frame a territory: the Google Earth glide down to an inspection view. */
+  const flyToZone = useCallback(
+    (z: AtlasZone) => {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const pt of z.polygon) {
+        minX = Math.min(minX, pt.x); minY = Math.min(minY, pt.y);
+        maxX = Math.max(maxX, pt.x); maxY = Math.max(maxY, pt.y);
+      }
+      const v = sizeOf();
+      const zoom = clampZoom(Math.min(v.width / Math.max(1e-6, maxX - minX), v.height / Math.max(1e-6, maxY - minY)) * 0.55);
+      startFlight({ x: (minX + maxX) / 2, y: (minY + maxY) / 2, zoom }, 1200);
+    },
+    [startFlight]
+  );
+
   /** BROADCAST VIEW: fly one player — or the whole table — to a node. */
   function bring(n: AtlasNode, to?: string) {
     if (standalone) {
@@ -529,6 +553,8 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
     };
     for (const z of visible.zones) {
       if (z.polygon.length < 3) continue;
+      // districts wait for the descent, exactly like nodes
+      if (!nodeVisibleAtZoom(z, cam.zoom)) continue;
       // custom art first, clipped to the shape — the zone's state then draws
       // OVER it, so a null-locked zone hides its art exactly as it hides its
       // terrain
@@ -579,6 +605,15 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
           ctx.stroke();
           ctx.setLineDash([]);
           break;
+        case "restricted":
+          // present, named, and firmly closed
+          ctx.fillStyle = "rgba(28,10,12,0.42)";
+          ctx.fill();
+          ctx.strokeStyle = "rgba(200,90,80,0.45)";
+          ctx.setLineDash([8, 4]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          break;
         case "null-locked": {
           ctx.fillStyle = curator ? "rgba(0,0,0,0.55)" : "rgba(2,3,4,0.94)";
           ctx.fill();
@@ -618,10 +653,14 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
       if (z.fx && (curator || z.state === "visible" || z.state === "surveyed")) {
         drawZoneFx(ctx, cam, view, z, now);
       }
+      // representative population: density says what a number can't
+      if (z.showPop && z.population !== undefined && z.population > 0 && (curator || z.state === "visible" || z.state === "surveyed")) {
+        drawPopulation(ctx, cam, view, z, now);
+      }
       // The name, at the centroid — sized by the territory's on-screen
       // footprint, so empires read from orbit and baronies wait for the
       // descent. Never over the void for players.
-      if (z.name && (curator || z.state === "visible" || z.state === "surveyed" || z.state === "unconfirmed")) {
+      if (z.name && z.labelReveal !== "hidden" && (curator || z.state === "visible" || z.state === "surveyed" || z.state === "unconfirmed" || z.state === "restricted")) {
         let cx = 0, cy = 0;
         let zMinX = Infinity, zMinY = Infinity, zMaxX = -Infinity, zMaxY = -Infinity;
         for (const p of z.polygon) {
@@ -631,7 +670,8 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
           zMinX = Math.min(zMinX, sp.x); zMinY = Math.min(zMinY, sp.y);
           zMaxX = Math.max(zMaxX, sp.x); zMaxY = Math.max(zMaxY, sp.y);
         }
-        const labelPx = zoneLabelPx((zMaxX - zMinX) * (zMaxY - zMinY));
+        let labelPx = zoneLabelPx((zMaxX - zMinX) * (zMaxY - zMinY));
+        if (z.labelReveal === "always") labelPx = Math.max(labelPx, 10);
         if (labelPx > 0) {
           const c = worldToScreen(cam, view, { x: cx / z.polygon.length, y: cy / z.polygon.length });
           ctx.font = `${Math.round(labelPx)}px Consolas, monospace`;
@@ -735,18 +775,55 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
     const hover = hoverRef.current;
     if (hover && !curator) {
       const wp = screenToWorld(cam, view, hover);
-      const inNull = visible.zones.some((z) => z.state === "null-locked" && pointInPolygon(wp, z.polygon));
-      if (inNull) {
+      const gatedHit = (state: string) =>
+        visible.zones.find((z) => z.state === state && nodeVisibleAtZoom(z, cam.zoom) && pointInPolygon(wp, z.polygon));
+      const nullZone = gatedHit("null-locked");
+      const restrictedZone = nullZone ? undefined : gatedHit("restricted");
+      if (nullZone) {
         const salt = Math.floor(now / 120);
+        // the interface itself failing: rows of the frame near the cursor are
+        // copied and shoved sideways — displaced UI, not an overlay
+        const salt2 = Math.floor(now / 90);
+        const sx = Math.max(0, hover.x - 130);
+        const sw = Math.min(260, view.width - sx);
+        if (sw > 8) {
+          for (let i = 0; i < 4; i++) {
+            const y0 = Math.max(0, Math.min(view.height - 10, hover.y - 52 + frac(salt2 + i * 3.3) * 104));
+            const shove = Math.round((frac(salt2 + i * 7.7) - 0.5) * 26);
+            const sliceH = 2 + Math.round(frac(salt2 + i * 5.1) * 6);
+            ctx.drawImage(ctx.canvas, sx, y0, sw, sliceH, sx + shove, y0, sw, sliceH);
+          }
+        }
         ctx.fillStyle = "rgba(0,0,0,0.85)";
         for (let i = 0; i < 7; i++) {
-          const h1 = Math.abs(Math.sin((salt + i) * 12.9898) * 43758.5453) % 1;
-          const h2 = Math.abs(Math.sin((salt + i) * 78.233) * 12543.123) % 1;
+          const h1 = frac((salt + i) * 12.9898);
+          const h2 = frac((salt + i) * 78.233);
           ctx.fillRect(hover.x + (h1 - 0.5) * 90, hover.y + (h2 - 0.5) * 60, 6 + h1 * 26, 2 + h2 * 8);
+        }
+        // corrupted characters bleeding through the failure
+        ctx.font = "11px Consolas, monospace";
+        for (let i = 0; i < 6; i++) {
+          const h1 = frac(salt2 * 1.7 + i * 13.7);
+          const h2 = frac(salt2 * 2.3 + i * 29.1);
+          ctx.fillStyle = `rgba(200,60,60,${(0.25 + h1 * 0.5).toFixed(2)})`;
+          ctx.fillText(GLITCH_GLYPHS[Math.floor(h1 * GLITCH_GLYPHS.length) % GLITCH_GLYPHS.length], hover.x + (h1 - 0.5) * 160, hover.y + (h2 - 0.5) * 110);
         }
         ctx.fillStyle = "rgba(200,60,60,0.9)";
         ctx.font = "10px Consolas, monospace";
         ctx.fillText(nullReadout(wp, salt), hover.x + 14, hover.y - 10);
+      } else if (restrictedZone) {
+        // a firmer no: brief static near the cursor, and the words the
+        // Curator chose for the refusal
+        const salt = Math.floor(now / 140);
+        ctx.fillStyle = "rgba(0,0,0,0.7)";
+        for (let i = 0; i < 4; i++) {
+          const h1 = frac((salt + i) * 12.9898);
+          const h2 = frac((salt + i) * 78.233);
+          ctx.fillRect(hover.x + (h1 - 0.5) * 70, hover.y + (h2 - 0.5) * 44, 4 + h1 * 18, 2 + h2 * 5);
+        }
+        ctx.fillStyle = "rgba(224,150,60,0.9)";
+        ctx.font = "10px Consolas, monospace";
+        ctx.fillText((restrictedZone.denial ?? "ACCESS NOT GRANTED").toUpperCase(), hover.x + 14, hover.y - 10);
       }
     }
     // click bursts: spread out, collapse back
@@ -754,12 +831,25 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
     for (const b of burstsRef.current) {
       const t = (now - b.at) / 650;
       const r = t < 0.5 ? t * 2 : (1 - t) * 2;
+      const reach = b.kind === "null" ? 70 : 42;
+      const rects = b.kind === "null" ? 10 : 6;
       ctx.fillStyle = `rgba(0,0,0,${0.9 * (1 - t)})`;
-      for (let i = 0; i < 10; i++) {
-        const h1 = Math.abs(Math.sin((b.at + i) * 12.9898) * 43758.5453) % 1;
+      for (let i = 0; i < rects; i++) {
+        const h1 = frac((b.at + i) * 12.9898);
         const ang = h1 * Math.PI * 2;
-        const d = r * 70 * (0.4 + h1);
+        const d = r * reach * (0.4 + h1);
         ctx.fillRect(b.x + Math.cos(ang) * d, b.y + Math.sin(ang) * d, 4 + h1 * 30, 3 + h1 * 6);
+      }
+      if (b.kind === "null") {
+        // the void answers a probe with nonsense
+        ctx.font = "12px Consolas, monospace";
+        for (let i = 0; i < 5; i++) {
+          const h1 = frac((b.at + i) * 31.7);
+          const ang = h1 * Math.PI * 2;
+          const d = r * 85 * (0.5 + h1 * 0.5);
+          ctx.fillStyle = `rgba(200,60,60,${(0.8 * (1 - t)).toFixed(2)})`;
+          ctx.fillText(GLITCH_GLYPHS[Math.floor(h1 * GLITCH_GLYPHS.length) % GLITCH_GLYPHS.length], b.x + Math.cos(ang) * d, b.y + Math.sin(ang) * d);
+        }
       }
     }
   }, [visible, curator, editing, measure, selectedId, selZoneId, displayHour, layerOn]);
@@ -823,7 +913,12 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
     rafRef.current = requestAnimationFrame(tick);
     // Dev-only handle, same pattern as __vttEngine: lets tooling single-step a
     // frame when rAF is suspended (hidden window). Stripped from production.
-    if (import.meta.env.DEV) (window as unknown as { __atlasTick?: () => void }).__atlasTick = tick;
+    if (import.meta.env.DEV) {
+      (window as unknown as { __atlasTick?: () => void }).__atlasTick = tick;
+      // headless verification peeks: the doc this window renders, and the live camera
+      (window as unknown as { __atlasDoc?: unknown }).__atlasDoc = visible;
+      (window as unknown as { __atlasCam?: unknown }).__atlasCam = camRef;
+    }
     return () => {
       cancelAnimationFrame(rafRef.current);
       // The dev handle must die with the loop — a console call after unmount
@@ -930,13 +1025,23 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
         return;
       }
       setSelectedId(null);
+      const zhit = [...visible.zones].reverse().find((z) => nodeVisibleAtZoom(z, camRef.current.zoom) && pointInPolygon(wp, z.polygon));
       if (editing) {
-        const zhit = [...visible.zones].reverse().find((z) => pointInPolygon(wp, z.polygon));
         setSelZoneId(zhit ? zhit.id : null);
         if (zhit) return;
-      }
-      if (!curator && visible.zones.some((z) => z.state === "null-locked" && pointInPolygon(wp, z.polygon))) {
-        burstsRef.current.push({ x: s.x, y: s.y, at: performance.now() });
+      } else if (zhit) {
+        if (zhit.state === "null-locked") {
+          burstsRef.current.push({ x: s.x, y: s.y, at: performance.now(), kind: "null" });
+        } else if (zhit.state === "restricted") {
+          burstsRef.current.push({ x: s.x, y: s.y, at: performance.now(), kind: "restricted" });
+        } else {
+          // an open region: the instrument glides down and opens the dossier
+          flyToZone(zhit);
+          setInfoZoneId(zhit.id);
+        }
+        return;
+      } else {
+        setInfoZoneId(null);
       }
     } else if (tool === "pan" && d.moved) {
       // release into the glide; velocity was set during the drag
@@ -1060,24 +1165,27 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
       // A rectangular world adopts Azgaar's real size — true miles are a gift.
       // A disc keeps its diameter and the survey scales onto it.
       const adoptSize = imp.suggestedWidthMi !== undefined && imp.suggestedHeightMi !== undefined && d.shape === "rect";
-      const W = adoptSize ? imp.suggestedWidthMi! : d.widthMi;
-      const H = adoptSize ? imp.suggestedHeightMi! : d.heightMi;
       // Imported entries carry an "az-" id prefix, so re-importing REPLACES the
       // previous import instead of doubling it; hand-placed work is untouched.
       const keptNodes = d.nodes.filter((n) => !n.id.startsWith("az-"));
       const keptZones = d.zones.filter((z) => !z.id.startsWith("az-"));
       replaced = d.nodes.length - keptNodes.length + (d.zones.length - keptZones.length);
+      // Adopting Azgaar's real size rescales the kept hand-placed work too, so
+      // it stays glued to the same spot on the artwork.
+      const base = adoptSize ? rescaleAtlas({ ...d, nodes: keptNodes, zones: keptZones }, imp.suggestedWidthMi!) : { ...d, nodes: keptNodes, zones: keptZones };
+      const W = base.widthMi;
+      const H = adoptSize ? imp.suggestedHeightMi! : base.heightMi;
       // Zoom reveal by importance: capitals read from orbit; major towns from a
       // regional view; villages and survey markers only up close. Thresholds
       // scale with the world so they mean the same thing on any map.
       const tierZoom = (tier: "capital" | "major" | "minor"): number | undefined =>
         tier === "capital" ? undefined : tier === "major" ? +(1400 / W).toFixed(4) : +(4500 / W).toFixed(4);
       return {
-        ...d,
+        ...base,
         widthMi: W,
         heightMi: H,
         nodes: [
-          ...keptNodes,
+          ...base.nodes,
           ...imp.nodes.map((n) => ({
             id: "az-" + uid(),
             name: n.name,
@@ -1090,7 +1198,7 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
           })),
         ],
         zones: [
-          ...keptZones,
+          ...base.zones,
           ...imp.zones.map((z) => ({
             id: "az-" + uid(),
             name: z.name,
@@ -1102,7 +1210,7 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
     });
     // The .map save carries the whole rendered map — it BECOMES the base image.
     if (imp.svgText) {
-      void svgToImageDataUrl(imp.svgText, 2048)
+      void svgToImageDataUrl(stripSvgToGeography(imp.svgText), 2048)
         .then((uri) => mutate((d) => ({ ...d, image: uri })))
         .catch(() => pushToast("The map's artwork could not be rendered into a base image; the survey data still imported.", "error"));
     }
@@ -1217,6 +1325,7 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
                 <option value="visible">visible</option>
                 <option value="surveyed">surveyed</option>
                 <option value="unconfirmed">unconfirmed</option>
+                <option value="restricted">restricted</option>
                 <option value="null-locked">null-locked</option>
                 <option value="curator-only">curator only</option>
               </select>
@@ -1459,11 +1568,9 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
                   value={doc.widthMi}
                   onChange={(e) => {
                     const w = Math.max(1, parseFloat(e.target.value) || 1);
-                    mutate((d) => ({
-                      ...d,
-                      heightMi: d.shape === "circle" ? w : +(d.heightMi * (w / d.widthMi)).toFixed(1),
-                      widthMi: w,
-                    }));
+                    // declaring the world's size rescales EVERYTHING anchored
+                    // to it, so zones and nodes stay glued to the artwork
+                    mutate((d) => rescaleAtlas(d, w));
                   }}
                 />
                 mi
@@ -1538,6 +1645,8 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
         {!selected && selZone && editing && (
           <ZoneCard
             zone={selZone}
+            worldW={visible.widthMi}
+            onFocus={() => flyToZone(selZone)}
             onChange={(next) => mutate((d) => ({ ...d, zones: d.zones.map((z) => (z.id === next.id ? next : z)) }))}
             onDelete={() => {
               mutate((d) => ({ ...d, zones: d.zones.filter((z) => z.id !== selZone.id) }));
@@ -1545,6 +1654,9 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
             }}
             onClose={() => setSelZoneId(null)}
           />
+        )}
+        {!selected && !editing && infoZone && (
+          <ZoneInfo zone={infoZone} onClose={() => setInfoZoneId(null)} />
         )}
       </div>
 
@@ -1667,6 +1779,42 @@ function drawZoneFx(
         ctx.fillRect(s.x, s.y, 1.5, 1.5);
         break;
     }
+  }
+}
+
+/** Representative population: world-anchored dots whose DENSITY communicates
+ *  scale — a dot is not a person. Count grows with the cube root of the value
+ *  so a metropolis reads dense without drowning the map. */
+function drawPopulation(
+  ctx: CanvasRenderingContext2D,
+  cam: AtlasCamera,
+  view: { width: number; height: number },
+  z: AtlasZone,
+  now: number
+) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of z.polygon) {
+    minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y);
+  }
+  const w = maxX - minX;
+  const h = maxY - minY;
+  if (w <= 0 || h <= 0) return;
+  const a = worldToScreen(cam, view, { x: minX, y: minY });
+  const b = worldToScreen(cam, view, { x: maxX, y: maxY });
+  if (b.x < 0 || b.y < 0 || a.x > view.width || a.y > view.height) return;
+  const count = Math.max(8, Math.min(240, Math.round(Math.pow(z.population ?? 0, 0.33))));
+  const seed = zoneSeed(z.id) * 1.618;
+  for (let i = 0; i < count; i++) {
+    const h1 = frac(seed + i * 3.7);
+    const h2 = frac(seed + i * 9.1 + 41);
+    const wx = minX + h1 * w;
+    const wy = minY + h2 * h;
+    if (!pointInPolygon({ x: wx, y: wy }, z.polygon)) continue;
+    const sp = worldToScreen(cam, view, { x: wx, y: wy });
+    const pulse = 0.35 + 0.2 * Math.sin(now / 900 + i * 1.3);
+    ctx.fillStyle = `rgba(126,207,202,${pulse.toFixed(2)})`;
+    ctx.fillRect(sp.x, sp.y, 1.5, 1.5);
   }
 }
 
@@ -1815,17 +1963,31 @@ function NodeCard({
 
 function ZoneCard({
   zone,
+  worldW,
+  onFocus,
   onChange,
   onDelete,
   onClose,
 }: {
   zone: AtlasZone;
+  worldW: number;
+  onFocus: () => void;
   onChange: (z: AtlasZone) => void;
   onDelete: () => void;
   onClose: () => void;
 }) {
+  const patchProp = (id: string, patch: Partial<ZoneProp>) =>
+    onChange({ ...zone, props: (zone.props ?? []).map((pr) => (pr.id === id ? { ...pr, ...patch } : pr)) });
+  const moveProp = (id: string, dir: -1 | 1) => {
+    const props = (zone.props ?? []).slice();
+    const i = props.findIndex((pr) => pr.id === id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= props.length) return;
+    [props[i], props[j]] = [props[j], props[i]];
+    onChange({ ...zone, props });
+  };
   return (
-    <div className="atlas-node-card">
+    <div className="atlas-node-card atlas-zone-card">
       <div className="vtt2-insp-head">
         <input
           className="bg-select"
@@ -1839,10 +2001,40 @@ function ZoneCard({
       </div>
       <p className="atlas-node-kind">zone · {zone.polygon.length} vertices</p>
       <div className="atlas-node-actions">
+        <button className="ghost-btn xs" onClick={onFocus} title="Fly your view to this territory">
+          Focus
+        </button>
+        <select
+          className="bg-select"
+          value={zone.labelReveal ?? "auto"}
+          onChange={(e) => onChange({ ...zone, labelReveal: e.target.value === "always" || e.target.value === "hidden" ? e.target.value : undefined })}
+          title="When the territory's name appears"
+        >
+          <option value="auto">label: by size</option>
+          <option value="always">label: always</option>
+          <option value="hidden">label: hidden</option>
+        </select>
+        <select
+          className="bg-select"
+          value={zone.minZoom === undefined ? "always" : zone.minZoom < 3000 / Math.max(1, worldW) ? "region" : "close"}
+          onChange={(e) => {
+            const v = e.target.value;
+            const minZoom = v === "always" ? undefined : v === "region" ? +(1400 / Math.max(1, worldW)).toFixed(4) : +(4500 / Math.max(1, worldW)).toFixed(4);
+            onChange({ ...zone, minZoom });
+          }}
+          title="When this territory reveals itself while zooming"
+        >
+          <option value="always">reveal: always</option>
+          <option value="region">reveal: regional</option>
+          <option value="close">reveal: close</option>
+        </select>
+      </div>
+      <div className="atlas-node-actions">
         <select className="bg-select" value={zone.state} onChange={(e) => onChange({ ...zone, state: e.target.value as ZoneState })}>
           <option value="visible">visible</option>
           <option value="surveyed">surveyed</option>
           <option value="unconfirmed">unconfirmed</option>
+          <option value="restricted">restricted</option>
           <option value="null-locked">null-locked</option>
           <option value="curator-only">curator only</option>
         </select>
@@ -1859,7 +2051,86 @@ function ZoneCard({
           <option value="fog">fog</option>
         </select>
       </div>
+      {zone.state === "restricted" && (
+        <div className="atlas-node-actions">
+          <input
+            className="bg-select"
+            placeholder="Denial message, e.g. CLEARANCE INSUFFICIENT"
+            value={zone.denial ?? ""}
+            onChange={(e) => onChange({ ...zone, denial: e.target.value || undefined })}
+            title="What a denied observer is told"
+          />
+        </div>
+      )}
       <div className="atlas-node-actions">
+        <input
+          className="bg-select atlas-lyr-small"
+          placeholder="T.L."
+          value={zone.tl ?? ""}
+          onChange={(e) => onChange({ ...zone, tl: e.target.value || undefined })}
+          title="Technology Level — a core dossier field"
+        />
+        <input
+          className="bg-select atlas-lyr-num"
+          type="number"
+          min={0}
+          placeholder="Pop."
+          value={zone.population ?? ""}
+          onChange={(e) => {
+            const v = parseFloat(e.target.value);
+            onChange({ ...zone, population: Number.isFinite(v) && v >= 0 ? v : undefined });
+          }}
+          title="Population count"
+        />
+        <input
+          className="bg-select atlas-lyr-small"
+          placeholder="of what?"
+          value={zone.popKind ?? ""}
+          onChange={(e) => onChange({ ...zone, popKind: e.target.value || undefined })}
+          title="What the dots represent: population, settlements, active signals…"
+        />
+        <label className="atlas-width" title="Draw representative density dots and show the count to players">
+          <input type="checkbox" checked={zone.showPop === true} onChange={(e) => onChange({ ...zone, showPop: e.target.checked || undefined })} />
+          dots
+        </label>
+      </div>
+      {(zone.props ?? []).map((pr) => (
+        <div key={pr.id} className="atlas-node-actions atlas-prop-row">
+          <input className="bg-select" value={pr.name} onChange={(e) => patchProp(pr.id, { name: e.target.value })} placeholder="Field" />
+          <input className="bg-select" value={pr.value} onChange={(e) => patchProp(pr.id, { value: e.target.value })} placeholder="Value" />
+          <select
+            className="bg-select"
+            value={pr.visibility}
+            onChange={(e) => patchProp(pr.id, { visibility: e.target.value === "player" || e.target.value === "partial" ? e.target.value : "curator" })}
+            title="player: fully visible · partial: the field shows, the value is withheld · curator: yours alone"
+          >
+            <option value="player">player</option>
+            <option value="partial">partial</option>
+            <option value="curator">curator</option>
+          </select>
+          <button className="ghost-btn xs" onClick={() => moveProp(pr.id, -1)} title="Move up">
+            ↑
+          </button>
+          <button className="ghost-btn xs" onClick={() => moveProp(pr.id, 1)} title="Move down">
+            ↓
+          </button>
+          <button
+            className="icon-btn danger sm"
+            onClick={() => onChange({ ...zone, props: (zone.props ?? []).filter((x) => x.id !== pr.id) })}
+            title="Remove this field"
+          >
+            ×
+          </button>
+        </div>
+      ))}
+      <div className="atlas-node-actions">
+        <button
+          className="ghost-btn xs"
+          onClick={() => onChange({ ...zone, props: [...(zone.props ?? []), { id: uid(), name: "", value: "", visibility: "curator" }] })}
+          title="Add a dossier field — faction, threat rating, fyber saturation, anything"
+        >
+          Add field
+        </button>
         <SpritePicker
           current={zone.sprite}
           onPick={(sprite) => onChange({ ...zone, sprite })}
@@ -1869,6 +2140,39 @@ function ZoneCard({
           ×
         </button>
       </div>
+    </div>
+  );
+}
+
+/** The player's dossier: what the Curator has cleared, and the shape of what
+ *  they haven't. A partial field shows its NAME with the value withheld — the
+ *  question is known, the answer is not. */
+function ZoneInfo({ zone, onClose }: { zone: AtlasZone; onClose: () => void }) {
+  const stateTag =
+    zone.state === "visible" ? "ACCESSIBLE" : zone.state === "surveyed" ? "SURVEYED" : "PARTIAL SURVEY";
+  return (
+    <div className="atlas-node-card atlas-zone-card">
+      <div className="vtt2-insp-head">
+        <span className="panel-title" style={{ margin: 0 }}>
+          {(zone.name ?? "UNDESIGNATED REGION").toUpperCase()}
+        </span>
+        <button className="cdx-tab-x" onClick={onClose} title="Close">
+          ×
+        </button>
+      </div>
+      <p className="atlas-node-kind">{stateTag}</p>
+      {zone.tl !== undefined && <p className="atlas-node-status">T.L. | {zone.tl}</p>}
+      {zone.population !== undefined && (
+        <p className="atlas-node-status">
+          {(zone.popKind ?? "population").toUpperCase()} | {zone.population.toLocaleString("en-US")}
+        </p>
+      )}
+      {(zone.props ?? []).map((pr) => (
+        <p className="atlas-node-status" key={pr.id}>
+          {pr.name.toUpperCase()} | {pr.visibility === "partial" ? <span className="atlas-withheld">▓▓ WITHHELD ▓▓</span> : pr.value}
+        </p>
+      ))}
+      {zone.state === "unconfirmed" && <p className="atlas-note">Survey incomplete. Records unreliable.</p>}
     </div>
   );
 }
