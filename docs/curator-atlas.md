@@ -165,8 +165,22 @@ schema v5 exists precisely so a new campaign-scoped blob needs no migration.
    markers driven by the session; signal-lost states.
 3. **Waypoints & transit** — request/approve flow, the camera transition, and
    the scene-switch + token-spawn integration.
-4. **Layers & dynamics** — information layers with per-player access; dynamic
-   nodes with positional echoes; travel-distance routes and time estimates.
+4. **Layers & scalar fields** — the information-layer system, unified so heat
+   and height are the same machinery:
+   - *Image layers*: extra art aligned to the same mile-space as the base map
+     (political borders, infrastructure, trade routes), each with opacity, a
+     blend mode, ordering, and per-player access — including LOCKED, which
+     shows its name in the list but answers `CLEARANCE INSUFFICIENT` and
+     never ships its pixels to a player's machine.
+   - *Scalar-field layers*: a grayscale source + a palette + a readout.
+     Terrain data makes it a heightmap (`ELEV | 2,340 FT` at the cursor,
+     hillshade relief, contour bands); fyber or hazard data makes it a
+     heatmap (`FYBER SATURATION: 87%`). Same sampler, different palette.
+     Field data later feeds travel-time estimates and the slice-5 terrain
+     work. Generators like Azgaar export exactly this shape (base map +
+     aligned height/political images).
+   - Still here from the original slice: dynamic nodes with positional
+     echoes; travel-distance routes and time estimates.
 5. **Depth** — progressive detail levels per zoom band, observation
    resolution, unreliable-map events, heightmap parallax, globe mode, and the
    local-map → battle-map zoom transition.
