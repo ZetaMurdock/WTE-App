@@ -10,6 +10,7 @@ import {
   atlasForRole,
   emptyAtlas,
   parseAtlas,
+  recoverAspect,
   rescaleAtlas,
   type AtlasDoc,
 } from "./atlasModel";
@@ -247,10 +248,20 @@ describe("the document", () => {
     expect(doc.zones[0].sprite).toBeUndefined();
   });
 
-  it("makes a circular world a disc — one diameter, no aspect", () => {
+  it("keeps the artwork's aspect in a circular world — the disc wraps the map", () => {
     const doc = parseAtlas({ ...fullDoc(), shape: "circle" })!;
     expect(doc.shape).toBe("circle");
-    expect(doc.heightMi).toBe(doc.widthMi);
+    expect(doc.heightMi).toBe(420); // NOT stretched square: that slid zones off the art
+  });
+
+  it("recovers a corrupted height from the artwork's true aspect, moving nothing", () => {
+    const damaged = { ...fullDoc(), heightMi: 700 }; // the old circle-stretch
+    const healed = recoverAspect(damaged, 815 / 1432);
+    expect(healed.heightMi).toBeCloseTo(700 * (815 / 1432), 1);
+    expect(healed.nodes).toBe(damaged.nodes); // coordinates untouched
+    const healthy = recoverAspect(healed, 815 / 1432);
+    expect(healthy).toBe(healed); // idempotent
+    expect(recoverAspect(damaged, 0)).toBe(damaged); // garbage aspect: no-op
   });
 
   it("clamps a hostile clock instead of adopting it", () => {

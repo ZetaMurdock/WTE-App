@@ -4,6 +4,7 @@ import {
   emptyAtlas,
   MAX_ATLAS_WIRE_CHARS,
   parseAtlas,
+  recoverAspect,
   rescaleAtlas,
   ZONE_FX,
   type ZoneProp,
@@ -322,7 +323,7 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
       mutate((d) => ({
         ...d,
         image: uri,
-        heightMi: d.shape === "circle" ? d.widthMi : +(d.widthMi * (probe.height / probe.width)).toFixed(1),
+        heightMi: +(d.widthMi * (probe.height / probe.width)).toFixed(1),
       }));
     };
     probe.src = uri;
@@ -464,7 +465,9 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
     const rim = {
       x: (tl.x + br.x) / 2,
       y: (tl.y + br.y) / 2,
-      r: Math.max(1, (br.x - tl.x) / 2),
+      // the disc holds the WHOLE artwork at its true aspect — the world ends
+      // at the rim, the map is never stretched to fill it
+      r: Math.max(1, Math.max(br.x - tl.x, br.y - tl.y) / 2),
     };
     const mapArt = visible.image ? AtlasArt.get(visible.image) : null;
     const frame = mapArt?.frame(now) ?? null;
@@ -1164,7 +1167,7 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
     mutate((d) => {
       // A rectangular world adopts Azgaar's real size — true miles are a gift.
       // A disc keeps its diameter and the survey scales onto it.
-      const adoptSize = imp.suggestedWidthMi !== undefined && imp.suggestedHeightMi !== undefined && d.shape === "rect";
+      const adoptSize = imp.suggestedWidthMi !== undefined && imp.suggestedHeightMi !== undefined;
       // Imported entries carry an "az-" id prefix, so re-importing REPLACES the
       // previous import instead of doubling it; hand-placed work is untouched.
       const keptNodes = d.nodes.filter((n) => !n.id.startsWith("az-"));
@@ -1529,7 +1532,12 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
                 value={doc.shape}
                 onChange={(e) => {
                   const shape = e.target.value === "circle" ? "circle" : "rect";
-                  mutate((d) => ({ ...d, shape, heightMi: shape === "circle" ? d.widthMi : d.heightMi }));
+                  // nothing MOVES on a shape change — the disc wraps the same
+                  // artwork. Recovering the aspect also heals documents the
+                  // old circle-stretch damaged, in one toggle.
+                  const art = doc.image ? AtlasArt.get(doc.image) : null;
+                  const aspect = art && art.width > 0 ? art.height / art.width : 0;
+                  mutate((d) => recoverAspect({ ...d, shape }, aspect));
                 }}
                 title="The world's shape — a circular world is a disc that ends at its rim"
               >
