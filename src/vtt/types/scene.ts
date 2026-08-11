@@ -283,6 +283,9 @@ export interface VttSceneData {
    *  (feathered 0..1), `pc` (world cell coords), and `uTime` (seconds). */
   zoneGlsl?: Partial<Record<VttZoneKind, string>>;
   encounterId?: string | null;
+  /** Curator-side organization: scenes with the same folder name group under a
+   *  collapsible header on the Scene Rail. Free text; absent = ungrouped. */
+  folder?: string;
 }
 
 export interface VttScene {

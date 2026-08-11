@@ -2128,6 +2128,12 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
           onSetActiveForEveryone={(id) => void setActiveForEveryone(id)}
           pinnedId={pinnedSceneId}
           onReleasePin={() => void releasePin()}
+          onSetFolder={(id, folder) => {
+            void patchScene(id, (sc) => { sc.data.folder = folder ?? undefined; });
+            // patchScene persists, but the rail renders from the scenes STATE —
+            // whose copy of a non-active scene is a different object entirely
+            setScenes((cur) => cur.map((sc) => (sc.id === id ? { ...sc, data: { ...sc.data, folder: folder ?? undefined } } : sc)));
+          }}
           playerCount={net.status === "connected" ? net.peers.length : 0}
         />
       )}
