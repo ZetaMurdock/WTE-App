@@ -1501,7 +1501,7 @@ export function AtlasWindow({ campaignId, curator, onClose, focus, standalone, b
 
       <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => void onMapFile(e)} />
       <input ref={layerFileRef} type="file" accept="image/*" hidden onChange={(e) => void onLayerFile(e)} />
-      <input ref={azgaarFileRef} type="file" accept=".json,.map,application/json" hidden onChange={(e) => void onAzgaarFile(e)} />
+      <input ref={azgaarFileRef} type="file" accept=".json,.map" hidden onChange={(e) => void onAzgaarFile(e)} />
     </div>
   );
 }
