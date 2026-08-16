@@ -144,8 +144,8 @@ export function VttRollFeed({ campaignId, sessionKey, actor, publishRoll, lock, 
     [actor, campaignId, feedKey, lock, net, onClearLock, publishRoll]
   );
 
-  // Shift-click = Advantage, ctrl/alt-click or right-click = Disadvantage —
-  // the roll message names the posture and shows both totals.
+  // Mouse/keyboard shortcuts remain, while the visible DIS / ADV buttons make
+  // every posture available to touch-only players too.
   function rollNow(mode: RollMode = "normal") {
     const baseExpr = canonicalRollExpr(expr);
     if (!baseExpr) {
@@ -218,17 +218,25 @@ export function VttRollFeed({ campaignId, sessionKey, actor, publishRoll, lock, 
           onChange={(e) => { setExpr(e.target.value); setExprBad(false); }}
           onKeyDown={(e) => e.key === "Enter" && rollNow(e.shiftKey ? "adv" : e.ctrlKey || e.altKey ? "dis" : "normal")}
         />
-        <button
-          className="primary-btn vtt2-roll-go"
-          onClick={rollClick}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            rollNow("dis");
-          }}
-          title="Shift-click: Advantage · Right-click (or Ctrl-click): Disadvantage"
-        >
-          Roll{lock ? " · " + lock.label : ""}
-        </button>
+        <div className="vtt2-roll-actions" role="group" aria-label="Roll mode">
+          <button className="ghost-btn vtt2-roll-mode" onClick={() => rollNow("dis")} title="Roll with Disadvantage">
+            Dis
+          </button>
+          <button
+            className="primary-btn vtt2-roll-go"
+            onClick={rollClick}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              rollNow("dis");
+            }}
+            title="Roll normally · Shift-click: Advantage · Right-click: Disadvantage"
+          >
+            Roll{lock ? " · " + lock.label : ""}
+          </button>
+          <button className="ghost-btn vtt2-roll-mode" onClick={() => rollNow("adv")} title="Roll with Advantage">
+            Adv
+          </button>
+        </div>
       </div>
       {exprBad && <p className="equip-warn" style={{ margin: "4px 0" }}>Invalid dice — e.g. 2d6+3</p>}
 

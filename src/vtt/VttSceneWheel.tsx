@@ -135,10 +135,10 @@ export function VttSceneWheel({ scenes, activeId, onSwitch, onStep, onSetBackgro
     setNewFolder("");
     const close = () => setMenu(null);
     const onEsc = (e: KeyboardEvent) => e.key === "Escape" && close();
-    window.addEventListener("mousedown", close);
+    window.addEventListener("pointerdown", close);
     window.addEventListener("keydown", onEsc);
     return () => {
-      window.removeEventListener("mousedown", close);
+      window.removeEventListener("pointerdown", close);
       window.removeEventListener("keydown", onEsc);
     };
   }, [menu]);
@@ -178,7 +178,7 @@ export function VttSceneWheel({ scenes, activeId, onSwitch, onStep, onSetBackgro
       <div
         className="vtt2-scene-menu"
         style={{ top: Math.max(60, Math.min(menu.y - 40, window.innerHeight - 340)) }}
-        onMouseDown={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
         onContextMenu={(e) => e.preventDefault()}
       >
         <div className="vtt2-scene-menu-head">{menuScene.name}</div>
@@ -192,7 +192,7 @@ export function VttSceneWheel({ scenes, activeId, onSwitch, onStep, onSetBackgro
                   <span>{f}</span>
                 </button>
               ))}
-            <div className="vtt2-rail-newfolder" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="vtt2-rail-newfolder" onPointerDown={(e) => e.stopPropagation()}>
               <input
                 className="bg-select"
                 placeholder="New folder…"
@@ -327,24 +327,36 @@ export function VttSceneWheel({ scenes, activeId, onSwitch, onStep, onSetBackgro
                   )}
                   {!folded &&
                     g.scenes.map((s) => (
-                      <button
-                        key={s.id}
-                        className={"vtt2-rail-card" + (s.id === activeId ? " active" : "") + (s.id === pinnedId ? " pinned" : "") + (s.data.audio ? " has-audio" : "") + (g.folder !== null ? " infolder" : "")}
-                        onClick={() => s.id !== activeId && onSwitch(s.id)}
-                        onContextMenu={(e) => {
-                          e.preventDefault();
-                          setMenu({ id: s.id, y: e.clientY });
-                        }}
-                        title={`${s.name}${s.id === pinnedId ? " — pinned for the table" : ""} — right-click for scene tools`}
-                      >
-                        <span className="vtt2-rail-init">{initials(s.name)}</span>
-                        <span className="vtt2-rail-name">{s.name}</span>
-                        {s.id === pinnedId && (
-                          <span className="vtt2-rail-pin" aria-label="Pinned for the table">
-                            <IconPin />
-                          </span>
-                        )}
-                      </button>
+                      <div className="vtt2-rail-cardrow" key={s.id}>
+                        <button
+                          className={"vtt2-rail-card" + (s.id === activeId ? " active" : "") + (s.id === pinnedId ? " pinned" : "") + (s.data.audio ? " has-audio" : "") + (g.folder !== null ? " infolder" : "")}
+                          onClick={() => s.id !== activeId && onSwitch(s.id)}
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            setMenu({ id: s.id, y: e.clientY });
+                          }}
+                          title={`${s.name}${s.id === pinnedId ? " — pinned for the table" : ""}`}
+                        >
+                          <span className="vtt2-rail-init">{initials(s.name)}</span>
+                          <span className="vtt2-rail-name">{s.name}</span>
+                          {s.id === pinnedId && (
+                            <span className="vtt2-rail-pin" aria-label="Pinned for the table">
+                              <IconPin />
+                            </span>
+                          )}
+                        </button>
+                        <button
+                          className="vtt2-rail-more"
+                          aria-label={`Scene tools for ${s.name}`}
+                          title={`Scene tools for ${s.name}`}
+                          onClick={(e) => {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            setMenu({ id: s.id, y: rect.top + rect.height / 2 });
+                          }}
+                        >
+                          ···
+                        </button>
+                      </div>
                     ))}
                 </div>
               );

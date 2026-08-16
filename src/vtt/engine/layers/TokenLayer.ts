@@ -66,11 +66,18 @@ export class TokenLayer {
   }
 
   /** Which transform handle (if any) is under the world point for the selected token. */
-  pickHandle(scene: VttScene, selectedId: string, wx: number, wy: number, zoom: number): "rotate" | "scale" | null {
+  pickHandle(
+    scene: VttScene,
+    selectedId: string,
+    wx: number,
+    wy: number,
+    zoom: number,
+    screenTolerance = 14
+  ): "rotate" | "scale" | null {
     const t = scene.data.tokens.find((x) => x.id === selectedId);
     if (!t) return null;
     const p = this.handlePoints(t, scene.data.grid.size);
-    const tol = 14 / Math.max(zoom, 0.001);
+    const tol = screenTolerance / Math.max(zoom, 0.001);
     if ((wx - p.rot.x) ** 2 + (wy - p.rot.y) ** 2 <= tol * tol) return "rotate";
     if ((wx - p.scale.x) ** 2 + (wy - p.scale.y) ** 2 <= tol * tol) return "scale";
     return null;

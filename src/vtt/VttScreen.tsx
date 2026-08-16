@@ -2065,7 +2065,7 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
       )}
       {playHidden && (
         <div className="vtt2-playbar">
-          <span className="vtt2-playbar-hint">Play mode — move your token · double-click to ping</span>
+          <span className="vtt2-playbar-hint">Play mode — move your token · double-click or double-tap to ping</span>
           {campaign && (
             <button className={"chip" + (leftPanel === "abilities" ? " active" : "")} onClick={() => setLeftPanel((p) => (p === "abilities" ? null : "abilities"))}>
               Abilities
@@ -2089,6 +2089,7 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
         </div>
       )}
       <div className="vtt2-stage" ref={hostRef}>
+        <span className="vtt2-touch-hint" aria-hidden="true">One finger selects or drags · two fingers pan and pinch-zoom</span>
         {sel?.kind === "token" && engine?.canControlToken(sel.id) && (
           <VttRadialMenu engine={engine} tokenId={sel.id} />
         )}
@@ -2301,8 +2302,9 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
       {armedAoe && (
         <div
           className="vtt2-aoe-place"
-          onMouseDown={(e) => {
-            if (e.button !== 0) return; // right/middle keep panning
+          onPointerDown={(e) => {
+            if (!e.isPrimary || e.button !== 0) return; // right/middle keep panning
+            e.preventDefault();
             const eng = engineRef.current;
             if (eng) {
               const w = eng.clientToWorld(e.clientX, e.clientY);
@@ -2311,14 +2313,15 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
             setArmedAoe(null);
           }}
         >
-          <span className="vtt2-aoe-place-hint">Click to place the area · Esc to cancel</span>
+          <span className="vtt2-aoe-place-hint">Click or tap to place the area · Esc to cancel</span>
         </div>
       )}
       {armedSound && (
         <div
           className="vtt2-aoe-place"
-          onMouseDown={(e) => {
-            if (e.button !== 0) return;
+          onPointerDown={(e) => {
+            if (!e.isPrimary || e.button !== 0) return;
+            e.preventDefault();
             const eng = engineRef.current;
             if (eng) {
               const w = eng.clientToWorld(e.clientX, e.clientY);
@@ -2327,7 +2330,7 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
             setArmedSound(null);
           }}
         >
-          <span className="vtt2-aoe-place-hint">Click to pin “{armedSound.name}” to the map · Esc to cancel</span>
+          <span className="vtt2-aoe-place-hint">Click or tap to pin “{armedSound.name}” to the map · Esc to cancel</span>
         </div>
       )}
       {cineOpen && !asPlayer && live && (

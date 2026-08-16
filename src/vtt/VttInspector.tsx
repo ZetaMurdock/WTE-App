@@ -85,20 +85,31 @@ export function VttInspector({ sel, scene, onToken, onTokenImage, onRecoverToken
                 onChange={(e) => onToken({ size: Math.max(1, Math.min(6, parseInt(e.target.value, 10) || 1)) })}
               />
             </label>
-            {curator && (
-              <label className="lobby-field">
-                <span>Vision (cells)</span>
-                <input
-                  className="bg-select full"
-                  type="number"
-                  min={0}
-                  max={30}
-                  value={token.vision ?? 5}
-                  onChange={(e) => onToken({ vision: Math.max(0, Math.min(30, parseInt(e.target.value, 10) || 0)) })}
-                />
-              </label>
-            )}
+            <label className="lobby-field">
+              <span>Rotation (degrees)</span>
+              <input
+                className="bg-select full"
+                type="number"
+                min={0}
+                max={359}
+                value={Math.round(token.rotation ?? 0)}
+                onChange={(e) => onToken({ rotation: ((parseInt(e.target.value, 10) || 0) % 360 + 360) % 360 })}
+              />
+            </label>
           </div>
+          {curator && (
+            <label className="lobby-field mt">
+              <span>Vision (cells)</span>
+              <input
+                className="bg-select full"
+                type="number"
+                min={0}
+                max={30}
+                value={token.vision ?? 5}
+                onChange={(e) => onToken({ vision: Math.max(0, Math.min(30, parseInt(e.target.value, 10) || 0)) })}
+              />
+            </label>
+          )}
           <div className="lobby-field mt">
             <span>Color</span>
             <div className="seq-pick-row" style={{ marginBottom: 0 }}>
