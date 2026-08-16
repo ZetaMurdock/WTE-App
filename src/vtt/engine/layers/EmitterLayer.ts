@@ -30,8 +30,8 @@ export class EmitterLayer {
     }
   }
 
-  pick(scene: VttScene, wx: number, wy: number, zoom: number): string | null {
-    const tol = Math.max(14 / Math.max(zoom, 0.001), scene.data.grid.size * 0.4);
+  pick(scene: VttScene, wx: number, wy: number, zoom: number, screenTolerance = 14): string | null {
+    const tol = Math.max(screenTolerance / Math.max(zoom, 0.001), scene.data.grid.size * 0.4);
     const list = scene.data.emitters ?? [];
     for (let i = list.length - 1; i >= 0; i--) {
       const e = list[i];

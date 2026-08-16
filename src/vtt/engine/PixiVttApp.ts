@@ -813,6 +813,12 @@ export class PixiVttApp {
     this.onChanged();
     this.onOp({ op: "draw.add", drawing });
   }
+  /** Drop an in-progress stroke without committing it. Touch pinch takeover,
+   * pointer cancellation, and teardown all use this path. */
+  cancelDraw(): void {
+    this.stroke = null;
+    this.drawings.clearPreview();
+  }
   /** Curator: wipe every annotation (synced). */
   clearDrawings(): void {
     if (this.playerView || !this.scene?.data.drawings?.length) return;

@@ -29,8 +29,8 @@ export class WallLayer {
     this.previewG.clear();
   }
   /** Nearest wall within tolerance of the world point (screen-scaled). */
-  pick(scene: VttScene, wx: number, wy: number, zoom: number): string | null {
-    const tol = 12 / Math.max(zoom, 0.001);
+  pick(scene: VttScene, wx: number, wy: number, zoom: number, screenTolerance = 12): string | null {
+    const tol = screenTolerance / Math.max(zoom, 0.001);
     let best: string | null = null;
     let bestD = tol;
     for (const w of scene.data.walls) {

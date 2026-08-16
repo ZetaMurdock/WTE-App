@@ -70,9 +70,9 @@ export class EffectLayer {
 
   /** Topmost effect whose centre handle (or body) contains the point. Body hits
    *  cover EVERY shape (circle/cone/line/ring/cross/zone) via effectGeometry. */
-  pick(scene: VttScene, wx: number, wy: number, zoom: number): string | null {
+  pick(scene: VttScene, wx: number, wy: number, zoom: number, screenTolerance = 12): string | null {
     const size = scene.data.grid.size;
-    const tol = 12 / Math.max(zoom, 0.001);
+    const tol = screenTolerance / Math.max(zoom, 0.001);
     const list = scene.data.effects;
     for (let i = list.length - 1; i >= 0; i--) {
       const e = list[i];

@@ -5481,6 +5481,66 @@ body.wte-dot-cursor * {
   background: rgba(126, 207, 202, 0.22);
   border-color: var(--accent);
 }
+/* Touchscreen laptops need real finger-sized targets. The canvas itself owns
+   two-finger gestures, while the wide tool strip remains horizontally
+   swipeable instead of shrinking its labels into tiny buttons. */
+@media (any-pointer: coarse) {
+  .vtt2-toolbar {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    touch-action: pan-x;
+    padding-block: 4px;
+  }
+  .vtt2-toolbar::-webkit-scrollbar {
+    display: none;
+  }
+  .vtt2-toolbar > * {
+    flex-shrink: 0;
+  }
+  .vtt2-toolbar .rank-spacer {
+    flex: 0 0 12px;
+  }
+  .vtt2-toolbar .chip {
+    min-height: 44px;
+    padding-inline: 11px;
+  }
+  .vtt2-toolbar .vtt2-scene-name {
+    min-height: 44px;
+  }
+  .vtt2-actionbar {
+    bottom: 8px;
+    max-width: calc(100% - 16px);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    touch-action: pan-x;
+  }
+  .vtt2-actionbar::-webkit-scrollbar {
+    display: none;
+  }
+  .vtt2-action {
+    min-height: 44px;
+    padding: 9px 13px;
+  }
+  .vtt2-radial-btn {
+    width: 46px;
+    height: 46px;
+    font-size: 13px;
+  }
+  .vtt2-rail-toggle,
+  .vtt2-rail-step {
+    min-height: 44px;
+  }
+  .vtt2-rail-card {
+    min-height: 48px;
+  }
+  .vtt2-insp-head .cdx-tab-x,
+  .vtt2-insp-head .icon-btn {
+    min-width: 42px;
+    min-height: 42px;
+  }
+}
 /* Pilot mode button (3D view, above the action bar) */
 .vtt2-pilot-btn {
   position: absolute;
@@ -5802,12 +5862,20 @@ body.wte-dot-cursor * {
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+.vtt2-rail-cardrow {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  width: 100%;
+}
 .vtt2-rail-card {
   position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid var(--panel-line);
   border-radius: 8px;
@@ -5815,6 +5883,29 @@ body.wte-dot-cursor * {
   padding: 7px 8px;
   cursor: pointer;
   text-align: left;
+}
+.vtt2-rail-more {
+  flex: 0 0 32px;
+  width: 32px;
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.vtt2-rail-more:hover,
+.vtt2-rail-more:focus-visible {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+@media (any-pointer: coarse) {
+  .vtt2-rail-more {
+    flex-basis: 44px;
+    width: 44px;
+    min-height: 48px;
+  }
 }
 .vtt2-rail-card:hover {
   color: var(--ink);
@@ -5940,11 +6031,44 @@ body.wte-dot-cursor * {
   flex: 1;
   position: relative;
   overflow: hidden;
+  touch-action: none;
+  overscroll-behavior: contain;
+  user-select: none;
+  -webkit-user-select: none;
   background: radial-gradient(ellipse at 40% 30%, #0a1122 0%, var(--bg) 65%);
 }
 .vtt2-stage canvas {
   position: absolute;
   inset: 0;
+  touch-action: none;
+  overscroll-behavior: contain;
+  -webkit-touch-callout: none;
+}
+.vtt2-touch-hint {
+  display: none;
+}
+@media (any-pointer: coarse) {
+  .vtt2-touch-hint {
+    display: block;
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    z-index: 7;
+    transform: translateX(-50%);
+    padding: 6px 10px;
+    border: 1px solid rgba(126, 207, 202, 0.3);
+    border-radius: 999px;
+    background: rgba(10, 17, 34, 0.78);
+    color: var(--muted);
+    font-size: 10px;
+    letter-spacing: 0.4px;
+    white-space: nowrap;
+    pointer-events: none;
+    animation: vtt-touch-hint-away 0.35s ease 5s forwards;
+  }
+}
+@keyframes vtt-touch-hint-away {
+  to { opacity: 0; visibility: hidden; }
 }
 .vtt2-stage3d {
   position: absolute;
@@ -6830,11 +6954,12 @@ body.wte-dot-cursor * {
 }
 .vtt2-roll-exprrow {
   display: flex;
+  flex-wrap: wrap;
   gap: 5px;
   margin: 6px 0 4px;
 }
 .vtt2-roll-expr {
-  flex: 1;
+  flex: 1 1 100%;
   min-width: 0;
   font-family: Consolas, monospace;
 }
@@ -6842,8 +6967,25 @@ body.wte-dot-cursor * {
   border-color: #b5564e;
 }
 .vtt2-roll-go {
+  flex: 1 1 auto;
   white-space: nowrap;
   padding: 4px 12px;
+}
+.vtt2-roll-actions {
+  display: flex;
+  width: 100%;
+  gap: 5px;
+}
+.vtt2-roll-mode {
+  flex: 0 0 42px;
+  min-width: 42px;
+  padding-inline: 5px;
+}
+@media (any-pointer: coarse) {
+  .vtt2-roll-actions > button,
+  .vtt2-die {
+    min-height: 44px;
+  }
 }
 .vtt2-dicetray {
   display: flex;

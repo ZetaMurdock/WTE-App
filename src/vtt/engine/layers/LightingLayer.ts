@@ -122,8 +122,8 @@ export class LightingLayer {
     }
   }
 
-  pick(scene: VttScene, wx: number, wy: number, zoom: number): string | null {
-    const tol = 12 / Math.max(zoom, 0.001);
+  pick(scene: VttScene, wx: number, wy: number, zoom: number, screenTolerance = 12): string | null {
+    const tol = screenTolerance / Math.max(zoom, 0.001);
     for (let i = scene.data.lights.length - 1; i >= 0; i--) {
       const l = scene.data.lights[i];
       if ((wx - l.x) ** 2 + (wy - l.y) ** 2 <= tol * tol) return l.id;
