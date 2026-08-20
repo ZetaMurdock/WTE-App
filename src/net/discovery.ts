@@ -12,26 +12,44 @@ export interface DiscoveredHost {
 
 // Nominal port advertised in the SRV record; the signaling server binds it in slice 2b.
 export const SIGNAL_PORT = 45333;
-const ephemeralPeerId = "p-" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+let sessionPeerId: string | null = null;
+
+function generateRandomPeerId(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : "p-" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+}
 
 function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   return (window as unknown as { __TAURI__: { core: { invoke: (c: string, a?: Record<string, unknown>) => Promise<T> } } })
     .__TAURI__.core.invoke(cmd, args);
 }
 
-// A stable per-install peer id, persisted in localStorage.
+// A per-tab/session peer id, seeded from localStorage device identity.
 export function myPeerId(): string {
+  if (sessionPeerId && /^[a-z0-9_-]{8,64}$/i.test(sessionPeerId)) {
+    return sessionPeerId;
+  }
+
   try {
-    let id = localStorage.getItem("wte-peer-id");
+    let id = sessionStorage.getItem("wte-peer-id");
     if (!id || !/^[a-z0-9_-]{8,64}$/i.test(id)) {
-      id = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : "p-" + Math.random().toString(36).slice(2, 10);
-      localStorage.setItem("wte-peer-id", id);
+      let base = localStorage.getItem("wte-peer-id");
+      if (!base || !/^[a-z0-9_-]{8,64}$/i.test(base)) {
+        base = generateRandomPeerId();
+        localStorage.setItem("wte-peer-id", base);
+      }
+      // Combine persistent device base with session suffix for tab uniqueness
+      id = `${base.slice(0, 36)}-${Math.random().toString(36).slice(2, 8)}`;
+      sessionStorage.setItem("wte-peer-id", id);
     }
+    sessionPeerId = id;
     return id;
   } catch {
-    // Private browsing / disabled storage must not collapse every client onto
-    // the same identity. Keep one unpredictable ID for this app lifetime.
-    return ephemeralPeerId;
+    if (!sessionPeerId) {
+      sessionPeerId = generateRandomPeerId();
+    }
+    return sessionPeerId;
   }
 }
 export function myPeerName(): string {

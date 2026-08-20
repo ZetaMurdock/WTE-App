@@ -93,6 +93,20 @@ async function main() {
   const anaLeave = await anaLeaveP;
   check("ana hears bo leave", anaLeave.t === "peer-leave" && anaLeave.peer === "bo");
 
+  // Stale connection eviction: if a socket is unalive / terminated, a rejoining peer can claim the ID.
+  const ghost = new WebSocket(URL);
+  await open(ghost);
+  ghost.send(JSON.stringify({ t: "join", room: "STALE", peer: "ghost-peer", role: "player", name: "Ghost" }));
+  await nextMsg(ghost);
+  ghost.terminate(); // Abrupt drop without clean close handshake
+
+  const replacement = new WebSocket(URL);
+  await open(replacement);
+  replacement.send(JSON.stringify({ t: "join", room: "STALE", peer: "ghost-peer", role: "player", name: "Replaced" }));
+  const replacementJoined = await nextMsg(replacement);
+  check("stale connection is evicted and rejoining succeeds", replacementJoined.t === "joined");
+  replacement.close();
+
   host.close();
   ana.close();
   solo.close();

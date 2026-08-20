@@ -24,6 +24,25 @@ function createSignalingServer(port = Number(process.env.PORT) || 8787) {
   });
 
   const wss = new WebSocketServer({ server: httpServer, maxPayload: MAX_MSG });
+  const heartbeatInterval = setInterval(() => {
+    wss.clients.forEach((ws) => {
+      if (ws.isAlive === false) {
+        try {
+          ws.terminate();
+        } catch {
+          /* ignore */
+        }
+        return;
+      }
+      ws.isAlive = false;
+      try {
+        ws.ping();
+      } catch {
+        /* ignore */
+      }
+    });
+  }, 30000);
+
   const send = (ws, obj) => {
     try {
       ws.send(JSON.stringify(obj));
@@ -33,6 +52,11 @@ function createSignalingServer(port = Number(process.env.PORT) || 8787) {
   };
 
   wss.on("connection", (ws) => {
+    ws.isAlive = true;
+    ws.on("pong", () => {
+      ws.isAlive = true;
+    });
+
     let room = null;
     let peer = null;
 
@@ -67,16 +91,39 @@ function createSignalingServer(port = Number(process.env.PORT) || 8787) {
         if (!requestedRoom || !requestedPeer) return send(ws, { t: "error", message: "room and peer required" });
         let r = rooms.get(requestedRoom);
         if (!r) rooms.set(requestedRoom, (r = new Map()));
-        const existing = r.get(requestedPeer);
+        let existing = r.get(requestedPeer);
         if (existing && existing.ws !== ws) {
-          send(ws, { t: "error", message: "peer id already connected" });
-          ws.close(1008, "duplicate peer id");
-          return;
+          if (existing.ws.readyState !== 1 || existing.ws.isAlive === false) {
+            try {
+              existing.ws.terminate();
+            } catch {
+              /* ignore */
+            }
+            r.delete(requestedPeer);
+            existing = null;
+          } else {
+            send(ws, { t: "error", message: "peer id already connected" });
+            ws.close(1008, "duplicate peer id");
+            return;
+          }
         }
-        if (role === "host" && [...r.values()].some((entry) => entry.role === "host" && entry.ws !== ws)) {
-          send(ws, { t: "error", message: "room already has a host" });
-          ws.close(1008, "duplicate host");
-          return;
+        if (role === "host") {
+          for (const [id, entry] of r.entries()) {
+            if (entry.role === "host" && entry.ws !== ws) {
+              if (entry.ws.readyState !== 1 || entry.ws.isAlive === false) {
+                try {
+                  entry.ws.terminate();
+                } catch {
+                  /* ignore */
+                }
+                r.delete(id);
+              } else {
+                send(ws, { t: "error", message: "room already has a host" });
+                ws.close(1008, "duplicate host");
+                return;
+              }
+            }
+          }
         }
         if (r.size >= MAX_PEERS_PER_ROOM && !existing) return send(ws, { t: "error", message: "room full" });
         room = requestedRoom;
@@ -112,7 +159,15 @@ function createSignalingServer(port = Number(process.env.PORT) || 8787) {
   });
 
   httpServer.listen(port, () => console.log(`W.T.E signaling server listening on :${port}`));
-  return { httpServer, wss, rooms, close: () => new Promise((res) => httpServer.close(res)) };
+  return {
+    httpServer,
+    wss,
+    rooms,
+    close: () => {
+      clearInterval(heartbeatInterval);
+      return new Promise((res) => httpServer.close(res));
+    },
+  };
 }
 
 module.exports = { createSignalingServer };
