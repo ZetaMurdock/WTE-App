@@ -53,12 +53,12 @@ describe("species catalog (rebuilt from the wiki pages)", () => {
     expect(ygloracellia.abilities[2].effect).toContain("capped at +10");
 
     const reVarant = getSpecies("voaulton")!.variants.find((v) => v.name === "Re-Varant")!;
-    expect(reVarant.note).toContain("bipedal and Tiny");
-    expect(reVarant.note).toContain("Tauron");
+    expect(reVarant.note).toContain("Bipedal · Tiny");
+    expect(reVarant.note).toContain("tauron");
     expect(reVarant.abilities.map((a) => a.name)).toEqual(["Resurrection", "Phylaction", "En-cTusion"]);
-    expect(reVarant.abilities[0].effect).toContain("65% of your combined HP and DHP");
-    expect(reVarant.abilities[1].effect).toContain("False Augo gland");
-    expect(reVarant.abilities[2].effect).toContain("double Disadvantage");
+    expect(reVarant.abilities[0].effect).toContain("Density Check");
+    expect(reVarant.abilities[1].effect).toContain("Hollow Body Syndrome");
+    expect(reVarant.abilities[2].effect).toContain("15 DHP");
 
     for (const s of SPECIES) {
       for (const v of s.variants) {
