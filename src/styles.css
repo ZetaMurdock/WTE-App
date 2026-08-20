@@ -2180,6 +2180,57 @@ body.wte-dot-cursor * {
 .vital-delta.neg {
   color: #a1584a;
 }
+.vital-num-btn {
+  background: none;
+  border: none;
+  color: var(--ink);
+  font-family: Consolas, monospace;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+.vital-num-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--accent);
+}
+.vital-ctrls {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 2px;
+}
+.vital-btn {
+  background: var(--bg);
+  border: 1px solid var(--panel-line);
+  border-radius: 4px;
+  color: var(--ink);
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  font-weight: bold;
+  width: 22px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s ease;
+}
+.vital-btn:hover {
+  border-color: var(--accent);
+  background: var(--panel);
+  color: var(--accent);
+}
+.vital-btn.neg:hover {
+  border-color: #a1584a;
+  color: #a1584a;
+}
+.vital-btn.pos:hover {
+  border-color: #6f9a68;
+  color: #6f9a68;
+}
 .sheet-derived-under {
   margin-bottom: 18px;
 }

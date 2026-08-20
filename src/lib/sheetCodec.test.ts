@@ -52,6 +52,8 @@ function fullSheet(): CharacterSheet {
     weaponLoadout: ["A Weapon"],
     gearLoadout: ["Some Gear"],
     ssSpent: 5,
+    hpDamage: 0,
+    dhpDamage: 0,
     allowOverrides: true,
     derivedOverrides: { hpMax: 321, ncMod: 9 },
     notes: "plain notes",

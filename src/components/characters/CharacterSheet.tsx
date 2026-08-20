@@ -523,7 +523,27 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
         {curator && <span className="curator-flag on">Curator Mode</span>}
       </div>
 
-      <CharacterVitals derived={derived} derivedBase={derivedBase} ssSpent={ssSpent} />
+      <CharacterVitals
+        derived={derived}
+        derivedBase={derivedBase}
+        ssSpent={ssSpent}
+        hpDamage={sheet.hpDamage}
+        dhpDamage={sheet.dhpDamage}
+        curator={curator}
+        onUpdateVitals={({ hpDamage, dhpDamage, ssSpent, hpMaxOverride, dhpOverride }) => {
+          const nextSheet = { ...sheet };
+          if (hpDamage !== undefined) nextSheet.hpDamage = Math.max(0, hpDamage);
+          if (dhpDamage !== undefined) nextSheet.dhpDamage = Math.max(0, dhpDamage);
+          if (ssSpent !== undefined) nextSheet.ssSpent = Math.max(0, ssSpent);
+          if (hpMaxOverride !== undefined || dhpOverride !== undefined) {
+            const overrides = { ...(sheet.derivedOverrides ?? {}) };
+            if (hpMaxOverride !== undefined) overrides.hpMax = hpMaxOverride;
+            if (dhpOverride !== undefined) overrides.dhp = dhpOverride;
+            nextSheet.derivedOverrides = overrides;
+          }
+          persist({ ...rec!, sheet: nextSheet });
+        }}
+      />
 
       <div className="sheet-derived-under">
         <div className="panel-title">Derived Statistics</div>

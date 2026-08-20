@@ -65,6 +65,10 @@ export interface CharacterSheet {
   gearLoadout?: string[];
   /** Synaptic Space spent (current SS = derived SS − ssSpent); reset by Rest. */
   ssSpent?: number;
+  /** Damage taken to HP (current HP = hpMax − hpDamage). */
+  hpDamage?: number;
+  /** Damage taken to DHP (current DHP = dhpMax − dhpDamage). */
+  dhpDamage?: number;
   /** Curator switch: may this character's stats be hand-edited/overridden? */
   allowOverrides?: boolean;
   /** Manual derived-stat overrides (Curator-sanctioned) — replace computed values. */
