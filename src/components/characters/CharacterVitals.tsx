@@ -41,7 +41,6 @@ export function CharacterVitals({
   ssSpent,
   hpDamage = 0,
   dhpDamage = 0,
-  curator = false,
   onUpdateVitals,
 }: Props) {
   const maxHP = derived.hpMax;
