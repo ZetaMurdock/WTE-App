@@ -55,8 +55,14 @@ describe("a homebrew ability authored in a campaign belongs to that campaign", (
     expect(out.content).toMatch(/\|\s*Aliases\s*\|\s*Old Name\s*\|/);
   });
 
-  it("leaves a lore page alone entirely", () => {
-    expect(pinPageIdentity({ content: "# Some History\n\nProse.", stem: "H", campaignId: CAMPAIGN })).toBeNull();
+  it("pins campaign lore as an owned generic page", () => {
+    const out = pinPageIdentity({ content: "# Some History\n\nProse.", stem: "H", campaignId: CAMPAIGN })!;
+    expect(parseId(out.id)).toMatchObject({ scope: "campaign", owner: CAMPAIGN, kind: "page" });
+    expect(storedPageFor("H", out.content, CAMPAIGN)?.id).toBe(out.id);
+  });
+
+  it("leaves official lore alone entirely", () => {
+    expect(pinPageIdentity({ content: "# Some History\n\nProse.", stem: "H" })).toBeNull();
   });
 });
 

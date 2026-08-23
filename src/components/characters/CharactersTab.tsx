@@ -10,6 +10,7 @@ import { useNet } from "../../net/NetContext";
 import { CharacterVault } from "./CharacterVault";
 import { CharacterCreator } from "./CharacterCreator";
 import { CharacterSheet } from "./CharacterSheet";
+import { useCampaignCodex } from "../../game/useCampaignCodex";
 
 type View = { mode: "vault" } | { mode: "creator"; editId?: string } | { mode: "sheet"; id: string };
 
@@ -22,20 +23,21 @@ interface Props {
 
 export function CharactersTab({ campaign: localCampaign, curator, onCharactersChanged }: Props) {
   const net = useNet();
+  const codex = useCampaignCodex();
   // A player at a Curator's table has no campaign of their OWN. Rather than
   // blocking the whole tab, stand in a campaign built from the table link, so the
   // vault works and characters file themselves into the table.
+  const linkedCampaign = net.status === "connected" && net.table?.campaignId ? net.table : null;
   const campaign: Campaign | null =
-    localCampaign ??
-    (net.table?.campaignId
+    (linkedCampaign
       ? {
-          id: net.table.campaignId,
-          name: net.table.campaignName || "Curator's table",
-          createdAt: net.table.joinedAt,
-          updatedAt: net.table.lastSeen,
+          id: linkedCampaign.campaignId,
+          name: linkedCampaign.campaignName || "Curator's table",
+          createdAt: linkedCampaign.joinedAt,
+          updatedAt: linkedCampaign.lastSeen,
           archived: false,
         }
-      : null);
+      : null) ?? localCampaign;
   const [view, setView] = useState<View>({ mode: "vault" });
   const [characters, setCharacters] = useState<CharacterRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,6 +77,20 @@ export function CharactersTab({ campaign: localCampaign, curator, onCharactersCh
             ? "Loading this table's campaign…"
             : "Select or create a campaign first (Dashboard tab) — or join your Curator's room and build a character straight from the Table tab."}
         </p>
+      </div>
+    );
+  }
+  if (linkedCampaign && net.role === "player" && (codex.status !== "ready" || codex.campaignId !== linkedCampaign.campaignId)) {
+    return (
+      <div className="dashboard">
+        <div className="panel">
+          <div className="panel-title">Campaign Codex</div>
+          <p className="list-empty">
+            {codex.status === "error"
+              ? codex.message
+              : "Syncing the Curator's backgrounds, species, paradigms and table rules before opening this campaign…"}
+          </p>
+        </div>
       </div>
     );
   }

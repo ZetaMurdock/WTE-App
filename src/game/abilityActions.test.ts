@@ -51,6 +51,36 @@ describe("ability action parser", () => {
     ]));
   });
 
+  it("preserves Universal Resolution path and direction instead of reducing them to a stat", () => {
+    const acts = parseAbilityActions(
+      "Resolution: Mental Check — Capacity vs Physical Save — Evasion. The target makes a Mental Check — Perception (DC 14)."
+    );
+
+    expect(acts).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "self",
+        label: "Mental Check — Capacity",
+        rollAxis: { axis: "mental", direction: "check", path: "capacity" },
+      }),
+      expect.objectContaining({
+        kind: "save",
+        label: "Physical Save — Evasion",
+        rollAxis: { axis: "physical", direction: "save", path: "evasion" },
+      }),
+      expect.objectContaining({
+        kind: "save",
+        label: "Mental Check — Perception · DC 14",
+        dc: 14,
+        rollAxis: { axis: "mental", direction: "check", path: "perception" },
+      }),
+    ]));
+    expect(acts.some((action) => action.stat === "Physical")).toBe(false);
+  });
+
+  it("ignores impossible axis/path pairs instead of creating a misleading bare roll", () => {
+    expect(parseAbilityActions("The target makes a Physical Save — Power.")).toEqual([]);
+  });
+
   it("returns nothing actionable for pure flavor prose", () => {
     expect(parseAbilityActions("Passively sense magnetic fields; manipulate any field within 45 ft.")).toEqual([]);
   });

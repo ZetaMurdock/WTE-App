@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { PAGE_TEMPLATES, parsePreview } from "./pageTemplates";
 import { parseCodexEntry } from "./codexParse";
 import { parseBackgroundPage, parseParadigmPage, parseSpeciesPage } from "./gameData";
+import { parseRollFormulaPage } from "../game/rollFormula";
 
 describe("page templates parse into their own record types", () => {
   it("Weapon", () => {
@@ -47,6 +48,10 @@ describe("page templates parse into their own record types", () => {
     expect(b?.attrBonus?.wis).toBe(2);
     expect(b?.specBonus?.per).toBe(2);
   });
+  it("Roll Formula (safe expression lands)", () => {
+    const parsed = parseRollFormulaPage(PAGE_TEMPLATES["Roll Formula"], "t");
+    expect(parsed).toMatchObject({ ok: true, formula: { target: "attribute", die: 20 } });
+  });
 });
 
 describe("parsePreview", () => {
@@ -54,6 +59,7 @@ describe("parsePreview", () => {
     expect(parsePreview(PAGE_TEMPLATES.Weapon)).toMatch(/^Weapon — /);
     expect(parsePreview(PAGE_TEMPLATES.Creature)).toMatch(/^Creature — .* Class 1/);
     expect(parsePreview(PAGE_TEMPLATES.Species)).toMatch(/^Species — /);
+    expect(parsePreview(PAGE_TEMPLATES["Roll Formula"])).toMatch(/^Roll Formula — attribute/);
   });
   it("flags a typeless page as lore", () => {
     expect(parsePreview("# Just a story\n\nOnce upon a time.")).toMatch(/Lore page/);

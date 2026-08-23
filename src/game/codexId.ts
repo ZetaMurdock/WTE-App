@@ -47,6 +47,7 @@ export const ID_KINDS = [
   "attribute",
   "derived",
   "variable",
+  "formula",
   "page",
   "sequence",
   "note",

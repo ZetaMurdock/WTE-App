@@ -1023,6 +1023,173 @@ body.wte-dot-cursor * {
 .dash-desk {
   margin-top: 26px;
 }
+.campaign-codex {
+  margin: 0 0 34px;
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-radius: 10px;
+  padding: 16px 18px 18px;
+}
+.campaign-codex-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 14px;
+}
+.campaign-codex-title {
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: normal;
+  margin: 0 0 4px;
+}
+.campaign-codex-summary {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 0;
+}
+.campaign-codex-error {
+  color: #d05a44;
+  font-size: 12px;
+  margin: 8px 0 0;
+}
+.campaign-codex-filter {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.16);
+  border: 1px solid var(--panel-line);
+  border-radius: 6px;
+  color: var(--ink);
+  font: 11px Consolas, monospace;
+}
+.campaign-codex-filter:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.campaign-codex-groups {
+  display: grid;
+  gap: 12px;
+}
+.campaign-codex-group {
+  border: 1px solid var(--panel-line);
+  border-radius: 7px;
+  overflow: hidden;
+}
+.campaign-codex-grouphead {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--bone);
+  font-size: 10px;
+  letter-spacing: 2px;
+  padding: 8px 11px;
+  text-transform: uppercase;
+  cursor: pointer;
+  list-style: none;
+}
+.campaign-codex-grouphead::-webkit-details-marker {
+  display: none;
+}
+.campaign-codex-grouphead::before {
+  content: "▸";
+  color: var(--muted);
+  margin-right: 8px;
+}
+.campaign-codex-group[open] > .campaign-codex-grouphead::before {
+  content: "▾";
+}
+.campaign-codex-count {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  color: var(--muted);
+  font-family: Consolas, monospace;
+  letter-spacing: 0;
+  padding: 1px 8px;
+  margin-left: auto;
+}
+.campaign-codex-pages {
+  display: grid;
+}
+.campaign-codex-page {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 9px 11px;
+}
+.campaign-codex-page + .campaign-codex-page {
+  border-top: 1px solid rgba(255, 255, 255, 0.045);
+}
+.campaign-codex-page-main {
+  min-width: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--ink);
+  cursor: pointer;
+  font-family: Georgia, serif;
+  text-align: left;
+}
+.campaign-codex-page-main:hover .campaign-codex-page-title {
+  color: var(--accent);
+}
+.campaign-codex-page-title,
+.campaign-codex-page-id {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.campaign-codex-page-title {
+  font-size: 13px;
+}
+.campaign-codex-page-id {
+  color: var(--muted);
+  font-family: Consolas, monospace;
+  font-size: 9px;
+  margin-top: 2px;
+}
+.campaign-codex-statuses,
+.campaign-codex-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.campaign-codex-badge {
+  border: 1px solid var(--panel-line);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 8px;
+  letter-spacing: 0.7px;
+  padding: 2px 6px;
+  text-transform: uppercase;
+}
+.campaign-codex-badge.source-campaign,
+.campaign-codex-badge.pulled {
+  border-color: rgba(126, 207, 202, 0.55);
+  color: var(--accent);
+}
+.campaign-codex-badge.visibility-curator {
+  border-color: #a08a4f;
+  color: #c6aa5d;
+}
+.campaign-codex-badge.not-pulled {
+  opacity: 0.65;
+}
+@media (max-width: 760px) {
+  .campaign-codex-page {
+    grid-template-columns: 1fr;
+  }
+  .campaign-codex-actions {
+    justify-content: flex-start;
+  }
+}
 .desk-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -5447,6 +5614,21 @@ body.wte-dot-cursor * {
   position: relative;
   overflow: hidden;
 }
+.vtt2-codex-gate {
+  position: absolute;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(5px);
+  pointer-events: all;
+}
+.vtt2-codex-gate-card {
+  width: min(520px, 100%);
+  text-align: center;
+}
 .vtt2-toolbar {
   display: flex;
   align-items: center;
@@ -7067,6 +7249,13 @@ body.wte-dot-cursor * {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.vtt2-requested-axis-choices {
+  margin: 7px 0 9px;
+}
+.vtt2-requested-axis-choices .ghost-btn.active {
+  border-color: var(--accent);
+  background: rgba(126, 207, 202, 0.14);
 }
 .vtt2-roll-exprrow {
   display: flex;

@@ -51,6 +51,10 @@ interface Row {
 
 let tablePresent: boolean | null = null;
 
+function announceCodexChanged(): void {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("wte-pages-changed"));
+}
+
 /** Test seam, and a way to re-check after a migration lands mid-session. */
 export function __resetCodexPageRepo(): void {
   tablePresent = null;
@@ -176,12 +180,14 @@ export async function saveCodexPage(page: StoredCodexPage): Promise<void> {
       page.updatedAt || Date.now(),
     ]
   );
+  announceCodexChanged();
 }
 
 export async function deleteCodexPage(id: string): Promise<void> {
   if (!(await haveTable())) return;
   const db = await getDb();
   await db.execute("DELETE FROM codex_pages WHERE id = $1", [id]);
+  announceCodexChanged();
 }
 
 /** Remove every page a campaign owns. Used when undoing a failed copy import. */
@@ -189,4 +195,5 @@ export async function deleteCampaignCodexPages(campaignId: string): Promise<void
   if (!campaignId || !(await haveTable())) return;
   const db = await getDb();
   await db.execute("DELETE FROM codex_pages WHERE campaign_id = $1", [campaignId]);
+  announceCodexChanged();
 }

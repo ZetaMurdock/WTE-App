@@ -5,8 +5,9 @@
 // the page will become, so authors see "parses as …" while they type.
 import { parseCodexEntry } from "./codexParse";
 import { parseBackgroundPage, parseParadigmPage, parseSpeciesPage } from "./gameData";
+import { parseRollFormulaPage } from "../game/rollFormula";
 
-export const TEMPLATE_LABELS = ["Creature", "Weapon", "Equipment", "Cipher", "Genus", "Species", "Paradigm", "Background"] as const;
+export const TEMPLATE_LABELS = ["Creature", "Weapon", "Equipment", "Cipher", "Genus", "Species", "Paradigm", "Background", "Roll Formula"] as const;
 export type TemplateLabel = (typeof TEMPLATE_LABELS)[number];
 
 export const PAGE_TEMPLATES: Record<TemplateLabel, string> = {
@@ -102,6 +103,11 @@ What this creature is and where it's found.
 | Bonuses | STR +2, END +1 |
 | Innate | Darkvision |
 | Size | medium |
+| Dominance |  |
+| Recessiveness |  |
+| Eminence |  |
+| Innate Select | 2 |
+| Note |  |
 
 ## Variants
 ### Variant One
@@ -124,10 +130,44 @@ What this creature is and where it's found.
 
 Note: One line on who takes this background.
 `,
+  "Roll Formula": `# Attribute Check Formula
+
+| Type | Roll Formula |
+| Target | Attribute |
+| Die | 20 |
+| Modifier | floor((score - 10) / 2) |
+| Direction |  |
+| Below |  |
+| Penalty |  |
+| Visibility | player |
+
+<!--
+Targets: Attribute, Specialty, Roll Axis Attribute, Roll Axis Specialty.
+Score formulas may use only the variable "score". Roll Axis formulas may use
+only "source" and "derived". Allowed arithmetic: + - * /, parentheses, and the
+functions floor, ceil, round, trunc, abs, min, max. This is parsed as data and
+never executed as JavaScript.
+Division must have a denominator that cannot be zero and must be wrapped in
+floor, ceil, round, or trunc unless it is provably whole-number arithmetic.
+
+For an untrained threshold, set both Below and Penalty. For a Roll Axis target,
+optionally add a Path row with evasion (or power, density, recovery, capacity,
+perception, influence); omit Path to affect every path of that source type.
+Set Direction to check or save when those directions need different math; leave
+it blank (or use all) to affect both.
+-->
+`,
 };
 
 /** What a draft page will become when pulled. Runs the REAL parsers. */
 export function parsePreview(md: string, stem = "draft"): string {
+  const formula = parseRollFormulaPage(md, stem);
+  if (formula) {
+    if (!formula.ok) return `Invalid Roll Formula — ${formula.errors.join(" ")}`;
+    const path = formula.formula.path ? ` · ${formula.formula.path}` : "";
+    const direction = formula.formula.direction ? ` · ${formula.formula.direction}` : "";
+    return `Roll Formula — ${formula.formula.target}${path}${direction} · d${formula.formula.die} + (${formula.formula.expression})`;
+  }
   const sp = parseSpeciesPage(md, stem);
   if (sp) {
     const b = Object.entries(sp.bonuses).map(([k, v]) => `${k.toUpperCase()} ${v! >= 0 ? "+" : ""}${v}`).join(", ");

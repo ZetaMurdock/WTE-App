@@ -4,8 +4,9 @@
 
 import type { DeskNote } from "../lib/campaignDesk";
 import type { InvItem } from "../game/tableInventory";
+import type { CampaignCodexSnapshot } from "../lib/campaignCodex";
 
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 export type Role = "host" | "player";
 
@@ -18,6 +19,14 @@ export interface Peer {
 /** Wire-safe roll posture. Kept here instead of importing the rules engine so
  * the transport protocol stays independent from game implementation details. */
 export type NetRollMode = "normal" | "adv" | "dis" | "double-adv" | "double-dis";
+
+/** Wire-safe Universal Resolution route. Optional on RollRequestMessage so
+ * v3 peers can still receive and answer older stat-only requests. */
+export type NetRollAxisPath = "power" | "density" | "evasion" | "recovery" | "capacity" | "perception" | "influence";
+export interface NetRollAxisRequest {
+  path: NetRollAxisPath;
+  direction: "check" | "save";
+}
 
 export interface RollModeRequestMessage {
   t: "roll-mode-request";
@@ -61,13 +70,16 @@ export interface CompletedRollPayload {
 }
 
 /** Curator -> one player (using Envelope.to): ask that player's bound
- * character to make a save/check. A named stat is intentionally sent instead
- * of a precomputed modifier; the receiver resolves it from their current sheet. */
+ * character to make a save/check. A named stat or Roll Axis route is sent
+ * instead of a precomputed modifier; the receiver resolves effective scores,
+ * derived modifiers, and active Codex formulas from their current sheet. */
 export interface RollRequestMessage {
   t: "roll-request";
   requestId: string;
   label: string;
   stat?: string;
+  /** Present for Physical/Mental Check/Save paths. Absent on legacy requests. */
+  rollAxis?: NetRollAxisRequest;
   dc?: number;
   targetPeerId: string;
   targetCharacterId: string;
@@ -154,6 +166,12 @@ export type NetMessage =
   // host → room: card info for saved rooms, plus WHICH CAMPAIGN this table is, so
   // a joining player's app points itself at the Curator's campaign.
   | { t: "room-info"; nextSession?: string; campaignId?: string; campaignName?: string; sceneName?: string }
+  // The Curator's effective, player-safe Codex. These are deliberately NOT
+  // relayed: players request from the host and only host-authored snapshots are
+  // accepted as table authority.
+  | { t: "codex-request"; campaignId: string; haveRevision?: string }
+  | { t: "codex-snapshot"; snapshot: CampaignCodexSnapshot }
+  | { t: "codex-error"; campaignId: string; reason: "unavailable" | "too-large" | "invalid"; message?: string }
   | { t: "peer-join"; peer: Peer }
   | { t: "peer-leave"; peerId: string }
   | { t: "presence"; status: string }

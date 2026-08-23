@@ -12,6 +12,8 @@ const EMPTY_ROWS: readonly SessionRoll[] = [];
 export interface RollLock {
   label: string;
   expr?: string;
+  /** Roll Axis requests preserve the normal attribute-vs-specialty choice. */
+  choices?: { label: string; expr: string; detail?: string }[];
   /** Correlates a player-made roll with the Curator request that armed it. */
   requestId?: string;
   requestedBy?: string;
@@ -52,13 +54,15 @@ export function VttRollFeed({ campaignId, sessionKey, actor, publishRoll, author
   const rows = useSyncExternalStore(subscribeSessionRolls, () => (feedKey ? getSessionRolls(feedKey) : EMPTY_ROWS));
   const [expr, setExpr] = useState("1d20");
   const [exprBad, setExprBad] = useState(false);
+  const [choiceLabel, setChoiceLabel] = useState<string | null>(null);
   const requested = !!lock?.requestId;
 
   // A newly-armed lock always takes over the expression box. Clearing it when
   // an ability has no suggested dice prevents a previous ability's formula from
   // being submitted under the new label.
   useEffect(() => {
-    if (lock) setExpr(lock.expr ?? "");
+    if (lock) setExpr(lock.choices?.length ? "" : lock.expr ?? "");
+    setChoiceLabel(null);
     setExprBad(false);
   }, [lock]);
 
@@ -154,7 +158,7 @@ export function VttRollFeed({ campaignId, sessionKey, actor, publishRoll, author
       setExprBad(true);
       return;
     }
-    const label = lock?.label ?? expr;
+    const label = lock ? `${lock.label}${choiceLabel ? ` · ${choiceLabel}` : ""}` : expr;
     if (mode !== "normal" && authorizeMode && !(await authorizeMode(mode, label))) return;
     const roll = rollDiceExpr(label, baseExpr, mode);
     if (!roll) return; // canonicalRollExpr and rollDiceExpr share the same parser.
@@ -205,6 +209,27 @@ export function VttRollFeed({ campaignId, sessionKey, actor, publishRoll, author
         </div>
       )}
 
+      {!!lock?.choices?.length && (
+        <div className="vtt2-axis-choices vtt2-requested-axis-choices" role="group" aria-label="Choose Roll Axis source">
+          {lock.choices.map((choice) => (
+            <button
+              key={`${choice.label}|${choice.expr}`}
+              type="button"
+              className={`ghost-btn${choiceLabel === choice.label ? " active" : ""}`}
+              aria-pressed={choiceLabel === choice.label}
+              onClick={() => {
+                setChoiceLabel(choice.label);
+                setExpr(choice.expr);
+                setExprBad(false);
+              }}
+            >
+              {choice.label}
+              <small>{choice.detail || choice.expr}</small>
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="vtt2-dicetray">
         {DICE.map((d) => (
           <button key={d} className="vtt2-die" disabled={requested} onClick={() => { setExpr(`1d${d}`); setExprBad(false); }} title={requested ? "The Curator's request fixes this roll formula" : `Set the roll to 1d${d}`}>
@@ -216,7 +241,7 @@ export function VttRollFeed({ campaignId, sessionKey, actor, publishRoll, author
         <input
           className={"bg-select vtt2-roll-expr" + (exprBad ? " bad" : "")}
           value={expr}
-          placeholder="2d6+3"
+          placeholder={lock?.choices?.length ? "Choose Attribute or Specialty above" : "2d6+3"}
           readOnly={requested}
           title={requested ? "This formula comes from your selected character's current sheet" : undefined}
           onChange={(e) => { setExpr(e.target.value); setExprBad(false); }}

@@ -13,10 +13,12 @@ import {
   specialtyRemaining,
   validateSheet,
   effectiveAttributes,
+  effectiveSpecialties,
   bgBonuses,
+  bgSpecBonuses,
   bgAmounts,
-  rollMod,
-  specRollMod,
+  attributeRollProfile,
+  specialtyRollProfile,
   signedMod,
   getSpecies,
   getParadigm,
@@ -115,9 +117,12 @@ export function CharacterCreator({ campaignId, edit, onDone, onCancel }: Props) 
   const background: Background = bgFixed
     ? { name: bgName.trim() || selectedBg!.name, mode: selectedBg!.mode ?? bgMode, assign: [], attrBonus: selectedBg!.attrBonus, specBonus: selectedBg!.specBonus }
     : { name: bgName.trim() || undefined, mode: bgMode, assign: bgAssign };
-  // The Curator's budgets for this table. Read once per mount — they change from
-  // the vault, which unmounts the creator anyway.
-  const [rules] = useState(() => loadRules(campaignId));
+  // The Curator's budgets for this table. A live room can replace the local
+  // values while this component is mounted, so resolve them on each render.
+  // `loadRules` may be backed by the live Curator snapshot. Read it on render so
+  // a just-synced campaign cannot leave a creator mounted with this device's old
+  // local budget for the rest of its lifetime.
+  const rules = loadRules(campaignId);
   const caps = sheetCaps(rules);
   const remaining = specialtyRemaining(specialties, rules.specTotal);
   const validation = validateSheet(attributes, specialties, caps);
@@ -128,7 +133,17 @@ export function CharacterCreator({ campaignId, edit, onDone, onCancel }: Props) 
   const species = getSpecies(speciesId);
   const selectedVariant = species?.variants.find((v) => v.name === variantName);
   const paradigm = getParadigm(paradigmId);
-  const eff = effectiveAttributes(attributes, speciesId, bgBonuses(background));
+  const soul = moralityMods(morality);
+  const attrBonuses = { ...bgBonuses(background) };
+  for (const [key, value] of Object.entries(soul.attr)) {
+    attrBonuses[key as AttrKey] = (attrBonuses[key as AttrKey] || 0) + (value || 0);
+  }
+  const specBonuses = { ...bgSpecBonuses(background) };
+  for (const [key, value] of Object.entries(soul.spec)) {
+    specBonuses[key as SpecKey] = (specBonuses[key as SpecKey] || 0) + (value || 0);
+  }
+  const eff = effectiveAttributes(attributes, speciesId, attrBonuses);
+  const effSpec = effectiveSpecialties(specialties, specBonuses);
 
   function setAttr(k: AttrKey, v: number) {
     setAttributes((a) => ({ ...a, [k]: Math.max(ATTR_MIN, Math.min(ATTR_MAX, v)) }));
@@ -533,8 +548,8 @@ export function CharacterCreator({ campaignId, edit, onDone, onCancel }: Props) 
                         <span className="stat-short">{a.short}</span>
                         <span className="stat-desc">{a.desc}</span>
                       </div>
-                      <span className="mod-box" title="Roll modifier">
-                        {signedMod(rollMod(eff[a.key]))}
+                      <span className="mod-box" title="Effective check modifier">
+                        {signedMod(attributeRollProfile(eff[a.key] + (a.key === "ap" ? sizeOf(sizeId, speciesId).apMod : 0)).modifier)}
                       </span>
                       <input
                         className="stat-input"
@@ -569,8 +584,8 @@ export function CharacterCreator({ campaignId, edit, onDone, onCancel }: Props) 
                   <div className="stat-info">
                     <span className="stat-short">{s.label}</span>
                   </div>
-                  <span className="mod-box" title="Roll modifier">
-                    {signedMod(specRollMod(specialties[s.key]))}
+                  <span className="mod-box" title="Effective check modifier">
+                    {signedMod(specialtyRollProfile(Math.min(SPEC_MAX, effSpec[s.key])).modifier)}
                   </span>
                   <input
                     className={"stat-input" + (specialties[s.key] > SPEC_MAX ? " bad" : "")}

@@ -8,6 +8,8 @@ import {
   type Species,
   type SpeciesFamily,
   type SpeciesVariant,
+  type CodexSpeciesDefinition,
+  type SpeciesMechanicField,
   type Paradigm,
   type AttrKey,
   type GenusAbility,
@@ -17,16 +19,19 @@ import {
   type SpecKey,
 } from "../game/wte";
 import { parseCodexEntry } from "./codexParse";
-import { setCodexCatalog } from "./codex";
-import { allPageMeta, getPageMeta } from "./pageMeta";
-import { isTauri } from "./tauri";
-import { applyCodexPages, beginCodexLoad, noCodexPages, type PageSkip } from "../game/codexService";
+import { setCodexCatalog, setCodexRuntimeEntries } from "./codex";
+import { applyCodexPages, beginCodexLoad, codexLoadIsCurrent, noCodexPages, type PageSkip } from "../game/codexService";
 import { scanGenusCorpus, type RawPage } from "./genusCorpus";
 import { mergeVisibility, type GenusPage } from "../game/codexGenusSource";
 import { parseId } from "../game/codexId";
 import { getActiveCampaignId } from "./repo";
-import { listCodexPages } from "./codexPageRepo";
-import type { Weapon, Equipment } from "../models/codex";
+import { activeRoomCodex, listCampaignMechanicPages, markRoomCodexReady } from "./campaignCodex";
+import type { CodexEntry, Weapon, Equipment } from "../models/codex";
+import {
+  parseRollFormulaPage,
+  setCodexRollFormulas,
+  type CodexRollFormula,
+} from "../game/rollFormula";
 
 /**
  * Is this page a campaign's own rule, or a mirror of an official one?
@@ -114,21 +119,70 @@ function parseVariants(md: string): SpeciesVariant[] {
   return out.filter((v) => v.name);
 }
 
-export function parseSpeciesPage(md: string, stem: string): Species | null {
+function ownField(fields: Record<string, string>, ...names: string[]): boolean {
+  return names.some((name) => Object.prototype.hasOwnProperty.call(fields, name));
+}
+
+function optionalNumber(fields: Record<string, string>, ...names: string[]): number | undefined {
+  for (const name of names) {
+    if (!ownField(fields, name)) continue;
+    if (!fields[name]?.trim()) return undefined;
+    const value = Number(fields[name]);
+    return Number.isFinite(value) ? value : undefined;
+  }
+  return undefined;
+}
+
+/** Resolve a page's gameplay key. A campaign id is provenance, while Overrides
+ * names the catalog entry it replaces; character saves continue to use the
+ * stable gameplay slug (for example `hyomen`). */
+function mechanicSlug(fields: Record<string, string>, name: string, kind: "species" | "paradigm"): string {
+  for (const raw of [fields["overrides"], fields["id"]]) {
+    const parsed = raw ? parseId(raw) : null;
+    if (parsed?.kind === kind) return parsed.slug;
+  }
+  return fields["id"] || slug(name);
+}
+
+/** Parsed Species plus the exact mechanics rows/sections the author supplied.
+ * The registry uses this presence list to inherit everything else from the
+ * official lineage rather than replacing omitted values with empty defaults. */
+export function parseSpeciesDefinitionPage(md: string, stem: string): CodexSpeciesDefinition | null {
   const f = readFields(md);
   if ((f["type"] || "").toLowerCase() !== "species") return null;
   const name = f["name"] || titleOf(md, stem);
   const famRaw = (f["family"] || "Humanity").toLowerCase();
   const family: SpeciesFamily = famRaw.startsWith("omen") ? "Omenity" : famRaw.startsWith("aster") ? "Asternem" : "Humanity";
+  const provided: SpeciesMechanicField[] = [];
+  if (ownField(f, "family")) provided.push("family");
+  if (ownField(f, "bonuses")) provided.push("bonuses");
+  if (ownField(f, "innate")) provided.push("innate");
+  if (ownField(f, "note")) provided.push("note");
+  if (ownField(f, "dominance", "dom")) provided.push("dom");
+  if (ownField(f, "recessiveness", "rec")) provided.push("rec");
+  if (ownField(f, "eminence", "eminence nature")) provided.push("eminence");
+  if (ownField(f, "innate select", "innate selection")) provided.push("innateSelect");
+  if (/^#{2,3}\s+Variants\s*$/im.test(md)) provided.push("variants");
   return {
-    id: f["id"] || slug(name),
-    name,
-    family,
-    bonuses: parseBonuses(f["bonuses"]),
-    innate: csv(f["innate"]),
-    note: f["note"] || undefined,
-    variants: parseVariants(md),
+    species: {
+      id: mechanicSlug(f, name, "species"),
+      name,
+      family,
+      bonuses: parseBonuses(f["bonuses"]),
+      innate: csv(f["innate"]),
+      note: ownField(f, "note") ? f["note"] || undefined : undefined,
+      dom: optionalNumber(f, "dominance", "dom"),
+      rec: optionalNumber(f, "recessiveness", "rec"),
+      eminence: (f["eminence"] || f["eminence nature"]) || undefined,
+      innateSelect: optionalNumber(f, "innate select", "innate selection"),
+      variants: parseVariants(md),
+    },
+    provided,
   };
+}
+
+export function parseSpeciesPage(md: string, stem: string): Species | null {
+  return parseSpeciesDefinitionPage(md, stem)?.species ?? null;
 }
 
 export function parseParadigmPage(md: string, stem: string): Paradigm | null {
@@ -136,7 +190,7 @@ export function parseParadigmPage(md: string, stem: string): Paradigm | null {
   if ((f["type"] || "").toLowerCase() !== "paradigm") return null;
   const name = f["name"] || titleOf(md, stem);
   return {
-    id: f["id"] || slug(name),
+    id: mechanicSlug(f, name, "paradigm"),
     name,
     group: f["group"] || "Codex",
     weapons: csv(f["weapons"]),
@@ -224,20 +278,8 @@ export function parseBackgroundsDirectory(md: string): CodexBackground[] {
   return out;
 }
 
-// ── The loader: read every PULLED page and overlay the game data ──
-async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  const w = window as unknown as { __TAURI__?: { core: { invoke: <R>(c: string, a?: Record<string, unknown>) => Promise<R> } } };
-  if (!w.__TAURI__) throw new Error("no tauri");
-  return w.__TAURI__.core.invoke<T>(cmd, args);
-}
-
+// ── The loader: compile every effective PULLED page into game data ──
 export async function loadCodexGameData(): Promise<void> {
-  if (!isTauri()) {
-    // No pages to read, rather than pages we failed to read. Saying so settles the
-    // Codex service instead of leaving it on "loading" forever.
-    noCodexPages();
-    return;
-  }
   // A failed LISTING is not an empty Codex. Swallowed here, it used to mean "this
   // machine has no Codex pages", which reads identically to a machine that really
   // has none — so a locked database silently removed every page link and every
@@ -248,10 +290,18 @@ export async function loadCodexGameData(): Promise<void> {
   // campaign's pages land on top of the campaign you had just switched to.
   const token = beginCodexLoad();
   let listFailed: string | undefined;
-  const names = await invoke<string[]>("wte_list_pages").catch((e) => {
+  const room = activeRoomCodex();
+  const effectiveCampaign = room?.campaignId ?? getActiveCampaignId() ?? "";
+  const sourcePages = await listCampaignMechanicPages(effectiveCampaign || null).catch((e) => {
     listFailed = e instanceof Error ? e.message : String(e);
-    return [] as string[];
+    return [];
   });
+  if (!room && sourcePages.length === 0 && !listFailed) {
+    if (!codexLoadIsCurrent(token)) return;
+    setCodexRollFormulas([]);
+    noCodexPages();
+    return;
+  }
   const skipped: PageSkip[] = [];
   const officialMirrors: GenusPage[] = [];
   const campaignPages: GenusPage[] = [];
@@ -259,8 +309,7 @@ export async function loadCodexGameData(): Promise<void> {
   // corpus is five domain pages of exported wiki HTML, not one page per ability,
   // so the field-table parser finds nothing genus-shaped in any of them.
   const raw: RawPage[] = [];
-  const meta = allPageMeta();
-  const species: Species[] = [];
+  const species: CodexSpeciesDefinition[] = [];
   const paradigms: Paradigm[] = [];
   const sizes: Record<string, string> = {};
   const weapons: Weapon[] = [];
@@ -268,28 +317,36 @@ export async function loadCodexGameData(): Promise<void> {
   const genus: Record<string, GenusAbility[]> = {};
   const ciphers: Record<string, CipherAbility[]> = {};
   const backgrounds: CodexBackground[] = [];
+  const runtimeEntries: CodexEntry[] = [];
+  const rollFormulas: { formula: CodexRollFormula; campaign: boolean }[] = [];
 
-  for (const name of names) {
-    if (!getPageMeta(name, meta).pulled) continue; // Engineer said: don't pull this page
-    let md = "";
-    try {
-      md = await invoke<string>("wte_load_page", { path: name });
-    } catch (e) {
-      // Unreadable, so we cannot know whether it defined a rule. That makes the
-      // whole pass untrustworthy rather than merely incomplete.
-      skipped.push({
-        stem: name,
-        reason: `could not be read (${e instanceof Error ? e.message : String(e)})`,
-        semantic: true,
-      });
+  for (let sourceOrder = 0; sourceOrder < sourcePages.length; sourceOrder++) {
+    const source = sourcePages[sourceOrder];
+    if (!source.pulled) continue;
+    const name = source.stem;
+    const md = source.content;
+    if (source.source === "official") raw.push({ stem: name, text: md });
+    const rollFormula = parseRollFormulaPage(md, name);
+    if (rollFormula) {
+      if (rollFormula.ok) {
+        rollFormulas.push({
+          formula: {
+            ...rollFormula.formula,
+            id: source.id,
+            scope: source.source === "campaign" ? "campaign" : "wte",
+          },
+          campaign: source.source === "campaign",
+        });
+      } else {
+        skipped.push({ stem: name, reason: `invalid Roll Formula: ${rollFormula.errors.join(" ")}`, semantic: true });
+      }
       continue;
     }
-    raw.push({ stem: name, text: md });
-    const sp = parseSpeciesPage(md, name);
+    const sp = parseSpeciesDefinitionPage(md, name);
     if (sp) {
       species.push(sp);
       const size = (readFields(md)["size"] || "").toLowerCase();
-      if (size) sizes[sp.id] = size;
+      if (size) sizes[sp.species.id] = size;
       continue;
     }
     const pd = parseParadigmPage(md, name);
@@ -314,6 +371,7 @@ export async function loadCodexGameData(): Promise<void> {
       // prose as a failed parse would make every load look broken.
       continue;
     }
+    runtimeEntries.push(entry);
     if (entry.type === "weapon") weapons.push(entry);
     else if (entry.type === "equipment") gear.push(entry);
     else if (entry.type === "genus") {
@@ -331,7 +389,7 @@ export async function loadCodexGameData(): Promise<void> {
         aliases: entry.aliases,
         id: entry.id,
         overrides: entry.overrides,
-        visibility: mergeVisibility(entry.visibility, getPageMeta(name, meta).visibility),
+        visibility: mergeVisibility(entry.visibility, source.visibility),
         data: {
           domain,
           ss: entry.ss ?? null,
@@ -346,7 +404,7 @@ export async function loadCodexGameData(): Promise<void> {
       // A page is a campaign rule only when it SAYS so — by declaring what it
       // overrides, or by carrying a campaign-scoped id. Everything else is a
       // mirror of an official page, and contributes provenance only.
-      if (declaresCampaignScope(page)) campaignPages.push(page);
+      if (source.source === "campaign" || declaresCampaignScope(page)) campaignPages.push(page);
       else officialMirrors.push(page);
     } else if (entry.type === "cipher") {
       // Key by paradigm id (the page names the paradigm; match name or id).
@@ -360,64 +418,61 @@ export async function loadCodexGameData(): Promise<void> {
     }
   }
 
-  registerCodexGameData({ species, paradigms, sizes, genus, ciphers, backgrounds });
-  setCodexCatalog(weapons, gear);
-  // Database-backed campaign pages. These are the ones a package brought in, and
-  // the ones the editor writes for an owned house rule — without reading them a
-  // stored rule exists, exports fine, and is mechanically inert.
-  //
-  // A read failure is a SEMANTIC skip, not a shrug: not knowing whether this
-  // campaign has house rules is exactly the state that must not be mistaken for
-  // "it has none", because the last good snapshot is better than the official
-  // rules silently taking over.
-  const activeCampaign = getActiveCampaignId() ?? "";
-  if (activeCampaign) {
-    try {
-      for (const sp of await listCodexPages(activeCampaign)) {
-        if (sp.campaignId !== activeCampaign) continue; // global rows come from files
-        const entry = parseCodexEntry(sp.content, sp.stem);
-        if (!entry || entry.type !== "genus") continue;
-        campaignPages.push({
-          stem: sp.stem,
-          title: entry.name,
-          id: sp.id,
-          aliases: sp.aliases,
-          overrides: sp.overrides ?? undefined,
-          visibility: sp.visibility,
-          data: {
-            domain: entry.domain ?? undefined,
-            ss: entry.ss ?? null,
-            activation: entry.activation ?? null,
-            range: entry.range ?? null,
-            target: entry.target ?? null,
-            effect: entry.effect ?? null,
-            limit: entry.limit ?? null,
-            classification: null,
-          },
-        });
-      }
-    } catch (e) {
-      skipped.push({
-        stem: "(stored campaign pages)",
-        reason: e instanceof Error ? e.message : String(e),
-        semantic: true,
-      });
-    }
-  }
-
   // Where each official ability can actually be read. Provenance only — the
   // scanner never takes a number off a page.
   const scan = scanGenusCorpus(raw);
-  applyCodexPages(
-    {
-      officialMirrors: [...officialMirrors, ...scan.pages],
-      campaignPages,
-      campaignId: getActiveCampaignId() ?? "",
-      skipped,
-      listFailed,
-      corpus: scan,
-    },
-    token
-  );
+  const pageInput = {
+    officialMirrors: [...officialMirrors, ...scan.pages],
+    campaignPages,
+    campaignId: effectiveCampaign,
+    skipped,
+    listFailed,
+    corpus: scan,
+  };
+
+  // A visible formula is executable game math (through the inert interpreter),
+  // not optional lore. If it declares itself as a formula but fails validation,
+  // keep every live singleton on the last coherent revision and keep a joined
+  // room gated instead of silently falling back to built-ins.
+  const formulaFailures = skipped.filter((entry) => entry.semantic && entry.reason.startsWith("invalid Roll Formula:"));
+  if (formulaFailures.length) {
+    if (!codexLoadIsCurrent(token)) return;
+    applyCodexPages(pageInput, token);
+    throw new Error(formulaFailures.map((entry) => `${entry.stem}: ${entry.reason}`).join("; "));
+  }
+
+  // A failed enumeration says nothing about what the active definitions are.
+  // Let diagnostics retain/report the last good page pass, but do not clear or
+  // partially replace any of the singleton mechanics catalogs.
+  if (listFailed) {
+    if (!codexLoadIsCurrent(token)) return;
+    applyCodexPages(pageInput, token);
+    throw new Error(`Campaign Codex mechanics could not be listed: ${listFailed}`);
+  }
+
+  // All catalogs below are process-wide singletons. Do not let a slower pass
+  // for the campaign we just left land over the newest campaign's data.
+  if (!codexLoadIsCurrent(token)) return;
+  registerCodexGameData({ species, paradigms, sizes, genus, ciphers, backgrounds });
+  // Official definitions establish the baseline; campaign definitions are
+  // installed last and therefore win for the same target/path. Invalid pages
+  // never reach this registry, and every load replaces it atomically.
+  rollFormulas.sort((a, b) => {
+    const layer = Number(a.campaign) - Number(b.campaign);
+    if (layer) return layer;
+    const specificity =
+      Number(!!a.formula.path) + Number(!!a.formula.direction) -
+      Number(!!b.formula.path) - Number(!!b.formula.direction);
+    if (specificity) return specificity;
+    const aKey = `${a.formula.id}\u0000${a.formula.path ?? ""}\u0000${a.formula.direction ?? ""}\u0000${a.formula.expression}\u0000${a.formula.die}\u0000${a.formula.below ?? ""}\u0000${a.formula.penalty ?? ""}`;
+    const bKey = `${b.formula.id}\u0000${b.formula.path ?? ""}\u0000${b.formula.direction ?? ""}\u0000${b.formula.expression}\u0000${b.formula.die}\u0000${b.formula.below ?? ""}\u0000${b.formula.penalty ?? ""}`;
+    return aKey < bKey ? -1 : aKey > bKey ? 1 : 0;
+  });
+  setCodexRollFormulas(rollFormulas.map((entry) => entry.formula));
+  setCodexCatalog(weapons, gear);
+  setCodexRuntimeEntries(runtimeEntries);
+
+  applyCodexPages(pageInput, token);
   window.dispatchEvent(new Event("wte-gamedata-changed"));
+  if (room) markRoomCodexReady(room.campaignId, room.revision);
 }

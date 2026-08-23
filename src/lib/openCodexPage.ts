@@ -10,16 +10,29 @@
 // very long file with no indication of which of twenty abilities you asked about.
 export const OPEN_CODEX_PAGE = "wte-open-codex-page";
 
+export type OpenCodexPageIntent = "read" | "edit" | "customize";
+
 export interface OpenCodexPageDetail {
   stem: string;
   /** A section within the page. Matched by text, because the exported wiki HTML
    *  carries no id attributes to use as fragments. */
   anchor?: string;
+  /** What the destination should do after opening the page. Omitted means the
+   *  long-standing read-only navigation behaviour. */
+  intent?: OpenCodexPageIntent;
+  /** Campaign whose effective page is being opened. This prevents an edit
+   *  request surviving a campaign switch and landing in the wrong table. */
+  campaignId?: string;
+  /** Stable identity for disambiguating an official page from its campaign
+   *  customization when both share a stem. */
+  pageId?: string;
 }
 
-export function openCodexPage(stem: string, anchor?: string): void {
+export type OpenCodexPageOptions = Pick<OpenCodexPageDetail, "intent" | "campaignId" | "pageId">;
+
+export function openCodexPage(stem: string, anchor?: string, options: OpenCodexPageOptions = {}): void {
   if (!stem || typeof window === "undefined") return;
-  window.dispatchEvent(new CustomEvent<OpenCodexPageDetail>(OPEN_CODEX_PAGE, { detail: { stem, anchor } }));
+  window.dispatchEvent(new CustomEvent<OpenCodexPageDetail>(OPEN_CODEX_PAGE, { detail: { stem, anchor, ...options } }));
 }
 
 export function onOpenCodexPage(fn: (detail: OpenCodexPageDetail) => void): () => void {

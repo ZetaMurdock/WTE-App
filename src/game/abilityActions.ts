@@ -10,6 +10,19 @@
 
 export type AbilityActionKind = "self" | "damage" | "save";
 
+export type AbilityRollAxis = "physical" | "mental";
+export type AbilityRollDirection = "check" | "save";
+export type AbilityRollAxisPath = "power" | "density" | "evasion" | "recovery" | "capacity" | "perception" | "influence";
+
+/** A Universal Resolution path named directly by ability prose, for example
+ * `Physical Save — Evasion`. This remains separate from `stat`: a path roll
+ * combines one of two legal sources with its derived modifier. */
+export interface AbilityRollAxisRef {
+  axis: AbilityRollAxis;
+  direction: AbilityRollDirection;
+  path: AbilityRollAxisPath;
+}
+
 export interface AbilityAction {
   kind: AbilityActionKind;
   /** Button / chip label, e.g. "Inspiration check", "3d10 Entropy", "Endurance save · DC 18". */
@@ -18,6 +31,8 @@ export interface AbilityAction {
   expr?: string;
   /** Named stat the character rolls (self only) — the caller maps it to a modifier. */
   stat?: string;
+  /** Full Roll Axis route when the prose names an axis + check/save + path. */
+  rollAxis?: AbilityRollAxisRef;
   /** Save/DC for a target-side resolution (save only). */
   dc?: number;
   /** Damage type word, when the text names one (damage only). */
@@ -31,6 +46,16 @@ const STAT_WORDS =
   "Physical|Strength|Dexterity|Endurance|Action Priority|AP|Wisdom|Charisma|Intelligence|" +
   "Inspiration|Balance|Weight|Precision|Control|Weapon Mastery|Mental Fortitude|Perception|Adaptation|Adaption|Cunning|Influence";
 
+const AXIS_PATH_RULES: Record<AbilityRollAxisPath, { axis: AbilityRollAxis; directions: readonly AbilityRollDirection[] }> = {
+  power: { axis: "physical", directions: ["check"] },
+  density: { axis: "physical", directions: ["check"] },
+  evasion: { axis: "physical", directions: ["save"] },
+  recovery: { axis: "physical", directions: ["save"] },
+  capacity: { axis: "mental", directions: ["check"] },
+  perception: { axis: "mental", directions: ["check", "save"] },
+  influence: { axis: "mental", directions: ["check", "save"] },
+};
+
 /** Parse ability effect prose into the concrete actions a table clicks. */
 export function parseAbilityActions(effect: string | null | undefined): AbilityAction[] {
   const text = String(effect || "");
@@ -41,7 +66,9 @@ export function parseAbilityActions(effect: string | null | undefined): AbilityA
     const stat = a.stat?.trim().toLowerCase();
     const k = a.kind === "damage"
       ? `${a.kind}|${a.expr ?? a.label}|${a.damageType ?? ""}`
-      : `${a.kind}|${stat ?? a.label.toLowerCase()}`;
+      : a.rollAxis
+        ? `${a.kind}|axis|${a.rollAxis.axis}|${a.rollAxis.direction}|${a.rollAxis.path}`
+        : `${a.kind}|${stat ?? a.label.toLowerCase()}`;
     const priorIndex = seen.get(k);
     if (priorIndex != null) {
       const prior = out[priorIndex];
@@ -64,6 +91,43 @@ export function parseAbilityActions(effect: string | null | undefined): AbilityA
     push({ kind: "damage", label: type ? `${expr} ${type}` : expr, expr, damageType: type });
   }
 
+  // ── Universal Resolution paths ──
+  // These must be recognized before the broad "Stat Save" scanner below. A
+  // phrase such as "Physical Save — Evasion" is not a bare Physical roll: it is
+  // DEX or Balance PLUS the Evasion derived modifier, and the active Codex may
+  // replace that path/direction formula.
+  const axisRanges: { start: number; end: number }[] = [];
+  const axisRe = /\b(Physical|Mental)\s+(Save|Check)\s*(?:[\u2014\u2013:\-]\s*)?(Power|Density|Evasion|Recovery|Capacity|Perception|Influence)\b/gi;
+  let ar: RegExpExecArray | null;
+  while ((ar = axisRe.exec(text))) {
+    const axis = ar[1].toLowerCase() as AbilityRollAxis;
+    const direction = ar[2].toLowerCase() as AbilityRollDirection;
+    const path = ar[3].toLowerCase() as AbilityRollAxisPath;
+    axisRanges.push({ start: ar.index, end: ar.index + ar[0].length });
+    const route = AXIS_PATH_RULES[path];
+    if (route.axis !== axis || !route.directions.includes(direction)) continue;
+
+    // Explicit subject wording wins. Without one, Checks are made by the
+    // acting character and Saves by the target, which is how Resolution pairs
+    // such as "Mental Check — Capacity vs Physical Save — Evasion" are written.
+    const clauseStart = Math.max(
+      text.lastIndexOf(".", ar.index - 1),
+      text.lastIndexOf(";", ar.index - 1),
+      text.lastIndexOf("·", ar.index - 1)
+    );
+    const before = text.slice(Math.max(clauseStart + 1, ar.index - 100), ar.index);
+    const targetSubject = /\b(?:the\s+target|target|they|the\s+creature|creatures|opponent|unwilling\s+creatures?)\b[^.;·]{0,75}\b(?:rolls?|makes?|with|using|repeat(?:s)?)\s+(?:an?\s+)?$/i.test(before);
+    const selfSubject = /\b(?:you|your\s+character|the\s+inquisitor)\b[^.;·]{0,75}\b(?:rolls?|makes?)\s+(?:an?\s+)?$/i.test(before);
+    const kind: AbilityActionKind = targetSubject ? "save" : selfSubject ? "self" : direction === "check" ? "self" : "save";
+    const dcTail = text.slice(ar.index + ar[0].length, ar.index + ar[0].length + 64);
+    const dcMatch = /^[^.;·]{0,40}\bD(?:C|V)\s*(?:of|=)?\s*(\d+)/i.exec(dcTail);
+    const dc = dcMatch ? parseInt(dcMatch[1], 10) : undefined;
+    const label = `${ar[1]} ${ar[2][0].toUpperCase()}${ar[2].slice(1).toLowerCase()} — ${ar[3]}${dc != null ? ` · DC ${dc}` : ""}`;
+    push({ kind, label, rollAxis: { axis, direction, path }, dc });
+  }
+  const overlapsAxisPhrase = (index: number, length: number) =>
+    axisRanges.some((range) => index < range.end && index + length > range.start);
+
   // ── Explicit self rolls FIRST (so an opposed pair's lead stat wins) ──
   // "opposed Inspiration + Influence Check" → the character rolls Inspiration.
   const opposed = new RegExp(`opposed\\s+(${STAT_WORDS})(?:\\s*\\+\\s*(${STAT_WORDS}))?\\s+(?:Skill\\s+)?Check`, "i").exec(text);
@@ -83,6 +147,7 @@ export function parseAbilityActions(effect: string | null | undefined): AbilityA
   );
   let sr: RegExpExecArray | null;
   while ((sr = selfRollRe.exec(text))) {
+    if (overlapsAxisPhrase(sr.index, sr[0].length)) continue;
     push({ kind: "self", label: `${sr[1]} check`, expr: "1d20", stat: sr[1] });
   }
   const targetRollRe = new RegExp(
@@ -91,6 +156,7 @@ export function parseAbilityActions(effect: string | null | undefined): AbilityA
   );
   let tr: RegExpExecArray | null;
   while ((tr = targetRollRe.exec(text))) {
+    if (overlapsAxisPhrase(tr.index, tr[0].length)) continue;
     push({ kind: "save", label: `${tr[1]} save`, stat: tr[1] });
   }
   const forcedRollRe = new RegExp(`\\bforced\\s+(${STAT_WORDS})\\s+Roll`, "gi");
@@ -103,6 +169,7 @@ export function parseAbilityActions(effect: string | null | undefined): AbilityA
   const saveRe = new RegExp(`(${STAT_WORDS})\\s+(?:Saving Throw|Save|Check)(?:[^.]*?DC\\s*(\\d+))?`, "gi");
   let sv: RegExpExecArray | null;
   while ((sv = saveRe.exec(text))) {
+    if (overlapsAxisPhrase(sv.index, sv[0].length)) continue;
     const stat = sv[1];
     const dc = sv[2] ? parseInt(sv[2], 10) : undefined;
     const pre = text.slice(Math.max(0, sv.index - 40), sv.index).toLowerCase();

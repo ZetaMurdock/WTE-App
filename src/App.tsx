@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { TopBar, type TabId } from "./components/TopBar";
 import { Dashboard } from "./components/Dashboard";
 import { ToolFrame } from "./components/ToolFrame";
@@ -7,6 +7,7 @@ import { LobbyView } from "./components/LobbyView";
 import { PlayerCampaign } from "./components/PlayerCampaign";
 import { NetProvider } from "./net/NetContext";
 import { CampaignAnnouncer } from "./net/CampaignAnnouncer";
+import { CampaignCodexSync } from "./net/CampaignCodexSync";
 import { CodexBrowser } from "./components/codex/CodexBrowser";
 import { VttScreen } from "./vtt/VttScreen";
 import { Boundary } from "./components/ui/Boundary";
@@ -16,6 +17,7 @@ import { SaveStatus } from "./components/ui/SaveStatus";
 import { FirstRun } from "./components/FirstRun";
 import { countCharacters } from "./lib/characters";
 import { loadCodexGameData } from "./lib/gameData";
+import { activeRoomCodex, markRoomCodexError } from "./lib/campaignCodex";
 import { onOpenCodexPage } from "./lib/openCodexPage";
 import { LookUpSelection } from "./components/codex/LookUpSelection";
 import {
@@ -56,6 +58,20 @@ function initialTheme(): Theme {
 function accountLabelFor(u: AuthUser | null): string {
   if (!u) return "Sign in";
   return (u.displayName || u.email || "Account").split(" ")[0];
+}
+
+function CodexMechanicsGate({ error, onOpenCodex }: { error?: string; onOpenCodex: () => void }) {
+  return (
+    <div className="dashboard">
+      <div className="panel">
+        <div className="panel-title">Campaign Codex</div>
+        <p className={error ? "campaign-codex-error" : "list-empty"}>
+          {error || "Loading the rules in force before character and VTT mechanics become available…"}
+        </p>
+        <button className="primary-btn" onClick={onOpenCodex}>Open Codex</button>
+      </div>
+    </div>
+  );
 }
 
 export default function App() {
@@ -191,6 +207,11 @@ export default function App() {
   // at boot, and re-load whenever the Codex changes pages or pull flags. The
   // tick re-renders the tree so open tools re-read the (mutated-in-place) data.
   const [, setDataTick] = useState(0);
+  const [codexLoad, setCodexLoad] = useState<{ status: "loading" | "ready" | "error"; sourceKey: string; message?: string }>({
+    status: "loading",
+    sourceKey: "",
+  });
+  const codexUiLoadToken = useRef(0);
   // Campaign-scoped Codex rules resolve against the campaign that owns them, so
   // switching campaigns has to re-run the pull. Without this dependency the
   // registry kept the previous table's overrides and the new campaign silently
@@ -198,12 +219,33 @@ export default function App() {
   // so a slow load begun before the switch cannot land after this one.
   const codexCampaignKey = activeCampaign?.id ?? "";
   useEffect(() => {
-    const reload = () => void loadCodexGameData().then(() => setDataTick((t) => t + 1)).catch(() => {});
+    const reload = () => {
+      const uiToken = ++codexUiLoadToken.current;
+      const sourceKey = activeRoomCodex()?.campaignId ?? codexCampaignKey;
+      setCodexLoad({ status: "loading", sourceKey });
+      void loadCodexGameData()
+      .then(() => {
+        if (uiToken !== codexUiLoadToken.current) return;
+        setCodexLoad({ status: "ready", sourceKey });
+        setDataTick((t) => t + 1);
+      })
+      .catch((error) => {
+        if (uiToken !== codexUiLoadToken.current) return;
+        const room = activeRoomCodex();
+        const message = `The campaign Codex could not be applied: ${error instanceof Error ? error.message : String(error)}`;
+        setCodexLoad({ status: "error", sourceKey, message });
+        if (room) markRoomCodexError(room.campaignId, message);
+        pushToast(message, "error", 0);
+      });
+    };
     reload();
     // Content, pull flags AND visibility all announce themselves this way; a
     // second event name would only be another thing to forget to dispatch.
     window.addEventListener("wte-pages-changed", reload);
-    return () => window.removeEventListener("wte-pages-changed", reload);
+    return () => {
+      codexUiLoadToken.current += 1;
+      window.removeEventListener("wte-pages-changed", reload);
+    };
   }, [codexCampaignKey]);
   // "Open the full Codex page", from the sheet, the VTT or a contextual card.
   // App owns the tab, so it is the only place that can switch to it.
@@ -326,9 +368,19 @@ export default function App() {
     await reload();
   }
 
+  const currentCodexSourceKey = activeRoomCodex()?.campaignId ?? codexCampaignKey;
+  const mechanicsBlocked = codexLoad.status !== "ready" || codexLoad.sourceKey !== currentCodexSourceKey;
+  const mechanicsGate = (
+    <CodexMechanicsGate
+      error={codexLoad.status === "error" ? codexLoad.message : undefined}
+      onOpenCodex={() => setActiveTab("codex")}
+    />
+  );
+
   return (
     <NetProvider>
     <CampaignAnnouncer campaign={activeCampaign} curator={curator} />
+    <CampaignCodexSync campaign={activeCampaign} curator={curator} />
     <div className="app">
       {wallpaper && <div className="app-wallpaper" style={{ backgroundImage: `url(${wallpaper})` }} />}
       <CursorDot enabled={dotCursor} />
@@ -382,14 +434,20 @@ export default function App() {
         )}
         {activeTab === "characters" && (
           <div className="view-scroll">
-            <CharactersTab campaign={activeCampaign} curator={curator} onCharactersChanged={bumpChars} />
+            {mechanicsBlocked
+              ? mechanicsGate
+              : <CharactersTab campaign={activeCampaign} curator={curator} onCharactersChanged={bumpChars} />}
           </div>
         )}
         {activeTab === "table" && (
           <div className="view-scroll">
-            <Boundary label="Table">
-              <PlayerCampaign />
-            </Boundary>
+            {mechanicsBlocked
+              ? mechanicsGate
+              : (
+                <Boundary label="Table">
+                  <PlayerCampaign />
+                </Boundary>
+              )}
           </div>
         )}
 
@@ -404,9 +462,12 @@ export default function App() {
         </div>
         {/* VTT v2 stays mounted so the Pixi context survives tab switches */}
         <div className={"view-scroll" + (activeTab !== "vtt2" ? " hidden" : "")}>
-          <Boundary label="VTT v2">
-            <VttScreen campaign={activeCampaign} active={activeTab === "vtt2"} />
-          </Boundary>
+          <div className={mechanicsBlocked ? "hidden" : ""}>
+            <Boundary label="VTT v2">
+              <VttScreen campaign={activeCampaign} active={activeTab === "vtt2" && !mechanicsBlocked} />
+            </Boundary>
+          </div>
+          {activeTab === "vtt2" && mechanicsBlocked && mechanicsGate}
         </div>
         {/* Legacy iframes mount LAZILY on first open (three fewer live documents
             at boot), then stay mounted so their in-frame state survives switches. */}

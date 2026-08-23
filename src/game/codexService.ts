@@ -82,6 +82,14 @@ export function beginCodexLoad(): number {
   return nextToken++;
 }
 
+/** True only for the most recently started page pass. Async loaders compile
+ * several singleton catalogs before applyCodexPages; they must use this guard
+ * too, otherwise an older pass can overwrite those globals and then correctly
+ * lose only the final registry race. */
+export function codexLoadIsCurrent(token: number): boolean {
+  return token === nextToken - 1 && token >= newestApplied;
+}
+
 /** Why a pass was not trusted, in words. */
 function describeFailure(input: CodexPageInput): RegistryProblem[] {
   const out: RegistryProblem[] = [];

@@ -1,4 +1,5 @@
 import { useCodex } from "../game/useCodex";
+import { useCampaignCodex } from "../game/useCampaignCodex";
 import { AtlasWindow, type AtlasFocus } from "./atlas/AtlasWindow";
 import { loadAtlas } from "./atlas/atlasRepo";
 import { atlasForRole, MAX_ATLAS_WIRE_CHARS } from "./atlas/atlasModel";
@@ -33,7 +34,6 @@ import {
 import { addSessionRoll, clearSessionRolls, rollSessionScope } from "./sync/rollSession";
 import { enqueueRollLock } from "./sync/rollLocks";
 import { logRoll, validateCompletedRoll } from "../lib/rolls";
-import { resolveStatToken, rollMod, specRollMod } from "../game/wte";
 import { SfxPlayer } from "./audio/sfxPlayer";
 import { getMasterVolume, subscribeMasterVolume } from "../lib/audioPrefs";
 import { reportSaveFailure, pushToast } from "../lib/appToast";
@@ -52,6 +52,7 @@ import { VttAoePrompt, type AoePlacement, type AoeKind } from "./VttAoePrompt";
 import { hasAoe } from "./data/effectMeta";
 import { tokenInEdge, arrivalPos } from "./data/sceneLinks";
 import type { VttAbility } from "./data/characterAbilities";
+import { requestedRollOptions } from "./data/requestedRoll";
 import { CharacterSheet } from "../components/characters/CharacterSheet";
 import { listCharacters, getCharacter, upsertCharacter, type CharacterRecord } from "../lib/characters";
 import {
@@ -91,28 +92,17 @@ function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
-function diceModSuffix(value: number): string {
-  return value > 0 ? `+${value}` : value < 0 ? String(value) : "";
-}
-
-function requestedStatExpr(record: CharacterRecord, stat?: string): string {
-  const resolved = stat ? resolveStatToken(stat) : null;
-  if (resolved?.kind === "attr") {
-    const value = (record.sheet.attributes as unknown as Record<string, number>)[resolved.key] ?? 0;
-    return `1d20${diceModSuffix(rollMod(value))}`;
-  }
-  if (resolved?.kind === "spec") {
-    const value = (record.sheet.specialties as unknown as Record<string, number>)[resolved.key] ?? 0;
-    return `1d40${diceModSuffix(specRollMod(value))}`;
-  }
-  return "1d20";
-}
-
 // VTT v2 (slice 1): Pixi renders the map; React owns the chrome. Beside the
 // legacy VTT, not inside it — see the rework spec in docs/ / session notes.
 export function VttScreen({ campaign: localCampaign, active = true }: { campaign: Campaign | null; active?: boolean }) {
   const net = useNet();
   const isNetPlayer = net.status === "connected" && net.role === "player";
+  const roomCodex = useCampaignCodex();
+  const roomCodexReady = !isNetPlayer || (
+    roomCodex.status === "ready" &&
+    !!net.table?.campaignId &&
+    roomCodex.campaignId === net.table.campaignId
+  );
   // A joined player is working in the Curator's table namespace, even when a
   // different local campaign happens to be selected on their dashboard.
   const campaign = useMemo<Campaign | null>(() => {
@@ -620,11 +610,18 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
   // ability's own dice pre-filled) into the tray; the player presses Roll there.
   const [rollLocks, setRollLocks] = useState<RollLock[]>([]);
   const rollLock = rollLocks[0] ?? null;
-  const pendingRollRequests = useRef(new Map<string, { request: RollRequestMessage; ownerPeerId: string; expectedBaseExpr?: string }>());
+  useEffect(() => {
+    if (isNetPlayer && !roomCodexReady) setRollLocks([]);
+  }, [isNetPlayer, roomCodexReady]);
+  const pendingRollRequests = useRef(new Map<string, { request: RollRequestMessage; ownerPeerId: string; expectedBaseExprs?: string[] }>());
   const queueRollLock = useCallback((lock: RollLock) => {
+    if (!roomCodexReady) {
+      pushToast("Wait for the Curator's Codex to finish syncing before rolling.", "error");
+      return;
+    }
     setRollLocks((current) => enqueueRollLock(current, lock));
     setRollsOpen(true);
-  }, []);
+  }, [roomCodexReady]);
   const armRoll = useCallback((label: string, expr?: string) => {
     queueRollLock({ label, expr });
   }, [queueRollLock]);
@@ -632,7 +629,7 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
   // A targeted save/check is armed only on the intended player's bound
   // character. The modifier is resolved from that player's current sheet.
   useEffect(() => {
-    if (!isNetPlayer || !campaign) return;
+    if (!isNetPlayer || !campaign || !roomCodexReady) return;
     return net.subscribe("roll-request", (raw, from) => {
       const request = raw as RollRequestMessage;
       const hostId = peersRef.current.find((peer) => peer.role === "host")?.id;
@@ -648,16 +645,23 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
       void getCharacter(request.targetCharacterId).then((record) => {
         if (!record || record.campaignId !== campaign.id) return;
         if (request.expiresAt != null && request.expiresAt < Date.now()) return;
+        const options = requestedRollOptions(record, request);
+        if (options.length === 0) {
+          pushToast("The Curator requested an invalid Roll Axis path.", "error");
+          return;
+        }
+        const isAxisRequest = !!request.rollAxis;
         queueRollLock({
           label: request.label,
-          expr: requestedStatExpr(record, request.stat),
+          expr: isAxisRequest ? undefined : options[0].expr,
+          choices: isAxisRequest ? options : undefined,
           requestId: request.requestId,
           requestedBy: peersRef.current.find((peer) => peer.id === from)?.name || "Curator",
           dc: request.dc,
         });
       });
     });
-  }, [campaign, isNetPlayer, net.selfId, net.subscribe, net.table?.inUseCharacterId, queueRollLock]);
+  }, [campaign, isNetPlayer, net.selfId, net.subscribe, net.table?.inUseCharacterId, queueRollLock, roomCodexReady]);
 
   // The host consumes a request exactly once, validates actor correlation, then
   // publishes the accepted result to the room under the player's identity.
@@ -677,7 +681,7 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
         !validated ||
         result.actor.characterId !== request.targetCharacterId ||
         result.actor.tokenId !== request.targetTokenId ||
-        (pending.expectedBaseExpr != null && validated.baseExpr !== pending.expectedBaseExpr)
+        (pending.expectedBaseExprs != null && !pending.expectedBaseExprs.includes(validated.baseExpr))
       ) return;
       pendingRollRequests.current.delete(result.requestId);
       const at = Date.now();
@@ -730,6 +734,10 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
 
   const publishVttRoll = useCallback(
     (message: RollMessage) => {
+      if (!roomCodexReady) {
+        pushToast("That roll was blocked because the Curator's Codex is not ready.", "error");
+        return;
+      }
       const requested = asRollResultMessage(message);
       if (requested && isNetPlayer) {
         const hostId = peersRef.current.find((peer) => peer.role === "host")?.id;
@@ -739,7 +747,7 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
       }
       if (net.status === "connected") net.publish(message);
     },
-    [isNetPlayer, net]
+    [isNetPlayer, net, roomCodexReady]
   );
 
   // Esc cancels an armed click-to-place AoE / spatial sound.
@@ -1980,6 +1988,7 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
       requestId,
       label: `${intent.abilityName} — ${intent.label}`,
       stat: intent.stat,
+      rollAxis: intent.rollAxis,
       dc: intent.dc,
       targetPeerId: target.owner,
       targetCharacterId: target.characterId,
@@ -1991,10 +2000,11 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
       expiresAt: Date.now() + 5 * 60_000,
     };
     const targetRecord = characters.find((record) => record.id === target.characterId);
+    const expectedOptions = targetRecord ? requestedRollOptions(targetRecord, intent) : undefined;
     pendingRollRequests.current.set(requestId, {
       request,
       ownerPeerId: target.owner,
-      expectedBaseExpr: targetRecord ? requestedStatExpr(targetRecord, intent.stat) : undefined,
+      expectedBaseExprs: expectedOptions?.map((option) => option.expr),
     });
     window.setTimeout(() => pendingRollRequests.current.delete(requestId), 5 * 60_000 + 1000);
     net.publish(request, target.owner);
@@ -2444,6 +2454,18 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
           selfId={net.selfId}
           curator={!asPlayer}
         />
+      )}
+      {!roomCodexReady && (
+        <div className="vtt2-codex-gate" role="alert" aria-live="assertive">
+          <div className="panel vtt2-codex-gate-card">
+            <div className="panel-title">Campaign Codex</div>
+            <p className="list-empty">
+              {roomCodex.status === "error"
+                ? roomCodex.message
+                : "Syncing and applying the Curator's formulas, character options, and table rules before rolls are enabled…"}
+            </p>
+          </div>
+        </div>
       )}
     </div>
   );

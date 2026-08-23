@@ -13,7 +13,7 @@ describe("roll protocol", () => {
       t: "roll-request",
       requestId: "request-1",
       label: "Endurance save · DC 18",
-      stat: "Endurance",
+      rollAxis: { path: "evasion", direction: "save" },
       dc: 18,
       targetPeerId: "peer-1",
       targetCharacterId: "character-1",
@@ -35,6 +35,7 @@ describe("roll protocol", () => {
     };
 
     expect(result.requestId).toBe(request.requestId);
+    expect(request.rollAxis).toEqual({ path: "evasion", direction: "save" });
     expect(result.actor).toMatchObject({ characterId: "character-1", tokenId: "token-1" });
     expect(
       asRollResultMessage({

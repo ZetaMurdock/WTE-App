@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isTauri } from "../../lib/tauri";
-import { pinPageIdentity, storedPageFor } from "../../lib/pageIdentity";
+import { customizePageForCampaign, pinPageIdentity, storedPageFor } from "../../lib/pageIdentity";
 import { saveCodexPage } from "../../lib/codexPageRepo";
 import { renderCodexHtml, pageTitle } from "../../lib/md";
 import { parseCodexEntry } from "../../lib/codexParse";
@@ -22,6 +22,16 @@ import { LibraryDialog } from "./LibraryDialog";
 import { reportSaveFailure } from "../../lib/appToast";
 import { onOpenCodexPage } from "../../lib/openCodexPage";
 import { slugify } from "../../game/codexId";
+import { parseRollFormulaPage } from "../../game/rollFormula";
+import {
+  activeRoomCodex,
+  buildCampaignCodexSnapshot,
+  listEffectiveCodexPages,
+  loadEffectiveCodexPage,
+  type CampaignCodexPage,
+} from "../../lib/campaignCodex";
+import { useNet } from "../../net/NetContext";
+import { inferCodexSectionLabel, prepareCampaignCustomization } from "../../lib/codexMechanicScaffold";
 
 // The new Codex: a browser built solely for W.T.E (Remaster slice 1 — the usable
 // shell: tabs, wte:// address bar, history, search, bookmarks, recents, reader).
@@ -63,13 +73,14 @@ interface ActiveRun {
 const VTT_CLASS_COLORS: Record<number, string> = {
   1: "#6b6f7a", 2: "#c9a227", 3: "#7a4b9a", 4: "#8a3a2a", 5: "#c33fbf", 6: "#20202c",
 };
-const TYPE_CHIPS = ["All", "Creature", "Weapon", "Equipment", "Cipher", "Genus"];
 // Base "pull targets" a page can link to (feed the sheet/VTT); custom labels add to these.
-const BASE_LABELS = ["Creature", "Weapon", "Equipment", "Cipher", "Genus", "Species", "Paradigm", "Background"];
+const BASE_LABELS = ["Creature", "Weapon", "Equipment", "Cipher", "Genus", "Species", "Paradigm", "Background", "Roll Formula"];
+const TYPE_CHIPS = ["All", ...BASE_LABELS];
 // Filter-dot colours (the circular type points above the index).
 const DOT_COLORS: Record<string, string> = {
   All: "#7ecfca", Creature: "#a1584a", Weapon: "#a08a4f", Equipment: "#689a96",
-  Cipher: "#837aae", Genus: "#6f9a68", Lore: "#a7aebd",
+  Cipher: "#837aae", Genus: "#6f9a68", Species: "#b08040", Paradigm: "#4e7fa5",
+  Background: "#9a6f86", "Roll Formula": "#7c91bb", Lore: "#a7aebd",
 };
 
 function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
@@ -139,13 +150,16 @@ function extractLinks(md: string, self: string): string[] {
 export function CodexBrowser({
   curator = false,
   engineer = false,
-  campaignId = null,
+  campaignId: localCampaignId = null,
 }: {
   curator?: boolean;
   engineer?: boolean;
   /** Scopes notes and Sequences. Without it every campaign shared one pool. */
   campaignId?: string | null;
 }) {
+  const net = useNet();
+  const linkedCampaignId = net.status === "connected" && net.role === "player" ? net.table?.campaignId : null;
+  const campaignId = linkedCampaignId || localCampaignId;
   const [tabs, setTabs] = useState<CTab[]>([{ id: uid(), hist: [HOME], idx: 0, title: "Archive" }]);
   const [activeId, setActiveId] = useState(tabs[0].id);
   const [addr, setAddr] = useState(HOME);
@@ -153,6 +167,7 @@ export function CodexBrowser({
   const [marks, setMarks] = useState<Mark[]>(() => load<Mark[]>("wte-cdx-bookmarks", []));
   const [recents, setRecents] = useState<Mark[]>(() => load<Mark[]>("wte-cdx-recents", []));
   const [pages, setPages] = useState<string[]>([]);
+  const [pageRecords, setPageRecords] = useState<CampaignCodexPage[]>([]);
   const [homeFilter, setHomeFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
   const [homeMode, setHomeMode] = useState<"wheel" | "index">(() => {
@@ -175,6 +190,7 @@ export function CodexBrowser({
   const [lens, setLens] = useState<string | null>(null);
   /** Section to scroll to once the requested page has rendered. */
   const pendingAnchor = useRef<string | null>(null);
+  const requestedPageId = useRef<string | null>(null);
   // Collapsed record sections + expanded "book" sequences (persisted).
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
     try {
@@ -210,7 +226,12 @@ export function CodexBrowser({
   const readerRef = useRef<HTMLDivElement>(null);
   const pageUploadRef = useRef<HTMLInputElement>(null);
   const privileged = curator || engineer;
-  const [editor, setEditor] = useState<{ initial?: PageDraft } | null>(null);
+  const canAuthorCampaign = !!campaignId && curator && (net.status !== "connected" || net.role === "host");
+  const [editor, setEditor] = useState<{
+    initial?: PageDraft;
+    mode: "official" | "campaign";
+    stem?: string;
+  } | null>(null);
   const publishAvail = firebasePublishConfigured();
   const [publishedStems, setPublishedStems] = useState<Set<string>>(new Set());
   const [libraryOpen, setLibraryOpen] = useState(false);
@@ -223,12 +244,15 @@ export function CodexBrowser({
   // reader wherever they already were.
   useEffect(
     () =>
-      onOpenCodexPage(({ stem, anchor }) => {
+      onOpenCodexPage(({ stem, anchor, intent, campaignId: requestedCampaign, pageId }) => {
+        if (requestedCampaign && requestedCampaign !== campaignId) return;
+        requestedPageId.current = pageId ?? null;
         go("wte://page/" + encodeURIComponent(stem));
         pendingAnchor.current = anchor ?? null;
+        if (intent === "edit" || intent === "customize") void openEditPage(stem, intent, pageId);
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [campaignId, canAuthorCampaign, engineer]
   );
 
   // Scroll to the requested section once the page has actually rendered. The
@@ -259,6 +283,61 @@ export function CodexBrowser({
     setPageMetaMap(savePageMeta(stem, { visibility: cur === "player" ? "gm" : "player" }));
   }
 
+  function effectiveMeta(stem: string): PageMeta {
+    const record = pageRecords.find((page) => page.stem === stem);
+    const room = activeRoomCodex();
+    if (room?.campaignId === campaignId && record) {
+      return {
+        pulled: record.pulled,
+        visibility: record.visibility === "curator" ? "gm" : "player",
+        label: inferCodexSectionLabel({
+          stem,
+          content: record.content,
+          label: record.label,
+          kind: record.kind,
+        }),
+      };
+    }
+    const local = getPageMeta(stem, pageMetaMap);
+    if (!record) {
+      return {
+        ...local,
+        label: inferCodexSectionLabel({ stem, content: "", label: local.label }),
+      };
+    }
+    return {
+      pulled: record.pulled,
+      visibility: record.visibility === "curator" || local.visibility === "gm" ? "gm" : "player",
+      label: inferCodexSectionLabel({
+        stem,
+        content: record.content,
+        label: record.label || local.label,
+        kind: record.kind,
+      }),
+    };
+  }
+
+  const reloadEffectivePages = useCallback(async () => {
+    const records = await listEffectiveCodexPages(campaignId).catch(() => [] as CampaignCodexPage[]);
+    setPageRecords(records);
+    setPages(records.map((page) => page.stem));
+  }, [campaignId]);
+
+  async function loadRequestedPage(stem: string, pageId?: string): Promise<CampaignCodexPage | null> {
+    const listed = pageId ? pageRecords.find((record) => record.id === pageId) : undefined;
+    if (listed) return listed;
+    // The normal browser lists only the effective campaign version. The Curator
+    // dashboard deliberately lists provenance too, so an explicit official id
+    // may name the shadowed original; load that exact record only for an
+    // authorized authoring surface.
+    if (pageId && campaignId && (canAuthorCampaign || engineer)) {
+      const manifest = await buildCampaignCodexSnapshot(campaignId).catch(() => null);
+      const exact = manifest?.pages.find((record) => record.id === pageId);
+      if (exact) return exact;
+    }
+    return loadEffectiveCodexPage(stem, campaignId);
+  }
+
   // Custom section labels in use (beyond the base pull targets / record types).
   const customLabels = useMemo(() => {
     const base = new Set([...TYPE_CHIPS, ...BASE_LABELS]);
@@ -266,14 +345,56 @@ export function CodexBrowser({
   }, [pageMetaMap]);
   const labelChips = [...TYPE_CHIPS, ...customLabels];
 
-  async function openEditPage(stem: string) {
-    let content = "";
-    try {
-      content = await invoke<string>("wte_load_page", { path: stem });
-    } catch {
-      /* new/unavailable — start blank */
+  async function openEditPage(stem: string, intent?: "edit" | "customize", pageId?: string) {
+    const page = await loadRequestedPage(stem, pageId);
+    if (!page) {
+      setUploadNote(`Could not open “${stem}” from this campaign's Codex.`);
+      return;
     }
-    setEditor({ initial: { title: stem, content, label: getPageMeta(stem, pageMetaMap).label ?? BASE_LABELS[0] } });
+    if (intent === "customize" || (page.source === "official" && canAuthorCampaign && !engineer)) {
+      if (!canAuthorCampaign || !campaignId) return;
+      const prepared = prepareCampaignCustomization({
+        stem: page.stem,
+        content: page.content,
+        label: page.label,
+        kind: page.kind,
+      });
+      const fork = customizePageForCampaign({
+        content: prepared.content,
+        stem: page.stem,
+        campaignId,
+        officialId: page.id,
+      });
+      setEditor({
+        mode: "campaign",
+        stem: page.stem,
+        initial: { title: page.stem, content: fork.content, label: prepared.label },
+      });
+      return;
+    }
+    if (page.source === "campaign") {
+      if (!canAuthorCampaign) return;
+      setEditor({
+        mode: "campaign",
+        stem: page.stem,
+        initial: {
+          title: page.stem,
+          content: page.content,
+          label: inferCodexSectionLabel({ stem: page.stem, content: page.content, label: page.label, kind: page.kind }) ?? "Lore",
+        },
+      });
+      return;
+    }
+    if (!engineer) return;
+    setEditor({
+      mode: "official",
+      stem: page.stem,
+      initial: {
+        title: page.stem,
+        content: page.content,
+        label: inferCodexSectionLabel({ stem: page.stem, content: page.content, label: page.label, kind: page.kind }) ?? "Lore",
+      },
+    });
   }
 
   async function savePageDraft(draft: PageDraft) {
@@ -284,11 +405,13 @@ export function CodexBrowser({
       // every character that had referenced it.
       let content = draft.content;
       let idNote = "";
+      const campaignMode = editor?.mode === "campaign";
+      if (campaignMode && (!campaignId || !canAuthorCampaign)) throw new Error("Only this campaign's Curator can save that page.");
       const pinned = pinPageIdentity({
         content,
         stem: draft.title,
         previousContent: editor?.initial?.content,
-        campaignId: campaignId ?? undefined,
+        campaignId: campaignMode ? campaignId ?? undefined : undefined,
       });
       if (pinned) {
         content = pinned.content;
@@ -297,29 +420,31 @@ export function CodexBrowser({
           idNote += ` Kept “${pinned.aliasAdded}” as a former name, so references to it still work.`;
         }
       }
-      const stem = await invoke<string>("wte_save_page", { name: draft.title, content });
-      // A campaign-owned page ALSO gets a row, which is what lets two campaigns
-      // hold different versions of one stem. Writing only the file made the store
-      // a table nothing used: package-imported pages could exist while remaining
-      // invisible, unopenable and mechanically inactive.
-      if (pinned && campaignId) {
+      let stem = editor?.stem || draft.title.trim().replace(/[^A-Za-z0-9_.-]+/g, "_").replace(/^_+|_+$/g, "") || "Campaign_Page";
+      if (campaignMode) {
+        if (!pinned || !campaignId) throw new Error("A campaign page needs a usable title so it can receive a permanent id.");
         const owned = storedPageFor(stem, content, campaignId);
-        if (owned) {
-          // A refusal here is worth surfacing rather than swallowing: the file is
-          // already written, so a silent failure would leave the two out of step.
-          await saveCodexPage(owned).catch((e) => {
-            setUploadNote(`Saved the file, but not as a campaign rule: ${e instanceof Error ? e.message : String(e)}`);
-          });
-        }
+        if (!owned) throw new Error("This page does not carry an id owned by the active campaign.");
+        await saveCodexPage(owned);
+        // Section labels are presentation metadata rather than mechanics, but
+        // they still belong in the host-built snapshot so every client groups
+        // the campaign page the same way.
+        setPageMetaMap(savePageMeta(stem, { label: draft.label }));
+      } else {
+        stem = await invoke<string>("wte_save_page", { name: draft.title, content });
+        setPageMetaMap(savePageMeta(stem, { label: draft.label }));
       }
-      setPageMetaMap(savePageMeta(stem, { label: draft.label }));
-      invoke<string[]>("wte_list_pages").then(setPages).catch(() => {});
+      await reloadEffectivePages();
       typeMap.current = null;
       linkMap.current = null;
       setScanState("idle");
       setEditor(null);
       notifyPagesChanged();
-      setUploadNote(`Saved “${draft.title}” to the ${draft.label} section.${idNote}`);
+      setUploadNote(
+        campaignMode
+          ? `Saved “${draft.title}” to this campaign's Codex.${idNote}`
+          : `Saved “${draft.title}” to the ${draft.label} section.${idNote}`
+      );
       window.setTimeout(() => setUploadNote(""), 5000);
     } catch (e) {
       setUploadNote("Could not save page: " + (e instanceof Error ? e.message : String(e)));
@@ -331,14 +456,14 @@ export function CodexBrowser({
 
   useEffect(() => {
     if (isTauri()) {
-      invoke<string[]>("wte_list_pages").then(setPages).catch(() => setPages([]));
+      void reloadEffectivePages();
       listSequences(campaignId).then(setSeqs).catch(() => setSeqs([]));
       listNotes(campaignId).then(setNotes).catch(() => setNotes([]));
     }
     // Notes and Sequences are campaign-scoped. Loaded once, switching campaigns
     // left the previous table's records on screen — readable, editable, and
     // filed under the wrong campaign the moment one was saved.
-  }, [campaignId]);
+  }, [campaignId, reloadEffectivePages]);
 
   // ── Global publish: Engineers push pages to a shared Firebase node; anyone can
   // sync the official set into their local Codex. ──
@@ -360,8 +485,8 @@ export function CodexBrowser({
         });
         setUploadNote(`Unpublished “${stem.replace(/_/g, " ")}”.`);
       } else {
-        const content = await invoke<string>("wte_load_page", { path: stem }).catch(() => "");
-        await publishPage({ stem, title: stem, content, label: getPageMeta(stem, pageMetaMap).label });
+        const content = (await loadEffectiveCodexPage(stem, campaignId))?.content ?? "";
+        await publishPage({ stem, title: stem, content, label: effectiveMeta(stem).label });
         setPublishedStems((s) => new Set(s).add(stem));
         setUploadNote(`Published “${stem.replace(/_/g, " ")}” — everyone can now sync it.`);
       }
@@ -374,7 +499,7 @@ export function CodexBrowser({
   // The Library dialog imported pages — re-list, re-scan, and reload game data.
   function afterLibraryImport(count: number) {
     setPageMetaMap(allPageMeta());
-    invoke<string[]>("wte_list_pages").then(setPages).catch(() => {});
+    void reloadEffectivePages();
     fetchPublishedPages().then((ps) => setPublishedStems(new Set(ps.map((p) => p.stem)))).catch(() => {});
     typeMap.current = null;
     linkMap.current = null;
@@ -399,7 +524,7 @@ export function CodexBrowser({
         /* skip unreadable file */
       }
     }
-    invoke<string[]>("wte_list_pages").then(setPages).catch(() => {});
+    void reloadEffectivePages();
     typeMap.current = null; // force a re-scan so new records classify
     linkMap.current = null;
     setScanState("idle");
@@ -508,6 +633,24 @@ export function CodexBrowser({
     }
     if (q != null) {
       retitle(tab.id, `Search · ${q}`);
+      const room = activeRoomCodex();
+      if (room?.campaignId === campaignId) {
+        const needle = q.trim().toLowerCase();
+        const hits = pageRecords
+          .filter((page) => page.visibility === "player" && (!needle || `${page.title}\n${page.content}`.toLowerCase().includes(needle)))
+          .slice(0, 80)
+          .map((page) => {
+            const plain = page.content.replace(/<[^>]*>/g, " ").replace(/[#*_`|]/g, " ").replace(/\s+/g, " ").trim();
+            const at = Math.max(0, plain.toLowerCase().indexOf(needle));
+            return {
+              title: page.title,
+              url: `wte://page/${encodeURIComponent(page.stem)}`,
+              snippet: plain.slice(Math.max(0, at - 50), at + Math.max(needle.length, 1) + 140),
+            };
+          });
+        setView({ kind: "search", q, hits });
+        return;
+      }
       invoke<SearchHit[]>("wte_search", { query: q })
         .then((hits) => {
           if (!alive) return;
@@ -515,7 +658,7 @@ export function CodexBrowser({
           // itself refuses to open: the excerpt is the content.
           const visible = (hits || []).filter((h) => {
             const st = stemOf(h.url);
-            return curator || !st || getPageMeta(st, pageMetaMap).visibility !== "gm";
+            return curator || !st || effectiveMeta(st).visibility !== "gm";
           });
           setView({ kind: "search", q, hits: visible });
         })
@@ -527,14 +670,17 @@ export function CodexBrowser({
       // the list while wte://page/<stem> still opened it made the setting a
       // convenience rather than a rule — and search results, bookmarks, recents
       // and in-page links all navigate this way.
-      if (!curator && getPageMeta(stem, pageMetaMap).visibility === "gm") {
+      if (!curator && effectiveMeta(stem).visibility === "gm") {
         setView({ kind: "error", message: "That page is kept by the Curator." });
         retitle(tab.id, "Restricted");
         return;
       }
-      invoke<string>("wte_load_page", { path: stem })
-        .then((md) => {
+      loadRequestedPage(stem, requestedPageId.current ?? undefined)
+        .then((page) => {
           if (!alive) return;
+          if (!page) throw new Error("not found");
+          requestedPageId.current = null;
+          const md = page.content;
           const title = pageTitle(md, stem);
           setView({ kind: "page", stem, title, html: renderCodexHtml(md), entry: parseCodexEntry(md, stem) });
           retitle(tab.id, title);
@@ -552,7 +698,7 @@ export function CodexBrowser({
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url, tab.id]);
+  }, [url, tab.id, campaignId, pageRecords]);
 
   function navigate(to: string) {
     setTabs((ts) =>
@@ -613,9 +759,12 @@ export function CodexBrowser({
     const links = new Map<string, string[]>();
     for (const p of pages) {
       try {
-        const md = await invoke<string>("wte_load_page", { path: p });
+        const page = await loadEffectiveCodexPage(p, campaignId);
+        if (!page) continue;
+        const md = page.content;
         const e = parseCodexEntry(md, p);
         if (e) map.set(p, e.type);
+        else if (parseRollFormulaPage(md, p)) map.set(p, "roll formula");
         links.set(p, extractLinks(md, p));
       } catch {
         /* unreadable page */
@@ -725,19 +874,20 @@ export function CodexBrowser({
     if (typeFilter !== "All") {
       const want = typeFilter.toLowerCase();
       // Match a custom section label OR the content-derived record type.
-      list = list.filter((p) => getPageMeta(p, pageMetaMap).label === typeFilter || (typeMap.current && typeMap.current.get(p) === want));
+      list = list.filter((p) => effectiveMeta(p).label === typeFilter || (typeMap.current && typeMap.current.get(p) === want));
     }
     // Players (not Curator/Engineer) only see player-visible pages.
-    if (!privileged) list = list.filter((p) => getPageMeta(p, pageMetaMap).visibility === "player");
+    if (!privileged) list = list.filter((p) => effectiveMeta(p).visibility === "player");
     return list; // every record — the list box scrolls
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pages, homeFilter, typeFilter, scanState, privileged, pageMetaMap]);
+  }, [pages, homeFilter, typeFilter, scanState, privileged, pageMetaMap, pageRecords]);
 
   // Group records by their section label (chapter-like collapsible sections).
   const groupedPages = useMemo(() => {
     const groups = new Map<string, string[]>();
     for (const p of filteredPages) {
-      const label = getPageMeta(p, pageMetaMap).label || "Unsorted";
+      const record = pageRecords.find((page) => page.stem === p);
+      const label = effectiveMeta(p).label || (record?.kind ? record.kind.replace(/-/g, " ") : "Unsorted");
       if (!groups.has(label)) groups.set(label, []);
       groups.get(label)!.push(p);
     }
@@ -747,11 +897,12 @@ export function CodexBrowser({
       return a[0].localeCompare(b[0]);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredPages, pageMetaMap]);
+  }, [filteredPages, pageMetaMap, pageRecords]);
 
   // One record row (title + Engineer flags) — shared by grouped sections & books.
   function pageRow(p: string) {
-    const m = getPageMeta(p, pageMetaMap);
+    const m = effectiveMeta(p);
+    const record = pageRecords.find((page) => page.stem === p);
     return (
       <div key={p} className="cdx-page-row">
         <button className="cdx-item" onClick={() => navigate(`wte://page/${encodeURIComponent(p)}`)}>
@@ -759,12 +910,23 @@ export function CodexBrowser({
           {privileged && m.visibility === "gm" && <span className="cdx-gm-tag">GM</span>}
           {privileged && !m.pulled && <span className="cdx-off-tag">not pulled</span>}
         </button>
-        {engineer && (
+        {(engineer || canAuthorCampaign) && (
           <div className="cdx-page-flags">
-            <button className="cdx-flag" title="Edit this page" onClick={() => void openEditPage(p)}>
-              edit
-            </button>
-            {publishAvail && (
+            {canAuthorCampaign && (
+              <button
+                className="cdx-flag"
+                title={record?.source === "campaign" ? "Edit this campaign page" : "Customize the official page for this campaign"}
+                onClick={() => void openEditPage(p, record?.source === "campaign" ? "edit" : "customize", record?.id)}
+              >
+                {record?.source === "campaign" ? "edit" : "customize"}
+              </button>
+            )}
+            {engineer && record?.source !== "campaign" && (
+              <button className="cdx-flag" title="Edit the official page" onClick={() => void openEditPage(p, undefined, record?.id)}>
+                edit official
+              </button>
+            )}
+            {engineer && publishAvail && record?.source !== "campaign" && (
               <button
                 className={"cdx-flag" + (publishedStems.has(p) ? " on" : "")}
                 title={publishedStems.has(p) ? "Published to the shared Codex — click to unpublish" : "Publish to the shared official Codex (everyone can sync it)"}
@@ -773,20 +935,20 @@ export function CodexBrowser({
                 pub
               </button>
             )}
-            <button
+            {engineer && <button
               className={"cdx-flag" + (m.pulled ? " on" : "")}
               title={m.pulled ? "Pulled into sheet/VTT catalogs — click to stop pulling" : "Not pulled — click to pull into sheet/VTT catalogs"}
               onClick={() => togglePull(p)}
             >
               pull
-            </button>
-            <button
+            </button>}
+            {engineer && <button
               className={"cdx-flag" + (m.visibility === "player" ? " on" : "")}
               title={m.visibility === "player" ? "Player-visible — click to make GM-only" : "GM-only — click to make player-visible"}
               onClick={() => toggleVisibility(p)}
             >
               {m.visibility === "player" ? "plr" : "gm"}
-            </button>
+            </button>}
           </div>
         )}
       </div>
@@ -1039,22 +1201,26 @@ export function CodexBrowser({
               <div className="cdx-home-col">
                 <div className="panel-title cdx-records-head">
                   <span>{lens ? "Session lens" : homeFilter ? "Matching records" : "Records"}</span>
-                  {privileged && (
+                  {(engineer || canAuthorCampaign) && (
                     <>
-                      <input
-                        ref={pageUploadRef}
-                        type="file"
-                        accept=".md,.markdown,.txt"
-                        multiple
-                        hidden
-                        onChange={(e) => void uploadPages(e.target.files)}
-                      />
-                      <button className="chip" onClick={() => setEditor({})} title="Author a new Codex page">
-                        + New page
+                      {engineer && <input
+                          ref={pageUploadRef}
+                          type="file"
+                          accept=".md,.markdown,.txt"
+                          multiple
+                          hidden
+                          onChange={(e) => void uploadPages(e.target.files)}
+                        />}
+                      <button
+                        className="chip"
+                        onClick={() => setEditor({ mode: canAuthorCampaign ? "campaign" : "official" })}
+                        title={canAuthorCampaign ? "Author a page owned by this campaign" : "Author a new official Codex page"}
+                      >
+                        {canAuthorCampaign ? "+ Campaign page" : "+ New page"}
                       </button>
-                      <button className="chip" onClick={() => pageUploadRef.current?.click()} title="Upload official .md pages into the Codex">
+                      {engineer && <button className="chip" onClick={() => pageUploadRef.current?.click()} title="Upload official .md pages into the Codex">
                         Upload
-                      </button>
+                      </button>}
                     </>
                   )}
                   {publishAvail && (
@@ -1375,7 +1541,9 @@ export function CodexBrowser({
       {editor && (
         <PageEditor
           initial={editor.initial}
-          labels={[...BASE_LABELS, ...customLabels]}
+          // An inferred legacy section (notably Lore) may not have pageMeta yet;
+          // keep that current choice in the select until the first save persists it.
+          labels={[...new Set([...BASE_LABELS, ...customLabels, editor.initial?.label].filter((label): label is string => !!label))]}
           onSave={(d) => void savePageDraft(d)}
           onCancel={() => setEditor(null)}
         />

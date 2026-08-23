@@ -2,12 +2,27 @@ import type { RuleLayer } from "../game/ruleLayers";
 import { useCodex } from "../game/useCodex";
 import { useMemo, useState } from "react";
 import type { CharacterRecord } from "../lib/characters";
-import { ATTRIBUTES, SPECIALTIES, rollMod, specRollMod, diceExprFromText, signedMod, resolveStatToken } from "../game/wte";
-import type { CharacterSheet } from "../models/character";
+import {
+  ATTRIBUTES,
+  SPECIALTIES,
+  attributeRollProfile,
+  specialtyRollProfile,
+  rollProfileExpr,
+  diceExprFromText,
+  signedMod,
+  resolveStatToken,
+} from "../game/wte";
 import { parseAbilityActions, type AbilityAction } from "../game/abilityActions";
-import { characterActionSet, characterRollAxisStats, type VttAbility } from "./data/characterAbilities";
+import {
+  characterActionSet,
+  characterEffectiveRollScores,
+  characterRollAxisStats,
+  type CharacterEffectiveRollScores,
+  type VttAbility,
+} from "./data/characterAbilities";
 import { hasAoe, suggestedTemplate } from "./data/effectMeta";
-import { rollAxisChoices, rollAxisPaths, type RollAxis, type RollDirection, type RollAxisPath } from "../game/rollAxis";
+import { rollAxisChoices, rollAxisPaths, type RollAxis, type RollAxisStats, type RollDirection, type RollAxisPath } from "../game/rollAxis";
+import type { NetRollAxisRequest } from "../net/protocol";
 
 /** A target-side check parsed from an ability. The VTT shell supplies the
  * selected target and turns this intent into a targeted network roll request. */
@@ -17,6 +32,7 @@ export interface VttTargetRollIntent {
   sourceCharacterId?: string;
   label: string;
   stat?: string;
+  rollAxis?: NetRollAxisRequest;
   dc?: number;
 }
 
@@ -59,19 +75,32 @@ function suggestedExpr(a: VttAbility): string | undefined {
   return a.meta.values[0]?.expr ?? diceExprFromText(a.effect) ?? undefined;
 }
 
-/** Resolve a parsed self-roll action to the character's actual armed roll:
- *  attributes roll 1d20 + rollMod, specialties 1d40 + specRollMod. */
-function armSelf(action: AbilityAction, sheet: CharacterSheet): { label: string; expr: string } {
+/** Resolve a parsed self-roll action through the same active profile used by the
+ * sheet. Built-ins are d20/d40; a validated Codex formula may replace either. */
+function armSelfOptions(
+  action: AbilityAction,
+  scores: CharacterEffectiveRollScores,
+  axisStats: RollAxisStats | null
+): { label: string; buttonLabel: string; expr: string }[] {
+  if (action.rollAxis && axisStats) {
+    const path = rollAxisPaths(action.rollAxis.axis, action.rollAxis.direction).find((candidate) => candidate.id === action.rollAxis!.path);
+    if (!path) return [];
+    return rollAxisChoices(path, action.rollAxis.direction, axisStats).map((choice) => ({
+      label: `${action.label} · ${choice.sourceLabel}`,
+      buttonLabel: choice.sourceLabel,
+      expr: choice.expr,
+    }));
+  }
   const ref = action.stat ? resolveStatToken(action.stat) : null;
   if (ref?.kind === "attr") {
-    const mod = rollMod(sheet.attributes[ref.key as keyof typeof sheet.attributes] ?? 0);
-    return { label: action.label, expr: `1d20${modSuffix(mod)}` };
+    const profile = attributeRollProfile(scores.attr[ref.key as keyof typeof scores.attr] ?? 0);
+    return [{ label: action.label, buttonLabel: action.label, expr: rollProfileExpr(profile) }];
   }
   if (ref?.kind === "spec") {
-    const mod = specRollMod(sheet.specialties[ref.key as keyof typeof sheet.specialties] ?? 0);
-    return { label: action.label, expr: `1d40${modSuffix(mod)}` };
+    const profile = specialtyRollProfile(scores.spec[ref.key as keyof typeof scores.spec] ?? 0);
+    return [{ label: action.label, buttonLabel: action.label, expr: rollProfileExpr(profile) }];
   }
-  return { label: action.label, expr: action.expr ?? "1d20" };
+  return [{ label: action.label, buttonLabel: action.label, expr: action.expr ?? "1d20" }];
 }
 
 // Left-dock Abilities panel: base rolls + specialties, weapon actions, the
@@ -107,7 +136,8 @@ export function VttAbilitiesPanel({
   const [direction, setDirection] = useState<RollDirection | null>(null);
   const [path, setPath] = useState<RollAxisPath["id"] | null>(null);
   const axisPaths = axis && direction ? rollAxisPaths(axis, direction) : [];
-  const axisStats = character && axis && direction ? characterRollAxisStats(character) : null;
+  const axisStats = character ? characterRollAxisStats(character) : null;
+  const rollScores = character ? characterEffectiveRollScores(character) : null;
 
   function use(a: VttAbility) {
     onArmRoll(a.name, suggestedExpr(a));
@@ -154,6 +184,7 @@ export function VttAbilitiesPanel({
                       sourceCharacterId: character?.id,
                       label: s.label,
                       stat: s.stat,
+                      ...(s.rollAxis ? { rollAxis: { path: s.rollAxis.path, direction: s.rollAxis.direction } } : {}),
                       dc: s.dc,
                     })
                   }
@@ -189,18 +220,20 @@ export function VttAbilitiesPanel({
           // Genus / cipher / racial: buttons the parser derived from the effect
           // text — the character's own checks + each damage die — else a plain Use.
           <div className="vtt2-abil-btns">
-            {selfRolls.map((s, i) => {
-              const armed = character ? armSelf(s, character.sheet) : { label: s.label, expr: s.expr ?? "1d20" };
-              return (
+            {selfRolls.flatMap((s, i) => {
+              const armed = rollScores
+                ? armSelfOptions(s, rollScores, axisStats)
+                : [{ label: s.label, buttonLabel: s.label, expr: s.expr ?? "1d20" }];
+              return armed.map((option, optionIndex) => (
                 <button
-                  key={"s" + i}
+                  key={`s${i}-${optionIndex}`}
                   className="chip"
-                  onClick={() => { onArmRoll(`${a.name} — ${armed.label}`, armed.expr); onUseAbility(a); }}
-                  title={`Arm ${armed.expr}`}
+                  onClick={() => { onArmRoll(`${a.name} — ${option.label}`, option.expr); onUseAbility(a); }}
+                  title={`Arm ${option.expr}`}
                 >
-                  {s.label}
+                  {option.buttonLabel}
                 </button>
-              );
+              ));
             })}
             {dmgRolls.map((d, i) => (
               <button
@@ -286,30 +319,36 @@ export function VttAbilitiesPanel({
 
           <div className="vtt2-actor-group">Base rolls · attributes</div>
           <div className="vtt2-abil-baserolls">
-            {ATTRIBUTES.map((attr) => (
-              <button
-                key={attr.key}
-                className="chip"
-                title={`${attr.label} check — arms the roller with 1d20${modSuffix(rollMod(character.sheet.attributes[attr.key] ?? 0))}`}
-                onClick={() => onArmRoll(`${attr.short} check`, `1d20${modSuffix(rollMod(character.sheet.attributes[attr.key] ?? 0))}`)}
-              >
-                {attr.short}
-              </button>
-            ))}
+            {ATTRIBUTES.map((attr) => {
+              const expr = rollProfileExpr(attributeRollProfile(rollScores?.attr[attr.key] ?? 0));
+              return (
+                <button
+                  key={attr.key}
+                  className="chip"
+                  title={`${attr.label} check — arms the roller with ${expr}`}
+                  onClick={() => onArmRoll(`${attr.short} check`, expr)}
+                >
+                  {attr.short}
+                </button>
+              );
+            })}
           </div>
 
-          <div className="vtt2-actor-group">Specialties · 1d40</div>
+          <div className="vtt2-actor-group">Specialty rolls</div>
           <div className="vtt2-abil-baserolls">
-            {SPECIALTIES.map((spec) => (
-              <button
-                key={spec.key}
-                className="chip"
-                title={`${spec.label} check — arms the roller with 1d40${modSuffix(specRollMod(character.sheet.specialties[spec.key] ?? 0))}`}
-                onClick={() => onArmRoll(`${spec.label} check`, `1d40${modSuffix(specRollMod(character.sheet.specialties[spec.key] ?? 0))}`)}
-              >
-                {spec.key.toUpperCase()}
-              </button>
-            ))}
+            {SPECIALTIES.map((spec) => {
+              const expr = rollProfileExpr(specialtyRollProfile(rollScores?.spec[spec.key] ?? 0));
+              return (
+                <button
+                  key={spec.key}
+                  className="chip"
+                  title={`${spec.label} check — arms the roller with ${expr}`}
+                  onClick={() => onArmRoll(`${spec.label} check`, expr)}
+                >
+                  {spec.key.toUpperCase()}
+                </button>
+              );
+            })}
           </div>
 
           {set.actions.length > 0 && (

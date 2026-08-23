@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   applyCodexPages,
   beginCodexLoad,
+  codexLoadIsCurrent,
   codexRegistry,
   codexRevision,
   codexStatus,
@@ -76,6 +77,14 @@ describe("load ordering reflects when a load STARTED", () => {
     const c = beginCodexLoad();
     expect(b).toBeGreaterThan(a);
     expect(c).toBeGreaterThan(b);
+  });
+
+  it("lets singleton catalog writers detect a superseded load", () => {
+    const older = beginCodexLoad();
+    expect(codexLoadIsCurrent(older)).toBe(true);
+    const newer = beginCodexLoad();
+    expect(codexLoadIsCurrent(older)).toBe(false);
+    expect(codexLoadIsCurrent(newer)).toBe(true);
   });
 });
 

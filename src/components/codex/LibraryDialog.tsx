@@ -144,8 +144,9 @@ export function LibraryDialog({ onClose, onImported }: Props) {
 
         <div className="panel-title" style={{ marginTop: 8 }}>Pull pages</div>
         <p className="pe-hint" style={{ margin: "2px 0 8px" }}>
-          Pick the categories and pages this install pulls — pulled pages feed character creation, sheets, and the VTT.
-          Pages you already pulled auto-refresh at launch when the owner republishes them.
+          The official Codex ships with the app. This library offers optional published changes: the app tells you
+          when updates are waiting, and nothing replaces your local copy until you choose it here. Pulled mechanics
+          feed character creation, sheets, and the VTT.
         </p>
         {pages === null ? (
           <p className="list-empty">Reading the shared library…</p>

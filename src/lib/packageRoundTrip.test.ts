@@ -49,6 +49,7 @@ function fullPackage(): CampaignPackage {
     encounters: [],
     assets: [],
     kv: [],
+    rules: { attrBudget: true, attrBudgetPoints: 82, specTotal: 240, poolCompensation: true },
     pages: [{ stem: "Ashen_Lark", content: housePage }],
     ruleLayers: [
       { id: "L1", targetId: `campaign.${OLD}.genus.ashen-lark`, scope: "campaign", owner: OLD, op: "add", value: 2, note: "surcharge" },
@@ -62,10 +63,24 @@ describe("the envelope refuses what it cannot fully understand", () => {
     expect(parsePackage(JSON.parse(serializePackage(pkg)))).toEqual(pkg);
   });
 
-  it("keeps the pages and the rules through serialisation", () => {
+  it("keeps the pages, campaign rules and rule layers through serialisation", () => {
     const back = parsePackage(JSON.parse(serializePackage(fullPackage())));
     expect(back.pages).toHaveLength(1);
+    expect(back.rules).toEqual(fullPackage().rules);
     expect(back.ruleLayers).toHaveLength(1);
+  });
+
+  it("imports a v3 page-and-layer package and supplies default campaign rules", () => {
+    const { rules: _rules, ...legacyV3 } = fullPackage();
+    const back = parsePackage({ ...legacyV3, version: 3 });
+    expect(back.pages).toHaveLength(1);
+    expect(back.ruleLayers).toHaveLength(1);
+    expect(back.rules).toEqual({
+      attrBudget: false,
+      attrBudgetPoints: 70,
+      specTotal: 200,
+      poolCompensation: false,
+    });
   });
 
   it("refuses a package from a newer build rather than dropping what it cannot read", () => {
@@ -73,11 +88,10 @@ describe("the envelope refuses what it cannot fully understand", () => {
     expect(() => parsePackage(pkg)).toThrow(PackageVersionError);
   });
 
-  it("is labelled 3, so an older build refuses it rather than damaging itself", () => {
-    // A build only rejects packages NEWER than it knows. At 2 a pre-ownership
-    // build would accept this file and write every campaign page into the shared
-    // folder — globalising one table's rules over everyone else's.
-    expect(fullPackage().version).toBe(3);
+  it("is labelled 4, so an older build refuses it rather than dropping campaign rules", () => {
+    // A build only rejects packages NEWER than it knows. A v3 build would accept
+    // a v3-labelled file and silently discard the new CampaignRules field.
+    expect(fullPackage().version).toBe(4);
   });
 
   it("refuses a file that is not a package at all", () => {

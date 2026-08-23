@@ -31,6 +31,13 @@ import { deleteCampaignCodexPages, saveCodexPage } from "./codexPageRepo";
 import { parseId, slugify, ID_SCOPES } from "../game/codexId";
 import { isTauri } from "./tauri";
 import {
+  deleteLocalRules,
+  loadLocalRules,
+  parseRules,
+  saveRules,
+  type CampaignRules,
+} from "./campaignRules";
+import {
   TOKEN_REGISTRY_KEY,
   parseTokenRegistry,
   remapTokenRegistryForCampaignCopy,
@@ -132,6 +139,11 @@ async function savePageFile(stem: string, content: string): Promise<void> {
 /**
  * Bump when the ENVELOPE changes shape. Records inside carry their own versions.
  *
+ * 4 — added `rules`. CampaignRules live in localStorage rather than the campaign
+ * database, so every earlier package quietly reset specialty budgets, attribute
+ * budgets and pool compensation to the published defaults after an import. A v3
+ * reader would accept and discard this field; the bump makes it refuse instead.
+ *
  * 3 — campaign PAGE OWNERSHIP. A package's pages may now carry campaign-scoped
  * ids and be filed into a per-campaign store. A v2 build has no such store, so
  * it writes every page straight to the shared folder — globalising rules that
@@ -145,7 +157,7 @@ async function savePageFile(stem: string, content: string): Promise<void> {
  * the official rules instead of the table's. Labelling it 2 makes that same old
  * build refuse the package and say why, which is the outcome you can act on.
  */
-export const PACKAGE_VERSION = 3;
+export const PACKAGE_VERSION = 4;
 
 export interface CampaignPackage {
   wte: "campaign";
@@ -161,6 +173,9 @@ export interface CampaignPackage {
   assets: unknown[];
   /** Campaign-scoped settings: desk notes, calendar, folder trees. */
   kv: { scope: string; key: string; value: unknown }[];
+  /** Campaign-wide creation and derived-stat policy. Kept explicit because these
+   * settings live outside the database-backed `kv` collection. */
+  rules: CampaignRules;
   /** Codex pages this campaign relies on, by stem. */
   pages: { stem: string; content: string }[];
   /** Layered rule overrides. Without these a package restores a campaign whose
@@ -222,6 +237,7 @@ export async function buildPackage(
     encounters,
     assets,
     kv,
+    rules: loadLocalRules(campaign.id),
     ruleLayers,
     pages: opts?.pages ?? [],
   };
@@ -256,6 +272,11 @@ export function parsePackage(raw: unknown): CampaignPackage {
     encounters: arr<unknown>(o.encounters),
     assets: arr<unknown>(o.assets),
     kv: arr<{ scope: string; key: string; value: unknown }>(o.kv),
+    // v1-v3 packages did not carry this localStorage-backed policy. They remain
+    // importable and receive the published defaults; current packages are
+    // normalised here so hand-edited or hostile values cannot escape the bounds
+    // CampaignRules uses everywhere else in the app.
+    rules: parseRules(o.rules),
     ruleLayers: arr<RuleLayer>(o.ruleLayers),
     pages: arr<{ stem: string; content: string }>(o.pages),
   };
@@ -297,6 +318,7 @@ export interface ImportResult {
     scenes: number;
     encounters: number;
     assets: number;
+    rules: number;
     ruleLayers: number;
     pages: number;
   };
@@ -319,7 +341,7 @@ export async function importPackage(
   opts?: { newCampaignName?: string }
 ): Promise<ImportResult> {
   const failed: { what: string; error: string }[] = [];
-  const imported = { characters: 0, notes: 0, sequences: 0, scenes: 0, encounters: 0, assets: 0, ruleLayers: 0, pages: 0 };
+  const imported = { characters: 0, notes: 0, sequences: 0, scenes: 0, encounters: 0, assets: 0, rules: 0, ruleLayers: 0, pages: 0 };
   if (!sqlAvailable()) return { campaignId: pkg.campaign.id, imported, failed };
   const db = await getDb();
 
@@ -427,6 +449,17 @@ export async function importPackage(
     }
   }
 
+  try {
+    // Saving under the destination id is the whole copy-mode transform: the
+    // imported campaign gets an independent policy while the source key remains
+    // untouched. parsePackage already normalised the untrusted values, and
+    // saveRules applies the same guard again at the persistence boundary.
+    saveRules(campaignId, pkg.rules);
+    imported.rules = 1;
+  } catch (e) {
+    failed.push({ what: "campaign rules", error: e instanceof Error ? e.message : String(e) });
+  }
+
   for (const l of pkg.ruleLayers) {
     try {
       const bad = ruleLayerProblem(l);
@@ -504,6 +537,10 @@ export async function importPackage(
 
 /** Remove a campaign and everything hanging off it. Used only to undo a copy. */
 async function deleteCampaignRows(db: Awaited<ReturnType<typeof getDb>>, campaignId: string): Promise<void> {
+  // CampaignRules are the one imported campaign record outside SQLite. Remove
+  // them before the compensating database delete so a reported successful
+  // rollback cannot leave an invisible policy behind under the copied id.
+  deleteLocalRules(campaignId);
   await deleteCampaignCodexPages(campaignId).catch(() => {});
   for (const t of ["characters", "notes", "codex_sequences", "scenes", "encounters", "assets", "campaign_kv", "rule_layers"]) {
     try {

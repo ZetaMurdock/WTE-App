@@ -8,6 +8,7 @@ import cipherData from "./data/ciphers.json";
 import variantsData from "./data/variants.json";
 import speciesInnateData from "./data/speciesInnate.json";
 import inceptData from "./data/incepts.json";
+import { resolveCodexRollFormula } from "./rollFormula";
 
 export type AttrKey = "phy" | "dex" | "end" | "ap" | "wis" | "cha" | "int";
 export type SpecKey =
@@ -170,6 +171,25 @@ export interface Species {
   /** Named lineage variants that grant extra abilities (from the baked variants data). */
   variants: SpeciesVariant[];
 }
+
+/** Fields a structured Species page actually authored.  A Codex page is often
+ * an overlay on a much richer baked lineage, so an omitted row means "keep the
+ * rule already in force", not "erase it with the parser's fallback value". */
+export type SpeciesMechanicField =
+  | "family"
+  | "bonuses"
+  | "innate"
+  | "note"
+  | "dom"
+  | "rec"
+  | "eminence"
+  | "innateSelect"
+  | "variants";
+
+export interface CodexSpeciesDefinition {
+  species: Species;
+  provided: SpeciesMechanicField[];
+}
 // Base species data; `variants` + innate effects come from the baked Codex data
 // (src/game/data/variants.json, speciesInnate.json). Every species selects 2 of 4
 // innate abilities active; the unselected pair seeds the Incept Pool.
@@ -268,9 +288,13 @@ export const PARADIGMS: Paradigm[] = [
 // fallback and a re-register resets to base first (idempotent).
 const BASE_SPECIES: Species[] = SPECIES.slice();
 const BASE_PARADIGMS: Paradigm[] = PARADIGMS.slice();
+let baseSpeciesSizes: Record<string, string> | null = null;
 
 export interface CodexGameData {
-  species?: Species[];
+  /** Plain Species values remain supported for callers that intend a complete
+   * replacement. Parsed Codex pages carry the fields they actually declared so
+   * partial campaign overrides cannot delete baked lineage mechanics. */
+  species?: Array<Species | CodexSpeciesDefinition>;
   paradigms?: Paradigm[];
   /** speciesId → size key, for page-defined species. */
   sizes?: Record<string, string>;
@@ -297,12 +321,49 @@ export interface CodexBackground {
 }
 export const BACKGROUNDS: CodexBackground[] = [];
 
+function isCodexSpeciesDefinition(value: Species | CodexSpeciesDefinition): value is CodexSpeciesDefinition {
+  return "species" in value && Array.isArray(value.provided);
+}
+
+/** Overlay only the fields the campaign page declared. Identity/display name
+ * always come from the overlay; every other omitted mechanic stays inherited. */
+export function mergeCodexSpecies(base: Species, definition: CodexSpeciesDefinition): Species {
+  const patch = definition.species;
+  const has = (field: SpeciesMechanicField) => definition.provided.includes(field);
+  return {
+    id: patch.id,
+    name: patch.name,
+    family: has("family") ? patch.family : base.family,
+    bonuses: has("bonuses") ? patch.bonuses : base.bonuses,
+    innate: has("innate") ? patch.innate : base.innate,
+    note: has("note") ? patch.note : base.note,
+    dom: has("dom") ? patch.dom : base.dom,
+    rec: has("rec") ? patch.rec : base.rec,
+    eminence: has("eminence") ? patch.eminence : base.eminence,
+    innateSelect: has("innateSelect") ? patch.innateSelect : base.innateSelect,
+    variants: has("variants") ? patch.variants : base.variants,
+  };
+}
+
 export function registerCodexGameData(data: CodexGameData): void {
+  // Captured lazily because SPECIES_SIZE is declared later in this module. Every
+  // registration is a full replacement: a size authored by campaign A must not
+  // survive when campaign B reuses that species id without a size override.
+  baseSpeciesSizes ??= { ...SPECIES_SIZE };
+  for (const id of Object.keys(SPECIES_SIZE)) delete SPECIES_SIZE[id];
+  Object.assign(SPECIES_SIZE, baseSpeciesSizes);
   SPECIES.length = 0;
   SPECIES.push(...BASE_SPECIES);
-  for (const s of data.species ?? []) {
+  for (const value of data.species ?? []) {
+    const definition = isCodexSpeciesDefinition(value)
+      ? value
+      : {
+          species: value,
+          provided: ["family", "bonuses", "innate", "note", "dom", "rec", "eminence", "innateSelect", "variants"] as SpeciesMechanicField[],
+        };
+    const s = definition.species;
     const i = SPECIES.findIndex((x) => x.id === s.id);
-    if (i >= 0) SPECIES[i] = s;
+    if (i >= 0) SPECIES[i] = mergeCodexSpecies(SPECIES[i], definition);
     else SPECIES.push(s);
   }
   PARADIGMS.length = 0;
@@ -1359,25 +1420,57 @@ function modeTag(mode: RollMode, rolls: number[]): string {
 function fmtMod(n: number): string {
   return n >= 0 ? `+ ${n}` : `- ${Math.abs(n)}`;
 }
+export interface RollProfile {
+  die: number;
+  modifier: number;
+  /** Present when the active profile came from a pulled Codex formula. */
+  codexFormulaId?: string;
+}
+/** Dice-tray expression for a resolved profile. Kept beside the profile so the
+ * character sheet and both VTT roll entry points cannot drift apart. */
+export function rollProfileExpr(profile: RollProfile): string {
+  const suffix = profile.modifier > 0 ? `+${profile.modifier}` : profile.modifier < 0 ? String(profile.modifier) : "";
+  return `1d${profile.die}${suffix}`;
+}
+export function attributeRollProfile(score: number): RollProfile {
+  const codex = resolveCodexRollFormula("attribute", { score });
+  return codex
+    ? { die: codex.die, modifier: codex.modifier, codexFormulaId: codex.id }
+    : { die: 20, modifier: rollMod(score) };
+}
+export function specialtyRollProfile(pts: number): RollProfile {
+  const codex = resolveCodexRollFormula("specialty", { score: pts });
+  return codex
+    ? { die: codex.die, modifier: codex.modifier, codexFormulaId: codex.id }
+    : { die: 40, modifier: specRollMod(pts) };
+}
 /** Net specialty roll modifier: rollMod(pts) minus the under-25 penalty. Shown in the mod box. */
 export function specRollMod(pts: number): number {
   return rollMod(pts) - (pts < SPEC_PENALTY_MIN ? SPEC_PENALTY : 0);
 }
 /** Attribute check: 1d20 + rollMod(score). */
 export function rollAttribute(label: string, score: number, mode: RollMode = "normal"): RollResult {
-  const { roll, rolls } = rollDieMode(20, mode);
-  const mod = rollMod(score);
-  return { formula: `1d20 ${fmtMod(mod)}${modeTag(mode, rolls)}`, result: roll + mod, detail: { die: 20, roll, modifier: mod, label, mode, rolls } };
+  const profile = attributeRollProfile(score);
+  const { die } = profile;
+  const { roll, rolls } = rollDieMode(die, mode);
+  const mod = profile.modifier;
+  return { formula: `1d${die} ${fmtMod(mod)}${modeTag(mode, rolls)}`, result: roll + mod, detail: { die, roll, modifier: mod, label, mode, rolls } };
 }
 /** Specialty check: 1d40 + rollMod(pts), with a flat −25 when the specialty has
  *  under 25 points. Specialties (and the Pressure Engine) roll d40; only
  *  ATTRIBUTE checks roll a d20. */
 export function rollSpecialty(label: string, pts: number, mode: RollMode = "normal"): RollResult {
-  const { roll, rolls } = rollDieMode(40, mode);
+  const profile = specialtyRollProfile(pts);
+  const { die } = profile;
+  const { roll, rolls } = rollDieMode(die, mode);
+  if (profile.codexFormulaId) {
+    const mod = profile.modifier;
+    return { formula: `1d${die} ${fmtMod(mod)}${modeTag(mode, rolls)}`, result: roll + mod, detail: { die, roll, modifier: mod, label, mode, rolls } };
+  }
   const mod = rollMod(pts);
   const penalty = pts < SPEC_PENALTY_MIN ? SPEC_PENALTY : 0;
-  const formula = (penalty ? `1d40 ${fmtMod(mod)} - ${SPEC_PENALTY}` : `1d40 ${fmtMod(mod)}`) + modeTag(mode, rolls);
-  return { formula, result: roll + mod - penalty, detail: { die: 40, roll, modifier: mod - penalty, label, mode, rolls } };
+  const formula = (penalty ? `1d${die} ${fmtMod(mod)} - ${SPEC_PENALTY}` : `1d${die} ${fmtMod(mod)}`) + modeTag(mode, rolls);
+  return { formula, result: roll + mod - penalty, detail: { die, roll, modifier: mod - penalty, label, mode, rolls } };
 }
 /** Plain 1d20 assist roll (used when resolving an ability). */
 export function rollGeneric(label: string, mode: RollMode = "normal"): RollResult {

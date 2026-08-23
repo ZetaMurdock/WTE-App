@@ -27,6 +27,8 @@ const SEMANTIC_KINDS: Record<string, IdKind> = {
   species: "species",
   paradigm: "paradigm",
   background: "background",
+  formula: "formula",
+  "roll formula": "formula",
 };
 
 /** Read one `| Key | Value |`-style field, the same shapes the parsers accept. */
@@ -61,6 +63,14 @@ function withAlias(md: string, alias: string): string {
   return md;
 }
 
+function withField(md: string, key: string, value: string): string {
+  const row = new RegExp(`^\\s*\\|\\s*${key}\\s*\\|\\s*[^|]*\\|\\s*$`, "im");
+  if (row.test(md)) return md.replace(row, `| ${key} | ${value} |`);
+  const idRow = /^(\s*\|\s*ID\s*\|\s*[^|]*\|\s*)$/im;
+  if (idRow.test(md)) return md.replace(idRow, `$1\n| ${key} | ${value} |`);
+  return `${md.trimEnd()}\n\n| Field | Value |\n|---|---|\n| ${key} | ${value} |\n`;
+}
+
 export interface PinResult {
   content: string;
   /** The id the page now carries. */
@@ -78,8 +88,9 @@ export interface PinResult {
  * that is the only way to know a rename happened, and a rename is precisely when
  * a reference would otherwise break.
  *
- * Returns the content unchanged for lore pages, and for pages that already carry
- * an id: an id is assigned once and never reassigned, which is the entire point.
+ * Returns the content unchanged for official lore pages. Campaign lore receives
+ * a generic page id so it can be owned/synchronized. For pages that already
+ * carry an id: an id is assigned once and never reassigned, which is the point.
  */
 export function pinPageIdentity(args: {
   content: string;
@@ -90,8 +101,11 @@ export function pinPageIdentity(args: {
 }): PinResult | null {
   const { content, stem, previousContent, campaignId } = args;
   const typeRaw = (readField(content, "Type") ?? "").toLowerCase().trim();
-  const kind = SEMANTIC_KINDS[typeRaw];
-  if (!kind) return null; // lore: nothing to reference, nothing to pin
+  const kind = SEMANTIC_KINDS[typeRaw] ?? (campaignId ? "page" : undefined);
+  // Official lore still belongs to the global file and needs no semantic id.
+  // Campaign lore does need an owned id so it can live in the campaign Codex
+  // without mutating or disappearing behind a same-stem official page.
+  if (!kind) return null;
 
   const title = titleOf(content, stem);
   if (!slugify(title)) return null; // no usable name to build an id from
@@ -171,6 +185,38 @@ export function storedPageFor(stem: string, content: string, campaignId: string)
     overrides: readField(content, "Overrides") || undefined,
     updatedAt: Date.now(),
   };
+}
+
+/** Fork an official page into a campaign-owned customization. The official file
+ * is never touched: its id becomes `Overrides`, and the copy receives a new
+ * campaign id. Lore pages use the generic `page` kind so the same safe workflow
+ * works for every connected Codex item. */
+export function customizePageForCampaign(args: {
+  content: string;
+  stem: string;
+  campaignId: string;
+  /** Exact manifest identity of the official record being forked. This matters
+   * for legacy prose whose inferred mechanics kind differs from its fallback
+   * official page id. */
+  officialId?: string;
+}): { content: string; id: string; overrides: string } {
+  const { stem, campaignId } = args;
+  const title = titleOf(args.content, stem);
+  const typeRaw = (readField(args.content, "Type") ?? "").toLowerCase().trim();
+  const kind = SEMANTIC_KINDS[typeRaw] ?? "page";
+  const declared = (readField(args.content, "ID") ?? "").trim();
+  const parsed = declared ? parseId(declared) : null;
+  const manifestId = (args.officialId ?? "").trim();
+  const manifestParsed = manifestId ? parseId(manifestId) : null;
+  const overrides = manifestParsed && (manifestParsed.scope === "wte" || manifestParsed.scope === "pack")
+    ? manifestId
+    : parsed && (parsed.scope === "wte" || parsed.scope === "pack")
+      ? declared
+      : makeId(kind, title);
+  const id = makeId(kind, title, { scope: "campaign", owner: campaignId });
+  let content = withIdentityRow(args.content, id);
+  content = withField(content, "Overrides", overrides);
+  return { content, id, overrides };
 }
 
 export { identityRow, readField };

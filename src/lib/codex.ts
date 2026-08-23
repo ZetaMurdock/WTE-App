@@ -28,18 +28,35 @@ export function addToArmory(entry: Weapon | Equipment): void {
   writeJson(key, list, { label: "custom armory" });
 }
 // ── Codex-pulled catalog: weapon/gear records from PULLED pages, loaded at boot
-// by lib/gameData. Overlaid between the baked catalogs and the custom armory. ──
+// by lib/gameData. This is the campaign-authoritative layer, so it must win when
+// a player's old local armory contains an item with the same name. Unique local
+// items remain available. ──
 let codexWeapons: Weapon[] = [];
 let codexGear: Equipment[] = [];
 export function setCodexCatalog(weapons: Weapon[], gear: Equipment[]): void {
   codexWeapons = weapons;
   codexGear = gear;
 }
+function overlayByName<T extends { name: string }>(layers: T[][]): T[] {
+  const out: T[] = [];
+  const at = new Map<string, number>();
+  for (const layer of layers) {
+    for (const value of layer) {
+      const key = value.name.toLowerCase();
+      const found = at.get(key);
+      if (found === undefined) {
+        at.set(key, out.length);
+        out.push(value);
+      } else out[found] = value;
+    }
+  }
+  return out;
+}
 export function listWeapons(): Weapon[] {
-  return [...WEAPONS, ...codexWeapons, ...customList<Weapon>("wte-armory-weapons")];
+  return overlayByName([WEAPONS, customList<Weapon>("wte-armory-weapons"), codexWeapons]);
 }
 export function listEquipment(): Equipment[] {
-  return [...GEAR, ...codexGear, ...customList<Equipment>("wte-armory-gear")];
+  return overlayByName([GEAR, customList<Equipment>("wte-armory-gear"), codexGear]);
 }
 export function getWeapon(name: string): Weapon | undefined {
   const n = name.toLowerCase();
@@ -106,6 +123,13 @@ async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T
   return window.__TAURI__.core.invoke(cmd, args) as Promise<T>;
 }
 let cache: CodexEntry[] | null = null;
+
+/** The unified campaign loader has already parsed these effective pages. Feeding
+ * that same set to the bestiary prevents a joined player from re-scanning their
+ * unrelated local AppData Codex. */
+export function setCodexRuntimeEntries(entries: CodexEntry[]): void {
+  cache = entries.slice();
+}
 
 export async function scanCodex(force = false): Promise<CodexEntry[]> {
   if (!isTauri()) return [];

@@ -6,12 +6,14 @@ import { assignCharacterCampaign, listAllCharacters, type CharacterRecord } from
 import { CharacterCreator } from "./characters/CharacterCreator";
 import { PortraitFrame } from "./characters/PortraitFrame";
 import { Collapsible } from "./ui/Collapsible";
+import { useCampaignCodex } from "../game/useCampaignCodex";
 
 // The player's view of the Curator's table. It appears once a Curator announces
 // their campaign to the room — a player never picks the campaign by hand, because
 // the campaign lives on the Curator's machine and this is a LINK to it.
 export function PlayerCampaign() {
   const net = useNet();
+  const codex = useCampaignCodex();
   const table = net.table;
   const [chars, setChars] = useState<CharacterRecord[]>([]);
   const [amount, setAmount] = useState("");
@@ -63,6 +65,7 @@ export function PlayerCampaign() {
 
   // Bound after the guards above so the closures below narrow cleanly.
   const t = table;
+  const codexReady = net.role === "host" || (codex.status === "ready" && codex.campaignId === t.campaignId);
   // Filed under THIS table vs everywhere else — the second group is what needs
   // carrying over for someone who built characters before joining.
   const here = chars.filter((c) => c.campaignId === t.campaignId);
@@ -131,6 +134,21 @@ export function PlayerCampaign() {
   // campaign needed. This is the whole point — a player should never have to
   // invent a campaign of their own just to roll a character.
   if (creating) {
+    if (!codexReady) {
+      return (
+        <div className="dashboard">
+          <div className="panel">
+            <div className="panel-title">Campaign Codex</div>
+            <p className="list-empty">
+              {codex.status === "error"
+                ? codex.message
+                : "Syncing the Curator's character options and rules before creation…"}
+            </p>
+            <button className="ghost-btn" onClick={() => setCreating(false)}>Back to table</button>
+          </div>
+        </div>
+      );
+    }
     return (
       <CharacterCreator
         campaignId={t.campaignId}
@@ -170,12 +188,13 @@ export function PlayerCampaign() {
               <button
                 className="icon-btn xs"
                 title="Build a character straight into this table"
+                disabled={!codexReady}
                 onClick={(e) => {
                   e.stopPropagation();
                   setCreating(true);
                 }}
               >
-                + New
+                {codexReady ? "+ New" : "Syncing Codex…"}
               </button>
             }
           >

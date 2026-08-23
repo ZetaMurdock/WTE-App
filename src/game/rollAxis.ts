@@ -1,4 +1,5 @@
 import { rollDiceExpr, type AttrKey, type DerivedKey, type RollMode, type RollResult, type SpecKey } from "./wte";
+import { resolveCodexRollFormula, type RollFormulaPath } from "./rollFormula";
 
 export type RollAxis = "physical" | "mental";
 export type RollDirection = "check" | "save";
@@ -38,12 +39,14 @@ export interface RollAxisChoice {
   source: "attribute" | "specialty";
   sourceLabel: string;
   sourceShort: string;
-  die: 20 | 40;
+  die: number;
   sourceMod: number;
   derivedMod: number;
   totalMod: number;
   label: string;
   expr: string;
+  /** Present when a pulled Codex formula, rather than the built-in sum, won. */
+  codexFormula?: { id: string; name: string };
 }
 
 function suffix(value: number): string {
@@ -63,8 +66,14 @@ export function rollAxisChoices(path: RollAxisPath, direction: RollDirection, st
     const sourceLabel = attribute ? path.attribute.label : path.specialty.label;
     const sourceShort = attribute ? path.attribute.short : path.specialty.label;
     const sourceMod = attribute ? stats.attr[path.attribute.key] : stats.spec[path.specialty.key];
-    const die = attribute ? 20 : 40;
-    const totalMod = sourceMod + derivedMod;
+    const codex = resolveCodexRollFormula(
+      attribute ? "roll-axis-attribute" : "roll-axis-specialty",
+      { source: sourceMod, derived: derivedMod },
+      path.id as RollFormulaPath,
+      direction
+    );
+    const die = codex?.die ?? (attribute ? 20 : 40);
+    const totalMod = codex?.modifier ?? sourceMod + derivedMod;
     return {
       path,
       direction,
@@ -77,6 +86,7 @@ export function rollAxisChoices(path: RollAxisPath, direction: RollDirection, st
       totalMod,
       label: `${path.name} ${direction === "check" ? "Check" : "Save"} · ${sourceLabel}`,
       expr: `1d${die}${suffix(totalMod)}`,
+      codexFormula: codex ? { id: codex.id, name: codex.name } : undefined,
     };
   };
   return [make("attribute"), make("specialty")];
@@ -92,8 +102,11 @@ export function rollAxisRoll(choice: RollAxisChoice, mode: RollMode = "normal"):
   const roll = rollDiceExpr(choice.label, choice.expr, mode);
   if (!roll) throw new Error(`Invalid Roll Axis expression: ${choice.expr}`);
   const posture = roll.formula.includes(" · ") ? roll.formula.slice(roll.formula.indexOf(" · ")) : "";
+  const codexLabel = choice.codexFormula?.name.replace(/\s+/g, " ").trim().slice(0, 48);
   return {
     ...roll,
-    formula: `1d${choice.die} ${signed(choice.sourceMod)} ${choice.sourceShort} ${signed(choice.derivedMod)} ${choice.path.derived.short}${posture}`,
+    formula: choice.codexFormula
+      ? `1d${choice.die} ${signed(choice.sourceMod)} ${choice.sourceShort} ${signed(choice.derivedMod)} ${choice.path.derived.short} · Codex ${codexLabel || "Formula"} = ${signed(choice.totalMod)}${posture}`
+      : `1d${choice.die} ${signed(choice.sourceMod)} ${choice.sourceShort} ${signed(choice.derivedMod)} ${choice.path.derived.short}${posture}`,
   };
 }

@@ -67,6 +67,7 @@ const {
 const campaign = { id: "c-ashen", name: "Ashen Sun", createdAt: 1, updatedAt: 2, archived: false };
 
 beforeEach(() => {
+  localStorage.clear();
   for (const k of Object.keys(tables)) tables[k] = [];
   tables.campaigns.push({ id: "c-ashen", name: "Ashen Sun", campaign_id: null });
   tables.characters.push({ id: "ch1", campaign_id: "c-ashen", name: "Inquisitor One", data: JSON.stringify({ rank: 4, morality: 80 }) });
@@ -76,12 +77,17 @@ beforeEach(() => {
 
 describe("a package gathers the whole campaign", () => {
   it("includes characters, scenes and settings", async () => {
+    localStorage.setItem(
+      "wte-campaign-rules:c-ashen",
+      JSON.stringify({ attrBudget: true, attrBudgetPoints: 84, specTotal: 240, poolCompensation: true })
+    );
     const pkg = await buildPackage(campaign);
     expect(pkg.wte).toBe("campaign");
     expect(pkg.version).toBe(PACKAGE_VERSION);
     expect(pkg.characters).toHaveLength(1);
     expect(pkg.scenes).toHaveLength(1);
     expect(pkg.kv.find((k) => k.key === "notes")?.value).toEqual([{ title: "Prep" }]);
+    expect(pkg.rules).toEqual({ attrBudget: true, attrBudgetPoints: 84, specTotal: 240, poolCompensation: true });
   });
 
   it("EXCLUDES a character whose data could not be read", async () => {
@@ -105,6 +111,7 @@ describe("a package gathers the whole campaign", () => {
       encounters: [],
       assets: [],
       kv: [],
+      rules: { attrBudget: false, attrBudgetPoints: 70, specTotal: 200, poolCompensation: false },
       ruleLayers: [],
       pages: [],
     });
@@ -136,6 +143,35 @@ describe("import validates before it trusts", () => {
 
   it("tolerates a missing version, treating it as 1", () => {
     expect(parsePackage({ wte: "campaign", campaign }).version).toBe(1);
+  });
+
+  it("keeps v3 packages compatible by supplying published campaign rules", () => {
+    expect(parsePackage({ wte: "campaign", version: 3, campaign }).rules).toEqual({
+      attrBudget: false,
+      attrBudgetPoints: 70,
+      specTotal: 200,
+      poolCompensation: false,
+    });
+  });
+
+  it("normalizes untrusted campaign rules at the package boundary", () => {
+    const pkg = parsePackage({
+      wte: "campaign",
+      version: PACKAGE_VERSION,
+      campaign,
+      rules: {
+        attrBudget: "yes",
+        attrBudgetPoints: 9999,
+        specTotal: -4,
+        poolCompensation: 1,
+      },
+    });
+    expect(pkg.rules).toEqual({
+      attrBudget: false,
+      attrBudgetPoints: 140,
+      specTotal: 10,
+      poolCompensation: false,
+    });
   });
 });
 
@@ -185,6 +221,52 @@ describe("copy mode lands alongside, merge mode lands on top", () => {
   it("copy mode names the copy distinctly so they can be told apart", async () => {
     const r = await importPackage(parsePackage(incoming), "copy");
     expect(tables.campaigns.find((c) => c.id === r.campaignId)!.name).toContain("imported");
+  });
+
+  it("copy mode restores campaign rules under the copy without changing the source", async () => {
+    const sourceRules = { attrBudget: false, attrBudgetPoints: 70, specTotal: 180, poolCompensation: false };
+    const importedRules = { attrBudget: true, attrBudgetPoints: 91, specTotal: 260, poolCompensation: true };
+    localStorage.setItem("wte-campaign-rules:c-ashen", JSON.stringify(sourceRules));
+
+    const r = await importPackage(
+      parsePackage({ ...incoming, version: PACKAGE_VERSION, rules: importedRules }),
+      "copy"
+    );
+
+    expect(r.imported.rules).toBe(1);
+    expect(JSON.parse(localStorage.getItem(`wte-campaign-rules:${r.campaignId}`)!)).toEqual(importedRules);
+    expect(JSON.parse(localStorage.getItem("wte-campaign-rules:c-ashen")!)).toEqual(sourceRules);
+  });
+
+  it("merge mode restores campaign rules onto the destination campaign", async () => {
+    const importedRules = { attrBudget: true, attrBudgetPoints: 77, specTotal: 225, poolCompensation: true };
+    const r = await importPackage(
+      parsePackage({ ...incoming, version: PACKAGE_VERSION, rules: importedRules }),
+      "merge"
+    );
+
+    expect(r.campaignId).toBe("c-ashen");
+    expect(r.imported.rules).toBe(1);
+    expect(JSON.parse(localStorage.getItem("wte-campaign-rules:c-ashen")!)).toEqual(importedRules);
+  });
+
+  it("copy rollback removes the copied campaign rules as well as its database rows", async () => {
+    const invalidLayer = {
+      id: "broken-layer",
+      targetId: "wte.stat.action-priority",
+      scope: "campaign",
+      owner: "c-ashen",
+      op: "run-code",
+      value: 2,
+    };
+    const result = await importPackage(
+      parsePackage({ ...incoming, version: PACKAGE_VERSION, ruleLayers: [invalidLayer] }),
+      "copy"
+    );
+
+    expect(result.rolledBack).toBe(true);
+    expect(result.failed.some((entry) => entry.what.includes("rule layer"))).toBe(true);
+    expect(localStorage.getItem(`wte-campaign-rules:${result.campaignId}`)).toBeNull();
   });
 
   it("copy mode keeps internal references pointing inside the copy", async () => {

@@ -18,6 +18,9 @@ import {
   specRollMod,
   SPEC_MAX,
   moralityMods,
+  type Attributes,
+  type Specialties,
+  type EquipMods,
   type AttrKey,
   type SpecKey,
   sizeOf,
@@ -51,6 +54,12 @@ export interface CharacterActionSet {
   racial: VttAbility[];
 }
 
+export interface CharacterEffectiveRollScores {
+  attr: Attributes;
+  /** Effective specialties are capped exactly as they are on the sheet. */
+  spec: Specialties;
+}
+
 function mk(
   source: AbilitySource,
   name: string,
@@ -72,10 +81,7 @@ function mk(
   };
 }
 
-// Weapon to-hit mirrors the character sheet's ActionsTable: atk + STR (melee) or
-// DEX (ranged) modifier, with the same effective-attribute + equipment stack.
-/** Fully effective modifiers used by the seven universal Roll Axis paths. */
-export function characterRollAxisStats(rec: CharacterRecord): RollAxisStats {
+function effectiveRollContext(rec: CharacterRecord): CharacterEffectiveRollScores & { equip: EquipMods } {
   const s = rec.sheet;
   const weaponLoadout = s.weaponLoadout ?? [];
   const gearLoadout = s.gearLoadout ?? [];
@@ -84,6 +90,28 @@ export function characterRollAxisStats(rec: CharacterRecord): RollAxisStats {
   const effectiveBg = { ...bgBonuses(s.background) };
   for (const [key, value] of Object.entries(soul.attr)) effectiveBg[key as AttrKey] = (effectiveBg[key as AttrKey] || 0) + (value || 0);
   const eff = effectiveAttributes(s.attributes, s.speciesId, effectiveBg, equip.attr);
+  eff.ap += sizeOf(s.sizeId, s.speciesId).apMod;
+  const effectiveSpec = { ...equip.spec };
+  for (const [key, value] of Object.entries(bgSpecBonuses(s.background))) effectiveSpec[key as SpecKey] = (effectiveSpec[key as SpecKey] || 0) + (value || 0);
+  for (const [key, value] of Object.entries(soul.spec)) effectiveSpec[key as SpecKey] = (effectiveSpec[key as SpecKey] || 0) + (value || 0);
+  const spec = effectiveSpecialties(s.specialties, effectiveSpec);
+  for (const key of Object.keys(spec) as SpecKey[]) spec[key] = Math.min(SPEC_MAX, spec[key]);
+  return { attr: eff, spec, equip };
+}
+
+/** The one effective score stack for VTT checks: species, background, equipped
+ * items and Soul/morality, with the same specialty cap as CharacterSheet. */
+export function characterEffectiveRollScores(rec: CharacterRecord): CharacterEffectiveRollScores {
+  const { attr, spec } = effectiveRollContext(rec);
+  return { attr, spec };
+}
+
+// Weapon to-hit mirrors the character sheet's ActionsTable: atk + STR (melee) or
+// DEX (ranged) modifier, with the same effective-attribute + equipment stack.
+/** Fully effective modifiers used by the seven universal Roll Axis paths. */
+export function characterRollAxisStats(rec: CharacterRecord): RollAxisStats {
+  const s = rec.sheet;
+  const { attr: eff, spec, equip } = effectiveRollContext(rec);
   const derived = computeDerived(s.attributes, s.specialties, {
     speciesId: s.speciesId,
     rank: s.rank ?? 0,
@@ -95,18 +123,14 @@ export function characterRollAxisStats(rec: CharacterRecord): RollAxisStats {
     overrides: s.derivedOverrides,
     ...derivedRules(rec.campaignId),
   });
-  const effectiveSpec = { ...equip.spec };
-  for (const [key, value] of Object.entries(bgSpecBonuses(s.background))) effectiveSpec[key as SpecKey] = (effectiveSpec[key as SpecKey] || 0) + (value || 0);
-  for (const [key, value] of Object.entries(soul.spec)) effectiveSpec[key as SpecKey] = (effectiveSpec[key as SpecKey] || 0) + (value || 0);
-  const spec = effectiveSpecialties(s.specialties, effectiveSpec);
   return {
     attr: {
-      phy: rollMod(eff.phy), ap: rollMod(eff.ap + sizeOf(s.sizeId, s.speciesId).apMod), dex: rollMod(eff.dex), end: rollMod(eff.end),
+      phy: rollMod(eff.phy), ap: rollMod(eff.ap), dex: rollMod(eff.dex), end: rollMod(eff.end),
       wis: rollMod(eff.wis), int: rollMod(eff.int), cha: rollMod(eff.cha),
     },
     spec: {
-      wm: specRollMod(Math.min(SPEC_MAX, spec.wm)), pre: specRollMod(Math.min(SPEC_MAX, spec.pre)), bal: specRollMod(Math.min(SPEC_MAX, spec.bal)),
-      adp: specRollMod(Math.min(SPEC_MAX, spec.adp)), mf: specRollMod(Math.min(SPEC_MAX, spec.mf)), per: specRollMod(Math.min(SPEC_MAX, spec.per)), cun: specRollMod(Math.min(SPEC_MAX, spec.cun)),
+      wm: specRollMod(spec.wm), pre: specRollMod(spec.pre), bal: specRollMod(spec.bal),
+      adp: specRollMod(spec.adp), mf: specRollMod(spec.mf), per: specRollMod(spec.per), cun: specRollMod(spec.cun),
     },
     derived: { atk: derived.atk, ad: derived.ad, ev: derived.ev, rr: derived.rr, nc: derived.ncMod, pr: derived.pr, inf: derived.inf },
   };

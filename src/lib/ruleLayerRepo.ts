@@ -34,6 +34,19 @@ interface Row {
 const OPS: LayerOp[] = ["set", "add", "multiply", "min", "max"];
 
 let tablePresent: boolean | null = null;
+let roomLayers: { campaignId: string; layers: RuleLayer[] } | null = null;
+
+function announceRulesChanged(): void {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("wte-pages-changed"));
+}
+
+export function installRoomRuleLayers(campaignId: string, layers: RuleLayer[]): void {
+  roomLayers = campaignId ? { campaignId, layers: layers.map((layer) => ({ ...layer })) } : null;
+}
+
+export function clearRoomRuleLayers(): void {
+  roomLayers = null;
+}
 
 async function haveTable(): Promise<boolean> {
   if (tablePresent !== null) return tablePresent;
@@ -90,7 +103,7 @@ function assertOwner(l: RuleLayer): void {
 }
 
 /** Every layer for a campaign, plus the official (unowned) ones. */
-export async function listRuleLayers(campaignId?: string | null): Promise<RuleLayer[]> {
+export async function listLocalRuleLayers(campaignId?: string | null): Promise<RuleLayer[]> {
   if (!(await haveTable())) return [];
   const db = await getDb();
   const rows = campaignId
@@ -100,6 +113,11 @@ export async function listRuleLayers(campaignId?: string | null): Promise<RuleLa
       )
     : await db.select<Row[]>("SELECT * FROM rule_layers ORDER BY target_id, order_index, updated_at");
   return rows.map(rowToLayer).filter((l): l is RuleLayer => l !== null);
+}
+
+export async function listRuleLayers(campaignId?: string | null): Promise<RuleLayer[]> {
+  if (campaignId && roomLayers?.campaignId === campaignId) return roomLayers.layers.map((layer) => ({ ...layer }));
+  return listLocalRuleLayers(campaignId);
 }
 
 /** Layers affecting one concept. */
@@ -129,12 +147,14 @@ export async function saveRuleLayer(l: RuleLayer, campaignId?: string | null): P
       Date.now(),
     ]
   );
+  announceRulesChanged();
 }
 
 export async function deleteRuleLayer(id: string): Promise<void> {
   if (!(await haveTable())) return;
   const db = await getDb();
   await db.execute("DELETE FROM rule_layers WHERE id = $1", [id]);
+  announceRulesChanged();
 }
 
 /** Switch a layer off without losing it — a Curator retiring a house rule should
@@ -147,6 +167,7 @@ export async function setRuleLayerEnabled(id: string, enabled: boolean): Promise
     Date.now(),
     id,
   ]);
+  announceRulesChanged();
 }
 
 export async function countRuleLayers(campaignId?: string | null): Promise<number> {

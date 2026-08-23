@@ -40,6 +40,8 @@ import {
   wrydeTierFor,
   rollAttribute,
   rollSpecialty,
+  attributeRollProfile,
+  specialtyRollProfile,
   DERIVED,
   type AttrKey,
   type SpecKey,
@@ -633,13 +635,15 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                 <div className="stats-col">
                   <div className="panel-title">Attributes</div>
                   <div className="stat-editor">
-                    {ATTRIBUTES.map((a) => (
-                      <div className="stat-row" key={a.key}>
+                    {ATTRIBUTES.map((a) => {
+                      const score = eff[a.key] + (a.key === "ap" ? sizeOf(sheet.sizeId, sheet.speciesId).apMod : 0);
+                      const profile = attributeRollProfile(score);
+                      return <div className="stat-row" key={a.key}>
                         <div className="stat-info">
                           <span className="stat-short">{a.short}</span>
                         </div>
-                        <span className="mod-box" title="Roll modifier (incl. under-25 penalty)">
-                          {signedMod(rollMod(eff[a.key]))}
+                        <span className="mod-box" title={profile.codexFormulaId ? "Modifier from the campaign Codex Roll Formula" : "Roll modifier"}>
+                          {signedMod(profile.modifier)}
                         </span>
                         {eff[a.key] !== sheet.attributes[a.key] && (
                           <span className="stat-eff" title="Effective value — includes species, background & equipped gear bonuses">
@@ -657,13 +661,13 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                         <RollButton
                           className="roll-btn"
                           title={`Roll ${a.short}`}
-                          make={(mode) => rollAttribute(`${a.short} Check`, eff[a.key], mode)}
+                          make={(mode) => rollAttribute(`${a.short} Check`, score, mode)}
                           onLocal={doRoll}
                         >
-                          d20
+                          d{profile.die}
                         </RollButton>
                       </div>
-                    ))}
+                    })}
                   </div>
                 </div>
 
@@ -677,13 +681,14 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                   <div className="stat-editor">
                     {SPECIALTIES.map((s) => {
                       const pts = Math.min(SPEC_MAX, effSpec[s.key]);
+                      const profile = specialtyRollProfile(pts);
                       return (
                         <div className="stat-row" key={s.key}>
                           <div className="stat-info">
                             <span className="stat-short">{s.label}</span>
                           </div>
-                          <span className="mod-box" title="Roll modifier (incl. under-25 penalty)">
-                            {signedMod(specRollMod(pts))}
+                          <span className="mod-box" title={profile.codexFormulaId ? "Modifier from the campaign Codex Roll Formula" : "Roll modifier (incl. under-25 penalty)"}>
+                            {signedMod(profile.modifier)}
                           </span>
                           <input
                             className={"stat-input" + (sheet.specialties[s.key] > SPEC_MAX ? " bad" : "")}
@@ -694,7 +699,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                             onChange={(e) => setSpec(s.key, intOf(e.target.value))}
                           />
                           <RollButton className="roll-btn" title={`Roll ${s.label}`} make={(mode) => rollSpecialty(`${s.label} Check`, pts, mode)} onLocal={doRoll}>
-                            d40
+                            d{profile.die}
                           </RollButton>
                         </div>
                       );

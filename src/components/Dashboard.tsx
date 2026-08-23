@@ -6,6 +6,7 @@ import { CampaignBackup } from "./CampaignBackup";
 import { Diagnostics } from "./Diagnostics";
 import { listScenes } from "../vtt/data/sceneRepo";
 import { CampaignDesk } from "./CampaignDesk";
+import { CampaignCodexPanel } from "./CampaignCodexPanel";
 import { nextSession, countDeskNotes } from "../lib/campaignDesk";
 
 interface Props {
@@ -137,6 +138,8 @@ export function Dashboard({
           </div>
         </div>
       </div>
+
+      <CampaignCodexPanel campaignId={campaign.id} campaignName={campaign.name} curator={curator} />
 
       <div className="dash-desk">
         <div className="dash-eyebrow">Campaign desk{curator ? " · Curator" : ""}</div>

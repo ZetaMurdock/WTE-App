@@ -95,6 +95,7 @@ const FANOUT: NetMessageType[] = [
   "vtt-move-request", "vtt-move-commit", "vtt-move-reject",
   "bp", "unit-note", "purse", "inv", "dialogue", "sfx", "room-locked",
   "room-info", "vtt-ping", "play-mode", "cine",
+  "codex-request", "codex-snapshot", "codex-error",
   "atlas", "atlas-request", "atlas-focus",
 ];
 

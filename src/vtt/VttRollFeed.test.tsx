@@ -52,4 +52,43 @@ describe("VttRollFeed touch controls", () => {
     await act(async () => adv!.click());
     expect(publish.mock.calls.map(([message]) => message.mode)).toEqual(["dis", "adv"]);
   });
+
+  it("requires a responding player to choose the Roll Axis source", async () => {
+    const publish = vi.fn<(message: RollMessage) => void>();
+    await act(async () => {
+      root?.render(
+        <VttRollFeed
+          campaignId={null}
+          publishRoll={publish}
+          lock={{
+            label: "Gravitic Snare — Physical Save — Evasion",
+            requestId: "request-axis",
+            choices: [
+              { label: "Dexterity", expr: "1d20-1", detail: "DEX +2 + EV -3 = -1" },
+              { label: "Balance", expr: "1d40+29", detail: "Balance +32 + EV -3 = +29" },
+            ],
+          }}
+          onClearLock={() => {}}
+          onClose={() => {}}
+        />
+      );
+    });
+
+    const input = host!.querySelector<HTMLInputElement>(".vtt2-roll-expr")!;
+    expect(input.value).toBe("");
+    const balance = [...host!.querySelectorAll<HTMLButtonElement>(".vtt2-requested-axis-choices button")]
+      .find((button) => button.textContent?.includes("Balance"));
+    expect(balance).toBeDefined();
+    await act(async () => balance!.click());
+    expect(input.value).toBe("1d40+29");
+
+    const roll = [...host!.querySelectorAll<HTMLButtonElement>(".vtt2-roll-actions button")]
+      .find((button) => button.textContent?.startsWith("Roll"));
+    await act(async () => roll!.click());
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({
+      requestId: "request-axis",
+      baseExpr: "1d40+29",
+      label: "Gravitic Snare — Physical Save — Evasion · Balance",
+    }));
+  });
 });

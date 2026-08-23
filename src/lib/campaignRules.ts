@@ -6,7 +6,7 @@
 // the characters that no longer fit.
 
 import { SPEC_TOTAL } from "../game/wte";
-import { isRecord, readJson, writeJson } from "./localJson";
+import { isRecord, readJson, removeJson, writeJson } from "./localJson";
 
 export interface CampaignRules {
   /** Cap the SUM of a character's attributes. Off by default: attributes are
@@ -41,6 +41,19 @@ export const DEFAULT_RULES: CampaignRules = {
 
 const key = (campaignId: string) => `wte-campaign-rules:${campaignId}`;
 
+// A joined table may install the Curator's authoritative rules in memory. Kept
+// as a tiny injection seam rather than importing netplay/Codex here, so this
+// low-level rules module remains usable by tests and offline tools.
+let roomRules: { campaignId: string; rules: CampaignRules } | null = null;
+
+export function installRoomCampaignRules(campaignId: string, rules: CampaignRules): void {
+  roomRules = campaignId ? { campaignId, rules: parseRules(rules) } : null;
+}
+
+export function clearRoomCampaignRules(): void {
+  roomRules = null;
+}
+
 const clamp = (v: unknown, lo: number, hi: number, fallback: number) => {
   const n = Number(v);
   return Number.isFinite(n) ? Math.max(lo, Math.min(hi, Math.round(n))) : fallback;
@@ -72,15 +85,28 @@ export function sheetCaps(rules: CampaignRules): { specTotal: number; attrTotal?
 // silently changes every character's derived pools, and sheetCaps() feeds
 // validateSheet, so characters that were legal become over budget. Falling back to
 // published defaults without saying so is the worst option, hence the guard.
-export function loadRules(campaignId: string): CampaignRules {
+export function loadLocalRules(campaignId: string): CampaignRules {
   const r = readJson<unknown>(key(campaignId), {}, { validate: isRecord, label: "campaign rules" });
   return parseRules(r.value);
+}
+
+export function loadRules(campaignId: string): CampaignRules {
+  return roomRules?.campaignId === campaignId ? { ...roomRules.rules } : loadLocalRules(campaignId);
 }
 
 export function saveRules(campaignId: string, rules: CampaignRules): CampaignRules {
   const clean = parseRules(rules);
   writeJson(key(campaignId), clean, { label: "campaign rules" });
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("wte-pages-changed"));
   return clean;
+}
+
+/** Remove the device-local policy owned by one campaign. This is intentionally
+ * separate from the in-memory room authority: package rollback must undo the
+ * destination campaign without disturbing whichever live table is connected. */
+export function deleteLocalRules(campaignId: string): void {
+  const result = removeJson(key(campaignId));
+  if (!result.ok) throw new Error(result.error || "campaign rules could not be removed");
 }
 
 /** How the budget reads on the creator: spent, cap, and whether it blocks saving. */
