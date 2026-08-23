@@ -17,7 +17,21 @@ export interface Peer {
 
 /** Wire-safe roll posture. Kept here instead of importing the rules engine so
  * the transport protocol stays independent from game implementation details. */
-export type NetRollMode = "normal" | "adv" | "dis";
+export type NetRollMode = "normal" | "adv" | "dis" | "double-adv" | "double-dis";
+
+export interface RollModeRequestMessage {
+  t: "roll-mode-request";
+  requestId: string;
+  mode: Exclude<NetRollMode, "normal">;
+  label: string;
+  actorName?: string;
+}
+
+export interface RollModeDecisionMessage {
+  t: "roll-mode-decision";
+  requestId: string;
+  accepted: boolean;
+}
 
 /** Stable actor identity carried with a completed roll. `peerId` is useful for
  * display, while character/token ids let the host verify that a requested roll
@@ -144,6 +158,8 @@ export type NetMessage =
   | { t: "peer-leave"; peerId: string }
   | { t: "presence"; status: string }
   | RollRequestMessage
+  | RollModeRequestMessage
+  | RollModeDecisionMessage
   | RollResultMessage
   | RollMessage
   | { t: "chat"; text: string }

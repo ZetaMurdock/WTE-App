@@ -33,6 +33,8 @@ interface Props {
   /** Overrides the default room broadcast. Requested-roll integrations use
    * this to whisper a `roll-result` to the host for validation first. */
   publishRoll?: (message: RollMessage) => void;
+  /** Connected players ask the Curator before any non-normal posture is rolled. */
+  authorizeMode?: (mode: Exclude<RollMode, "normal">, label: string) => Promise<boolean>;
   /** Armed roll context from the Abilities panel (the legacy sheet's "Locked:
    *  X — press Roll" flow). Pre-fills the expression; Roll logs under the label. */
   lock: RollLock | null;
@@ -44,7 +46,7 @@ interface Props {
 // Abilities panel fill the expression box (abilities also LOCK their name over
 // the roller); the one big Roll button rolls it, records it in the durable
 // store, persists it, and publishes to the party.
-export function VttRollFeed({ campaignId, sessionKey, actor, publishRoll, lock, onClearLock, onClose }: Props) {
+export function VttRollFeed({ campaignId, sessionKey, actor, publishRoll, authorizeMode, lock, onClearLock, onClose }: Props) {
   const net = useNet();
   const feedKey = sessionKey ?? campaignId;
   const rows = useSyncExternalStore(subscribeSessionRolls, () => (feedKey ? getSessionRolls(feedKey) : EMPTY_ROWS));
@@ -146,19 +148,21 @@ export function VttRollFeed({ campaignId, sessionKey, actor, publishRoll, lock, 
 
   // Mouse/keyboard shortcuts remain, while the visible DIS / ADV buttons make
   // every posture available to touch-only players too.
-  function rollNow(mode: RollMode = "normal") {
+  async function rollNow(mode: RollMode = "normal") {
     const baseExpr = canonicalRollExpr(expr);
     if (!baseExpr) {
       setExprBad(true);
       return;
     }
-    const roll = rollDiceExpr(lock?.label ?? expr, baseExpr, mode);
+    const label = lock?.label ?? expr;
+    if (mode !== "normal" && authorizeMode && !(await authorizeMode(mode, label))) return;
+    const roll = rollDiceExpr(label, baseExpr, mode);
     if (!roll) return; // canonicalRollExpr and rollDiceExpr share the same parser.
     setExprBad(false);
     commit(roll, baseExpr);
   }
   function rollClick(e: React.MouseEvent) {
-    rollNow(e.shiftKey ? "adv" : e.ctrlKey || e.altKey ? "dis" : "normal");
+    void rollNow(e.shiftKey ? "adv" : e.ctrlKey || e.altKey ? "dis" : "normal");
   }
 
   function reroll(baseExpr: string, label: string, mode: RollMode = "normal") {
@@ -216,10 +220,13 @@ export function VttRollFeed({ campaignId, sessionKey, actor, publishRoll, lock, 
           readOnly={requested}
           title={requested ? "This formula comes from your selected character's current sheet" : undefined}
           onChange={(e) => { setExpr(e.target.value); setExprBad(false); }}
-          onKeyDown={(e) => e.key === "Enter" && rollNow(e.shiftKey ? "adv" : e.ctrlKey || e.altKey ? "dis" : "normal")}
+          onKeyDown={(e) => e.key === "Enter" && void rollNow(e.shiftKey ? "adv" : e.ctrlKey || e.altKey ? "dis" : "normal")}
         />
         <div className="vtt2-roll-actions" role="group" aria-label="Roll mode">
-          <button className="ghost-btn vtt2-roll-mode" onClick={() => rollNow("dis")} title="Roll with Disadvantage">
+          <button className="ghost-btn vtt2-roll-mode" onClick={() => void rollNow("double-dis")} title="Roll three times and keep the lowest">
+            2× Dis
+          </button>
+          <button className="ghost-btn vtt2-roll-mode" onClick={() => void rollNow("dis")} title="Roll with Disadvantage">
             Dis
           </button>
           <button
@@ -227,14 +234,17 @@ export function VttRollFeed({ campaignId, sessionKey, actor, publishRoll, lock, 
             onClick={rollClick}
             onContextMenu={(e) => {
               e.preventDefault();
-              rollNow("dis");
+              void rollNow("dis");
             }}
             title="Roll normally · Shift-click: Advantage · Right-click: Disadvantage"
           >
             Roll{lock ? " · " + lock.label : ""}
           </button>
-          <button className="ghost-btn vtt2-roll-mode" onClick={() => rollNow("adv")} title="Roll with Advantage">
+          <button className="ghost-btn vtt2-roll-mode" onClick={() => void rollNow("adv")} title="Roll with Advantage">
             Adv
+          </button>
+          <button className="ghost-btn vtt2-roll-mode" onClick={() => void rollNow("double-adv")} title="Roll three times and keep the highest">
+            2× Adv
           </button>
         </div>
       </div>

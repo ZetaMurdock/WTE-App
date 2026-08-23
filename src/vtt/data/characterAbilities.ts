@@ -14,6 +14,7 @@ import {
   bgBonuses,
   bgSpecBonuses,
   rollMod,
+  specRollMod,
 } from "../../game/wte";
 import { getWeapon, loadoutMods, isRangedWeapon } from "../../lib/codex";
 import { derivedRules } from "../../lib/campaignRules";
@@ -66,7 +67,14 @@ function mk(
 
 // Weapon to-hit mirrors the character sheet's ActionsTable: atk + STR (melee) or
 // DEX (ranged) modifier, with the same effective-attribute + equipment stack.
-function deriveHits(rec: CharacterRecord): { atk: number; phyMod: number; dexMod: number } {
+export interface RollAxisStats {
+  attr: Record<"phy" | "ap" | "dex" | "end" | "wis" | "int" | "cha", number>;
+  spec: Record<"wm" | "pre" | "bal" | "adp" | "mf" | "per" | "cun", number>;
+  derived: Record<"atk" | "ad" | "ev" | "rr" | "nc" | "pr" | "inf", number>;
+}
+
+/** Fully effective modifiers used by the seven universal Roll Axis paths. */
+export function characterRollAxisStats(rec: CharacterRecord): RollAxisStats {
   const s = rec.sheet;
   const weaponLoadout = s.weaponLoadout ?? [];
   const gearLoadout = s.gearLoadout ?? [];
@@ -83,7 +91,23 @@ function deriveHits(rec: CharacterRecord): { atk: number; phyMod: number; dexMod
     overrides: s.derivedOverrides,
     ...derivedRules(rec.campaignId),
   });
-  return { atk: derived.atk, phyMod: rollMod(eff.phy), dexMod: rollMod(eff.dex) };
+  const spec = s.specialties;
+  return {
+    attr: {
+      phy: rollMod(eff.phy), ap: rollMod(eff.ap), dex: rollMod(eff.dex), end: rollMod(eff.end),
+      wis: rollMod(eff.wis), int: rollMod(eff.int), cha: rollMod(eff.cha),
+    },
+    spec: {
+      wm: specRollMod(spec.wm), pre: specRollMod(spec.pre), bal: specRollMod(spec.bal),
+      adp: specRollMod(spec.adp), mf: specRollMod(spec.mf), per: specRollMod(spec.per), cun: specRollMod(spec.cun),
+    },
+    derived: { atk: derived.atk, ad: derived.ad, ev: derived.ev, rr: derived.rr, nc: derived.ncMod, pr: derived.pr, inf: derived.inf },
+  };
+}
+
+function deriveHits(rec: CharacterRecord): { atk: number; phyMod: number; dexMod: number } {
+  const stats = characterRollAxisStats(rec);
+  return { atk: stats.derived.atk, phyMod: stats.attr.phy, dexMod: stats.attr.dex };
 }
 
 /**

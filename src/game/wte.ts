@@ -1333,7 +1333,7 @@ export function validateSheet(attrs: Attributes, specs: Specialties, caps: Sheet
 
 // ── Rolls ────────────────────────────────────────────────────────────────
 /** Roll posture: advantage/disadvantage roll the die twice, keep high/low. */
-export type RollMode = "normal" | "adv" | "dis";
+export type RollMode = "normal" | "adv" | "dis" | "double-adv" | "double-dis";
 export interface RollResult {
   formula: string;
   result: number;
@@ -1347,11 +1347,14 @@ export function rollDieMode(sides: number, mode: RollMode): { roll: number; roll
   const a = rollDie(sides);
   if (mode === "normal") return { roll: a, rolls: [a] };
   const b = rollDie(sides);
-  return { roll: mode === "adv" ? Math.max(a, b) : Math.min(a, b), rolls: [a, b] };
+  const rolls = mode.startsWith("double-") ? [a, b, rollDie(sides)] : [a, b];
+  return { roll: mode.endsWith("adv") ? Math.max(...rolls) : Math.min(...rolls), rolls };
 }
 /** " · Advantage (17/4)" — the message always names the posture rolled with. */
 function modeTag(mode: RollMode, rolls: number[]): string {
-  return mode === "normal" ? "" : ` · ${mode === "adv" ? "Advantage" : "Disadvantage"} (${rolls.join("/")})`;
+  if (mode === "normal") return "";
+  const label = mode.endsWith("adv") ? "Advantage" : "Disadvantage";
+  return ` · ${mode.startsWith("double-") ? "Double " : ""}${label} (${rolls.join("/")})`;
 }
 function fmtMod(n: number): string {
   return n >= 0 ? `+ ${n}` : `- ${Math.abs(n)}`;
@@ -1417,9 +1420,9 @@ export function rollDiceExpr(label: string, raw: string, mode: RollMode = "norma
   let sum = a;
   const totals = [a];
   if (mode !== "normal") {
-    const b = once();
-    totals.push(b);
-    sum = mode === "adv" ? Math.max(a, b) : Math.min(a, b);
+    totals.push(once());
+    if (mode.startsWith("double-")) totals.push(once());
+    sum = mode.endsWith("adv") ? Math.max(...totals) : Math.min(...totals);
   }
   const formula = `${p.count}d${p.sides}${p.mod > 0 ? "+" + p.mod : p.mod < 0 ? String(p.mod) : ""}${modeTag(mode, totals)}`;
   return { formula, result: sum + p.mod, detail: { die: p.sides, roll: sum, modifier: p.mod, label, mode, rolls: totals } };

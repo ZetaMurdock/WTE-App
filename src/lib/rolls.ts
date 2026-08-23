@@ -97,7 +97,7 @@ export function validateCompletedRoll(value: unknown): ValidatedCompletedRoll | 
 
   const parsed = parseDiceExpr(baseExpr);
   if (!parsed || !Number.isFinite(parsed.mod)) return null;
-  const expectedRollCount = mode === "normal" ? 1 : 2;
+  const expectedRollCount = mode === "normal" ? 1 : mode.startsWith("double-") ? 3 : 2;
   const totals = Array.isArray(detail.rolls) ? detail.rolls : null;
   if (
     detail.die !== parsed.sides || detail.modifier !== parsed.mod ||
@@ -107,7 +107,7 @@ export function validateCompletedRoll(value: unknown): ValidatedCompletedRoll | 
   const low = parsed.count;
   const high = parsed.count * parsed.sides;
   if (!totals.every((total) => Number.isInteger(total) && total >= low && total <= high)) return null;
-  const selected = mode === "adv" ? Math.max(...totals) : mode === "dis" ? Math.min(...totals) : totals[0];
+  const selected = mode.endsWith("adv") ? Math.max(...totals) : mode.endsWith("dis") ? Math.min(...totals) : totals[0];
   const result = roll.result;
   if (
     detail.roll !== selected || typeof result !== "number" || !Number.isInteger(result) ||
@@ -116,7 +116,7 @@ export function validateCompletedRoll(value: unknown): ValidatedCompletedRoll | 
 
   const posture = mode === "normal"
     ? ""
-    : ` · ${mode === "adv" ? "Advantage" : "Disadvantage"} (${totals.join("/")})`;
+    : ` · ${mode.startsWith("double-") ? "Double " : ""}${mode.endsWith("adv") ? "Advantage" : "Disadvantage"} (${totals.join("/")})`;
   return {
     id,
     label,
@@ -167,7 +167,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 }
 
 function rollMode(value: unknown): NetRollMode | undefined {
-  return value === "normal" || value === "adv" || value === "dis" ? value : undefined;
+  return value === "normal" || value === "adv" || value === "dis" || value === "double-adv" || value === "double-dis" ? value : undefined;
 }
 
 function optionalString(value: unknown): string | undefined {

@@ -5,7 +5,7 @@ import type { CharacterRecord } from "../lib/characters";
 import { ATTRIBUTES, SPECIALTIES, rollMod, specRollMod, diceExprFromText, signedMod, resolveStatToken } from "../game/wte";
 import type { CharacterSheet } from "../models/character";
 import { parseAbilityActions, type AbilityAction } from "../game/abilityActions";
-import { characterActionSet, type VttAbility } from "./data/characterAbilities";
+import { characterActionSet, characterRollAxisStats, type VttAbility } from "./data/characterAbilities";
 import { hasAoe, suggestedTemplate } from "./data/effectMeta";
 
 /** A target-side check parsed from an ability. The VTT shell supplies the
@@ -102,6 +102,34 @@ export function VttAbilitiesPanel({
     [character, tick, layers]
   );
   const [racialIdx, setRacialIdx] = useState(0);
+  const [axis, setAxis] = useState<"physical" | "mental" | null>(null);
+  const [direction, setDirection] = useState<"check" | "save" | null>(null);
+  const [path, setPath] = useState<string | null>(null);
+
+  const axisPaths = character && axis && direction ? (() => {
+    const s = characterRollAxisStats(character);
+    const p = axis === "physical" && direction === "check"
+      ? [
+          ["Power Check", "Strength", "Weapon Mastery", 20, 40, s.attr.phy, s.spec.wm, s.derived.atk],
+          ["Density Check", "Action Priority", "Precision", 20, 40, s.attr.ap, s.spec.pre, s.derived.ad],
+        ]
+      : axis === "physical"
+        ? [
+          ["Evasion Save", "Dexterity", "Balance", 20, 40, s.attr.dex, s.spec.bal, s.derived.ev],
+          ["Recovery Save", "Endurance", "Adaptation", 20, 40, s.attr.end, s.spec.adp, s.derived.rr],
+        ]
+      : direction === "check"
+        ? [
+            ["Capacity Check", "Wisdom", "Mental Fortitude", 20, 40, s.attr.wis, s.spec.mf, s.derived.nc],
+            ["Perception Check", "Intelligence", "Perception", 20, 40, s.attr.int, s.spec.per, s.derived.pr],
+            ["Influence Check", "Charisma", "Cunning", 20, 40, s.attr.cha, s.spec.cun, s.derived.inf],
+          ]
+        : [
+            ["Perception Save", "Intelligence", "Perception", 20, 40, s.attr.int, s.spec.per, s.derived.pr],
+            ["Influence Save", "Charisma", "Cunning", 20, 40, s.attr.cha, s.spec.cun, s.derived.inf],
+          ];
+    return p as [string, string, string, number, number, number, number, number][];
+  })() : [];
 
   function use(a: VttAbility) {
     onArmRoll(a.name, suggestedExpr(a));
@@ -244,6 +272,31 @@ export function VttAbilitiesPanel({
         <p className="list-empty" style={{ margin: "6px 0" }}>Pick a character to see their abilities.</p>
       ) : (
         <>
+          <div className="vtt2-actor-group">Roll Axis</div>
+          <div className="vtt2-abil-baserolls">
+            <button className={"chip" + (axis === "physical" ? " active" : "")} onClick={() => { setAxis(axis === "physical" ? null : "physical"); setDirection(null); setPath(null); }}>Physical</button>
+            <button className={"chip" + (axis === "mental" ? " active" : "")} onClick={() => { setAxis(axis === "mental" ? null : "mental"); setDirection(null); setPath(null); }}>Mental</button>
+          </div>
+          {axis && (
+            <div className="vtt2-roll-axis">
+              <div className="vtt2-abil-baserolls">
+                <button className={"chip" + (direction === "check" ? " active" : "")} onClick={() => { setDirection(direction === "check" ? null : "check"); setPath(null); }}>Checks</button>
+                <button className={"chip" + (direction === "save" ? " active" : "")} onClick={() => { setDirection(direction === "save" ? null : "save"); setPath(null); }}>Saves</button>
+              </div>
+              {direction && (
+              <div className="vtt2-abil-baserolls">
+                {axisPaths.map(([name]) => <button key={name} className={"chip" + (path === name ? " active" : "")} onClick={() => setPath(path === name ? null : name)}>{name}</button>)}
+              </div>
+              )}
+              {axisPaths.filter(([name]) => name === path).map(([name, attr, spec, attrDie, specDie, attrMod, specMod, derived]) => (
+                <div key={name} className="vtt2-axis-choices">
+                  <button className="ghost-btn" onClick={() => onArmRoll(`${name} · ${attr}`, `1d${attrDie}${modSuffix(attrMod + derived)}`)}>{attr} <small>d{attrDie} {modSuffix(attrMod)} + path {modSuffix(derived)}</small></button>
+                  <button className="ghost-btn" onClick={() => onArmRoll(`${name} · ${spec}`, `1d${specDie}${modSuffix(specMod + derived)}`)}>{spec} <small>d{specDie} {modSuffix(specMod)} + path {modSuffix(derived)}</small></button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="vtt2-actor-group">Base rolls · attributes</div>
           <div className="vtt2-abil-baserolls">
             {ATTRIBUTES.map((attr) => (
