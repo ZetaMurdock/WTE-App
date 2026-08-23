@@ -122,4 +122,10 @@ describe("official section inference", () => {
   it("keeps an explicit section choice ahead of inference", () => {
     expect(inferCodexSectionLabel({ stem: "Hyomen", content: rule("Hyomen"), label: "Lineages", catalog: realCatalog() })).toBe("Lineages");
   });
+
+  it("does not treat Object prototype names as inferred sections", () => {
+    const catalog: MechanicScaffoldCatalog = { species: [], paradigms: [], backgrounds: [] };
+    expect(inferCodexSectionLabel({ stem: "Constructor", content: rule("Constructor"), kind: "Page", catalog })).toBeUndefined();
+    expect(inferCodexSectionLabel({ stem: "Unrelated", content: "# Unrelated", kind: "constructor", catalog })).toBeUndefined();
+  });
 });

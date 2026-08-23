@@ -71,6 +71,10 @@ const SECTION_STEMS: Readonly<Record<string, ScaffoldMechanicKind>> = {
   backgrounds: "Background",
 };
 
+function ownValue<T>(values: Readonly<Record<string, T>>, key: string): T | undefined {
+  return Object.prototype.hasOwnProperty.call(values, key) ? values[key] : undefined;
+}
+
 function currentCatalog(): MechanicScaffoldCatalog {
   return { species: SPECIES, paradigms: PARADIGMS, backgrounds: BACKGROUNDS, speciesSizes: SPECIES_SIZE };
 }
@@ -194,12 +198,14 @@ ${table([
 export function inferCodexSectionLabel(hint: CodexPageHint): string | undefined {
   if (hint.label?.trim()) return hint.label.trim();
   const declared = (readField(hint.content, "Type") || "").trim().toLowerCase();
-  if (KIND_LABELS[declared]) return KIND_LABELS[declared];
+  const declaredLabel = ownValue(KIND_LABELS, declared);
+  if (declaredLabel) return declaredLabel;
   const kind = (hint.kind || "").trim().toLowerCase();
-  if (KIND_LABELS[kind]) return KIND_LABELS[kind];
+  const kindLabel = ownValue(KIND_LABELS, kind);
+  if (kindLabel) return kindLabel;
   const known = findKnownMechanic(hint);
   if (known) return known.kind;
-  return SECTION_STEMS[slugify(hint.stem)];
+  return ownValue(SECTION_STEMS, slugify(hint.stem));
 }
 
 /** Prepare an official article for a Curator fork. Structured pages are left
@@ -208,8 +214,8 @@ export function inferCodexSectionLabel(hint: CodexPageHint): string | undefined 
 export function prepareCampaignCustomization(hint: CodexPageHint): PreparedCampaignCustomization {
   const label = inferCodexSectionLabel(hint) ?? "Lore";
   const declared = (readField(hint.content, "Type") || "").trim().toLowerCase();
-  if (KIND_LABELS[declared]) {
-    const semantic = KIND_LABELS[declared];
+  const semantic = ownValue(KIND_LABELS, declared);
+  if (semantic) {
     return {
       content: hint.content,
       label,

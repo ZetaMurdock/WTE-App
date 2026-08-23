@@ -112,6 +112,12 @@ const OFFICIAL_FALLBACK_KINDS: Readonly<Record<string, IdKind>> = {
   "roll-formula": "formula",
 };
 
+function officialFallbackKind(kind: string): IdKind {
+  return Object.prototype.hasOwnProperty.call(OFFICIAL_FALLBACK_KINDS, kind)
+    ? OFFICIAL_FALLBACK_KINDS[kind]
+    : "page";
+}
+
 function pageId(
   content: string,
   stem: string,
@@ -122,7 +128,7 @@ function pageId(
   const declared = (readField(content, "ID") || "").trim();
   if (parseId(declared)) return declared;
   const slug = slugify(stem) || "page";
-  const idKind = OFFICIAL_FALLBACK_KINDS[kind] ?? "page";
+  const idKind = officialFallbackKind(kind);
   return source === "campaign" && campaignId
     ? `campaign.${slugify(campaignId)}.${idKind}.${slug}`
     : `wte.${idKind}.${slug}`;

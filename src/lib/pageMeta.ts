@@ -43,7 +43,11 @@ function readAll(): Record<string, PageMeta> {
     label: "Codex page settings",
   });
   unreadable = r.corrupt;
-  const out: Record<string, PageMeta> = {};
+  // Page stems come from authored filenames. A normal object would treat stems
+  // such as "constructor", "toString", and especially "__proto__" as inherited
+  // properties instead of ordinary Codex keys. Keep this dictionary
+  // prototype-free so every valid stem has identical read/write semantics.
+  const out = Object.create(null) as Record<string, PageMeta>;
   for (const [k, v] of Object.entries(r.value)) {
     if (!v || typeof v !== "object") continue;
     out[k] = {
@@ -61,8 +65,7 @@ export function allPageMeta(): Record<string, PageMeta> {
 
 export function getPageMeta(stem: string, all?: Record<string, PageMeta>): PageMeta {
   const map = all ?? readAll();
-  const hit = map[stem];
-  if (hit) return hit;
+  if (Object.prototype.hasOwnProperty.call(map, stem)) return map[stem];
   // No entry for this page. If the store read cleanly, "player" is the intended
   // default for a page nobody has classified. If it did NOT, we cannot know
   // whether this page was marked GM-only, so we must assume it was.
@@ -71,7 +74,8 @@ export function getPageMeta(stem: string, all?: Record<string, PageMeta>): PageM
 
 export function setPageMeta(stem: string, patch: Partial<PageMeta>): Record<string, PageMeta> {
   const all = readAll();
-  all[stem] = { ...(all[stem] ?? DEFAULT_PAGE_META), ...patch };
+  const current = Object.prototype.hasOwnProperty.call(all, stem) ? all[stem] : DEFAULT_PAGE_META;
+  all[stem] = { ...current, ...patch };
   writeJson(KEY, all, { label: "Codex page settings" });
   // Announced HERE rather than at each call site.
   //

@@ -10,6 +10,16 @@ import speciesInnateData from "./data/speciesInnate.json";
 import inceptData from "./data/incepts.json";
 import { resolveCodexRollFormula } from "./rollFormula";
 
+/** Content-authored ids and names are valid dictionary keys even when they
+ * match Object.prototype (for example `constructor`). */
+function ownRecordValue<T>(values: Readonly<Record<string, T>>, key: string): T | undefined {
+  return Object.prototype.hasOwnProperty.call(values, key) ? values[key] : undefined;
+}
+
+function nullRecord<T>(values?: Readonly<Record<string, T>>): Record<string, T> {
+  return Object.assign(Object.create(null) as Record<string, T>, values ?? {});
+}
+
 export type AttrKey = "phy" | "dex" | "end" | "ap" | "wis" | "cha" | "int";
 export type SpecKey =
   | "ins" | "bal" | "wt" | "pre" | "ctrl"
@@ -306,8 +316,8 @@ export interface CodexGameData {
   backgrounds?: CodexBackground[];
 }
 
-let pageGenus: Record<string, GenusAbility[]> = {};
-let pageCiphers: Record<string, CipherAbility[]> = {};
+let pageGenus: Record<string, GenusAbility[]> = nullRecord();
+let pageCiphers: Record<string, CipherAbility[]> = nullRecord();
 
 /** Backgrounds sourced from pulled Codex pages (the base game has none baked —
  *  background was a free-text field until the Codex pull). */
@@ -374,8 +384,8 @@ export function registerCodexGameData(data: CodexGameData): void {
     else PARADIGMS.push(p);
   }
   for (const [id, size] of Object.entries(data.sizes ?? {})) SPECIES_SIZE[id] = size;
-  pageGenus = data.genus ?? {};
-  pageCiphers = data.ciphers ?? {};
+  pageGenus = nullRecord(data.genus);
+  pageCiphers = nullRecord(data.ciphers);
   BACKGROUNDS.length = 0;
   for (const b of data.backgrounds ?? []) {
     const i = BACKGROUNDS.findIndex((x) => x.name.toLowerCase() === b.name.toLowerCase());
@@ -712,7 +722,7 @@ const STAT_ALIASES: Record<string, string> = {
  *  bucket + key, so ability text can be turned into the right roll. Null when
  *  the word isn't a known attribute/specialty/derived stat. */
 export function resolveStatToken(name: string): { kind: "attr" | "spec" | "derived"; key: string } | null {
-  const ref = STAT_ALIASES[name.trim().toLowerCase().replace(/\s+/g, " ")];
+  const ref = ownRecordValue(STAT_ALIASES, name.trim().toLowerCase().replace(/\s+/g, " "));
   if (!ref) return null;
   return { kind: ref[0] === "a" ? "attr" : ref[0] === "s" ? "spec" : "derived", key: ref.slice(2) };
 }
@@ -728,7 +738,7 @@ export function parseEquipMods(text: string): EquipMods {
     const m = tok.trim().match(/^(.+?)\s*([+-]\s*\d+)\s*$/);
     if (!m) return;
     const name = m[1].trim().toLowerCase().replace(/\s+/g, " ");
-    const ref = STAT_ALIASES[name];
+    const ref = ownRecordValue(STAT_ALIASES, name);
     if (!ref) return;
     const v = parseInt(m[2].replace(/\s+/g, ""), 10) || 0;
     const key = ref.slice(2);
@@ -760,7 +770,7 @@ export function mergeMods(...parts: EquipMods[]): EquipMods {
   return out;
 }
 export function sizeIndexOf(sizeId: string | undefined, speciesId?: string): number {
-  const key = !sizeId || sizeId === "auto" ? SPECIES_SIZE[speciesId || ""] || "moderate" : sizeId;
+  const key = !sizeId || sizeId === "auto" ? ownRecordValue(SPECIES_SIZE, speciesId || "") || "moderate" : sizeId;
   const i = SIZE_CLASSES.findIndex((s) => s.key === key);
   return i < 0 ? 2 : i;
 }
@@ -811,11 +821,11 @@ export interface CipherAbility {
   type?: string | null;
   effect?: string | null;
 }
-const GENUS_DOMAINS = genusData as Record<string, GenusDomain>;
-const GENUS_DATA: Record<string, GenusAbility[]> = Object.fromEntries(
+const GENUS_DOMAINS = nullRecord(genusData as Record<string, GenusDomain>);
+const GENUS_DATA: Record<string, GenusAbility[]> = nullRecord(Object.fromEntries(
   Object.entries(GENUS_DOMAINS).map(([d, v]) => [d, v.abilities])
-);
-const CIPHER_DATA = cipherData as Record<string, CipherAbility[]>;
+));
+const CIPHER_DATA = nullRecord(cipherData as Record<string, CipherAbility[]>);
 
 /** Official Genus mechanics by permanent id. The authoritative lookup for a
  *  character that stores a stable id rather than a name. */
@@ -846,14 +856,14 @@ const DOMAIN_ALIASES: Map<string, string> = new Map(
 export function canonicalDomain(name: string | undefined): string | undefined {
   if (!name) return undefined;
   const raw = name.trim();
-  if (GENUS_DOMAINS[raw]) return raw;
+  if (ownRecordValue(GENUS_DOMAINS, raw)) return raw;
   const exact = GENUS_DOMAIN_NAMES.find((d) => d.toLowerCase() === raw.toLowerCase());
   return exact ?? DOMAIN_ALIASES.get(raw.toLowerCase());
 }
 
 export function getGenusDomain(domain: string): GenusDomain | undefined {
   const key = canonicalDomain(domain);
-  return key ? GENUS_DOMAINS[key] : undefined;
+  return key ? ownRecordValue(GENUS_DOMAINS, key) : undefined;
 }
 /** The domain an ability belongs to, by stable id OR by name.
  *
@@ -864,13 +874,13 @@ export function domainOfGenus(ref: string): string | undefined {
   const n = String(ref ?? "").toLowerCase();
   if (!n) return undefined;
   return GENUS_DOMAIN_NAMES.find((d) =>
-    GENUS_DATA[d].some((a) => a.id === ref || a.name.toLowerCase() === n)
+    (ownRecordValue(GENUS_DATA, d) ?? []).some((a) => a.id === ref || a.name.toLowerCase() === n)
   );
 }
 /** SNR posture for one ability, via its domain. */
 export function snrOfGenus(name: string): SnrPosture {
   const d = domainOfGenus(name);
-  return d ? GENUS_DOMAINS[d].snr : "none";
+  return d ? ownRecordValue(GENUS_DOMAINS, d)?.snr ?? "none" : "none";
 }
 
 /** Merge baked abilities with pulled-page ones (page entries override by name). */
@@ -906,21 +916,25 @@ export function genusForParadigm(paradigmId?: string): { domain: string; abiliti
   const p = getParadigm(paradigmId);
   if (!p) return [];
   return p.domains
-    .map((d) => ({ domain: d, abilities: appendUnofficial(GENUS_DATA[d] || [], pageGenus[d] || []) }))
+    .map((d) => ({
+      domain: d,
+      abilities: appendUnofficial(ownRecordValue(GENUS_DATA, d) ?? [], ownRecordValue(pageGenus, d) ?? []),
+    }))
     .filter((g) => g.abilities.length > 0);
 }
 /** Ciphers for a paradigm, in page order (each carries its tier: offline/online/special).
  *  Baked data + pulled Codex cipher pages (keyed by paradigm id). */
 export function ciphersForParadigm(paradigmId?: string): CipherAbility[] {
-  return mergeAbilities(CIPHER_DATA[paradigmId || ""] || [], pageCiphers[paradigmId || ""] || []);
+  const id = paradigmId || "";
+  return mergeAbilities(ownRecordValue(CIPHER_DATA, id) ?? [], ownRecordValue(pageCiphers, id) ?? []);
 }
 export const CIPHER_TIERS = ["offline", "online", "special"] as const;
 
 // ── Racial abilities + unified "usable" ability model (for the Actions rail) ──
-const SPECIES_INNATE = speciesInnateData as Record<string, SpeciesVariantAbility[]>;
+const SPECIES_INNATE = nullRecord(speciesInnateData as Record<string, SpeciesVariantAbility[]>);
 /** A species' innate abilities with effects; falls back to bare names when the wiki page had none. */
 export function speciesInnate(speciesId?: string): SpeciesVariantAbility[] {
-  const wiki = SPECIES_INNATE[speciesId || ""] || [];
+  const wiki = ownRecordValue(SPECIES_INNATE, speciesId || "") ?? [];
   if (wiki.length) return wiki;
   return (getSpecies(speciesId)?.innate || []).map((name) => ({ name, effect: "" }));
 }
@@ -962,8 +976,9 @@ export function usableGenus(
     if (!a) {
       const d = domainOfGenus(name);
       if (d) {
-        a = GENUS_DATA[d].find((x) => x.name.toLowerCase() === name.toLowerCase());
-        g = a ? { domain: d, abilities: GENUS_DATA[d] } : g;
+        const abilities = ownRecordValue(GENUS_DATA, d) ?? [];
+        a = abilities.find((x) => x.name.toLowerCase() === name.toLowerCase());
+        g = a ? { domain: d, abilities } : g;
       }
     }
     return {
@@ -996,7 +1011,7 @@ const CIPHER_RENAMES: Record<string, string> = {
 export function usableCiphers(paradigmId: string | undefined, loadout: string[]): UsableAbility[] {
   const all = ciphersForParadigm(paradigmId);
   return loadout.map((raw) => {
-    const name = CIPHER_RENAMES[raw] ?? raw;
+    const name = ownRecordValue(CIPHER_RENAMES, raw) ?? raw;
     const a = all.find((x) => x.name === name);
     return { source: "cipher" as const, name, ss: a?.ss ?? 0, effect: a?.effect, activation: a?.type };
   });
@@ -1141,15 +1156,15 @@ export interface InceptPool {
   blurb: string;
   incepts: Incept[];
 }
-const INCEPT_DATA = inceptData as Record<string, InceptPool>;
+const INCEPT_DATA = nullRecord(inceptData as Record<string, InceptPool>);
 
 /** The named Incept pool for a species (empty when unknown). */
 export function inceptsForSpecies(speciesId?: string): Incept[] {
-  return INCEPT_DATA[speciesId || ""]?.incepts ?? [];
+  return ownRecordValue(INCEPT_DATA, speciesId || "")?.incepts ?? [];
 }
 /** The pool's flavour paragraph, for the Codex/sheet header. */
 export function inceptPoolBlurb(speciesId?: string): string {
-  return INCEPT_DATA[speciesId || ""]?.blurb ?? "";
+  return ownRecordValue(INCEPT_DATA, speciesId || "")?.blurb ?? "";
 }
 /** One incept by name within a species. */
 export function getIncept(speciesId: string | undefined, name: string): Incept | undefined {

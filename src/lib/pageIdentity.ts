@@ -31,6 +31,10 @@ const SEMANTIC_KINDS: Record<string, IdKind> = {
   "roll formula": "formula",
 };
 
+function semanticKind(type: string): IdKind | undefined {
+  return Object.prototype.hasOwnProperty.call(SEMANTIC_KINDS, type) ? SEMANTIC_KINDS[type] : undefined;
+}
+
 /** Read one `| Key | Value |`-style field, the same shapes the parsers accept. */
 function readField(md: string, key: string): string | undefined {
   const re = new RegExp(`^\\s*\\|\\s*${key}\\s*\\|\\s*([^|]*)\\|\\s*$`, "im");
@@ -101,7 +105,7 @@ export function pinPageIdentity(args: {
 }): PinResult | null {
   const { content, stem, previousContent, campaignId } = args;
   const typeRaw = (readField(content, "Type") ?? "").toLowerCase().trim();
-  const kind = SEMANTIC_KINDS[typeRaw] ?? (campaignId ? "page" : undefined);
+  const kind = semanticKind(typeRaw) ?? (campaignId ? "page" : undefined);
   // Official lore still belongs to the global file and needs no semantic id.
   // Campaign lore does need an owned id so it can live in the campaign Codex
   // without mutating or disappearing behind a same-stem official page.
@@ -203,7 +207,7 @@ export function customizePageForCampaign(args: {
   const { stem, campaignId } = args;
   const title = titleOf(args.content, stem);
   const typeRaw = (readField(args.content, "Type") ?? "").toLowerCase().trim();
-  const kind = SEMANTIC_KINDS[typeRaw] ?? "page";
+  const kind = semanticKind(typeRaw) ?? "page";
   const declared = (readField(args.content, "ID") ?? "").trim();
   const parsed = declared ? parseId(declared) : null;
   const manifestId = (args.officialId ?? "").trim();

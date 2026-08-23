@@ -48,6 +48,14 @@ function declaresCampaignScope(p: GenusPage): boolean {
 
 const ATTRS: AttrKey[] = ["phy", "dex", "end", "ap", "wis", "cha", "int"];
 
+function nullRecord<T>(): Record<string, T> {
+  return Object.create(null) as Record<string, T>;
+}
+
+function ownRecordValue<T>(values: Readonly<Record<string, T>>, key: string): T | undefined {
+  return Object.prototype.hasOwnProperty.call(values, key) ? values[key] : undefined;
+}
+
 const strip = (s: string) => (s || "").replace(/<[^>]*>/g, "").replace(/\*\*/g, "").trim();
 
 /** Read `| K | V |`, `**K:** V`, or `K: V` spec fields from a page (same
@@ -226,8 +234,10 @@ function parseBonusList(text: string): { attr: Partial<Record<AttrKey, number>>;
     if (!m) continue;
     const n = parseInt(m[1], 10);
     const name = m[2].toLowerCase().replace(/\s+/g, " ").trim();
-    if (ATTR_NAMES[name]) attr[ATTR_NAMES[name]] = (attr[ATTR_NAMES[name]] || 0) + n;
-    else if (SPEC_NAMES[name]) spec[SPEC_NAMES[name]] = (spec[SPEC_NAMES[name]] || 0) + n;
+    const attrKey = ownRecordValue(ATTR_NAMES, name);
+    const specKey = ownRecordValue(SPEC_NAMES, name);
+    if (attrKey) attr[attrKey] = (attr[attrKey] || 0) + n;
+    else if (specKey) spec[specKey] = (spec[specKey] || 0) + n;
   }
   return { attr, spec };
 }
@@ -311,11 +321,11 @@ export async function loadCodexGameData(): Promise<void> {
   const raw: RawPage[] = [];
   const species: CodexSpeciesDefinition[] = [];
   const paradigms: Paradigm[] = [];
-  const sizes: Record<string, string> = {};
+  const sizes = nullRecord<string>();
   const weapons: Weapon[] = [];
   const gear: Equipment[] = [];
-  const genus: Record<string, GenusAbility[]> = {};
-  const ciphers: Record<string, CipherAbility[]> = {};
+  const genus = nullRecord<GenusAbility[]>();
+  const ciphers = nullRecord<CipherAbility[]>();
   const backgrounds: CodexBackground[] = [];
   const runtimeEntries: CodexEntry[] = [];
   const rollFormulas: { formula: CodexRollFormula; campaign: boolean }[] = [];

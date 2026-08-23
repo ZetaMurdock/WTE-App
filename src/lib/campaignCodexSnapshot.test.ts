@@ -103,4 +103,17 @@ describe("official fallback identities", () => {
       chronicle: "wte.page.chronicle",
     });
   });
+
+  it.each(["constructor", "toString", "__proto__"])(
+    "keeps the prototype-like kind %s under a valid generic page id",
+    async (kind) => {
+      vi.mocked(listCodexPages).mockResolvedValue([storedPage("prototype-key", kind)]);
+
+      const snapshot = await buildCampaignCodexSnapshot(CAMPAIGN_ID);
+
+      expect(snapshot.pages).toHaveLength(1);
+      expect(snapshot.pages[0].id).toBe("wte.page.prototype-key");
+      expect(snapshot.pages[0].id).not.toMatch(/function|\[object/i);
+    }
+  );
 });

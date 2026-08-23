@@ -35,6 +35,16 @@ const campaign: CampaignCodexPage = {
   ownerId: CAMPAIGN,
   overrides: "wte.roll-formula.evasion",
 };
+const constructorPage: CampaignCodexPage = {
+  id: "wte.page.constructor",
+  stem: "Constructor",
+  title: "Constructor",
+  kind: "page",
+  content: "# Constructor",
+  visibility: "player",
+  pulled: true,
+  source: "official",
+};
 
 let host: HTMLDivElement;
 let root: Root;
@@ -52,7 +62,7 @@ beforeEach(() => {
     generatedAt: 1,
     rules: {} as never,
     ruleLayers: [],
-    pages: [campaign, official],
+    pages: [campaign, official, constructorPage],
   });
 });
 
@@ -78,7 +88,10 @@ describe("the Curator's campaign Codex panel", () => {
   it("groups arbitrary kinds and exposes source, visibility, and pull status", async () => {
     await mount();
     const text = host.textContent ?? "";
+    expect(text).toContain("Campaign Settings");
+    expect(text).not.toContain("Rules in force");
     expect(text).toContain("Background");
+    expect(text).toContain("Constructor");
     expect(text).toContain("Roll formula");
     expect(text).toContain("Official");
     expect(text).toContain("Campaign");

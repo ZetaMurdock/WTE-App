@@ -4,6 +4,7 @@ import App from "./App";
 import { BootGate } from "./components/BootGate";
 import { isStandaloneAtlas } from "./vtt/atlas/atlasBridge";
 import { AtlasStandalone } from "./vtt/atlas/AtlasStandalone";
+import { Boundary } from "./components/ui/Boundary";
 import "./styles.css";
 
 // A second OS window carrying only the Atlas boots this same bundle with a
@@ -12,6 +13,8 @@ import "./styles.css";
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     {/* Nothing may open the database before the pre-upgrade backup is confirmed. */}
-    <BootGate>{isStandaloneAtlas() ? <AtlasStandalone /> : <App />}</BootGate>
+    <Boundary label="W.T.E">
+      <BootGate>{isStandaloneAtlas() ? <AtlasStandalone /> : <App />}</BootGate>
+    </Boundary>
   </React.StrictMode>
 );

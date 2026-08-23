@@ -66,7 +66,7 @@ function CodexMechanicsGate({ error, onOpenCodex }: { error?: string; onOpenCode
       <div className="panel">
         <div className="panel-title">Campaign Codex</div>
         <p className={error ? "campaign-codex-error" : "list-empty"}>
-          {error || "Loading the rules in force before character and VTT mechanics become available…"}
+          {error || "Loading campaign settings before character and VTT mechanics become available…"}
         </p>
         <button className="primary-btn" onClick={onOpenCodex}>Open Codex</button>
       </div>

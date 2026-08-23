@@ -115,7 +115,7 @@ export function CampaignCodexPanel({ campaignId, campaignName, curator }: Props)
       <div className="campaign-codex-head">
         <div>
           <div className="dash-eyebrow">Campaign Codex · Curator</div>
-          <h2 className="campaign-codex-title">Rules in force</h2>
+          <h2 className="campaign-codex-title">Campaign Settings</h2>
           <p className="campaign-codex-summary">
             {snapshot
               ? `${officialCount} official · ${campaignCount} campaign ${campaignCount === 1 ? "change" : "changes"} · revision ${snapshot.revision}`
@@ -138,7 +138,7 @@ export function CampaignCodexPanel({ campaignId, campaignName, curator }: Props)
       )}
 
       {error && <p className="campaign-codex-error">Could not read this campaign's Codex: {error}</p>}
-      {!error && loading && !snapshot && <p className="list-empty">Reading the rules in force…</p>}
+      {!error && loading && !snapshot && <p className="list-empty">Reading campaign settings…</p>}
       {!error && !loading && snapshot && snapshot.pages.length === 0 && (
         <p className="list-empty">No Codex pages are connected to this campaign yet.</p>
       )}

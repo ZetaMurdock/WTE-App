@@ -1,6 +1,6 @@
 // Page identity at save time, and the two ways it was getting it wrong.
 import { describe, expect, it } from "vitest";
-import { pinPageIdentity, storedPageFor } from "./pageIdentity";
+import { customizePageForCampaign, pinPageIdentity, storedPageFor } from "./pageIdentity";
 import { parseId } from "../game/codexId";
 
 const CAMPAIGN = "8a93a397-4c21-4a6e-9d0b-1f2e3a4b5c6d";
@@ -64,6 +64,20 @@ describe("a homebrew ability authored in a campaign belongs to that campaign", (
   it("leaves official lore alone entirely", () => {
     expect(pinPageIdentity({ content: "# Some History\n\nProse.", stem: "H" })).toBeNull();
   });
+
+  it.each(["constructor", "toString", "__proto__"])(
+    "treats the prototype-like Type %s as generic campaign lore",
+    (type) => {
+      const content = `# Prototype Key\n\n| Field | Value |\n|---|---|\n| Type | ${type} |`;
+      const pinned = pinPageIdentity({ content, stem: "Prototype_Key", campaignId: CAMPAIGN })!;
+      const customized = customizePageForCampaign({ content, stem: "Prototype_Key", campaignId: CAMPAIGN });
+
+      expect(parseId(pinned.id)).toMatchObject({ scope: "campaign", kind: "page" });
+      expect(parseId(customized.id)).toMatchObject({ scope: "campaign", kind: "page" });
+      expect(parseId(customized.overrides)).toMatchObject({ scope: "wte", kind: "page" });
+      expect([pinned.id, customized.id, customized.overrides].join(" ")).not.toMatch(/function|\[object/i);
+    }
+  );
 });
 
 describe("only an owned page becomes a stored row", () => {

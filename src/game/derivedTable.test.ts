@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { ATTR_KEYS, SPEC_KEYS, computeDerived, effectiveSpecialties, parseEquipMods, type Attributes, type Specialties } from "./wte";
+import { ATTR_KEYS, SPEC_KEYS, computeDerived, effectiveSpecialties, parseEquipMods, resolveStatToken, type Attributes, type Specialties } from "./wte";
 
 const zeroA = () => Object.fromEntries(ATTR_KEYS.map((k) => [k, 0])) as Attributes;
 const zeroS = () => Object.fromEntries(SPEC_KEYS.map((k) => [k, 0])) as Specialties;
 
 // THE 10 DERIVED STATISTICS — the published inputs/reduced-by table.
 describe("derived statistics table", () => {
+  it("ignores unknown equipment stats that match Object prototype names", () => {
+    expect(resolveStatToken("constructor")).toBeNull();
+    expect(parseEquipMods("constructor +2")).toEqual({ attr: {}, spec: {}, derived: {} });
+  });
+
   it("matches the published DHP example: END 20 + Weight 25 → 60; Balance 60 → 40", () => {
     const a = { ...zeroA(), end: 20 };
     const s = { ...zeroS(), wt: 25 };
