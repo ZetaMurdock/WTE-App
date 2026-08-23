@@ -1069,20 +1069,49 @@ body.wte-dot-cursor * {
   outline: none;
   border-color: var(--accent);
 }
+/* One section per kind — every Species together, every Paradigm together, and
+   a hard rule between them. Grouped-but-adjacent cards read as one long list at
+   a glance, which is the thing that makes a 300-rule Codex hard to scan. */
 .campaign-codex-groups {
   display: grid;
-  gap: 12px;
+  gap: 0;
 }
 .campaign-codex-group {
   border: 1px solid var(--panel-line);
   border-radius: 7px;
   overflow: hidden;
 }
+.campaign-codex-group + .campaign-codex-group {
+  margin-top: 22px;
+  position: relative;
+}
+/* The divider sits in the gap rather than on either card, so it reads as a
+   break BETWEEN sections instead of a border belonging to one of them. */
+.campaign-codex-group + .campaign-codex-group::before {
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--panel-line) 12%,
+    var(--panel-line) 88%,
+    transparent
+  );
+  content: "";
+  height: 1px;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: -11px;
+}
 .campaign-codex-grouphead {
   display: flex;
   align-items: center;
   justify-content: flex-start;
   background: rgba(255, 255, 255, 0.025);
+  /* Anchors the section while its rules scroll past underneath. */
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  border-left: 3px solid var(--accent);
   color: var(--bone);
   font-size: 10px;
   letter-spacing: 2px;
@@ -1090,6 +1119,9 @@ body.wte-dot-cursor * {
   text-transform: uppercase;
   cursor: pointer;
   list-style: none;
+}
+.campaign-codex-group[open] > .campaign-codex-grouphead {
+  border-bottom: 1px solid var(--panel-line);
 }
 .campaign-codex-grouphead::-webkit-details-marker {
   display: none;
@@ -1174,6 +1206,66 @@ body.wte-dot-cursor * {
 .campaign-codex-badge.pulled {
   border-color: rgba(126, 207, 202, 0.55);
   color: var(--accent);
+}
+/* Quick links — the handful of rules this Curator actually works on, lifted out
+   of three hundred alphabetised entries and straight onto an edit button. */
+.campaign-codex-pinned {
+  border: 1px solid var(--panel-line);
+  border-radius: 10px;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+}
+.campaign-codex-pinnedhead {
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+.campaign-codex-pinrail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.campaign-codex-pin {
+  align-items: center;
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  display: flex;
+  gap: 2px;
+  padding: 2px 2px 2px 8px;
+}
+.campaign-codex-pin-open {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  padding: 3px 2px;
+}
+.campaign-codex-pin-open:hover {
+  text-decoration: underline;
+}
+.campaign-codex-pin-order {
+  display: flex;
+  gap: 1px;
+}
+.campaign-codex-pin-order .ghost-btn.xs:disabled {
+  cursor: default;
+  opacity: 0.3;
+}
+.ghost-btn.xs.pinned {
+  border-color: rgba(126, 207, 202, 0.55);
+  color: var(--accent);
+}
+
+/* A built-in rule is in force but is not a stored page — distinct from both a
+   Curator's own change and an uploaded official article. */
+.campaign-codex-badge.source-builtin {
+  border-color: rgba(150, 160, 190, 0.5);
+  color: var(--muted);
+  font-style: italic;
 }
 .campaign-codex-badge.visibility-curator {
   border-color: #a08a4f;
@@ -4145,6 +4237,24 @@ body.wte-dot-cursor * {
 
 /* ── Codex Browser (Remaster slice 1) ── */
 .view-scroll.hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+/* The VTT lives one wrapper deeper than every other view, because it stays
+   MOUNTED while the campaign Codex loads — tearing it down would drop the Pixi
+   context (and the WebGL surface with it) on every page save. That wrapper has
+   to carry the height through, or `.vtt2 { height: 100% }` resolves against an
+   auto-height parent and the whole table collapses to content height. */
+.vtt-host {
+  height: 100%;
+}
+/* Gated: hidden the way a background tab is hidden — still rendered, so the
+   canvas keeps its backing size and needs no re-measure when the gate lifts —
+   and taken out of flow so the gate panel sits at the top of the view instead
+   of below a full-height invisible table. */
+.vtt-host.vtt-gated {
+  position: absolute;
+  inset: 0;
   visibility: hidden;
   pointer-events: none;
 }

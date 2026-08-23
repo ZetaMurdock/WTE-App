@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { SPECIES, getSpecies, speciesInnate, usableRacial, inceptSeeds } from "./wte";
+import { afterEach, describe, expect, it } from "vitest";
+import { SPECIES, getSpecies, registerCodexGameData, speciesInnate, usableRacial, inceptSeeds } from "./wte";
 
 describe("species catalog (rebuilt from the wiki pages)", () => {
   it("carries all nine species with genetics + eminence", () => {
@@ -93,5 +93,48 @@ describe("species catalog (rebuilt from the wiki pages)", () => {
     const all = usableRacial("hyomen", undefined, undefined, undefined);
     expect(all.filter((a) => a.source === "racial")).toHaveLength(4);
     expect(inceptSeeds("hyomen", undefined)).toEqual([]);
+  });
+});
+
+describe("campaign-overridden innates reach the creator", () => {
+  afterEach(() => registerCodexGameData({}));
+
+  it("keeps the baked effect prose when nothing is overridden", () => {
+    registerCodexGameData({});
+    const innates = speciesInnate("hyomen");
+    expect(innates.map((a) => a.name)).toEqual([
+      "Prodigal Mind", "Omen", "Indomitable Will", "Peak Evolution",
+    ]);
+    expect(innates.every((a) => a.effect)).toBe(true);
+  });
+
+  it("uses the campaign's Innate row, not the baked four", () => {
+    registerCodexGameData({
+      species: [{
+        species: {
+          id: "hyomen", name: "Hyomen", family: "Humanity", bonuses: {},
+          innate: ["Prodigal Mind", "House Rule Innate"], variants: [],
+        },
+        provided: ["innate"],
+      }],
+    });
+    const innates = speciesInnate("hyomen");
+    expect(innates.map((a) => a.name)).toEqual(["Prodigal Mind", "House Rule Innate"]);
+    // A name the baked export still knows keeps its effect; a new one starts blank.
+    expect(innates[0].effect).toBeTruthy();
+    expect(innates[1].effect).toBe("");
+  });
+
+  it("seeds the Incept Pool from the overridden list", () => {
+    registerCodexGameData({
+      species: [{
+        species: {
+          id: "seraph", name: "Seraph", family: "Asternem", bonuses: {},
+          innate: ["Antimatter Wings", "Reworked Flight"], variants: [],
+        },
+        provided: ["innate"],
+      }],
+    });
+    expect(inceptSeeds("seraph", ["Antimatter Wings"]).map((a) => a.name)).toEqual(["Reworked Flight"]);
   });
 });

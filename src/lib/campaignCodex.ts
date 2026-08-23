@@ -25,6 +25,7 @@ import {
   listLocalRuleLayers,
 } from "./ruleLayerRepo";
 import { ID_SCOPES } from "../game/codexId";
+import { bakedCodexPages, findBakedCodexPage } from "./bakedCodexPages";
 import type { LayerOp, RuleLayer } from "../game/ruleLayers";
 
 export const CAMPAIGN_CODEX_SCHEMA = 1 as const;
@@ -58,6 +59,11 @@ export interface CampaignCodexPage {
   /** Official semantic id replaced by a campaign page. */
   overrides?: string;
   updatedAt?: number;
+  /** Generated from the compiled catalog rather than read from a file or row —
+   *  see lib/bakedCodexPages. Curator-side only: it is provenance for forking,
+   *  never a stored page, never pulled, and never sent to a player (whose own
+   *  app already contains the same compiled data). */
+  builtIn?: boolean;
 }
 
 export interface CampaignCodexSnapshot {
@@ -72,12 +78,87 @@ export interface CampaignCodexSnapshot {
   /** Declarative numeric rule/formula changes (never executable code). */
   ruleLayers: RuleLayer[];
   pages: CampaignCodexPage[];
+  /** The compiled catalog as forkable official pages. Kept OUT of `pages` on
+   *  purpose: they must not shift the revision (which would churn on every app
+   *  update), must not count against the wire budget, and must not reach a
+   *  player. Curator surfaces read `pages` and `builtIn` together.
+   *
+   *  Optional because a received wire document never carries it — the parser
+   *  below rebuilds every page field by field, so a peer cannot inject one. */
+  builtIn?: CampaignCodexPage[];
 }
 
 function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   const t = typeof window !== "undefined" ? window.__TAURI__ : undefined;
   if (!t?.core?.invoke) return Promise.reject(new Error("The desktop Codex is unavailable."));
   return t.core.invoke(cmd, args) as Promise<T>;
+}
+
+// The page files, held between snapshot builds.
+//
+// A snapshot is rebuilt whenever the Curator dashboard mounts, whenever the
+// game-data loader runs, and whenever any page changes — so the same few
+// megabytes were being re-read from disk several times for a single edit. Only
+// the FILE READ is cached: rules, rule layers and campaign-owned rows are still
+// fetched on every build, so nothing a Curator changes can be served stale.
+let pageFileCache: Array<[string, string]> | null = null;
+let pageFileRead: Promise<Array<[string, string]>> | null = null;
+
+// The last Curator manifest per campaign. Not a substitute for building one —
+// it is what a surface can PAINT while the real build runs, so leaving the
+// dashboard and coming back does not put the Curator back in front of a spinner
+// for a document that has not changed.
+const curatorSnapshots = new Map<string, CampaignCodexSnapshot>();
+
+/** The last manifest built for this campaign, if there is one. Possibly stale by
+ *  the age of one edit — callers must still build, and repaint when it lands. */
+export function cachedCampaignCodexSnapshot(campaignId: string): CampaignCodexSnapshot | null {
+  return curatorSnapshots.get(campaignId) ?? null;
+}
+
+/** Drop the cached page files. Called on any announced page change, and by the
+ *  dashboard's Refresh — the one action whose whole purpose is to distrust it. */
+export function invalidatePageFileCache(): void {
+  pageFileCache = null;
+  pageFileRead = null;
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("wte-pages-changed", invalidatePageFileCache);
+}
+
+/** Every page file as [stem, content].
+ *
+ *  One IPC crossing and one directory walk. The per-page path is kept as a
+ *  fallback only because a running frontend can be newer than the binary it is
+ *  talking to during a dev session or a partial update. */
+async function readAllPageFiles(): Promise<Array<[string, string]>> {
+  if (pageFileCache) return pageFileCache;
+  // Concurrent builds (the dashboard and the game-data loader race on mount)
+  // share one read rather than each starting their own.
+  pageFileRead ??= readAllPageFilesUncached()
+    .then((files) => {
+      pageFileCache = files;
+      return files;
+    })
+    .finally(() => {
+      pageFileRead = null;
+    });
+  return pageFileRead;
+}
+
+async function readAllPageFilesUncached(): Promise<Array<[string, string]>> {
+  try {
+    return await invoke<Array<[string, string]>>("wte_load_all_pages");
+  } catch {
+    const stems = await invoke<string[]>("wte_list_pages");
+    const out: Array<[string, string]> = [];
+    for (const stem of stems) {
+      const content = await invoke<string>("wte_load_page", { path: stem }).catch(() => null);
+      if (content !== null) out.push([stem, content]);
+    }
+    return out;
+  }
 }
 
 function cleanStem(value: unknown): string {
@@ -271,14 +352,13 @@ export async function buildCampaignCodexSnapshot(
   const pages: CampaignCodexPage[] = [];
 
   if (isTauri()) {
-    const stems = await invoke<string[]>("wte_list_pages");
-    if (stems.length > MAX_CAMPAIGN_CODEX_PAGES) {
-      throw new Error(`The Codex has ${stems.length} pages; the supported limit is ${MAX_CAMPAIGN_CODEX_PAGES}.`);
+    const files = await readAllPageFiles();
+    if (files.length > MAX_CAMPAIGN_CODEX_PAGES) {
+      throw new Error(`The Codex has ${files.length} pages; the supported limit is ${MAX_CAMPAIGN_CODEX_PAGES}.`);
     }
-    for (const raw of stems) {
+    for (const [raw, content] of files) {
       const stem = cleanStem(raw);
       if (!stem) continue;
-      const content = await invoke<string>("wte_load_page", { path: raw });
       if (content.length > MAX_CAMPAIGN_CODEX_PAGE_CHARS) {
         throw new Error(`Codex page “${stem}” exceeds the supported per-page size.`);
       }
@@ -353,10 +433,17 @@ export async function buildCampaignCodexSnapshot(
     rules,
     ruleLayers,
     pages: bounded,
+    // A player's own installation has the same compiled catalog; shipping these
+    // would be pure duplication, and they carry no campaign decision.
+    builtIn: options.playerOnly ? [] : bakedCodexPages(),
   };
   if (JSON.stringify(snapshot).length > MAX_CAMPAIGN_CODEX_WIRE_CHARS) {
     throw new Error("The serialized campaign Codex exceeds the supported network size.");
   }
+  // Only the Curator manifest is worth keeping: the player document is a
+  // filtered derivative, rebuilt per send, and holding it would just be a second
+  // copy of the same pages.
+  if (!options.playerOnly) curatorSnapshots.set(owner, snapshot);
   return snapshot;
 }
 
@@ -596,31 +683,46 @@ export async function loadEffectiveCodexPage(stemRaw: string, campaignId?: strin
     const hit = stored.find((p) => cleanStem(p.stem) === stem);
     if (hit) return storedPage(hit, getPageMeta(hit.stem));
   }
-  if (!isTauri()) return null;
-  try {
-    const content = await invoke<string>("wte_load_page", { path: stem });
-    return filePage(stem, content, getPageMeta(stem), campaignId || "");
-  } catch {
-    return null;
+  if (isTauri()) {
+    try {
+      const content = await invoke<string>("wte_load_page", { path: stem });
+      return filePage(stem, content, getPageMeta(stem), campaignId || "");
+    } catch {
+      /* No file by that name — fall through to the compiled catalog. */
+    }
   }
+  // Last resort, and the only source for a rule that has no page because it is
+  // compiled in. Checked last on purpose: a stored fork or an uploaded article
+  // describing the same lineage is always the better answer.
+  return findBakedCodexPage({ stem }) ?? null;
+}
+
+/** Append the compiled catalog to a listing, minus anything a real page already
+ *  covers. A rule that is in force should never be absent from the index. */
+function withBuiltInPages(pages: CampaignCodexPage[]): CampaignCodexPage[] {
+  const known = new Set(pages.map((page) => page.stem));
+  return [...pages, ...bakedCodexPages().filter((page) => !known.has(page.stem))];
 }
 
 /** Effective page names for the Codex browser. */
 export async function listEffectiveCodexPages(campaignId?: string | null): Promise<CampaignCodexPage[]> {
+  // A joined player reads the Curator's document verbatim. Their own compiled
+  // catalog is not part of it and must not be spliced in beside it.
   if (roomSnapshot && (!campaignId || roomSnapshot.campaignId === campaignId)) {
     return resolveCampaignCodexPages(roomSnapshot.pages);
   }
   if (!campaignId) {
-    if (!isTauri()) return [];
+    // The compiled catalog needs no filesystem — it is in the bundle.
+    if (!isTauri()) return withBuiltInPages([]);
     const stems = await invoke<string[]>("wte_list_pages");
     const out: CampaignCodexPage[] = [];
     for (const stem of stems) {
       const page = await loadEffectiveCodexPage(stem, null);
       if (page) out.push(page);
     }
-    return out;
+    return withBuiltInPages(out);
   }
-  return resolveCampaignCodexPages((await buildCampaignCodexSnapshot(campaignId)).pages);
+  return withBuiltInPages(resolveCampaignCodexPages((await buildCampaignCodexSnapshot(campaignId)).pages));
 }
 
 /** The mechanically authoritative, player-safe view. Curator-only prose and

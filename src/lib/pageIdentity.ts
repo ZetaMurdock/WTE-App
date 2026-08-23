@@ -14,6 +14,7 @@
 import { identityRow, withIdentityRow } from "../game/codexEntity";
 import { makeId, parseId, slugify, type IdKind, type IdScope } from "../game/codexId";
 import type { StoredCodexPage } from "./codexPageRepo";
+import { codexPlainSource } from "./codexPlain";
 
 /** Kinds whose pages carry mechanics and therefore need a permanent identity.
  *  Lore pages are deliberately excluded — they have nothing to reference. */
@@ -36,7 +37,11 @@ function semanticKind(type: string): IdKind | undefined {
 }
 
 /** Read one `| Key | Value |`-style field, the same shapes the parsers accept. */
-function readField(md: string, key: string): string | undefined {
+function readField(source: string, key: string): string | undefined {
+  // Normalised first, so a page written in the Visual Engine still declares
+  // its Type, ID and Overrides. Before this, saving a rule there silently
+  // demoted it to a generic page with no link to the rule it replaces.
+  const md = codexPlainSource(source);
   const re = new RegExp(`^\\s*\\|\\s*${key}\\s*\\|\\s*([^|]*)\\|\\s*$`, "im");
   const m = md.match(re);
   if (m) return m[1].trim();
@@ -45,7 +50,8 @@ function readField(md: string, key: string): string | undefined {
 }
 
 /** The `# Title` heading, which is what a page is called. */
-function titleOf(md: string, fallback: string): string {
+function titleOf(source: string, fallback: string): string {
+  const md = codexPlainSource(source);
   const m = md.match(/^#{1,4}\s+(.+)$/m);
   return (m ? m[1] : fallback).replace(/[*_`]/g, "").trim();
 }

@@ -178,6 +178,11 @@ export interface Species {
   eminence?: string;
   /** Every species now chooses 2 of 4 innates active; the rest seed the Incept Pool. */
   innateSelect?: number;
+  /** Innate abilities WITH their effect text, from a page's `## Innate` section.
+   *  `innate` carries only names, and the baked wiki export is the sole other
+   *  source of effect prose — so without this a campaign that renames an innate,
+   *  or invents one, could never give it an effect. */
+  innateAbilities?: SpeciesVariantAbility[];
   /** Named lineage variants that grant extra abilities (from the baked variants data). */
   variants: SpeciesVariant[];
 }
@@ -194,6 +199,7 @@ export type SpeciesMechanicField =
   | "rec"
   | "eminence"
   | "innateSelect"
+  | "innateAbilities"
   | "variants";
 
 export interface CodexSpeciesDefinition {
@@ -351,6 +357,7 @@ export function mergeCodexSpecies(base: Species, definition: CodexSpeciesDefinit
     rec: has("rec") ? patch.rec : base.rec,
     eminence: has("eminence") ? patch.eminence : base.eminence,
     innateSelect: has("innateSelect") ? patch.innateSelect : base.innateSelect,
+    innateAbilities: has("innateAbilities") ? patch.innateAbilities : base.innateAbilities,
     variants: has("variants") ? patch.variants : base.variants,
   };
 }
@@ -932,11 +939,49 @@ export const CIPHER_TIERS = ["offline", "online", "special"] as const;
 
 // ── Racial abilities + unified "usable" ability model (for the Actions rail) ──
 const SPECIES_INNATE = nullRecord(speciesInnateData as Record<string, SpeciesVariantAbility[]>);
-/** A species' innate abilities with effects; falls back to bare names when the wiki page had none. */
+
+// ── Baked catalog readers, for the "Built-in" pages in Campaign Settings ──
+// These deliberately read the BASE arrays, never the overlaid live ones. A
+// campaign's own override must not come back to it labelled as the official
+// rule it is supposed to be replacing.
+export function bakedSpecies(): readonly Species[] {
+  return BASE_SPECIES;
+}
+export function bakedParadigms(): readonly Paradigm[] {
+  return BASE_PARADIGMS;
+}
+/** The baked default size for a species id. Reads the snapshot taken before the
+ *  first overlay when there is one, so a campaign `Size` row does not leak. */
+export function bakedSpeciesSize(speciesId: string): string | undefined {
+  return ownRecordValue(baseSpeciesSizes ?? SPECIES_SIZE, speciesId);
+}
+/** The wiki export's innate abilities WITH effect prose, by species id. */
+export function bakedSpeciesInnate(speciesId: string): readonly SpeciesVariantAbility[] {
+  return ownRecordValue(SPECIES_INNATE, speciesId) ?? [];
+}
+/** A species' innate abilities with effects.
+ *
+ *  WHICH innates a species has is whatever the effective Species record says —
+ *  base data, or a campaign page that overrode `Innate`. The baked wiki export
+ *  only supplies the EFFECT prose, matched by name.
+ *
+ *  It used to be the other way round: any species with a baked entry returned
+ *  that entry outright, so the nine official lineages ignored their campaign's
+ *  `Innate` row entirely. Renaming an innate in Campaign Settings changed the
+ *  Species record and nothing the player could see — the creator's 2-of-4
+ *  picker and the Actions rail both went on offering the baked four. */
 export function speciesInnate(speciesId?: string): SpeciesVariantAbility[] {
+  const species = getSpecies(speciesId);
+  // An authored `## Innate` section wins outright — it is the only place a
+  // renamed or newly invented innate can be given an effect at all.
+  if (species?.innateAbilities?.length) return species.innateAbilities;
   const wiki = ownRecordValue(SPECIES_INNATE, speciesId || "") ?? [];
-  if (wiki.length) return wiki;
-  return (getSpecies(speciesId)?.innate || []).map((name) => ({ name, effect: "" }));
+  const names = species?.innate ?? [];
+  // A bare id with no species record (an old save, a deleted lineage): the
+  // baked list is the only thing left that can describe it.
+  if (!names.length) return wiki;
+  const effects = new Map(wiki.map((a) => [a.name.toLowerCase(), a]));
+  return names.map((name) => effects.get(name.toLowerCase()) ?? { name, effect: "" });
 }
 
 export type AbilitySource = "genus" | "cipher" | "racial" | "incept";

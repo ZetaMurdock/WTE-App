@@ -1,11 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   buildCampaignCodexSnapshot,
+  cachedCampaignCodexSnapshot,
+  invalidatePageFileCache,
   type CampaignCodexPage,
   type CampaignCodexSnapshot,
 } from "../lib/campaignCodex";
 import { openCodexPage, type OpenCodexPageIntent } from "../lib/openCodexPage";
 import { inferCodexSectionLabel } from "../lib/codexMechanicScaffold";
+import {
+  isPinned,
+  moveQuickLink,
+  readOpenGroups,
+  readQuickLinks,
+  reconcileQuickLinks,
+  setGroupOpen,
+  toggleQuickLink,
+  type CodexQuickLink,
+} from "../lib/codexQuickLinks";
 
 interface Props {
   campaignId: string;
@@ -23,6 +35,25 @@ interface PageGroup {
 function humanize(value: string): string {
   const words = value.trim().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
   return words ? words[0].toUpperCase() + words.slice(1) : "Pages";
+}
+
+// Section order. Mechanics first, in the order a character is actually built,
+// then everything else alphabetically, then prose.
+//
+// Straight alphabetical put Species below Cipher, Equipment, Genus and every
+// custom label a table had invented — and on a Codex that is mostly lore, the
+// nine rules a Curator edits were somewhere in the middle of the list.
+const SECTION_ORDER = [
+  "species", "paradigm", "background", "genus", "cipher",
+  "weapon", "equipment", "creature", "roll formula",
+];
+/** Generic buckets. Real content, but never what someone opened settings for. */
+const SECTION_LAST = ["lore", "page", "pages", "unsorted"];
+
+function sectionRank(key: string): number {
+  const known = SECTION_ORDER.indexOf(key);
+  if (known >= 0) return known;
+  return SECTION_LAST.includes(key) ? SECTION_ORDER.length + 1 : SECTION_ORDER.length;
 }
 
 /** A dynamic view model: a new Codex kind automatically becomes a new group. */
@@ -49,7 +80,7 @@ export function groupCampaignCodexPages(pages: CampaignCodexPage[]): PageGroup[]
       ...group,
       pages: [...group.pages].sort((a, b) => a.title.localeCompare(b.title) || a.source.localeCompare(b.source)),
     }))
-    .sort((a, b) => a.label.localeCompare(b.label));
+    .sort((a, b) => sectionRank(a.key) - sectionRank(b.key) || a.label.localeCompare(b.label));
 }
 
 function openPage(page: CampaignCodexPage, campaignId: string, intent: OpenCodexPageIntent): void {
@@ -57,15 +88,31 @@ function openPage(page: CampaignCodexPage, campaignId: string, intent: OpenCodex
 }
 
 export function CampaignCodexPanel({ campaignId, campaignName, curator }: Props) {
-  const [snapshot, setSnapshot] = useState<CampaignCodexSnapshot | null>(null);
+  // Painted from the last manifest for this campaign, so returning to the
+  // dashboard shows the settings immediately instead of an empty panel and a
+  // wait. The rebuild below still runs and replaces it.
+  const [snapshot, setSnapshot] = useState<CampaignCodexSnapshot | null>(() =>
+    curator && campaignId ? cachedCampaignCodexSnapshot(campaignId) : null
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [reloadToken, setReloadToken] = useState(0);
   const [filter, setFilter] = useState("");
+  const [pins, setPins] = useState<CodexQuickLink[]>(() => (campaignId ? readQuickLinks(campaignId) : []));
+  const [openGroups, setOpenGroups] = useState<string[]>(() => (campaignId ? readOpenGroups(campaignId) : []));
+
+  // Pins and expanded sections belong to a campaign, not to the panel.
+  useEffect(() => {
+    setPins(campaignId ? readQuickLinks(campaignId) : []);
+    setOpenGroups(campaignId ? readOpenGroups(campaignId) : []);
+  }, [campaignId]);
 
   useEffect(() => {
     if (!curator || !campaignId) return;
     let alive = true;
+    // Switching campaigns must not leave the previous table's rules on screen
+    // while the new one builds. A cached manifest for THIS campaign is fine.
+    setSnapshot(cachedCampaignCodexSnapshot(campaignId));
     setLoading(true);
     setError("");
     void buildCampaignCodexSnapshot(campaignId, campaignName)
@@ -95,20 +142,55 @@ export function CampaignCodexPanel({ campaignId, campaignName, curator }: Props)
     return () => window.removeEventListener("wte-pages-changed", reload);
   }, [curator]);
 
+  // The compiled catalog, shown alongside the stored pages. A real official page
+  // with the same identity is the better record of the same rule (someone
+  // uploaded the actual article), so the generated stand-in steps aside.
+  const allPages = useMemo(() => {
+    const pages = snapshot?.pages ?? [];
+    const known = new Set(pages.map((page) => page.id));
+    return [...pages, ...(snapshot?.builtIn ?? []).filter((page) => !known.has(page.id))];
+  }, [snapshot]);
+
   const groups = useMemo(() => {
     const needle = filter.trim().toLowerCase();
     const pages = needle
-      ? (snapshot?.pages ?? []).filter((page) =>
+      ? allPages.filter((page) =>
           `${page.title}\n${page.id}\n${page.kind}\n${inferCodexSectionLabel({ stem: page.stem, content: page.content, label: page.label, kind: page.kind }) ?? ""}\n${page.source}`.toLowerCase().includes(needle)
         )
-      : snapshot?.pages ?? [];
+      : allPages;
     return groupCampaignCodexPages(pages);
-  }, [filter, snapshot]);
+  }, [allPages, filter]);
+
+  // A rule renamed in the Codex should read by its new name in the pin rail, and
+  // a rule that no longer exists should not sit there as a dead button.
+  useEffect(() => {
+    if (!campaignId || !allPages.length) return;
+    setPins((current) => reconcileQuickLinks(campaignId, current, allPages));
+  }, [allPages, campaignId]);
+
+  const pinnedPages = useMemo(() => {
+    const byId = new Map(allPages.map((page) => [page.id, page]));
+    return pins.flatMap((pin) => {
+      const page = byId.get(pin.id);
+      return page ? [page] : [];
+    });
+  }, [allPages, pins]);
+
+  function togglePin(page: CampaignCodexPage): void {
+    if (!campaignId) return;
+    setPins(toggleQuickLink(campaignId, { id: page.id, stem: page.stem, title: page.title }));
+  }
+
+  function movePin(id: string, delta: -1 | 1): void {
+    if (!campaignId) return;
+    setPins(moveQuickLink(campaignId, id, delta));
+  }
 
   if (!curator) return null;
 
-  const officialCount = snapshot?.pages.filter((page) => page.source === "official").length ?? 0;
-  const campaignCount = snapshot?.pages.filter((page) => page.source === "campaign").length ?? 0;
+  const builtInCount = allPages.filter((page) => page.builtIn).length;
+  const officialCount = allPages.filter((page) => page.source === "official" && !page.builtIn).length;
+  const campaignCount = allPages.filter((page) => page.source === "campaign").length;
 
   return (
     <section className="campaign-codex" aria-label="Campaign Codex">
@@ -118,11 +200,20 @@ export function CampaignCodexPanel({ campaignId, campaignName, curator }: Props)
           <h2 className="campaign-codex-title">Campaign Settings</h2>
           <p className="campaign-codex-summary">
             {snapshot
-              ? `${officialCount} official · ${campaignCount} campaign ${campaignCount === 1 ? "change" : "changes"} · revision ${snapshot.revision}`
-              : "Official rules and every campaign customization used by character creation, sheets, and the table."}
+              ? `${builtInCount} built-in · ${officialCount} official · ${campaignCount} campaign ${campaignCount === 1 ? "change" : "changes"} · revision ${snapshot.revision}`
+              : "Every rule in force — built-in lineages included — used by character creation, sheets, and the table."}
           </p>
         </div>
-        <button className="chip" onClick={() => setReloadToken((token) => token + 1)} disabled={loading}>
+        <button
+          className="chip"
+          onClick={() => {
+            // Refresh exists for the case the cache cannot see: a page edited
+            // outside the app. Re-read from disk, not from memory.
+            invalidatePageFileCache();
+            setReloadToken((token) => token + 1);
+          }}
+          disabled={loading}
+        >
           {loading ? "Refreshing…" : "Refresh"}
         </button>
       </div>
@@ -139,17 +230,73 @@ export function CampaignCodexPanel({ campaignId, campaignName, curator }: Props)
 
       {error && <p className="campaign-codex-error">Could not read this campaign's Codex: {error}</p>}
       {!error && loading && !snapshot && <p className="list-empty">Reading campaign settings…</p>}
-      {!error && !loading && snapshot && snapshot.pages.length === 0 && (
+      {!error && !loading && snapshot && allPages.length === 0 && (
         <p className="list-empty">No Codex pages are connected to this campaign yet.</p>
       )}
-      {!error && snapshot && snapshot.pages.length > 0 && filter.trim() && groups.length === 0 && (
+      {!error && snapshot && allPages.length > 0 && filter.trim() && groups.length === 0 && (
         <p className="list-empty">No connected Codex pages match that filter.</p>
+      )}
+
+      {pinnedPages.length > 0 && (
+        <div className="campaign-codex-pinned" aria-label="Quick links">
+          <div className="campaign-codex-pinnedhead">Quick links</div>
+          <div className="campaign-codex-pinrail">
+            {pinnedPages.map((page, index) => (
+              <div className="campaign-codex-pin" key={page.id}>
+                <button
+                  className="campaign-codex-pin-open"
+                  onClick={() => openPage(page, campaignId, page.source === "campaign" ? "edit" : "customize")}
+                  title={`${page.source === "campaign" ? "Edit" : "Customize"} ${page.title}`}
+                >
+                  {page.title}
+                </button>
+                <div className="campaign-codex-pin-order">
+                  <button
+                    className="ghost-btn xs"
+                    onClick={() => movePin(page.id, -1)}
+                    disabled={index === 0}
+                    aria-label={`Move ${page.title} earlier`}
+                    title="Move earlier"
+                  >
+                    ←
+                  </button>
+                  <button
+                    className="ghost-btn xs"
+                    onClick={() => movePin(page.id, 1)}
+                    disabled={index === pinnedPages.length - 1}
+                    aria-label={`Move ${page.title} later`}
+                    title="Move later"
+                  >
+                    →
+                  </button>
+                  <button
+                    className="ghost-btn xs"
+                    onClick={() => togglePin(page)}
+                    aria-label={`Unpin ${page.title}`}
+                    title="Unpin"
+                  >
+                    ★
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {groups.length > 0 && (
         <div className="campaign-codex-groups">
           {groups.map((group) => (
-            <details className="campaign-codex-group" key={group.key}>
+            <details
+              className="campaign-codex-group"
+              key={group.key}
+              // A filter is a search: showing the matches inside collapsed
+              // sections would hide the very thing that was searched for.
+              open={!!filter.trim() || openGroups.includes(group.key)}
+              onToggle={(event) =>
+                setOpenGroups(setGroupOpen(campaignId, group.key, event.currentTarget.open))
+              }
+            >
               <summary className="campaign-codex-grouphead">
                 <span>{group.label}</span>
                 <span className="campaign-codex-count">{group.pages.length}</span>
@@ -168,17 +315,27 @@ export function CampaignCodexPanel({ campaignId, campaignName, curator }: Props)
                         <span className="campaign-codex-page-id">{page.id}</span>
                       </button>
                       <div className="campaign-codex-statuses" aria-label={`${page.title} status`}>
-                        <span className={`campaign-codex-badge source-${page.source}`}>
-                          {page.source === "campaign" ? "Campaign" : "Official"}
+                        <span className={`campaign-codex-badge source-${page.builtIn ? "builtin" : page.source}`}>
+                          {page.source === "campaign" ? "Campaign" : page.builtIn ? "Built-in" : "Official"}
                         </span>
                         <span className={`campaign-codex-badge visibility-${page.visibility}`}>
                           {page.visibility === "curator" ? "Curator only" : "Players"}
                         </span>
-                        <span className={`campaign-codex-badge ${page.pulled ? "pulled" : "not-pulled"}`}>
-                          {page.pulled ? "Pulled" : "Not pulled"}
+                        {/* "Not pulled" would read as broken on a built-in rule.
+                            It is already in force — that is what built-in means. */}
+                        <span className={`campaign-codex-badge ${page.builtIn ? "pulled" : page.pulled ? "pulled" : "not-pulled"}`}>
+                          {page.builtIn ? "In force" : page.pulled ? "Pulled" : "Not pulled"}
                         </span>
                       </div>
                       <div className="campaign-codex-actions">
+                        <button
+                          className={"ghost-btn xs" + (isPinned(pins, page.id) ? " pinned" : "")}
+                          onClick={() => togglePin(page)}
+                          aria-pressed={isPinned(pins, page.id)}
+                          title={isPinned(pins, page.id) ? "Remove from quick links" : "Add to quick links"}
+                        >
+                          {isPinned(pins, page.id) ? "★" : "☆"}
+                        </button>
                         <button className="ghost-btn xs" onClick={() => openPage(page, campaignId, "read")}>
                           Open
                         </button>

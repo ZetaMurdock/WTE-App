@@ -21,6 +21,8 @@ import { assertCanPublish } from "../../lib/codexRoles";
 import { LibraryDialog } from "./LibraryDialog";
 import { reportSaveFailure } from "../../lib/appToast";
 import { onOpenCodexPage } from "../../lib/openCodexPage";
+import { findBakedCodexPage } from "../../lib/bakedCodexPages";
+import { invalidatePageFileCache } from "../../lib/campaignCodex";
 import { slugify } from "../../game/codexId";
 import { parseRollFormulaPage } from "../../game/rollFormula";
 import {
@@ -335,6 +337,11 @@ export function CodexBrowser({
       const exact = manifest?.pages.find((record) => record.id === pageId);
       if (exact) return exact;
     }
+    // A built-in rule has no file and no row to load — it is generated from the
+    // compiled catalog. Without this, "Customize" on a baked lineage failed with
+    // "could not open", which is the whole reason those rules were uneditable.
+    const builtIn = findBakedCodexPage({ id: pageId, stem });
+    if (builtIn) return builtIn;
     return loadEffectiveCodexPage(stem, campaignId);
   }
 
@@ -434,6 +441,10 @@ export function CodexBrowser({
         stem = await invoke<string>("wte_save_page", { name: draft.title, content });
         setPageMetaMap(savePageMeta(stem, { label: draft.label }));
       }
+      // Before re-listing, not after: the page files are cached between
+      // snapshot builds, so re-reading first would rebuild the list from the
+      // bytes that were on disk a moment before this save.
+      invalidatePageFileCache();
       await reloadEffectivePages();
       typeMap.current = null;
       linkMap.current = null;

@@ -4,6 +4,7 @@
 //    a key/value spec block (markdown table `| K | V |`, HTML table, tab, or `**Field:**`),
 //    then labeled prose sections. `[130]` / `[97, 130]` citation markers are stripped.
 // Pages without a recognized **Type** field return null (kept as pure lore).
+import { codexPlainSource } from "./codexPlain";
 import type { CodexEntry, CodexType, CreatureClass, Overclock, CodexAbility } from "../models/codex";
 
 const strip = (s: string) => (s || "").replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim();
@@ -79,7 +80,11 @@ interface PreParsed {
   sections: Record<string, string>;
 }
 
-function preParse(md: string, name?: string): PreParsed {
+function preParse(source: string, name?: string): PreParsed {
+  // Normalised first: Genus, Cipher, Weapon and Equipment pages authored in
+  // the Visual Engine carry their fields in a semantic tree, not in Markdown
+  // rows, and would otherwise parse as prose and silently leave the catalogs.
+  const md = codexPlainSource(source);
   const lines = stripCitations(md.replace(/\r\n/g, "\n")).split("\n");
   let title = "";
   const fields: Record<string, string> = {};

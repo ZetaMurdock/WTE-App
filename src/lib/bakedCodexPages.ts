@@ -1,0 +1,181 @@
+// The baked catalog, expressed as Codex pages.
+//
+// W.T.E ships nine lineages, six paradigms and thirty-five variants as compiled
+// data (game/wte.ts and game/data/*.json). The overlay machinery to override any
+// of it from a campaign page has existed for a while — but Campaign Settings
+// lists PAGES, and none of that data is a page. So the rules a table actually
+// plays by were invisible and unforkable: a Curator could see Salaris, Trevant
+// and Qerran in character creation and find nothing to edit anywhere.
+//
+// These pages close that gap without moving the data. They are generated on
+// demand, never stored, and never pulled — the compiled arrays remain the single
+// source of truth and app updates to them flow straight through. Their only job
+// is to give the Curator something to READ and to FORK. Forking one produces an
+// ordinary campaign page, which is pulled and overlaid like any other, so the
+// authored copy is what character creation and the VTT then read.
+//
+// Everything emitted here must parse back to the record it came from. That is
+// what bakedCodexPages.test.ts asserts, species by species and field by field:
+// a "Customize" that quietly dropped a variant or an innate would be far worse
+// than no page at all.
+import {
+  ATTRIBUTES,
+  bakedParadigms,
+  bakedSpecies,
+  bakedSpeciesInnate,
+  bakedSpeciesSize,
+  type Paradigm,
+  type Species,
+  type SpeciesVariantAbility,
+} from "../game/wte";
+import type { CampaignCodexPage } from "./campaignCodex";
+
+/** Table cells are read with `|([^|]+)|([^|]+)|`, so a pipe inside a value would
+ *  end the cell early and truncate the rule. No baked string contains one; this
+ *  keeps that true for anything added later. */
+function cell(value: unknown): string {
+  return String(value ?? "").replace(/\r?\n+/g, " ").replace(/\|/g, "/").trim();
+}
+
+function signed(value: number): string {
+  return `${value >= 0 ? "+" : ""}${value}`;
+}
+
+function bonusList(species: Species): string {
+  const parts = ATTRIBUTES.flatMap((attribute) => {
+    const value = species.bonuses[attribute.key];
+    return value ? [`${attribute.short} ${signed(value)}`] : [];
+  });
+  return parts.join(", ") || "None";
+}
+
+function fieldTable(rows: Array<[string, unknown]>): string {
+  const body = rows
+    .filter(([, value]) => value !== undefined && value !== null && String(value) !== "")
+    .map(([key, value]) => `| ${key} | ${cell(value)} |`)
+    .join("\n");
+  return `| Field | Value |\n|---|---|\n${body}`;
+}
+
+function abilityBullets(abilities: readonly SpeciesVariantAbility[]): string {
+  return abilities.map((a) => `- **${cell(a.name)}** — ${cell(a.effect) || "—"}`).join("\n");
+}
+
+const PREAMBLE =
+  "*Built-in W.T.E rule, shown here so it can be changed. " +
+  "**Customize** copies it into this campaign; edit any row and character creation, " +
+  "the sheet and the VTT follow. Delete a row to keep inheriting the official value.*";
+
+/** One Species page: the mechanics table, the innate abilities with their
+ *  effects, and every lineage variant including its creation-time options. */
+export function bakedSpeciesPageContent(species: Species): string {
+  const sections = [
+    `# ${species.name}`,
+    PREAMBLE,
+    fieldTable([
+      ["Type", "Species"],
+      ["ID", `wte.species.${species.id}`],
+      ["Name", species.name],
+      ["Family", species.family],
+      ["Bonuses", bonusList(species)],
+      ["Size", bakedSpeciesSize(species.id)],
+      ["Dominance", species.dom],
+      ["Recessiveness", species.rec],
+      ["Eminence", species.eminence],
+      ["Innate Select", species.innateSelect],
+      ["Note", species.note],
+    ]),
+  ];
+
+  // Names come from the Species record, effects from the wiki export. Emitting
+  // both together is the whole point: it is the only form in which a renamed or
+  // invented innate can carry an effect.
+  const baked = bakedSpeciesInnate(species.id);
+  const effects = new Map(baked.map((a) => [a.name.toLowerCase(), a.effect]));
+  const innate = species.innate.map((name) => ({ name, effect: effects.get(name.toLowerCase()) ?? "" }));
+  if (innate.length) sections.push(`## Innate`, abilityBullets(innate));
+
+  if (species.variants.length) {
+    sections.push(`## Variants`);
+    for (const variant of species.variants) {
+      sections.push(`### ${variant.name}`);
+      if (variant.note) sections.push(cell(variant.note));
+      const bullets = [
+        abilityBullets(variant.abilities),
+        (variant.options ?? [])
+          .map((o) => `- Option: ${cell(o.label)} — **${cell(o.ability.name)}** — ${cell(o.ability.effect) || "—"}`)
+          .join("\n"),
+      ].filter(Boolean);
+      if (bullets.length) sections.push(bullets.join("\n"));
+    }
+  }
+  return `${sections.join("\n\n")}\n`;
+}
+
+export function bakedParadigmPageContent(paradigm: Paradigm): string {
+  return `${[
+    `# ${paradigm.name}`,
+    PREAMBLE,
+    fieldTable([
+      ["Type", "Paradigm"],
+      ["ID", `wte.paradigm.${paradigm.id}`],
+      ["Name", paradigm.name],
+      ["Group", paradigm.group],
+      ["Weapons", paradigm.weapons.join(", ")],
+      ["Domains", paradigm.domains.join(", ")],
+    ]),
+  ].join("\n\n")}\n`;
+}
+
+function page(id: string, stem: string, title: string, kind: string, label: string, content: string): CampaignCodexPage {
+  return {
+    id,
+    stem,
+    title,
+    kind,
+    label,
+    content,
+    visibility: "player",
+    // NEVER pulled. These pages describe data the loader already has compiled
+    // in; parsing them back in would be a no-op at best, and any drift between
+    // the generator and the parser would become a live rules change at worst.
+    pulled: false,
+    source: "official",
+    builtIn: true,
+  };
+}
+
+/** Every baked rule as a forkable official page. Regenerated per call — cheap,
+ *  and it must reflect a mid-session catalog change rather than a boot-time one. */
+export function bakedCodexPages(): CampaignCodexPage[] {
+  return [
+    ...bakedSpecies().map((species) =>
+      page(
+        `wte.species.${species.id}`,
+        `species-${species.id}`,
+        species.name,
+        "species",
+        "Species",
+        bakedSpeciesPageContent(species)
+      )
+    ),
+    ...bakedParadigms().map((paradigm) =>
+      page(
+        `wte.paradigm.${paradigm.id}`,
+        `paradigm-${paradigm.id}`,
+        paradigm.name,
+        "paradigm",
+        "Paradigm",
+        bakedParadigmPageContent(paradigm)
+      )
+    ),
+  ];
+}
+
+/** Resolve a built-in page by id, or by the stem an authoring surface was given.
+ *  Used by the Codex browser so "Customize" on a built-in page can open it. */
+export function findBakedCodexPage(ref: { id?: string; stem?: string }): CampaignCodexPage | undefined {
+  const pages = bakedCodexPages();
+  return (ref.id ? pages.find((p) => p.id === ref.id) : undefined) ??
+    (ref.stem ? pages.find((p) => p.stem === ref.stem) : undefined);
+}

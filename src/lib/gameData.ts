@@ -8,6 +8,7 @@ import {
   type Species,
   type SpeciesFamily,
   type SpeciesVariant,
+  type SpeciesVariantAbility,
   type CodexSpeciesDefinition,
   type SpeciesMechanicField,
   type Paradigm,
@@ -19,6 +20,7 @@ import {
   type SpecKey,
 } from "../game/wte";
 import { parseCodexEntry } from "./codexParse";
+import { codexPlainSource } from "./codexPlain";
 import { setCodexCatalog, setCodexRuntimeEntries } from "./codex";
 import { applyCodexPages, beginCodexLoad, codexLoadIsCurrent, noCodexPages, type PageSkip } from "../game/codexService";
 import { scanGenusCorpus, type RawPage } from "./genusCorpus";
@@ -60,7 +62,8 @@ const strip = (s: string) => (s || "").replace(/<[^>]*>/g, "").replace(/\*\*/g, 
 
 /** Read `| K | V |`, `**K:** V`, or `K: V` spec fields from a page (same
  *  conventions as codexParse, kept independent so its behaviour never shifts). */
-function readFields(md: string): Record<string, string> {
+function readFields(source: string): Record<string, string> {
+  const md = codexPlainSource(source);
   const out: Record<string, string> = {};
   for (const line of md.split("\n")) {
     let k = "";
@@ -77,7 +80,8 @@ function readFields(md: string): Record<string, string> {
   }
   return out;
 }
-function titleOf(md: string, fallback: string): string {
+function titleOf(source: string, fallback: string): string {
+  const md = codexPlainSource(source);
   const m = md.match(/^#{1,4}\s+(.+)$/m);
   return strip(m ? m[1] : fallback).replace(/_/g, " ");
 }
@@ -103,8 +107,17 @@ function parseBonuses(v?: string): Partial<Record<AttrKey, number>> {
   }
   return out;
 }
-/** `### Variant` blocks under a `## Variants` heading; `- **Ability** — effect` bullets. */
-function parseVariants(md: string): SpeciesVariant[] {
+/** `- **Ability** — effect` — the bullet form shared by innate and variant lists. */
+const ABILITY_BULLET = /^\s*[-*]\s*\*\*([^*]+)\*\*\s*[—–:-]\s*(.+)$/;
+/** `- Option: Label — **Ability** — effect` — a creation-time choice within a
+ *  variant (the Annunaki head shapes). Anchored on the bold ability name, so a
+ *  label or an effect containing a dash cannot split it in the wrong place. */
+const OPTION_BULLET = /^\s*[-*]\s*Option:\s*(.+?)\s*[—–-]\s*\*\*([^*]+)\*\*\s*[—–:-]\s*(.+)$/i;
+
+/** `### Variant` blocks under a `## Variants` heading; `- **Ability** — effect`
+ *  bullets, plus `- Option: …` creation-time choices. */
+function parseVariants(source: string): SpeciesVariant[] {
+  const md = codexPlainSource(source);
   const sec = md.split(/^#{2,3}\s+Variants\s*$/im)[1];
   if (!sec) return [];
   const out: SpeciesVariant[] = [];
@@ -117,7 +130,18 @@ function parseVariants(md: string): SpeciesVariant[] {
       out.push(cur);
       continue;
     }
-    const ab = line.match(/^\s*[-*]\s*\*\*([^*]+)\*\*\s*[—–:-]\s*(.+)$/);
+    // Checked BEFORE the plain ability bullet, because an option line also
+    // carries a bold ability name. Before this it fell through to the note
+    // branch and a creation-time choice was silently flattened into prose.
+    const opt = line.match(OPTION_BULLET);
+    if (opt && cur) {
+      (cur.options ??= []).push({
+        label: strip(opt[1]),
+        ability: { name: opt[2].trim(), effect: strip(opt[3]) },
+      });
+      continue;
+    }
+    const ab = line.match(ABILITY_BULLET);
     if (ab && cur) {
       cur.abilities.push({ name: ab[1].trim(), effect: strip(ab[2]) });
       continue;
@@ -125,6 +149,24 @@ function parseVariants(md: string): SpeciesVariant[] {
     if (cur && line.trim() && !line.startsWith("|")) cur.note = ((cur.note || "") + " " + line.trim()).trim();
   }
   return out.filter((v) => v.name);
+}
+
+/** `- **Innate** — effect` bullets under an `## Innate` heading.
+ *
+ *  The `Innate` table row can only ever carry names, and effect prose otherwise
+ *  comes solely from the baked wiki export keyed by species id — so a campaign
+ *  that renamed an innate, or invented one, had no way to describe it. */
+function parseInnateAbilities(source: string): SpeciesVariantAbility[] {
+  const md = codexPlainSource(source);
+  const sec = md.split(/^#{2,3}\s+Innate(?:\s+Abilities)?\s*$/im)[1];
+  if (!sec) return [];
+  const out: SpeciesVariantAbility[] = [];
+  for (const line of sec.split("\n")) {
+    if (/^#{1,3}\s/.test(line)) break; // next section, `### Variants` included
+    const ab = line.match(ABILITY_BULLET);
+    if (ab) out.push({ name: ab[1].trim(), effect: strip(ab[2]) });
+  }
+  return out;
 }
 
 function ownField(fields: Record<string, string>, ...names: string[]): boolean {
@@ -170,14 +212,22 @@ export function parseSpeciesDefinitionPage(md: string, stem: string): CodexSpeci
   if (ownField(f, "recessiveness", "rec")) provided.push("rec");
   if (ownField(f, "eminence", "eminence nature")) provided.push("eminence");
   if (ownField(f, "innate select", "innate selection")) provided.push("innateSelect");
-  if (/^#{2,3}\s+Variants\s*$/im.test(md)) provided.push("variants");
+  if (/^#{2,3}\s+Variants\s*$/im.test(codexPlainSource(md))) provided.push("variants");
+  // An `## Innate` section is the richer form of the `Innate` row: it names the
+  // innates AND gives them effects, so it satisfies both fields on its own.
+  const innateAbilities = parseInnateAbilities(md);
+  if (innateAbilities.length) {
+    provided.push("innateAbilities");
+    if (!provided.includes("innate")) provided.push("innate");
+  }
   return {
     species: {
       id: mechanicSlug(f, name, "species"),
       name,
       family,
       bonuses: parseBonuses(f["bonuses"]),
-      innate: csv(f["innate"]),
+      innate: innateAbilities.length ? innateAbilities.map((a) => a.name) : csv(f["innate"]),
+      innateAbilities: innateAbilities.length ? innateAbilities : undefined,
       note: ownField(f, "note") ? f["note"] || undefined : undefined,
       dom: optionalNumber(f, "dominance", "dom"),
       rec: optionalNumber(f, "recessiveness", "rec"),
@@ -308,7 +358,17 @@ export async function loadCodexGameData(): Promise<void> {
   });
   if (!room && sourcePages.length === 0 && !listFailed) {
     if (!codexLoadIsCurrent(token)) return;
+    // "This campaign has no mechanic pages" has to CLEAR the catalogs, not skip
+    // them. Only the formulas were being reset here, so every other overlay —
+    // species, paradigms, sizes, genus, ciphers, backgrounds, weapons, gear —
+    // stayed exactly as the previous campaign had left it. Switching from a
+    // table with a house rule to a table with none carried the house rule
+    // across, and deleting the last campaign page left its edits in force until
+    // a restart. Registering empty data restores the baked base.
     setCodexRollFormulas([]);
+    registerCodexGameData({});
+    setCodexCatalog([], []);
+    setCodexRuntimeEntries([]);
     noCodexPages();
     return;
   }

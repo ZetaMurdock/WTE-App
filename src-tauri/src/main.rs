@@ -425,6 +425,26 @@ async fn wte_list_pages(app: tauri::AppHandle) -> Result<Vec<String>, String> {
     Ok(names)
 }
 
+/// Every page, in one call.
+///
+/// The Codex snapshot needs all of them at once, and building it a page at a
+/// time cost far more than the reads: `wte_load_page` re-walks every rules
+/// directory to resolve one stem, so N pages meant N directory enumerations
+/// plus N IPC round trips. At 321 pages that is ~103k directory entries scanned
+/// to read 321 files, and the snapshot is rebuilt on every page change.
+///
+/// One walk, one crossing. A file that cannot be read is skipped rather than
+/// failing the batch — one bad file must not cost the Curator the whole Codex.
+#[tauri::command]
+async fn wte_load_all_pages(app: tauri::AppHandle) -> Result<Vec<(String, String)>, String> {
+    let mut pages: Vec<(String, String)> = collect_rule_files(&app)
+        .into_iter()
+        .filter_map(|(stem, path)| std::fs::read_to_string(&path).ok().map(|text| (stem, text)))
+        .collect();
+    pages.sort_by_key(|(stem, _)| stem.to_lowercase());
+    Ok(pages)
+}
+
 /// Characters that must never reach `open::that`.
 ///
 /// On Windows the `open` crate builds `cmd /c start "" "<url>"` and passes the
@@ -1004,6 +1024,7 @@ fn main() {
             wte_load_page,
             wte_import_zip,
             wte_list_pages,
+            wte_load_all_pages,
             wte_save_page,
             wte_delete_page,
             wte_export_campaign,

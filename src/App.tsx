@@ -462,7 +462,7 @@ export default function App() {
         </div>
         {/* VTT v2 stays mounted so the Pixi context survives tab switches */}
         <div className={"view-scroll" + (activeTab !== "vtt2" ? " hidden" : "")}>
-          <div className={mechanicsBlocked ? "hidden" : ""}>
+          <div className={"vtt-host" + (mechanicsBlocked ? " vtt-gated" : "")}>
             <Boundary label="VTT v2">
               <VttScreen campaign={activeCampaign} active={activeTab === "vtt2" && !mechanicsBlocked} />
             </Boundary>
