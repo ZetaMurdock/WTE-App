@@ -46,6 +46,7 @@ import {
   type DerivedKey,
   type RollResult,
   type EquipmentItem,
+  sizeOf,
 } from "../../game/wte";
 import { DerivedPreview } from "./DerivedPreview";
 import { CharacterVitals } from "./CharacterVitals";
@@ -80,6 +81,8 @@ import {
   type FocusSpend,
 } from "../../game/synapticFocus";
 import { RollButton } from "./RollButton";
+import { RollAxisPanel } from "./RollAxisPanel";
+import type { RollAxisStats } from "../../game/rollAxis";
 import { GenusContestPanel } from "./GenusContestPanel";
 import { CorruptSheetNotice } from "./CorruptSheetNotice";
 import { registerSaver } from "../../lib/saveQueue";
@@ -264,6 +267,19 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   const currentSS = maxSS - ssSpent;
   const ssPct = maxSS > 0 ? Math.max(0, Math.min(100, (currentSS / maxSS) * 100)) : 0;
   const maxNC = derived.nc;
+  const rollAxisStats: RollAxisStats = {
+    attr: {
+      phy: rollMod(eff.phy), ap: rollMod(eff.ap + sizeOf(sheet.sizeId, sheet.speciesId).apMod), dex: rollMod(eff.dex), end: rollMod(eff.end),
+      wis: rollMod(eff.wis), int: rollMod(eff.int), cha: rollMod(eff.cha),
+    },
+    spec: {
+      wm: specRollMod(Math.min(SPEC_MAX, effSpec.wm)), pre: specRollMod(Math.min(SPEC_MAX, effSpec.pre)),
+      bal: specRollMod(Math.min(SPEC_MAX, effSpec.bal)), adp: specRollMod(Math.min(SPEC_MAX, effSpec.adp)),
+      mf: specRollMod(Math.min(SPEC_MAX, effSpec.mf)), per: specRollMod(Math.min(SPEC_MAX, effSpec.per)),
+      cun: specRollMod(Math.min(SPEC_MAX, effSpec.cun)),
+    },
+    derived: { atk: derived.atk, ad: derived.ad, ev: derived.ev, rr: derived.rr, nc: derived.ncMod, pr: derived.pr, inf: derived.inf },
+  };
   const ncUsed = loadoutNC(weaponLoadout, gearLoadout);
   const slotsUsed = weaponSlotsUsed(weaponLoadout);
   const validation = validateSheet(sheet.attributes, sheet.specialties, caps);
@@ -611,6 +627,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
           </div>
 
           <div className="sheet-tabpanel">
+            {tab === "stats" && <RollAxisPanel stats={rollAxisStats} onRoll={doRoll} />}
             {tab === "stats" && (
               <div className="stats-grid">
                 <div className="stats-col">

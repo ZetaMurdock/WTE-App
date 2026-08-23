@@ -31,6 +31,11 @@ vi.mock("./data/characterAbilities", () => ({
       },
     ],
   }),
+  characterRollAxisStats: () => ({
+    attr: { phy: 2, ap: 1, dex: 2, end: 0, wis: 1, int: 3, cha: -1 },
+    spec: { wm: 4, pre: 3, bal: -2, adp: 1, mf: 0, per: 5, cun: -3 },
+    derived: { atk: 3, ad: 2, ev: -3, rr: -1, nc: 4, pr: 1, inf: -2 },
+  }),
 }));
 
 const character = {
@@ -42,14 +47,17 @@ const character = {
 let host: HTMLDivElement;
 let root: Root;
 
-async function mount(onRequestTargetRoll?: Parameters<typeof VttAbilitiesPanel>[0]["onRequestTargetRoll"]) {
+async function mount(
+  onRequestTargetRoll?: Parameters<typeof VttAbilitiesPanel>[0]["onRequestTargetRoll"],
+  onArmRoll: Parameters<typeof VttAbilitiesPanel>[0]["onArmRoll"] = () => {}
+) {
   await act(async () => {
     root.render(
       <VttAbilitiesPanel
         character={character}
         characters={[{ id: character.id, name: character.name }]}
         onPickCharacter={() => {}}
-        onArmRoll={() => {}}
+        onArmRoll={onArmRoll}
         onUseAbility={() => {}}
         onRequestTargetRoll={onRequestTargetRoll}
         onClose={() => {}}
@@ -101,5 +109,18 @@ describe("target roll chips", () => {
 
     await act(async () => target!.click());
     expect(request).toHaveBeenCalledWith(expect.objectContaining({ abilityId: "racial-1", stat: "Control" }));
+  });
+
+  it("arms a Physical Evasion Save with its negative derived modifier", async () => {
+    const arm = vi.fn();
+    await mount(undefined, arm);
+    const button = (text: string) => [...host.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent?.trim() === text);
+    await act(async () => button("Physical")!.click());
+    await act(async () => button("Saves")!.click());
+    await act(async () => button("Evasion Save")!.click());
+    const dexterity = [...host.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent?.includes("Dexterity"));
+    expect(dexterity?.textContent).toContain("EV -3");
+    await act(async () => dexterity!.click());
+    expect(arm).toHaveBeenCalledWith("Evasion Save · Dexterity · DEX +2 · EV -3", "1d20-1");
   });
 });

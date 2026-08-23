@@ -141,7 +141,7 @@ export function VttRollFeed({ campaignId, sessionKey, actor, publishRoll, author
       }
       if (publishRoll) publishRoll(message);
       else if (net.status === "connected") net.publish(message);
-      if (context?.requestId) onClearLock();
+      if (context) onClearLock();
     },
     [actor, campaignId, feedKey, lock, net, onClearLock, publishRoll]
   );

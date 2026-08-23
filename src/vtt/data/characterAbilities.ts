@@ -9,17 +9,24 @@ import {
   usableCiphers,
   computeDerived,
   effectiveAttributes,
+  effectiveSpecialties,
   aggregateEquip,
   mergeMods,
   bgBonuses,
   bgSpecBonuses,
   rollMod,
   specRollMod,
+  SPEC_MAX,
+  moralityMods,
+  type AttrKey,
+  type SpecKey,
+  sizeOf,
 } from "../../game/wte";
 import { getWeapon, loadoutMods, isRangedWeapon } from "../../lib/codex";
 import { derivedRules } from "../../lib/campaignRules";
 import { knownGenus, parseSpend } from "../../game/synapticFocus";
 import { parseEffectMeta, type EffectMeta } from "./effectMeta";
+import type { RollAxisStats } from "../../game/rollAxis";
 
 export type AbilitySource = "action" | "genus" | "cipher" | "racial";
 
@@ -67,19 +74,16 @@ function mk(
 
 // Weapon to-hit mirrors the character sheet's ActionsTable: atk + STR (melee) or
 // DEX (ranged) modifier, with the same effective-attribute + equipment stack.
-export interface RollAxisStats {
-  attr: Record<"phy" | "ap" | "dex" | "end" | "wis" | "int" | "cha", number>;
-  spec: Record<"wm" | "pre" | "bal" | "adp" | "mf" | "per" | "cun", number>;
-  derived: Record<"atk" | "ad" | "ev" | "rr" | "nc" | "pr" | "inf", number>;
-}
-
 /** Fully effective modifiers used by the seven universal Roll Axis paths. */
 export function characterRollAxisStats(rec: CharacterRecord): RollAxisStats {
   const s = rec.sheet;
   const weaponLoadout = s.weaponLoadout ?? [];
   const gearLoadout = s.gearLoadout ?? [];
   const equip = mergeMods(aggregateEquip(s.equipment), loadoutMods(weaponLoadout, gearLoadout));
-  const eff = effectiveAttributes(s.attributes, s.speciesId, bgBonuses(s.background), equip.attr);
+  const soul = moralityMods(s.morality);
+  const effectiveBg = { ...bgBonuses(s.background) };
+  for (const [key, value] of Object.entries(soul.attr)) effectiveBg[key as AttrKey] = (effectiveBg[key as AttrKey] || 0) + (value || 0);
+  const eff = effectiveAttributes(s.attributes, s.speciesId, effectiveBg, equip.attr);
   const derived = computeDerived(s.attributes, s.specialties, {
     speciesId: s.speciesId,
     rank: s.rank ?? 0,
@@ -91,15 +95,18 @@ export function characterRollAxisStats(rec: CharacterRecord): RollAxisStats {
     overrides: s.derivedOverrides,
     ...derivedRules(rec.campaignId),
   });
-  const spec = s.specialties;
+  const effectiveSpec = { ...equip.spec };
+  for (const [key, value] of Object.entries(bgSpecBonuses(s.background))) effectiveSpec[key as SpecKey] = (effectiveSpec[key as SpecKey] || 0) + (value || 0);
+  for (const [key, value] of Object.entries(soul.spec)) effectiveSpec[key as SpecKey] = (effectiveSpec[key as SpecKey] || 0) + (value || 0);
+  const spec = effectiveSpecialties(s.specialties, effectiveSpec);
   return {
     attr: {
-      phy: rollMod(eff.phy), ap: rollMod(eff.ap), dex: rollMod(eff.dex), end: rollMod(eff.end),
+      phy: rollMod(eff.phy), ap: rollMod(eff.ap + sizeOf(s.sizeId, s.speciesId).apMod), dex: rollMod(eff.dex), end: rollMod(eff.end),
       wis: rollMod(eff.wis), int: rollMod(eff.int), cha: rollMod(eff.cha),
     },
     spec: {
-      wm: specRollMod(spec.wm), pre: specRollMod(spec.pre), bal: specRollMod(spec.bal),
-      adp: specRollMod(spec.adp), mf: specRollMod(spec.mf), per: specRollMod(spec.per), cun: specRollMod(spec.cun),
+      wm: specRollMod(Math.min(SPEC_MAX, spec.wm)), pre: specRollMod(Math.min(SPEC_MAX, spec.pre)), bal: specRollMod(Math.min(SPEC_MAX, spec.bal)),
+      adp: specRollMod(Math.min(SPEC_MAX, spec.adp)), mf: specRollMod(Math.min(SPEC_MAX, spec.mf)), per: specRollMod(Math.min(SPEC_MAX, spec.per)), cun: specRollMod(Math.min(SPEC_MAX, spec.cun)),
     },
     derived: { atk: derived.atk, ad: derived.ad, ev: derived.ev, rr: derived.rr, nc: derived.ncMod, pr: derived.pr, inf: derived.inf },
   };

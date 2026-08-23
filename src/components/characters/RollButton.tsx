@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useNet } from "../../net/NetContext";
 import type { RollMode, RollResult } from "../../game/wte";
+import { createRollId } from "../../lib/rolls";
+import type { RollMessage } from "../../net/protocol";
 
 interface Props {
   /** Produce the roll when invoked (called at delivery time so each destination re-rolls fresh). */
@@ -26,12 +28,36 @@ function modeFromClick(e: React.MouseEvent): RollMode {
 export function RollButton({ make, onLocal, className = "roll-btn", title, children }: Props) {
   const net = useNet();
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [awaiting, setAwaiting] = useState(false);
 
-  function deliver(dest: "self" | "party" | string, mode: RollMode = "normal") {
+  async function deliver(dest: "self" | "party" | string, mode: RollMode = "normal") {
+    if (awaiting) return;
+    if (mode !== "normal" && net.status === "connected" && net.role === "player") {
+      setAwaiting(true);
+      const accepted = await net.authorizeRollMode(mode, title || String(children));
+      setAwaiting(false);
+      if (!accepted) {
+        setMenu(null);
+        return;
+      }
+    }
     const roll = make(mode);
     onLocal(roll);
     if (net.status === "connected" && dest !== "self") {
-      const msg = { t: "roll" as const, label: roll.detail.label, formula: roll.formula, result: roll.result };
+      const modifier = roll.detail.modifier;
+      const baseExpr = `1d${roll.detail.die}${modifier > 0 ? `+${modifier}` : modifier < 0 ? String(modifier) : ""}`;
+      const msg: RollMessage = {
+        t: "roll",
+        id: createRollId(),
+        label: roll.detail.label,
+        formula: roll.formula,
+        baseExpr,
+        result: roll.result,
+        detail: roll.detail,
+        mode: roll.detail.mode ?? mode,
+        at: Date.now(),
+        actor: { peerId: net.selfId },
+      };
       net.publish(msg, dest === "party" ? undefined : dest);
     }
     setMenu(null);
@@ -43,8 +69,9 @@ export function RollButton({ make, onLocal, className = "roll-btn", title, child
     <>
       <button
         className={className}
+        disabled={awaiting}
         title={(title ? title + " — " : "") + "Shift-click: Advantage · Ctrl-click: Disadvantage · Right-click: more"}
-        onClick={(e) => deliver(defaultDest, modeFromClick(e))}
+        onClick={(e) => void deliver(defaultDest, modeFromClick(e))}
         onContextMenu={(e) => {
           e.preventDefault();
           setMenu({ x: e.clientX, y: e.clientY });
@@ -57,7 +84,7 @@ export function RollButton({ make, onLocal, className = "roll-btn", title, child
           pos={menu}
           connected={connected}
           peers={net.peers.filter((p) => p.id !== net.selfId).map((p) => ({ id: p.id, name: p.name }))}
-          onPick={deliver}
+          onPick={(dest, mode) => void deliver(dest, mode)}
           onClose={() => setMenu(null)}
         />
       )}
@@ -99,6 +126,8 @@ function RollMenu({
       <div className="rollmenu" style={{ left: pos.x, top: pos.y }} onClick={(e) => e.stopPropagation()}>
         <button className="rollmenu-item" onClick={() => onPick(dest, "adv")}>Roll with Advantage</button>
         <button className="rollmenu-item" onClick={() => onPick(dest, "dis")}>Roll with Disadvantage</button>
+        <button className="rollmenu-item" onClick={() => onPick(dest, "double-adv")}>Roll with Double Advantage</button>
+        <button className="rollmenu-item" onClick={() => onPick(dest, "double-dis")}>Roll with Double Disadvantage</button>
         {connected && (
           <>
             <div className="rollmenu-sep" />

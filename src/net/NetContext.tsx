@@ -11,7 +11,7 @@ import { listSavedRooms, upsertSavedRoom } from "./savedRooms";
 import { getTableLink, saveTableLink, type TableLink } from "./activeTable";
 import { clampShrives } from "../game/money";
 import { parseInventory, type InvItem } from "../game/tableInventory";
-import type { NetMessage, NetMessageType, Peer } from "./protocol";
+import type { NetMessage, NetMessageType, NetRollMode, Peer, RollModeDecisionMessage, RollModeRequestMessage } from "./protocol";
 import type { DeskNote } from "../lib/campaignDesk";
 
 type Status = "idle" | "connecting" | "connected";
@@ -30,6 +30,8 @@ interface NetApi {
   leave(): void;
   publish(msg: NetMessage, to?: string): void;
   subscribe(type: NetMessageType, cb: Sub): () => void;
+  /** Players require Curator approval before advantage/disadvantage dice exist. */
+  authorizeRollMode(mode: Exclude<NetRollMode, "normal">, label: string, actorName?: string): Promise<boolean>;
   /** Shared Base Pressure for the table (synced while in a room). */
   bp: number;
   setSharedBp(value: number): void;
@@ -88,7 +90,7 @@ export function useNet(): NetApi {
 
 // Wire event types re-dispatched to React subscribers.
 const FANOUT: NetMessageType[] = [
-  "roll", "roll-request", "roll-result", "chat", "party", "presence",
+  "roll", "roll-request", "roll-result", "roll-mode-request", "roll-mode-decision", "chat", "party", "presence",
   "sheet-patch", "sheet-request", "vtt-patch", "snapshot", "vtt-snapshot-request", "vtt-snapshot-error",
   "vtt-move-request", "vtt-move-commit", "vtt-move-reject",
   "bp", "unit-note", "purse", "inv", "dialogue", "sfx", "room-locked",
@@ -358,6 +360,52 @@ export function NetProvider({ children }: { children: ReactNode }) {
     sessionRef.current?.publish(msg, to);
   }, []);
 
+  const modeApprovals = useRef(new Map<string, (accepted: boolean) => void>());
+  useEffect(() => subscribe("roll-mode-decision", (raw, from) => {
+    if (role !== "player") return;
+    const hostId = peers.find((peer) => peer.role === "host")?.id;
+    if (!hostId || from !== hostId) return;
+    const decision = raw as RollModeDecisionMessage;
+    const resolve = modeApprovals.current.get(decision.requestId);
+    if (!resolve) return;
+    modeApprovals.current.delete(decision.requestId);
+    resolve(decision.accepted === true);
+  }), [peers, role, subscribe]);
+
+  useEffect(() => subscribe("roll-mode-request", (raw, from) => {
+    if (role !== "host") return;
+    const peer = peers.find((candidate) => candidate.id === from && candidate.role === "player");
+    if (!peer) return;
+    const request = raw as RollModeRequestMessage;
+    if (
+      typeof request.requestId !== "string" || !request.requestId || request.requestId.length > 128 ||
+      typeof request.label !== "string" || !request.label || request.label.length > 160 ||
+      !["adv", "dis", "double-adv", "double-dis"].includes(request.mode)
+    ) return;
+    const posture = request.mode.startsWith("double-")
+      ? `Double ${request.mode.endsWith("adv") ? "Advantage" : "Disadvantage"}`
+      : request.mode === "adv" ? "Advantage" : "Disadvantage";
+    const accepted = window.confirm(`${request.actorName || peer.name} wants to roll ${request.label} with ${posture}. Accept?`);
+    publish({ t: "roll-mode-decision", requestId: request.requestId, accepted }, from);
+  }), [peers, publish, role, subscribe]);
+
+  const authorizeRollMode = useCallback((mode: Exclude<NetRollMode, "normal">, label: string, actorName?: string): Promise<boolean> => {
+    if (status !== "connected" || role === "host") return Promise.resolve(true);
+    const hostId = peers.find((peer) => peer.role === "host")?.id;
+    if (!hostId) return Promise.resolve(false);
+    const requestId = `rm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    return new Promise<boolean>((resolve) => {
+      modeApprovals.current.set(requestId, resolve);
+      publish({ t: "roll-mode-request", requestId, mode, label, actorName }, hostId);
+      window.setTimeout(() => {
+        const pending = modeApprovals.current.get(requestId);
+        if (!pending) return;
+        modeApprovals.current.delete(requestId);
+        pending(false);
+      }, 60_000);
+    });
+  }, [peers, publish, role, status]);
+
   const connect = useCallback(
     async (asRole: Role, code: string) => {
       const c = code.trim();
@@ -459,6 +507,8 @@ export function NetProvider({ children }: { children: ReactNode }) {
   );
 
   const leave = useCallback(() => {
+    modeApprovals.current.forEach((resolve) => resolve(false));
+    modeApprovals.current.clear();
     sessionRef.current?.close();
     sessionRef.current = null;
     void unadvertise().catch(() => {});
@@ -535,6 +585,7 @@ export function NetProvider({ children }: { children: ReactNode }) {
     leave,
     publish,
     subscribe,
+    authorizeRollMode,
     bp,
     setSharedBp,
     unitNotes,

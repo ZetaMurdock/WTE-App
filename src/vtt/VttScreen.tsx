@@ -26,14 +26,12 @@ import {
   asRollResultMessage,
   type NetMessage,
   type RollMessage,
-  type NetRollMode,
-  type RollModeDecisionMessage,
-  type RollModeRequestMessage,
   type RollRequestMessage,
   type RollResultMessage,
   type VttMoveRequestMessage,
 } from "../net/protocol";
 import { addSessionRoll, clearSessionRolls, rollSessionScope } from "./sync/rollSession";
+import { enqueueRollLock } from "./sync/rollLocks";
 import { logRoll, validateCompletedRoll } from "../lib/rolls";
 import { resolveStatToken, rollMod, specRollMod } from "../game/wte";
 import { SfxPlayer } from "./audio/sfxPlayer";
@@ -624,10 +622,7 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
   const rollLock = rollLocks[0] ?? null;
   const pendingRollRequests = useRef(new Map<string, { request: RollRequestMessage; ownerPeerId: string; expectedBaseExpr?: string }>());
   const queueRollLock = useCallback((lock: RollLock) => {
-    setRollLocks((current) => {
-      if (lock.requestId && current.some((item) => item.requestId === lock.requestId)) return current;
-      return [...current, lock];
-    });
+    setRollLocks((current) => enqueueRollLock(current, lock));
     setRollsOpen(true);
   }, []);
   const armRoll = useCallback((label: string, expr?: string) => {
@@ -746,48 +741,6 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
     },
     [isNetPlayer, net]
   );
-
-  const modeApprovals = useRef(new Map<string, (accepted: boolean) => void>());
-  useEffect(() => net.subscribe("roll-mode-decision", (raw, from) => {
-    if (!isNetPlayer) return;
-    const hostId = peersRef.current.find((peer) => peer.role === "host")?.id;
-    if (from !== hostId) return;
-    const decision = raw as RollModeDecisionMessage;
-    const resolve = modeApprovals.current.get(decision.requestId);
-    if (!resolve) return;
-    modeApprovals.current.delete(decision.requestId);
-    resolve(decision.accepted);
-    pushToast(decision.accepted ? "The Curator approved the roll posture." : "The Curator declined the roll posture.", decision.accepted ? "info" : "error");
-  }), [isNetPlayer, net.subscribe]);
-
-  useEffect(() => net.subscribe("roll-mode-request", (raw, from) => {
-    if (net.role !== "host") return;
-    const peer = peersRef.current.find((candidate) => candidate.id === from && candidate.role === "player");
-    if (!peer) return;
-    const request = raw as RollModeRequestMessage;
-    const posture = request.mode.startsWith("double-") ? `Double ${request.mode.endsWith("adv") ? "Advantage" : "Disadvantage"}` : request.mode === "adv" ? "Advantage" : "Disadvantage";
-    const accepted = window.confirm(`${request.actorName || peer.name} wants to roll ${request.label} with ${posture}. Accept?`);
-    net.publish({ t: "roll-mode-decision", requestId: request.requestId, accepted }, from);
-  }), [net.publish, net.role, net.subscribe]);
-
-  const authorizeRollMode = useCallback((mode: Exclude<NetRollMode, "normal">, label: string): Promise<boolean> => {
-    if (!isNetPlayer || net.status !== "connected") return Promise.resolve(true);
-    const hostId = peersRef.current.find((peer) => peer.role === "host")?.id;
-    if (!hostId) return Promise.resolve(false);
-    const requestId = `rm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    return new Promise<boolean>((resolve) => {
-      modeApprovals.current.set(requestId, resolve);
-      net.publish({ t: "roll-mode-request", requestId, mode, label }, hostId);
-      pushToast("Waiting for Curator approval…", "info");
-      window.setTimeout(() => {
-        const pending = modeApprovals.current.get(requestId);
-        if (!pending) return;
-        modeApprovals.current.delete(requestId);
-        pending(false);
-        pushToast("The roll posture request expired.", "error");
-      }, 60_000);
-    });
-  }, [isNetPlayer, net.publish, net.status]);
 
   // Esc cancels an armed click-to-place AoE / spatial sound.
   useEffect(() => {
@@ -2425,7 +2378,7 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
           sessionKey={rollScope ?? campaign.id}
           actor={{ characterId: abilityChar?.id, tokenId: rollActorToken?.id, name: abilityChar?.name }}
           publishRoll={publishVttRoll}
-          authorizeMode={authorizeRollMode}
+          authorizeMode={(mode, label) => net.authorizeRollMode(mode, label, abilityChar?.name)}
           lock={rollLock}
           onClearLock={() => setRollLocks((current) => current.slice(1))}
           onClose={() => setRollsOpen(false)}
