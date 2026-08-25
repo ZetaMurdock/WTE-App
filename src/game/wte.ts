@@ -262,9 +262,9 @@ export const SPECIES: Species[] = [
   },
   {
     id: "seraph", name: "Seraph", family: "Asternem", bonuses: { dex: 2, wis: 2 },
-    innate: ["Antimatter Wings", "Dance of Displacement", "Spatial Rupture", "Distant Vision"],
+    innate: ["Thi Voth", "Thi Vothu", "Rapture", "Kirkndomou"],
     dom: 45, rec: 5, eminence: "Civilized +40", innateSelect: 2,
-    note: "Divine-origin spatial masters — the highest Civilized Eminence in the game. A Variant must be chosen.",
+    note: "Divine-origin Mulmauth individuals whose Tones defy natural order — the highest Civilized Eminence in the game. A Variant must be chosen; the 2 unselected Innates seed the Incept Pool. Seraph Medium: every Seraph begins with one personally engraved object roughly between the size of their hand and head. The Medium exists regardless of innate selection and channels the Voice, its Tones, and manifested Vibras; its base Voice Reach is 5 ft. If permanently lost or destroyed, a replacement may be engraved during Downtime.",
     variants: VARIANTS.seraph ?? [],
   },
   {

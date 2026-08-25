@@ -100,14 +100,14 @@ describe("a Curator's edits reach the game", () => {
   });
 
   it("renames an innate and the creator's picker follows", () => {
-    install(fork("seraph").replace("- **Antimatter Wings** —", "- **Void Pinions** —"));
+    install(fork("seraph").replace("- **Thi Voth** —", "- **Void Pinions** —"));
     const names = speciesInnate("seraph").map((a) => a.name);
     expect(names).toContain("Void Pinions");
-    expect(names).not.toContain("Antimatter Wings");
+    expect(names).not.toContain("Thi Voth");
     // The renamed innate keeps the effect the Curator can see and edit on the page.
     expect(speciesInnate("seraph").find((a) => a.name === "Void Pinions")?.effect).toBeTruthy();
     // And the unselected pair still seeds the Incept Pool under the new name.
-    expect(inceptSeeds("seraph", ["Spatial Rupture"]).map((a) => a.name)).toContain("Void Pinions");
+    expect(inceptSeeds("seraph", ["Rapture"]).map((a) => a.name)).toContain("Void Pinions");
   });
 
   it("gives a brand-new innate real effect text", () => {

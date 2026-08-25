@@ -90,7 +90,7 @@ describe("incept pools", () => {
 describe("the unlockable pool", () => {
   it("is the species list plus the two innates you declined", () => {
     const named = inceptsForSpecies("seraph").map((i) => i.name);
-    const withSeeds = inceptPool("seraph", ["Spatial Rupture"]);
+    const withSeeds = inceptPool("seraph", ["Thi Voth"]);
     expect(withSeeds.length).toBeGreaterThanOrEqual(named.length);
     for (const n of named) expect(withSeeds).toContain(n);
   });

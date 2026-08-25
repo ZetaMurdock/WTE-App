@@ -127,20 +127,20 @@
   ],
   "seraph": [
     {
-      "name": "Antimatter Wings",
-      "effect": "Passive (Self) · Vector: Contact · Always · Damage: 1d8 Antimatter on contact · Automatic. Wings composed of antimatter: flight capability with destructive potential on contact — creatures and organic matter touching them take the listed damage, and terrain you brush is visibly scarred."
+      "name": "Thi Voth",
+      "effect": "Type: Bonus Action · Target: Personal Medium · Duration: Scene / until dismissed · Resolution: Automatic · Limit: one awakened Medium at a time. Awaken the Medium and establish a sustained connection to the Voice. While awakened, the Medium becomes the origin point for your Vibras and retains its 5-ft Voice Reach. The first creature other than you to make direct contact with the Medium each round takes 1d40 Spirit damage."
     },
     {
-      "name": "Dance of Displacement",
-      "effect": "Self (Active) · Duration: Instant · Automatic · Limit: once per round; a second blink in the same round costs +1 Fatigue. Short-range reality displacement: blink between positions within 15 ft with minimal tell."
+      "name": "Thi Vothu",
+      "effect": "Type: Bonus Action · Origin: Medium · Area: Voice Reach · Duration: 1 round · Resolution: Mental Check — Influence vs Mental Save — Perception · Limit: once per round. Release a destabilizing Tone through the Medium, causing nearby matter and sensory information to vibrate. On a failed Save, the target experiences intrusive Vibra hallucinations and has Disadvantage on its next Density Check governed by Action Priority before the beginning of your next turn. Creatures without a sensory mechanism capable of experiencing the Vibra are unaffected."
     },
     {
-      "name": "Spatial Rupture",
-      "effect": "Target: Area · Vector: Ambient · Duration: 2 rounds · Area: Radius 10 ft · Resolution: Dexterity save when moving through · Limit: one rupture at a time. Tear the spatial fabric of an area: localized instability where movement costs double and Projectile Vectors deflect (attacks through the rupture suffer Disadvantage)."
+      "name": "Rapture",
+      "effect": "Type: Prepared Action · Origin: Medium · Area: 10-ft radius · Duration: 2 rounds · Resolution: Mental Check — Influence vs Mental Save — Perception · Limit: one Rapture active at a time. Release a Tone that interprets the consciousness of creatures entering or beginning their turn within the area. On a failed Save, a personalized fear Vibra manifests within that creature's perception and is visible only to it. While responding directly to the manifestation, the target has Disadvantage on the first Perception Check, Perception Save, or Evasion Save it makes each round. The target may repeat its Perception Save at the end of each turn, ending the effect on success."
     },
     {
-      "name": "Distant Vision",
-      "effect": "Self (Active) · Duration: Sustained · Automatic. Perceive across extraordinary distances without physical relocation — the species' primary intelligence-gathering capability. Rapid viewpoint-hopping costs an AP check or you return Staggered."
+      "name": "Kirkndomou",
+      "effect": "Type: Prepared Action · Target: 1 Vibra manifested through your Medium · Duration: 2 rounds · Resolution: Mental Check — Capacity vs Curator-set DV based on complexity · Limit: one embodied Vibra at a time. Complete an existing Vibra by allowing its Tone to acquire temporary physical expression. On success, it becomes locally real and acts according to the concept it represents. A creature without a dedicated profile uses 75 HP · Attack Power 10 · Evasion 10 · Action Priority 5 · all other resolutions 7. An embodied Vibra is an interpretation, not the original creature, and does not reproduce Species Innates, Paradigm Affinity, Ciphers, Genera, Incepts, supernatural abilities, or unique biological traits unless another rule explicitly permits it."
     }
   ],
   "stygians": [
