@@ -1,7 +1,19 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { RuleLayer } from "../game/ruleLayers";
-import { BACKGROUNDS, getParadigm, getSpecies, registerCodexGameData } from "../game/wte";
+import {
+  BACKGROUNDS,
+  bakedCiphers,
+  ciphersForParadigm,
+  getGenusDomain,
+  getParadigm,
+  getSpecies,
+  registerCodexGameData,
+  usableCiphers,
+} from "../game/wte";
+import { codexCtx, usableGenusResolved } from "../game/resolvedGenus";
+import { findBakedCodexPage } from "./bakedCodexPages";
+import { customizePageForCampaign } from "./pageIdentity";
 import { getWeapon, listCreatures, setCodexCatalog, setCodexRuntimeEntries } from "./codex";
 import {
   activeRoomCodex,
@@ -299,5 +311,114 @@ describe("room snapshot game-data compilation", () => {
     // runs under Tauri, where it must use the runtime entries just compiled above.
     window.__TAURI__ = { core: { invoke: async () => [] } };
     expect(await listCreatures()).toContainEqual(expect.objectContaining({ name: "Room Wisp", cls: 1 }));
+  });
+
+  it("compiles a customized built-in cipher: the Name row keeps the override landing, deleted rows inherit", async () => {
+    const official = bakedCiphers()["science"].find((cipher) => cipher.name === "LIGHT WEIGHT")!;
+    const baked = findBakedCodexPage({ id: "wte.cipher.light-weight" })!;
+    const fork = customizePageForCampaign({
+      content: baked.content,
+      stem: baked.stem,
+      campaignId: CAMPAIGN_ID,
+      officialId: baked.id,
+    });
+    const content = fork.content
+      .replace(/^# .+$/m, "# House Light Weight") // retitled — the Name row is the identity
+      .replace(/^\| SS \| .+ \|$/m, "| SS | 9 |")
+      .replace(/^\| Activation \| .+ \|\n/m, ""); // deleted row must inherit, not blank
+    const pages = [
+      page({
+        id: fork.id,
+        stem: baked.stem,
+        title: "House Light Weight",
+        kind: "cipher",
+        source: "campaign",
+        ownerId: CAMPAIGN_ID,
+        pulled: true,
+        content,
+      }),
+    ];
+    installRoomCodex(parseCampaignCodexSnapshot(snapshot({ pages }), CAMPAIGN_ID)!);
+
+    await loadCodexGameData();
+
+    const merged = ciphersForParadigm("science").filter((cipher) => cipher.name === "LIGHT WEIGHT");
+    expect(merged).toHaveLength(1);
+    expect(merged[0].ss).toBe(9);
+    expect(merged[0].type).toBe(official.type);
+    expect(merged[0].tier).toBe(official.tier);
+    // Byte-identical effect: the Rank/Component rows reassembled into the header.
+    expect(merged[0].effect).toBe(official.effect);
+    expect(usableCiphers("science", ["LIGHT WEIGHT"])[0]).toMatchObject({ name: "LIGHT WEIGHT", ss: 9 });
+  });
+
+  it("inherits the official cipher rule text when a fork deletes the Effect body or the Rank row", async () => {
+    const official = bakedCiphers()["science"].find((cipher) => cipher.name === "LIGHT WEIGHT")!;
+    const baked = findBakedCodexPage({ id: "wte.cipher.light-weight" })!;
+    const fork = customizePageForCampaign({
+      content: baked.content,
+      stem: baked.stem,
+      campaignId: CAMPAIGN_ID,
+      officialId: baked.id,
+    });
+    // Delete the whole ## Effect section AND the Rank row — only SS changes.
+    const content = fork.content
+      .replace(/\n## Effect[\s\S]*$/, "\n")
+      .replace(/^\| Rank \| .+ \|\n/m, "")
+      .replace(/^\| SS \| .+ \|$/m, "| SS | 7 |");
+    const pages = [
+      page({
+        id: fork.id,
+        stem: baked.stem,
+        title: "LIGHT WEIGHT",
+        kind: "cipher",
+        source: "campaign",
+        ownerId: CAMPAIGN_ID,
+        pulled: true,
+        content,
+      }),
+    ];
+    installRoomCodex(parseCampaignCodexSnapshot(snapshot({ pages }), CAMPAIGN_ID)!);
+
+    await loadCodexGameData();
+
+    const merged = ciphersForParadigm("science").find((cipher) => cipher.name === "LIGHT WEIGHT")!;
+    expect(merged.ss).toBe(7);
+    // The full official rule — Rank gate, Component, and body — survives.
+    expect(merged.effect).toBe(official.effect);
+  });
+
+  it("compiles a customized built-in Genus ability into the campaign override layer", async () => {
+    const ability = getGenusDomain("Eldritch")!.abilities.find(
+      (candidate) => typeof candidate.ss === "number" && candidate.effect && candidate.id
+    )!;
+    const baked = findBakedCodexPage({ id: ability.id! })!;
+    const fork = customizePageForCampaign({
+      content: baked.content,
+      stem: baked.stem,
+      campaignId: CAMPAIGN_ID,
+      officialId: baked.id,
+    });
+    const content = fork.content.replace(/^\| SS \| .+ \|$/m, "| SS | 11 |");
+    const pages = [
+      page({
+        id: fork.id,
+        stem: baked.stem,
+        title: ability.name,
+        kind: "genus",
+        source: "campaign",
+        ownerId: CAMPAIGN_ID,
+        pulled: true,
+        content,
+      }),
+    ];
+    installRoomCodex(parseCampaignCodexSnapshot(snapshot({ pages }), CAMPAIGN_ID)!);
+
+    await loadCodexGameData();
+
+    const resolved = usableGenusResolved([ability.name], codexCtx(CAMPAIGN_ID), {}, []);
+    expect(resolved[0]).toMatchObject({ name: ability.name, ss: 11 });
+    // Fields the fork restated identically still read as the official values.
+    expect(resolved[0].effect).toBe(ability.effect);
   });
 });

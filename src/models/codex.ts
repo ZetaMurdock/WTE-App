@@ -65,6 +65,7 @@ export interface Cipher extends CodexBase {
   range?: string;
   target?: string;
   component?: string;
+  rank?: string; // paradigm rank gate ("Researcher", "Corporal", …)
 }
 export interface Genus extends CodexBase {
   type: "genus";
@@ -74,6 +75,7 @@ export interface Genus extends CodexBase {
   range?: string;
   target?: string;
   limit?: string;
+  classification?: string; // "Emission / Trans-modification" etc.
 }
 // WTE creatures span 6 Classes, each with its own stat block + HP/DR math (see
 // docs/CODEX-FORMAT.md and computeCreature in lib/codex). The author writes raw stats;

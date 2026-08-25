@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { VisualDocEditor } from "./visualdoc/VisualDocEditor";
 import { CodeArea } from "./CodeArea";
+import { MechanicsBlockEditor } from "./MechanicsBlockEditor";
+import { detectMechanicsKind } from "./mechanicsModel";
 import { PAGE_TEMPLATES, parsePreview, type TemplateLabel } from "../../lib/pageTemplates";
 
 export interface PageDraft {
@@ -28,8 +30,18 @@ export function PageEditor({ initial, labels, onSave, onCancel }: Props) {
   const [newLabel, setNewLabel] = useState("");
   const [creatingLabel, setCreatingLabel] = useState(false);
   // Design (the Visual Engine — semantic tree, WYSIWYG) vs Code (raw source with
-  // highlighting + linting). The engine imports any legacy markdown/HTML page.
-  const [mode, setMode] = useState<"design" | "code">("design");
+  // highlighting + linting) vs Mechanics (block editor for Genus/Cipher rules).
+  // The engine imports any legacy markdown/HTML page; Mechanics opens by default
+  // when the page already parses as an ability, since that is what a Customize
+  // on a built-in Genus/Cipher page hands over.
+  const [mode, setMode] = useState<"design" | "code" | "mechanics">(() =>
+    initial && detectMechanicsKind(initial.content) ? "mechanics" : "design"
+  );
+  const mechanicsKind = useMemo(() => detectMechanicsKind(content), [content]);
+  // If a mid-edit change stops the content parsing as an ability (say a pasted
+  // "Type: Creature" line), fall back to Code — with the chip shown active, so
+  // the mode row never claims nothing is selected.
+  const effectiveMode = mode === "mechanics" && !mechanicsKind ? "code" : mode;
 
   const effectiveLabel = creatingLabel ? newLabel.trim() : label;
   const canSave = title.trim().length > 0 && effectiveLabel.length > 0;
@@ -117,15 +129,28 @@ export function PageEditor({ initial, labels, onSave, onCancel }: Props) {
           <div className="pe-mode-row">
             <span>Content</span>
             <span className="rank-spacer" />
-            <button className={"chip" + (mode === "design" ? " active" : "")} onClick={() => setMode("design")}>
+            {mechanicsKind && (
+              <button
+                className={"chip" + (effectiveMode === "mechanics" ? " active" : "")}
+                title="Edit the rule as labelled blocks — fields, saves, damage — with plain-language help"
+                onClick={() => setMode("mechanics")}
+              >
+                Mechanics
+              </button>
+            )}
+            <button className={"chip" + (effectiveMode === "design" ? " active" : "")} onClick={() => setMode("design")}>
               Design
             </button>
-            <button className={"chip" + (mode === "code" ? " active" : "")} onClick={() => setMode("code")}>
+            <button className={"chip" + (effectiveMode === "code" ? " active" : "")} onClick={() => setMode("code")}>
               Code
             </button>
           </div>
-          {mode === "design" ? (
-            <VisualDocEditor key={mode} value={content} onChange={setContent} />
+          {effectiveMode === "mechanics" && mechanicsKind ? (
+            // Keyed by kind: a paste that flips genus↔cipher remounts the block
+            // editor so its model is rescanned for the new field set.
+            <MechanicsBlockEditor key={mechanicsKind} value={content} onChange={setContent} kind={mechanicsKind} />
+          ) : effectiveMode === "design" ? (
+            <VisualDocEditor key={effectiveMode} value={content} onChange={setContent} />
           ) : (
             <CodeArea value={content} onChange={setContent} />
           )}

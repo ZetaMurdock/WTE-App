@@ -9568,3 +9568,213 @@ body.wte-dot-cursor * {
   align-items: center;
   margin-top: 6px;
 }
+
+/* ── Mechanics block editor (Genus/Cipher ability pages) ─────────────────── */
+.mech-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 56vh;
+  overflow-y: auto;
+  padding: 2px 4px 6px 2px;
+}
+.mech-guide {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.mech-identity {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  font-family: Consolas, monospace;
+  font-size: 10px;
+  color: var(--muted);
+}
+.mech-blocks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+  gap: 10px;
+}
+.mech-block {
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  transition: transform 0.18s cubic-bezier(0.34, 1.4, 0.6, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.mech-block:hover,
+.mech-block:focus-within {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.35), 0 0 14px var(--glow-t);
+}
+.mech-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.mech-block-label {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--bone);
+}
+.mech-block-x {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.mech-block-x:hover {
+  color: var(--accent);
+}
+/* The subtext: present but quiet, brought forward when the card lifts. */
+.mech-hint {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted);
+  opacity: 0.7;
+  transition: opacity 0.2s ease, color 0.2s ease;
+}
+.mech-block:hover .mech-hint,
+.mech-block:focus-within .mech-hint {
+  opacity: 1;
+  color: var(--bone);
+}
+.mech-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mech-effect {
+  display: flex;
+  flex-direction: column;
+}
+.mech-effect-text {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg);
+  border: 1px solid var(--panel-line);
+  border-radius: 6px;
+  color: var(--ink);
+  font-family: Georgia, serif;
+  font-size: 13px;
+  line-height: 1.55;
+  padding: 8px 10px;
+  resize: vertical;
+}
+.mech-effect-text:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.mech-warn {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #c8a24a;
+}
+.mech-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.mech-tool {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg);
+  border: 1px solid var(--panel-line);
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+.mech-tool-label {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--bone);
+}
+.mech-tool .bg-select {
+  width: auto;
+}
+.mech-dc {
+  width: 52px;
+}
+.mech-dice {
+  width: 68px;
+}
+.mech-segments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.mech-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  border-top: 1px solid var(--panel-line);
+  padding-top: 8px;
+}
+.mech-action {
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-line);
+  color: var(--ink);
+}
+.mech-action.save {
+  border-color: var(--violet);
+  color: var(--violet);
+}
+.mech-action.damage {
+  border-color: #c8a24a;
+  color: #c8a24a;
+}
+.mech-action.self {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.mech-action.none {
+  border: none;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* ── Capped rails: about five rows visible, the rest scroll in place.
+      The page stops growing with the loadout — Actions, the Loadout tab's
+      Genus/Incept/Cipher lists, and Campaign Settings groups all cap. ─────── */
+.act-scroll {
+  max-height: 280px; /* sticky header + ≈ five .act-row rows */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.ability-list {
+  max-height: 210px; /* ≈ five .focus-row / .ability-row rows */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.campaign-codex-pages {
+  max-height: 320px; /* ≈ five .campaign-codex-page cards */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Sticky header inside the Actions scroll rail: same content width as the
+   rows, so the six-column grid stays aligned when the scrollbar appears. */
+.act-scroll .act-head {
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  z-index: 1;
+}

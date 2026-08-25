@@ -994,6 +994,10 @@ export function bakedSpecies(): readonly Species[] {
 export function bakedParadigms(): readonly Paradigm[] {
   return BASE_PARADIGMS;
 }
+/** The shipped cipher catalog by paradigm id, before any page overlay. */
+export function bakedCiphers(): Readonly<Record<string, CipherAbility[]>> {
+  return CIPHER_DATA;
+}
 /** The baked default size for a species id. Reads the snapshot taken before the
  *  first overlay when there is one, so a campaign `Size` row does not leak. */
 export function bakedSpeciesSize(speciesId: string): string | undefined {

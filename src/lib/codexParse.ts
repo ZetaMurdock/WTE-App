@@ -13,7 +13,12 @@ const cleanName = (s: string) =>
   strip(s).replace(/^\d+\.\s*/, "").replace(/\s*\((?:reworked)[^)]*\)/gi, "").trim();
 
 // Spec fields the app reads (normalized: lowercase, single-spaced).
-const KNOWN_KEYS = new Set([
+// Exported so authoring surfaces can warn when prose would be read as a field.
+export const KNOWN_KEYS = new Set([
+  // "classification" is deliberately NOT here: it is read from markdown table
+  // rows via the unknown-table-row rule below, and listing it would also lift
+  // plain prose lines like "Classification: heavy plating" out of the effect
+  // text of every weapon/equipment page that uses the word naturally.
   "type", "name", "category", "grade", "slot", "weight", "mods", "nc cost", "ede", "domain",
   "damage", "range", "size min", "ss", "ss cost", "activation", "target", "component",
   "paradigm", "tier", "archive", "size", "rank", "hp", "attack", "evasion", "movement",
@@ -191,6 +196,18 @@ function mapType(raw: string): { type: CodexType | null; category?: string } {
   return { type: null };
 }
 
+/** The opening voice of an official cipher rule body. Used to decide whether a
+ *  Rank/Component header belongs in front of a page-authored body at all. */
+export const CIPHER_BODY_MARKER = /^(?:ACTIVE MODIFICATION|EFFECT|KEYWORD) — /;
+
+/** Split the labelled header every official cipher effect opens with, so Rank
+ *  and Component can travel as ordinary spec rows. gameData composes the header
+ *  back in front of the body; the round-trip is asserted byte-for-byte. */
+export function splitCipherEffect(effect: string): { rank: string; component: string; body: string } | null {
+  const m = /^Rank: (.+?) · Component: (.+?) ((?:ACTIVE MODIFICATION|EFFECT|KEYWORD) — [\s\S]*)$/.exec(effect);
+  return m ? { rank: m[1], component: m[2], body: m[3] } : null;
+}
+
 export function parseCodexEntry(md: string, name?: string): CodexEntry | null {
   const { title, fields, sections } = preParse(md, name);
   const mapped = mapType(fields["type"] || "");
@@ -222,15 +239,24 @@ export function parseCodexEntry(md: string, name?: string): CodexEntry | null {
         weight: fields["weight"], mods: fields["mods"], ncCost: num(fields["nc cost"]), ede, domain: fields["domain"],
       };
     case "cipher":
+      // The effect stays the raw prose body. Official ciphers open with a
+      // "Rank: … · Component: …" header that the pre-parser lifts out as spec
+      // fields; whether to compose it back is a catalog decision made in
+      // gameData, where the official record is known — composing here glued
+      // spec rows into plain-prose pages that never carried the header.
       return {
-        type: "cipher", name: nm, keywords, effect, paradigm: fields["paradigm"], tier: fields["tier"],
+        type: "cipher", name: fields["name"] || nm, keywords, effect,
+        paradigm: fields["paradigm"], tier: fields["tier"],
         ss: num(fields["ss"] ?? fields["ss cost"]), activation: fields["activation"], range: fields["range"],
-        target: fields["target"], component: fields["component"],
+        target: fields["target"], component: fields["component"], rank: fields["rank"],
+        id: fields["id"], aliases: splitAliases(fields["aliases"] ?? fields["alias"]),
+        overrides: fields["overrides"], visibility: fields["visibility"],
       };
     case "genus":
       return {
         type: "genus", name: nm, keywords, effect, domain: fields["domain"], ss: num(fields["ss"] ?? fields["ss cost"]),
         activation: fields["activation"], range: fields["range"], target: fields["target"], limit: fields["limit"],
+        classification: fields["classification"],
         id: fields["id"], aliases: splitAliases(fields["aliases"] ?? fields["alias"]),
         overrides: fields["overrides"], visibility: fields["visibility"],
       };

@@ -243,12 +243,15 @@ export function ActionsTable({ weapons, genus, ciphers, atk, phyMod, dexMod, par
       {shown.length === 0 ? (
         <p className="list-empty">No actions here — equip weapons or abilities in Loadout.</p>
       ) : (
-        <>
+        // Rows scroll inside the rail (~5 visible) instead of growing the page.
+        // The header lives INSIDE the scroll container (sticky) so its grid
+        // resolves against the same width as the rows when the scrollbar shows.
+        <div className="act-scroll">
           <div className="act-head">
             <span>Name</span><span>Range</span><span>Hit</span><span>Damage</span><span>Cost</span><span>Notes</span>
           </div>
           {shown.map((r) => (r.kind === "weapon" ? weaponRow(r.w, r.key) : abilityRow(r.a, r.cat, r.key)))}
-        </>
+        </div>
       )}
     </div>
   );

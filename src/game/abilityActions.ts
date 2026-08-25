@@ -46,15 +46,22 @@ export interface AbilityAction {
 // "Radiance" and "Radiant" are the same energy written two ways in the 2026-08
 // Genus pages; Eldritch and Elemental damage arrived with the same update.
 // Radiance is listed before Radiant so the longer word wins the alternation.
-const DAMAGE_TYPES =
-  "Force|Radiance|Radiant|Antimatter|Psychic|Spirit|Entropy|Fire|Cold|Kinetic|Void|Null|Acid|Poison|Crushing|Sonic|Lightning|Necrotic|Eldritch|Elemental";
+/** Exported for authoring UIs; the parser derives its alternation from this
+ *  list so the two can never disagree. */
+export const DAMAGE_TYPE_WORDS = [
+  "Force", "Radiance", "Radiant", "Antimatter", "Psychic", "Spirit", "Entropy", "Fire", "Cold",
+  "Kinetic", "Void", "Null", "Acid", "Poison", "Crushing", "Sonic", "Lightning", "Necrotic",
+  "Eldritch", "Elemental",
+] as const;
+const DAMAGE_TYPES = DAMAGE_TYPE_WORDS.join("|");
 
 // Stat words the resolver in wte.ts understands, as an alternation for scanning.
 const STAT_WORDS =
   "Physical|Strength|Dexterity|Endurance|Action Priority|AP|Wisdom|Charisma|Intelligence|" +
   "Inspiration|Balance|Weight|Precision|Control|Weapon Mastery|Mental Fortitude|Perception|Adaptation|Adaption|Cunning|Influence";
 
-const AXIS_PATH_RULES: Record<AbilityRollAxisPath, { axis: AbilityRollAxis; directions: readonly AbilityRollDirection[] }> = {
+/** Must mirror ROLL_AXIS_PATHS in rollAxis.ts; rollFormula.test.ts enforces it. */
+export const AXIS_PATH_RULES: Record<AbilityRollAxisPath, { axis: AbilityRollAxis; directions: readonly AbilityRollDirection[] }> = {
   power: { axis: "physical", directions: ["check"] },
   density: { axis: "physical", directions: ["check"] },
   evasion: { axis: "physical", directions: ["save"] },

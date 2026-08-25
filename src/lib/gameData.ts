@@ -4,6 +4,7 @@
 // changes character-creation options and sheet/VTT catalogs without a rebuild.
 // Base data always remains the fallback; parse failures skip the page silently.
 import {
+  bakedCiphers,
   registerCodexGameData,
   type Species,
   type SpeciesFamily,
@@ -21,7 +22,7 @@ import {
   type BgMode,
   type SpecKey,
 } from "../game/wte";
-import { parseCodexEntry } from "./codexParse";
+import { CIPHER_BODY_MARKER, parseCodexEntry, splitCipherEffect } from "./codexParse";
 import { codexPlainSource } from "./codexPlain";
 import { parseInceptGrants } from "../game/inceptGrants";
 import { setCodexCatalog, setCodexRuntimeEntries } from "./codex";
@@ -546,7 +547,7 @@ export async function loadCodexGameData(): Promise<void> {
           target: entry.target ?? null,
           effect: entry.effect ?? null,
           limit: entry.limit ?? null,
-          classification: null,
+          classification: entry.classification ?? null,
         },
       };
       // A page is a campaign rule only when it SAYS so — by declaring what it
@@ -558,9 +559,31 @@ export async function loadCodexGameData(): Promise<void> {
       // Key by paradigm id (the page names the paradigm; match name or id).
       const key = slug(entry.paradigm || "");
       if (key) {
+        // The legacy merge replaces the whole cipher by name, so every part the
+        // page left out must be filled from the official entry here — that is
+        // what makes the baked pages' "delete a row to keep inheriting"
+        // contract true. Rank, Component and the Effect body inherit
+        // independently, since each is its own row/section on the page.
+        const official = (bakedCiphers()[key] ?? []).find(
+          (cipher) => cipher.name.toLowerCase() === entry.name.toLowerCase()
+        );
+        const officialSplit = official?.effect ? splitCipherEffect(official.effect) : null;
+        const body = entry.effect ?? officialSplit?.body ?? official?.effect;
+        const rank = entry.rank ?? officialSplit?.rank;
+        const component = entry.component ?? officialSplit?.component;
+        const header = [rank ? `Rank: ${rank}` : "", component ? `Component: ${component}` : ""]
+          .filter(Boolean)
+          .join(" · ");
+        // Compose the header only when the body speaks the official rule voice.
+        // A page whose rule is plain prose never carried the header, and gluing
+        // its spec rows into the text would corrupt the documented format.
+        const effect = body && header && CIPHER_BODY_MARKER.test(body) ? `${header} ${body}` : body;
         (ciphers[key] ??= []).push({
-          name: entry.name, ss: entry.ss ?? null, tier: entry.tier || "offline",
-          type: entry.activation, effect: entry.effect,
+          name: entry.name,
+          ss: entry.ss ?? official?.ss ?? null,
+          tier: entry.tier || official?.tier || "offline",
+          type: entry.activation ?? official?.type,
+          effect,
         });
       }
     }
