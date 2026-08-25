@@ -23,6 +23,8 @@ import {
   getSpecies,
   getParadigm,
   speciesInnate,
+  innateChosen,
+  type SpeciesVariantAbility,
   type AttrKey,
   type SpecKey,
   type Attributes,
@@ -365,9 +367,17 @@ export function CharacterCreator({ campaignId, edit, onDone, onCancel }: Props) 
             {species && species.innateSelect && (() => {
               const innates = speciesInnate(species.id);
               const need = species.innateSelect;
-              const toggle = (name: string) =>
+              // By the predicate usableRacial and inceptSeeds partition on, not by
+              // the literal string: a choice stored as a permanent id or a former
+              // name would otherwise read as unpicked here while the sheet already
+              // lists the ability, and picking it again would spend a slot twice.
+              const toggle = (ab: SpeciesVariantAbility) =>
                 setInnateChoice((cur) =>
-                  cur.includes(name) ? cur.filter((n) => n !== name) : cur.length >= need ? cur : [...cur, name]
+                  innateChosen(ab, cur)
+                    ? cur.filter((n) => !innateChosen(ab, [n]))
+                    : cur.length >= need
+                      ? cur
+                      : [...cur, ab.name]
                 );
               return (
                 <div className="variant-choose">
@@ -379,13 +389,13 @@ export function CharacterCreator({ campaignId, edit, onDone, onCancel }: Props) 
                   </div>
                   <div className="pick-grid">
                     {innates.map((ab) => {
-                      const sel = innateChoice.includes(ab.name);
+                      const sel = innateChosen(ab, innateChoice);
                       const full = !sel && innateChoice.length >= need;
                       return (
                         <button
                           key={ab.name}
                           className={"pick-card innate-card" + (sel ? " selected" : "") + (full ? " dim" : "")}
-                          onClick={() => toggle(ab.name)}
+                          onClick={() => toggle(ab)}
                           title={ab.effect}
                         >
                           <div className="pick-name">{ab.name}</div>

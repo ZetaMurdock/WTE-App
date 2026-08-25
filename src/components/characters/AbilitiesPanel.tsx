@@ -7,6 +7,8 @@ import {
   CIPHER_TIERS,
   cipherSlots,
   getParadigm,
+  resolveCipherRef,
+  type CipherAbility,
   inceptPool,
   getIncept,
   wrydeTier,
@@ -81,9 +83,19 @@ export function AbilitiesBody({
   const left = budget - used;
   const wryde = wrydeTierFor(speciesId, spend.incepts);
 
-  function toggleCipher(name: string) {
-    if (cipherLoadout.includes(name)) onCiphers(cipherLoadout.filter((n) => n !== name));
-    else if (cipherLoadout.length < cCap) onCiphers([...cipherLoadout, name]);
+  // Keyed by the cipher each stored entry RESOLVES to, not by the literal string:
+  // a loadout holding a permanent id or a former name would otherwise tick
+  // nothing, and the untick would append a second entry for the same cipher.
+  const chosen = new Map<string, string>();
+  for (const raw of cipherLoadout) {
+    const hit = resolveCipherRef(ciphers, raw);
+    if (hit) chosen.set(hit.name, raw);
+  }
+
+  function toggleCipher(c: CipherAbility) {
+    const held = chosen.get(c.name);
+    if (held !== undefined) onCiphers(cipherLoadout.filter((n) => n !== held));
+    else if (cipherLoadout.length < cCap) onCiphers([...cipherLoadout, c.name]);
   }
 
   if (!paradigm) {
@@ -241,13 +253,13 @@ export function AbilitiesBody({
           >
             <div className="ability-list">
               {g.list.map((c) => {
-                const selected = cipherLoadout.includes(c.name);
+                const selected = chosen.has(c.name);
                 return (
                   <button
                     key={c.name}
                     className={"ability-row" + (selected ? " selected" : "")}
                     disabled={!selected && cipherLoadout.length >= cCap}
-                    onClick={() => toggleCipher(c.name)}
+                    onClick={() => toggleCipher(c)}
                   >
                     <span className="ability-check">{selected ? "✓" : "+"}</span>
                     <span className="ability-name">{c.name}</span>

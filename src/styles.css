@@ -7851,6 +7851,133 @@ body.wte-dot-cursor * {
   opacity: 0.55;
 }
 
+/* Resolution cards — the Curator's confirm step between a settled roll and an
+   applied consequence. Bottom-centre, but docked ABOVE `.vtt2-actionbar`: the
+   action bar is the only tool rail players get, and a confirm step that buries
+   it takes the table's tools away in order to ask them a question. */
+.vtt2-resolutions {
+  position: absolute;
+  left: 50%;
+  bottom: 104px;
+  transform: translateX(-50%);
+  width: min(330px, calc(100% - 24px));
+  max-height: 52vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 12;
+}
+.vtt2-res-card {
+  background: rgba(12, 18, 32, 0.97);
+  border: 1px solid var(--panel-line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.5);
+}
+.vtt2-res-card .vtt2-insp-head {
+  margin-bottom: 4px;
+}
+.vtt2-res-title {
+  font-family: Georgia, serif;
+  font-size: 12.5px;
+  color: var(--ink, #d5dbe6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vtt2-res-line {
+  font-size: 10.5px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.vtt2-res-note {
+  font-size: 10.5px;
+  margin: 4px 0 6px;
+}
+.vtt2-res-list {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.vtt2-res-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: rgba(126, 207, 202, 0.03);
+}
+.vtt2-res-label {
+  flex: 1;
+  min-width: 0;
+  font-family: Georgia, serif;
+  font-size: 11.5px;
+  color: var(--ink, #d5dbe6);
+}
+.vtt2-res-rolled {
+  font-family: Consolas, monospace;
+  font-size: 10px;
+  color: var(--muted);
+}
+.vtt2-res-applied {
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #6f9a68;
+  border: 1px solid rgba(111, 154, 104, 0.45);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.vtt2-res-ruling {
+  flex: 1 1 100%;
+  font-family: Georgia, serif;
+  font-size: 11.5px;
+  font-style: italic;
+  color: var(--ink, #d5dbe6);
+}
+.vtt2-res-declare {
+  display: flex;
+  gap: 5px;
+}
+.vtt2-res-btn {
+  appearance: none;
+  background: rgba(126, 207, 202, 0.06);
+  border: 1px solid var(--panel-line);
+  color: var(--muted);
+  font-family: Georgia, serif;
+  font-size: 10.5px;
+  border-radius: 6px;
+  padding: 4px 9px;
+  cursor: pointer;
+}
+.vtt2-res-btn:hover {
+  color: var(--ink);
+  border-color: var(--accent);
+}
+.vtt2-res-btn.strong {
+  color: var(--accent);
+  border-color: rgba(126, 207, 202, 0.5);
+}
+.vtt2-res-btn[aria-pressed="true"] {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+/* The card is confirm-only, so the focused control must be unmistakable —
+   a Curator tabbing to Apply cannot be guessing which row they are on. */
+.vtt2-res-btn:focus-visible,
+.vtt2-res-card .cdx-tab-x:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  color: var(--ink);
+}
+
 /* catalog gear stacks: row = main toggle + per-copy steppers */
 .gear-stack-row {
   display: flex;

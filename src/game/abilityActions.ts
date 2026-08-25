@@ -8,6 +8,8 @@
 //   • damage — a damage dice expression the ability deals
 //   • save   — a resolution the TARGET makes, with its DC (shown, not armed)
 
+import { isRestorativeAt } from "./abilityDamage";
+
 export type AbilityActionKind = "self" | "damage" | "save";
 
 export type AbilityRollAxis = "physical" | "mental";
@@ -41,6 +43,14 @@ export interface AbilityAction {
   dcDie?: number;
   /** Damage type word, when the text names one (damage only). */
   damageType?: string;
+  /** Dice the ACTING character takes or spends, not the target — "the Inquisitor
+   *  takes 1d4 psychic backlash", "at the cost of 1d6". The button still arms
+   *  (someone rolls it), but a consumer applying an outcome to a target must not
+   *  charge them the caster's own price. */
+  self?: boolean;
+  /** Dice that restore rather than harm — heals, regeneration, temporary HP.
+   *  Same reason: the pool moves the other way. */
+  restorative?: boolean;
 }
 
 // "Radiance" and "Radiant" are the same energy written two ways in the 2026-08
@@ -70,6 +80,37 @@ export const AXIS_PATH_RULES: Record<AbilityRollAxisPath, { axis: AbilityRollAxi
   perception: { axis: "mental", directions: ["check", "save"] },
   influence: { axis: "mental", directions: ["check", "save"] },
 };
+
+// The acting character paying a price in the same breath as dealing damage —
+// Psychic Scream's "the Inquisitor takes 1d4 psychic backlash damage regardless"
+// sits in the same effect as the 2d8 it deals the target.
+//
+// The taking verb must sit adjacent to the dice: "creatures within 10 ft of YOU
+// take 2d8" names the acting character too, and a looser window would read the
+// target's damage as the caster's cost.
+//
+// Group 1 is the preposition that demotes the actor from subject to landmark —
+// in "creatures within 10 ft of you take 2d6" the takers are the creatures and
+// "you" is only the point they are measured from. It is CAPTURED and rejected
+// afterwards rather than excluded with a negative lookbehind, because this
+// bundle ships into WebKit as well as WebView2 and an engine without
+// variable-length lookbehind throws on the pattern itself — every ability row
+// in the app would fail to parse, not merely this one clause.
+const SELF_COST_RE = new RegExp(
+  "(?:(\\b(?:of|from|to|near|around|within|beside|behind|by|with)\\s+)?" +
+    "\\b(?:you|the\\s+inquisitor|the\\s+user|the\\s+caster)\\b\\s*(?:also\\s+)?" +
+    "(?:takes?|suffers?|loses?|sacrifices?|pays?|spends?)|\\bat\\s+the\\s+cost\\s+of)" +
+    "\\s+(?:an?\\s+)?$",
+  "i"
+);
+
+/** Are the dice immediately after `before` the ACTING character's own price? */
+function isSelfCost(before: string): boolean {
+  const m = SELF_COST_RE.exec(before);
+  // Leftmost-first matching reaches the preposition before it reaches the
+  // pronoun, so a landmark reading always populates group 1.
+  return !!m && !m[1];
+}
 
 /** Chip-sized names for the modifier terms DV expressions actually use. */
 function shortStat(term: string): string {
@@ -139,7 +180,28 @@ function parseAbilityActionsUncached(text: string): AbilityAction[] {
     if (/^\s*Dice\s+Value/i.test(dmTail)) continue;
     const expr = dm[1].replace(/\s+/g, "");
     const type = dm[2] ? dm[2][0].toUpperCase() + dm[2].slice(1).toLowerCase() : undefined;
-    push({ kind: "damage", label: type ? `${expr} ${type}` : expr, expr, damageType: type });
+    // WHO the dice land on. Clause-bounded for the same reason the axis scanner
+    // is: an earlier sentence's "you take" must not claim this sentence's damage.
+    const dmgClause = Math.max(
+      text.lastIndexOf(".", dm.index - 1),
+      text.lastIndexOf(";", dm.index - 1),
+      text.lastIndexOf("·", dm.index - 1)
+    );
+    const dmgBefore = text.slice(Math.max(dmgClause + 1, dm.index - 100), dm.index);
+    const self = isSelfCost(dmgBefore);
+    // WHICH WAY the pool moves is asked of the damage summarizer instead, which
+    // already owns that judgement for the Actions table. Deliberately NOT
+    // clause-bounded: a heal verb carries across the semicolons separating its
+    // SS tiers, where "you take" does not carry across a sentence.
+    const restorative = isRestorativeAt(text, dm.index);
+    push({
+      kind: "damage",
+      label: type ? `${expr} ${type}` : expr,
+      expr,
+      damageType: type,
+      ...(self ? { self: true } : {}),
+      ...(restorative ? { restorative: true } : {}),
+    });
   }
 
   // ── Universal Resolution paths ──

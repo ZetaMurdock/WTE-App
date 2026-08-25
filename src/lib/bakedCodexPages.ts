@@ -228,16 +228,17 @@ export function bakedGenusPageContent(ability: GenusAbility, domain: string): st
   return `${sections.join("\n\n")}\n`;
 }
 
-/** One cipher page. Ciphers resolve by NAME (the legacy merge, not the id
+/** One cipher page. Ciphers still LOAD by name (the legacy merge, not the id
  *  registry), so a fork keeps working only while its Name row still names the
- *  official cipher. Prose-free for the same reason as the Genus pages. */
+ *  official cipher — the stamped ID row is what an applied outcome files under.
+ *  Prose-free for the same reason as the Genus pages. */
 export function bakedCipherPageContent(cipher: CipherAbility, paradigmId: string): string {
   const split = cipher.effect ? splitCipherEffect(cipher.effect) : null;
   const sections = [
     `# ${cipher.name}`,
     fieldTable([
       ["Type", "Cipher"],
-      ["ID", `wte.cipher.${slugify(cipher.name)}`],
+      ["ID", cipher.id ?? `wte.cipher.${slugify(cipher.name)}`],
       ["Name", cipher.name],
       ["Paradigm", paradigmId],
       ["Tier", cipher.tier],
@@ -321,7 +322,7 @@ export function bakedCodexPages(): CampaignCodexPage[] {
     ...Object.entries(bakedCiphers()).flatMap(([paradigmId, ciphers]) =>
       ciphers.map((cipher) =>
         page(
-          `wte.cipher.${slugify(cipher.name)}`,
+          cipher.id ?? `wte.cipher.${slugify(cipher.name)}`,
           `cipher-${slugify(cipher.name)}`,
           cipher.name,
           "cipher",

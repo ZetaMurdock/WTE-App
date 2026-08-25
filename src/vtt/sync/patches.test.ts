@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { applyOp, foreignOpAllowed, isVttOp, sanitizePlayerTokenUpdatePatch, sanitizeTokenUpdatePatch } from "./patches";
+import { applyOp, foreignOpAllowed, isVttOp, sanitizePlayerTokenUpdatePatch, sanitizeTokenUpdatePatch, sanitizeTokenVitalsPatch } from "./patches";
 import { defaultSceneData, type VttSceneData, type VttToken } from "../types/scene";
 
 const tok = (id: string, x = 0, y = 0): VttToken => ({ id, name: id, x, y, size: 1, color: "#fff", hp: 10, visible: true });
@@ -246,6 +246,22 @@ describe("foreignOpAllowed (pinned-scene op policy)", () => {
   it("does not let a player directly rewrite shared fog exploration", () => {
     const d = fresh();
     expect(foreignOpAllowed(d, { op: "fog.reveal", cells: ["1,1"] }, "peer-a")).toBe(false);
+  });
+});
+
+describe("sanitizeTokenVitalsPatch", () => {
+  // Adjudication is the one write allowed onto a token its author does not own,
+  // so what it may carry has to stay this narrow: what a ruling costs a body,
+  // never anything about whose body it is.
+  it("keeps hp and statuses and drops everything else", () => {
+    expect(sanitizeTokenVitalsPatch({ hp: 7, statuses: ["Slowed (1)"] })).toEqual({ hp: 7, statuses: ["Slowed (1)"] });
+    expect(sanitizeTokenVitalsPatch({ hp: 7, name: "Stolen", owner: "peer-b", size: 4, img: null, hpMax: 99 })).toEqual({ hp: 7 });
+  });
+
+  it("still enforces the ordinary value rules", () => {
+    expect(sanitizeTokenVitalsPatch({ hp: Number.NaN })).toEqual({});
+    expect(sanitizeTokenVitalsPatch({ statuses: [42] })).toEqual({});
+    expect(sanitizeTokenVitalsPatch(null)).toEqual({});
   });
 });
 

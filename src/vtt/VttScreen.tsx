@@ -35,6 +35,25 @@ import { addSessionRoll, clearSessionRolls, rollSessionScope } from "./sync/roll
 import { contestTokens } from "./data/genusContest";
 import { enqueueRollLock } from "./sync/rollLocks";
 import { canonicalRollExpr, createRollId, logRoll, validateCompletedRoll } from "../lib/rolls";
+import { VttResolutionCard } from "./VttResolutionCard";
+import { rollDiceExpr, type RollResult } from "../game/wte";
+import {
+  clearOutcomes,
+  conditionTag,
+  declareVerdict,
+  dismissOutcome,
+  hpAfterConsequence,
+  listOutcomes,
+  markApplied,
+  openOutcome,
+  pruneOutcomes,
+  pushOutcome,
+  replaceOutcome,
+  settleByRequest,
+  subscribeOutcomes,
+  type OutcomeConsequence,
+  type PendingOutcome,
+} from "./data/outcomeLedger";
 import { SfxPlayer } from "./audio/sfxPlayer";
 import { getMasterVolume, subscribeMasterVolume } from "../lib/audioPrefs";
 import { reportSaveFailure, pushToast } from "../lib/appToast";
@@ -95,6 +114,10 @@ function fileToDataUrl(file: File): Promise<string> {
 
 // VTT v2 (slice 1): Pixi renders the map; React owns the chrome. Beside the
 // legacy VTT, not inside it — see the rework spec in docs/ / session notes.
+/** One shared empty list. A fresh `[]` per read is a new reference every time,
+ *  which `useSyncExternalStore` reads as "changed" and re-renders forever. */
+const NO_OUTCOMES: PendingOutcome[] = [];
+
 export function VttScreen({ campaign: localCampaign, active = true }: { campaign: Campaign | null; active?: boolean }) {
   const net = useNet();
   const isNetPlayer = net.status === "connected" && net.role === "player";
@@ -487,7 +510,12 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
   const rollScope = campaign ? rollSessionScope(campaign.id, net.status === "connected" ? net.room : null) : null;
   useEffect(() => {
     return () => {
-      if (rollScope) clearSessionRolls(rollScope);
+      if (!rollScope) return;
+      clearSessionRolls(rollScope);
+      // The cards go with the rolls that made them. A resolution outlives its
+      // session only as a proposal to damage a token from a table nobody is
+      // sitting at any more.
+      clearOutcomes(rollScope);
     };
   }, [rollScope]);
   useEffect(() => {
@@ -730,6 +758,9 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
         }
       );
       net.publish(accepted);
+      // The verdict is the same number the feed just published — the card can
+      // never disagree with the dice the table watched land.
+      if (rollScope) settleByRequest(rollScope, result.requestId, validated.result);
     });
   }, [campaign, characters, net.publish, net.role, net.subscribe, rollScope]);
 
@@ -746,9 +777,13 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
         else pushToast("The requested roll could not reach the Curator.", "error");
         return;
       }
+      // A Curator rolling a request on their own machine has no wire round-trip
+      // to correlate it, so the card is settled where the dice are committed —
+      // the same number the feed just recorded, never a second throw.
+      if (rollScope && message.requestId) settleByRequest(rollScope, message.requestId, message.result);
       if (net.status === "connected") net.publish(message);
     },
-    [isNetPlayer, net, roomCodexReady]
+    [isNetPlayer, net, rollScope, roomCodexReady]
   );
 
   // Esc cancels an armed click-to-place AoE / spatial sound.
@@ -1983,6 +2018,43 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
     return record ? { record, name: record.name || token.name || "the target", tokenId: token.id } : null;
   }, [asPlayer, sel, live, characters, partySheets, abilityChar]);
 
+  /** Put a roll the Curator's own machine threw into the shared feed, so the
+   *  table sees the dice behind a verdict rather than only its conclusion. */
+  const commitRollToFeed = useCallback(
+    (roll: RollResult | undefined, who: string, characterId: string | undefined) => {
+      if (!roll || !rollScope) return;
+      const modifier = roll.detail.modifier;
+      const baseExpr = roll.baseExpr ?? `1d${roll.detail.die}${modifier > 0 ? `+${modifier}` : modifier < 0 ? String(modifier) : ""}`;
+      const id = createRollId();
+      const at = Date.now();
+      addSessionRoll(rollScope, {
+        id,
+        label: roll.detail.label,
+        formula: roll.formula,
+        baseExpr,
+        result: roll.result,
+        mode: roll.detail.mode ?? "normal",
+        detail: roll.detail,
+        who,
+        at,
+        characterId,
+      });
+      publishVttRoll({
+        t: "roll",
+        id,
+        label: roll.detail.label,
+        formula: roll.formula,
+        baseExpr,
+        result: roll.result,
+        mode: roll.detail.mode ?? "normal",
+        detail: roll.detail,
+        at,
+        actor: { characterId, name: who },
+      } as RollMessage);
+    },
+    [rollScope, publishVttRoll]
+  );
+
   const contestSelectedToken = useCallback(
     (ability: VttAbility) => {
       if (!abilityChar || !contestDefender) return;
@@ -1993,46 +2065,131 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
       }
       // Dice were thrown only on a Focus tie; commit them to the feed so the
       // whole table sees the same contested Control rolls the verdict used.
-      const commit = (roll: import("../game/wte").RollResult | undefined, who: string, characterId: string | undefined) => {
-        if (!roll || !rollScope) return;
-        const modifier = roll.detail.modifier;
-        const baseExpr = roll.baseExpr ?? `1d${roll.detail.die}${modifier > 0 ? `+${modifier}` : modifier < 0 ? String(modifier) : ""}`;
-        const id = createRollId();
-        const at = Date.now();
-        addSessionRoll(rollScope, {
-          id,
-          label: roll.detail.label,
-          formula: roll.formula,
-          baseExpr,
-          result: roll.result,
-          mode: roll.detail.mode ?? "normal",
-          detail: roll.detail,
-          who,
-          at,
-          characterId,
-        });
-        publishVttRoll({
-          t: "roll",
-          id,
-          label: roll.detail.label,
-          formula: roll.formula,
-          baseExpr,
-          result: roll.result,
-          mode: roll.detail.mode ?? "normal",
-          detail: roll.detail,
-          at,
-          actor: { characterId, name: who },
-        } as RollMessage);
-      };
-      commit(outcome.result.aRoll, abilityChar.name || "Attacker", abilityChar.id);
-      commit(outcome.result.bRoll, contestDefender.name, contestDefender.record.id);
+      commitRollToFeed(outcome.result.aRoll, abilityChar.name || "Attacker", abilityChar.id);
+      commitRollToFeed(outcome.result.bRoll, contestDefender.name, contestDefender.record.id);
       pushToast(
         `Contest — ${ability.name} (Focus ${outcome.attacker.focus}) vs ${contestDefender.name}'s ${outcome.defenderAbility} (Focus ${outcome.defender.focus}): ${outcome.verdict}`,
         "info",
         9000
       );
     },
-    [abilityChar, contestDefender, rollScope, publishVttRoll, ruleLayers]
+    [abilityChar, contestDefender, commitRollToFeed, ruleLayers]
+  );
+
+  // ── The outcome ledger ────────────────────────────────────────────────────
+  // A requested save is only half a resolution; the other half is what failing
+  // it costs. These cards carry that second half — and never apply it
+  // themselves. Every number below reaches a token through the same validated
+  // op a Curator's manual edit uses.
+  const outcomes = useSyncExternalStore(
+    useCallback(
+      (listener: () => void) => (rollScope ? subscribeOutcomes(rollScope, listener) : () => {}),
+      [rollScope]
+    ),
+    useCallback(() => (rollScope ? listOutcomes(rollScope) : NO_OUTCOMES), [rollScope])
+  );
+
+  // The ledger's expiry is only a promise until something enforces it. A card
+  // whose roll never came would otherwise sit over the map for the rest of the
+  // session, and a scope the table has left would keep its dead cards forever.
+  useEffect(() => {
+    if (!rollScope) return;
+    const timer = window.setInterval(() => pruneOutcomes(rollScope, Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, [rollScope]);
+
+  const outcomeToken = useCallback(
+    (outcome: PendingOutcome) =>
+      outcome.targetTokenId ? live?.data.tokens.find((token) => token.id === outcome.targetTokenId) ?? null : null,
+    [live]
+  );
+
+  const rollConsequence = useCallback(
+    (outcome: PendingOutcome, consequence: OutcomeConsequence): number | null => {
+      if (!consequence.expr) return null;
+      const roll = rollDiceExpr(`${outcome.sourceAbilityName} — ${consequence.label}`, consequence.expr);
+      if (!roll) return null;
+      // The caster is the one this CARD names. Reading the Abilities panel's
+      // current pick instead would file the damage under whoever the Curator
+      // happened to click between the save and applying what it cost.
+      const caster = outcome.casterCharacterId
+        ? characters.find((record) => record.id === outcome.casterCharacterId) ?? null
+        : null;
+      commitRollToFeed(roll, caster?.name || "Curator", caster?.id);
+      return roll.result;
+    },
+    [characters, commitRollToFeed]
+  );
+
+  const applyOutcomeDamage = useCallback(
+    (outcome: PendingOutcome, consequence: OutcomeConsequence, amount: number) => {
+      const engine = engineRef.current;
+      const token = outcomeToken(outcome);
+      if (!engine || !token) {
+        pushToast(`${outcome.targetName} is no longer on this scene.`, "error");
+        return;
+      }
+      if (token.hp == null) {
+        pushToast(`${token.name} tracks no HP — set its vitals before applying damage.`, "error");
+        return;
+      }
+      // Read BEFORE the write: the engine mutates this very token in place, so
+      // a toast that interpolated `token.hp` afterwards would report the new
+      // value on both sides of the arrow — "13 → 13" for a hit of 27.
+      const before = token.hp;
+      const next = hpAfterConsequence(before, token.hpMax, amount);
+      // Nothing is announced and nothing is marked applied until the op is
+      // actually authored. A card claiming damage the engine refused would send
+      // the table on with a wrong number and no way to notice.
+      if (!engine.adjudicateTokenVitals(token.id, { hp: next })) {
+        pushToast(`${token.name}'s HP was not changed — that token could not be written to.`, "error");
+        return;
+      }
+      if (rollScope) replaceOutcome(rollScope, markApplied(outcome, consequence.id));
+      const verb = amount >= 0 ? "took" : "healed";
+      pushToast(`${token.name} ${verb} ${Math.abs(amount)} — ${before} → ${next} HP.`, "info");
+    },
+    [outcomeToken, rollScope]
+  );
+
+  const applyOutcomeCondition = useCallback(
+    (outcome: PendingOutcome, consequence: OutcomeConsequence) => {
+      const engine = engineRef.current;
+      const token = outcomeToken(outcome);
+      const tag = conditionTag(consequence);
+      if (!engine || !token || !tag) {
+        pushToast(`${outcome.targetName} is no longer on this scene.`, "error");
+        return;
+      }
+      if ((token.statuses ?? []).includes(tag)) {
+        // The tag is already true of this token, so the row has nothing left to
+        // offer; leaving it armed would invite a click that can only no-op.
+        if (rollScope) replaceOutcome(rollScope, markApplied(outcome, consequence.id));
+        pushToast(`${token.name} already carries ${tag}.`, "info");
+        return;
+      }
+      if (!engine.adjudicateTokenVitals(token.id, { statuses: [...(token.statuses ?? []), tag] })) {
+        pushToast(`${tag} was not applied — ${token.name} could not be written to.`, "error");
+        return;
+      }
+      if (rollScope) replaceOutcome(rollScope, markApplied(outcome, consequence.id));
+      pushToast(`${token.name} is ${tag}.`, "info");
+    },
+    [outcomeToken, rollScope]
+  );
+
+  const declareOutcome = useCallback(
+    (outcome: PendingOutcome, verdict: "pass" | "fail") => {
+      if (rollScope) replaceOutcome(rollScope, declareVerdict(outcome, verdict));
+    },
+    [rollScope]
+  );
+
+  const dropOutcome = useCallback(
+    (outcomeId: string) => {
+      if (rollScope) dismissOutcome(rollScope, outcomeId);
+    },
+    [rollScope]
   );
 
   const abilityCharacters = isNetPlayer
@@ -2045,13 +2202,68 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
     : null;
 
   const requestTargetRoll = (intent: VttTargetRollIntent) => {
-    if (net.status !== "connected" || net.role !== "host" || sel?.kind !== "token") return;
+    if (asPlayer || sel?.kind !== "token") return;
     const target = live?.data.tokens.find((token) => token.id === sel.id);
-    if (!target?.owner || !target.characterId || target.prop) {
-      pushToast("Select a player-controlled character token before requesting that roll.", "error");
+    if (!target || target.prop) {
+      pushToast("Select a target token before resolving that roll.", "error");
       return;
     }
-    const requestId = `rr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+    const now = Date.now();
+    const requestId = `rr-${now.toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+    // A player-owned character answers for itself over the wire. Everything
+    // else — an NPC, a creature, or the whole table sitting offline — is the
+    // Curator's to roll, and the card is the same either way.
+    const overWire =
+      net.status === "connected" && net.role === "host" && !!target.owner && !!target.characterId;
+    const targetRecordForRoll = target.characterId
+      ? characters.find((record) => record.id === target.characterId) ?? null
+      : null;
+    if (rollScope) {
+      pushOutcome(
+        rollScope,
+        openOutcome({
+          id: `oc-${requestId}`,
+          requestId,
+          sourceAbilityId: intent.abilityId,
+          sourceAbilityName: intent.abilityName,
+          effect: intent.effect,
+          casterCharacterId: intent.sourceCharacterId,
+          targetTokenId: target.id,
+          targetName: target.name,
+          dc: intent.dc,
+          rollLabel: intent.label,
+          now,
+        })
+      );
+    }
+    if (!overWire) {
+      const options = targetRecordForRoll ? requestedRollOptions(targetRecordForRoll, intent) : [];
+      // A Roll Axis request answers with BOTH legal sources, and which one a
+      // target answers with belongs to the table, not to the engine. Taking the
+      // first would silently deny every locally-rolled save its specialty route,
+      // so the Curator is handed the same choice the player's tray offers; the
+      // request id rides along and the tray's own roll settles this card.
+      if (options.length > 1) {
+        queueRollLock({
+          label: `${target.name} — ${intent.label}`,
+          choices: options,
+          requestId,
+          dc: intent.dc,
+          actor: { characterId: target.characterId, tokenId: target.id, name: target.name },
+        });
+        return;
+      }
+      // No record to roll from (a bare creature token) leaves the card pending
+      // rather than inventing a modifier — the Curator declares it at the table.
+      const roll = options[0] ? rollDiceExpr(`${target.name} — ${intent.label}`, options[0].expr) : null;
+      if (roll) {
+        commitRollToFeed(roll, target.name, target.characterId ?? undefined);
+        if (rollScope) settleByRequest(rollScope, requestId, roll.result);
+      } else {
+        pushToast(`Roll ${intent.label} for ${target.name}, then set the verdict on the card.`, "info");
+      }
+      return;
+    }
     const request: RollRequestMessage = {
       t: "roll-request",
       requestId,
@@ -2059,20 +2271,19 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
       stat: intent.stat,
       rollAxis: intent.rollAxis,
       dc: intent.dc,
-      targetPeerId: target.owner,
-      targetCharacterId: target.characterId,
+      targetPeerId: target.owner as string,
+      targetCharacterId: target.characterId as string,
       targetTokenId: target.id,
       sourceCharacterId: intent.sourceCharacterId,
       sourceAbilityId: intent.abilityId,
       sourceAbilityName: intent.abilityName,
-      createdAt: Date.now(),
-      expiresAt: Date.now() + 5 * 60_000,
+      createdAt: now,
+      expiresAt: now + 5 * 60_000,
     };
-    const targetRecord = characters.find((record) => record.id === target.characterId);
-    const expectedOptions = targetRecord ? requestedRollOptions(targetRecord, intent) : undefined;
+    const expectedOptions = targetRecordForRoll ? requestedRollOptions(targetRecordForRoll, intent) : undefined;
     pendingRollRequests.current.set(requestId, {
       request,
-      ownerPeerId: target.owner,
+      ownerPeerId: target.owner as string,
       // Canonicalized: the responder's tray sends canonicalRollExpr output, so
       // the comparison must be canonical-vs-canonical or it never matches.
       expectedBaseExprs: expectedOptions
@@ -2325,7 +2536,10 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
           linkedId={live.data.encounterId ?? null}
           onLink={(id) => engine?.setEncounterId(id)}
           onTimeline={(round, turn) => engine?.setTimeline(round, turn)}
-          onTokenHp={(tokenId, hp) => engine?.updateToken(tokenId, { hp })}
+          // The tracker's HP column is adjudication too, and it had the same
+          // hole: on a player's token the write was refused while the row kept
+          // the new number, so the tracker and the token disagreed.
+          onTokenHp={(tokenId, hp) => engine?.adjudicateTokenVitals(tokenId, { hp })}
           onFocusToken={(tokenId) => engine?.select({ kind: "token", id: tokenId })}
           onClose={() => setLeftPanel(null)}
         />
@@ -2353,11 +2567,7 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
           onPickCharacter={(id) => setAbilityCharId(id)}
           lockCharacter={isNetPlayer}
           onArmRoll={armRoll}
-          onRequestTargetRoll={
-            net.status === "connected" && net.role === "host" && sel?.kind === "token" && !!live?.data.tokens.find((token) => token.id === sel.id)?.owner
-              ? requestTargetRoll
-              : undefined
-          }
+          onRequestTargetRoll={!asPlayer && sel?.kind === "token" ? requestTargetRoll : undefined}
           onContestTarget={contestDefender && !asPlayer ? contestSelectedToken : undefined}
           contestTargetName={contestDefender?.name}
           onUseAbility={(ability) => {
@@ -2366,6 +2576,16 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
             if (!asPlayer && hasAoe(ability.meta)) setPendingAoe(ability);
           }}
           onClose={() => setLeftPanel(null)}
+        />
+      )}
+      {!asPlayer && outcomes.length > 0 && (
+        <VttResolutionCard
+          outcomes={outcomes}
+          onRoll={rollConsequence}
+          onApplyDamage={applyOutcomeDamage}
+          onApplyCondition={applyOutcomeCondition}
+          onDeclare={declareOutcome}
+          onDismiss={dropOutcome}
         />
       )}
       {pendingAoe && (

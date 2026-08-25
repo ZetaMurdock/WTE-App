@@ -91,4 +91,58 @@ describe("VttRollFeed touch controls", () => {
       label: "Gravitic Snare — Physical Save — Evasion · Balance",
     }));
   });
+
+  it("files a lock's own actor rather than the tray's when the Curator rolls a target's save", async () => {
+    const publish = vi.fn<(message: RollMessage) => void>();
+    await act(async () => {
+      root?.render(
+        <VttRollFeed
+          campaignId={null}
+          sessionKey="scope-lock-actor"
+          actor={{ characterId: "caster-1", tokenId: "token-caster", name: "Inquisitor Vale" }}
+          publishRoll={publish}
+          lock={{
+            label: "Kira — Physical Save",
+            expr: "1d20+3",
+            requestId: "request-target-save",
+            actor: { characterId: "target-1", tokenId: "token-kira", name: "Kira" },
+          }}
+          onClearLock={() => {}}
+          onClose={() => {}}
+        />
+      );
+    });
+
+    const roll = [...host!.querySelectorAll<HTMLButtonElement>(".vtt2-roll-actions button")]
+      .find((button) => button.textContent?.startsWith("Roll"));
+    await act(async () => roll!.click());
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({
+      requestId: "request-target-save",
+      actor: expect.objectContaining({ characterId: "target-1", tokenId: "token-kira", name: "Kira" }),
+    }));
+    expect(host!.querySelector(".vtt2-roll-who")?.textContent).toBe("Kira");
+  });
+
+  it("keeps the tray's own actor on a freeform roll", async () => {
+    const publish = vi.fn<(message: RollMessage) => void>();
+    await act(async () => {
+      root?.render(
+        <VttRollFeed
+          campaignId={null}
+          actor={{ characterId: "caster-1", tokenId: "token-caster", name: "Inquisitor Vale" }}
+          publishRoll={publish}
+          lock={null}
+          onClearLock={() => {}}
+          onClose={() => {}}
+        />
+      );
+    });
+
+    const roll = [...host!.querySelectorAll<HTMLButtonElement>(".vtt2-roll-actions button")]
+      .find((button) => button.textContent?.startsWith("Roll"));
+    await act(async () => roll!.click());
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({
+      actor: expect.objectContaining({ characterId: "caster-1", name: "Inquisitor Vale" }),
+    }));
+  });
 });

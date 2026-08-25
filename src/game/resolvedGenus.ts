@@ -222,6 +222,10 @@ export function toUsable(r: ResolvedGenus): UsableAbility {
   const m = r.mechanics;
   return {
     source: "genus",
+    // The CONCEPT, not the definition in force: a campaign override and the
+    // official rule it replaces are the same ability, and an outcome filed
+    // against one must still be found when the table drops the override.
+    id: r.conceptId ?? m?.id,
     // Always the display name. Consumers render this, and a raw id on a sheet is
     // not something anyone can read.
     name: r.displayName,

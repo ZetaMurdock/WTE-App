@@ -2,6 +2,7 @@
  "science": [
   {
    "name": "LIGHT WEIGHT",
+   "id": "wte.cipher.light-weight",
    "ss": 35,
    "tier": "offline",
    "type": "Science Cipher",
@@ -9,6 +10,7 @@
   },
   {
    "name": "MALLIATION",
+   "id": "wte.cipher.malliation",
    "ss": 15,
    "tier": "offline",
    "type": "Bonus Action",
@@ -16,6 +18,7 @@
   },
   {
    "name": "VISIATION",
+   "id": "wte.cipher.visiation",
    "ss": 25,
    "tier": "offline",
    "type": "Bonus Action",
@@ -23,6 +26,7 @@
   },
   {
    "name": "CHEMICAL ALTER",
+   "id": "wte.cipher.chemical-alter",
    "ss": 45,
    "tier": "offline",
    "type": "Standard Action",
@@ -30,6 +34,7 @@
   },
   {
    "name": "STABILIZE",
+   "id": "wte.cipher.stabilize",
    "ss": 40,
    "tier": "offline",
    "type": "Standard Action",
@@ -37,6 +42,7 @@
   },
   {
    "name": "SPECTRCO",
+   "id": "wte.cipher.spectrco",
    "ss": 55,
    "tier": "offline",
    "type": "Standard Action",
@@ -44,6 +50,7 @@
   },
   {
    "name": "BF-C",
+   "id": "wte.cipher.bf-c",
    "ss": 45,
    "tier": "offline",
    "type": "Prepared Action",
@@ -51,6 +58,7 @@
   },
   {
    "name": "RAHMAN-S",
+   "id": "wte.cipher.rahman-s",
    "ss": 58,
    "tier": "offline",
    "type": "Standard Action",
@@ -58,6 +66,7 @@
   },
   {
    "name": "DIMENSIONAL MAPPING",
+   "id": "wte.cipher.dimensional-mapping",
    "ss": 65,
    "tier": "offline",
    "type": "Prepared Action",
@@ -65,6 +74,7 @@
   },
   {
    "name": "BIPARTITION",
+   "id": "wte.cipher.bipartition",
    "ss": 50,
    "tier": "offline",
    "type": "Bonus Action",
@@ -72,6 +82,7 @@
   },
   {
    "name": "MASKING",
+   "id": "wte.cipher.masking",
    "ss": 25,
    "tier": "online",
    "type": "Prepared Action",
@@ -79,6 +90,7 @@
   },
   {
    "name": "SYNTHESIS",
+   "id": "wte.cipher.synthesis",
    "ss": 35,
    "tier": "online",
    "type": "Standard Action",
@@ -86,6 +98,7 @@
   },
   {
    "name": "REFRACTION CASCADE",
+   "id": "wte.cipher.refraction-cascade",
    "ss": 45,
    "tier": "online",
    "type": "Standard Action",
@@ -93,6 +106,7 @@
   },
   {
    "name": "ISOTOPIC ANALYSIS",
+   "id": "wte.cipher.isotopic-analysis",
    "ss": 20,
    "tier": "online",
    "type": "Prepared Action",
@@ -100,6 +114,7 @@
   },
   {
    "name": "MOLECULAR ASSEMBLY",
+   "id": "wte.cipher.molecular-assembly",
    "ss": 55,
    "tier": "online",
    "type": "Prepared Action",
@@ -107,6 +122,7 @@
   },
   {
    "name": "QUANTUM ENTANGLEMENT LINK",
+   "id": "wte.cipher.quantum-entanglement-link",
    "ss": 50,
    "tier": "online",
    "type": "Prepared Action",
@@ -114,6 +130,7 @@
   },
   {
    "name": "PHASE SHIFT DETECTOR",
+   "id": "wte.cipher.phase-shift-detector",
    "ss": 25,
    "tier": "online",
    "type": "Bonus Action",
@@ -121,6 +138,7 @@
   },
   {
    "name": "ATMOSPHERIC CONVERTER",
+   "id": "wte.cipher.atmospheric-converter",
    "ss": 60,
    "tier": "online",
    "type": "Standard Action",
@@ -128,6 +146,7 @@
   },
   {
    "name": "CATALYST",
+   "id": "wte.cipher.catalyst",
    "ss": 30,
    "tier": "online",
    "type": "Bonus Action",
@@ -135,6 +154,7 @@
   },
   {
    "name": "HISTORICAL DATA EXTRACTION",
+   "id": "wte.cipher.historical-data-extraction",
    "ss": 35,
    "tier": "online",
    "type": "Prepared Action",
@@ -142,6 +162,7 @@
   },
   {
    "name": "S1 — ABSOLUTE ZERO",
+   "id": "wte.cipher.s1-absolute-zero",
    "ss": 80,
    "tier": "special",
    "type": "Standard Action",
@@ -149,6 +170,7 @@
   },
   {
    "name": "S2 — GENESIS FORMULA",
+   "id": "wte.cipher.s2-genesis-formula",
    "ss": 100,
    "tier": "special",
    "type": "Prepared Action (10 min)",
@@ -156,6 +178,7 @@
   },
   {
    "name": "S3 — GRAND UNIFIED THEORY",
+   "id": "wte.cipher.s3-grand-unified-theory",
    "ss": 70,
    "tier": "special",
    "type": "Bonus Action",
@@ -163,6 +186,7 @@
   },
   {
    "name": "S4 — SYSTEMATIC COLLAPSE",
+   "id": "wte.cipher.s4-systematic-collapse",
    "ss": 90,
    "tier": "special",
    "type": "Standard Action",
@@ -170,6 +194,7 @@
   },
   {
    "name": "S5 — LIVING SCIENCE",
+   "id": "wte.cipher.s5-living-science",
    "ss": 60,
    "tier": "special",
    "type": "Prepared Action (1 hour)",
@@ -179,6 +204,7 @@
  "simulation": [
   {
    "name": "SIMULATED EJECT",
+   "id": "wte.cipher.simulated-eject",
    "ss": 40,
    "tier": "offline",
    "type": "Bonus Action",
@@ -186,6 +212,7 @@
   },
   {
    "name": "INFLICTION",
+   "id": "wte.cipher.infliction",
    "ss": 35,
    "tier": "offline",
    "type": "Bonus Action",
@@ -193,6 +220,7 @@
   },
   {
    "name": "SIMULATED CLEAVER",
+   "id": "wte.cipher.simulated-cleaver",
    "ss": 50,
    "tier": "offline",
    "type": "Standard Action",
@@ -200,6 +228,7 @@
   },
   {
    "name": "TRACE",
+   "id": "wte.cipher.trace",
    "ss": 34,
    "tier": "offline",
    "type": "Standard Action",
@@ -207,6 +236,7 @@
   },
   {
    "name": "XRYTE",
+   "id": "wte.cipher.xryte",
    "ss": 35,
    "tier": "offline",
    "type": "Bonus Action",
@@ -214,6 +244,7 @@
   },
   {
    "name": "DIGITIZE",
+   "id": "wte.cipher.digitize",
    "ss": 35,
    "tier": "offline",
    "type": "Bonus Action",
@@ -221,6 +252,7 @@
   },
   {
    "name": "DISTIE",
+   "id": "wte.cipher.distie",
    "ss": 56,
    "tier": "offline",
    "type": "Bonus Action",
@@ -228,6 +260,7 @@
   },
   {
    "name": "MANUSIM",
+   "id": "wte.cipher.manusim",
    "ss": 35,
    "tier": "offline",
    "type": "Prepared Action",
@@ -235,6 +268,7 @@
   },
   {
    "name": "LITTLE HELPER",
+   "id": "wte.cipher.little-helper",
    "ss": 25,
    "tier": "offline",
    "type": "Bonus Action",
@@ -242,6 +276,7 @@
   },
   {
    "name": "DISTRUO",
+   "id": "wte.cipher.distruo",
    "ss": 35,
    "tier": "offline",
    "type": "Prepared Action",
@@ -249,6 +284,7 @@
   },
   {
    "name": "SALITE",
+   "id": "wte.cipher.salite",
    "ss": 76,
    "tier": "online",
    "type": "Prepared Action",
@@ -256,6 +292,7 @@
   },
   {
    "name": "OVERLAY",
+   "id": "wte.cipher.overlay",
    "ss": 30,
    "tier": "online",
    "type": "Bonus Action",
@@ -263,6 +300,7 @@
   },
   {
    "name": "SIMULATED REINFORCEMENT",
+   "id": "wte.cipher.simulated-reinforcement",
    "ss": 45,
    "tier": "online",
    "type": "Standard Action",
@@ -270,6 +308,7 @@
   },
   {
    "name": "NETWORK SIMULATION",
+   "id": "wte.cipher.network-simulation",
    "ss": 55,
    "tier": "online",
    "type": "Prepared Action",
@@ -277,6 +316,7 @@
   },
   {
    "name": "BREACH",
+   "id": "wte.cipher.breach",
    "ss": 50,
    "tier": "online",
    "type": "Standard Action",
@@ -284,6 +324,7 @@
   },
   {
    "name": "CORRUPTION UPLOAD",
+   "id": "wte.cipher.corruption-upload",
    "ss": 40,
    "tier": "online",
    "type": "Prepared Action",
@@ -291,6 +332,7 @@
   },
   {
    "name": "REALITY ANCHOR",
+   "id": "wte.cipher.reality-anchor",
    "ss": 65,
    "tier": "online",
    "type": "Standard Action",
@@ -298,6 +340,7 @@
   },
   {
    "name": "MIRROR WORLD",
+   "id": "wte.cipher.mirror-world",
    "ss": 70,
    "tier": "online",
    "type": "Prepared Action",
@@ -305,6 +348,7 @@
   },
   {
    "name": "SIGNAL INTERCEPT",
+   "id": "wte.cipher.signal-intercept",
    "ss": 35,
    "tier": "online",
    "type": "Bonus Action",
@@ -312,6 +356,7 @@
   },
   {
    "name": "COMPLETE OVERRIDE",
+   "id": "wte.cipher.complete-override",
    "ss": 80,
    "tier": "online",
    "type": "Standard Action",
@@ -319,6 +364,7 @@
   },
   {
    "name": "S1 — PERSISTENT WORLD",
+   "id": "wte.cipher.s1-persistent-world",
    "ss": 100,
    "tier": "special",
    "type": "Prepared Action (1 hour)",
@@ -326,6 +372,7 @@
   },
   {
    "name": "S2 — PARALLAX COLLAPSE",
+   "id": "wte.cipher.s2-parallax-collapse",
    "ss": 85,
    "tier": "special",
    "type": "Standard Action",
@@ -333,6 +380,7 @@
   },
   {
    "name": "S3 — TRUE SIMULATION",
+   "id": "wte.cipher.s3-true-simulation",
    "ss": 90,
    "tier": "special",
    "type": "Prepared Action (30 min)",
@@ -340,6 +388,7 @@
   },
   {
    "name": "S4 — VOID UPLOAD",
+   "id": "wte.cipher.s4-void-upload",
    "ss": 75,
    "tier": "special",
    "type": "Prepared Action (20 min, willing subject)",
@@ -347,6 +396,7 @@
   },
   {
    "name": "S5 — THE FINAL DRAFT",
+   "id": "wte.cipher.s5-the-final-draft",
    "ss": 120,
    "tier": "special",
    "type": "Prepared Action (1 hour)",
@@ -356,6 +406,7 @@
  "remnant": [
   {
    "name": "MULTITOOL",
+   "id": "wte.cipher.multitool",
    "ss": 15,
    "tier": "offline",
    "type": "Bonus / Prepared Action",
@@ -363,6 +414,7 @@
   },
   {
    "name": "SPYDER",
+   "id": "wte.cipher.spyder",
    "ss": 15,
    "tier": "offline",
    "type": "Bonus action",
@@ -370,6 +422,7 @@
   },
   {
    "name": "QUICK HACK",
+   "id": "wte.cipher.quick-hack",
    "ss": 15,
    "tier": "offline",
    "type": "Bonus Action",
@@ -377,6 +430,7 @@
   },
   {
    "name": "PASTING VIEW",
+   "id": "wte.cipher.pasting-view",
    "ss": 25,
    "tier": "offline",
    "type": "Bonus Action",
@@ -384,6 +438,7 @@
   },
   {
    "name": "PHASE",
+   "id": "wte.cipher.phase",
    "ss": 40,
    "tier": "offline",
    "type": "Bonus Action",
@@ -391,6 +446,7 @@
   },
   {
    "name": "GLIMPSE",
+   "id": "wte.cipher.glimpse",
    "ss": 30,
    "tier": "offline",
    "type": "Bonus Action",
@@ -398,6 +454,7 @@
   },
   {
    "name": "TACHYEON",
+   "id": "wte.cipher.tachyeon",
    "ss": 57,
    "tier": "offline",
    "type": "Prepared Action",
@@ -405,6 +462,7 @@
   },
   {
    "name": "VECRAVEL",
+   "id": "wte.cipher.vecravel",
    "ss": 45,
    "tier": "offline",
    "type": "Bonus Action",
@@ -412,6 +470,7 @@
   },
   {
    "name": "TIGHTEN",
+   "id": "wte.cipher.tighten",
    "ss": 35,
    "tier": "offline",
    "type": "Standard Action",
@@ -419,6 +478,7 @@
   },
   {
    "name": "INCOGNITO",
+   "id": "wte.cipher.incognito",
    "ss": 35,
    "tier": "offline",
    "type": "Bonus Action",
@@ -426,6 +486,7 @@
   },
   {
    "name": "BYGONE",
+   "id": "wte.cipher.bygone",
    "ss": 65,
    "tier": "online",
    "type": "Prepared Action",
@@ -433,6 +494,7 @@
   },
   {
    "name": "ECHO CHAIN",
+   "id": "wte.cipher.echo-chain",
    "ss": 40,
    "tier": "online",
    "type": "Bonus Action",
@@ -440,6 +502,7 @@
   },
   {
    "name": "MEMORY LOCK",
+   "id": "wte.cipher.memory-lock",
    "ss": 25,
    "tier": "online",
    "type": "Bonus Action",
@@ -447,6 +510,7 @@
   },
   {
    "name": "TEMPORAL FOLD",
+   "id": "wte.cipher.temporal-fold",
    "ss": 45,
    "tier": "online",
    "type": "Prepared Action",
@@ -454,6 +518,7 @@
   },
   {
    "name": "GHOST PROTOCOL",
+   "id": "wte.cipher.ghost-protocol",
    "ss": 50,
    "tier": "online",
    "type": "Standard Action",
@@ -461,6 +526,7 @@
   },
   {
    "name": "REMNANT RETRIEVAL",
+   "id": "wte.cipher.remnant-retrieval",
    "ss": 55,
    "tier": "online",
    "type": "Prepared Action",
@@ -468,6 +534,7 @@
   },
   {
    "name": "SPECTRAL LINK",
+   "id": "wte.cipher.spectral-link",
    "ss": 40,
    "tier": "online",
    "type": "Prepared Action",
@@ -475,6 +542,7 @@
   },
   {
    "name": "PHASE CASCADE",
+   "id": "wte.cipher.phase-cascade",
    "ss": 60,
    "tier": "online",
    "type": "Standard Action",
@@ -482,6 +550,7 @@
   },
   {
    "name": "ADAPTIVE CAMOUFLAGE",
+   "id": "wte.cipher.adaptive-camouflage",
    "ss": 35,
    "tier": "online",
    "type": "Bonus Action (sustained)",
@@ -489,6 +558,7 @@
   },
   {
    "name": "PERFECT RECALL",
+   "id": "wte.cipher.perfect-recall",
    "ss": 30,
    "tier": "online",
    "type": "Bonus Action",
@@ -496,6 +566,7 @@
   },
   {
    "name": "S1 — THE REMNANT",
+   "id": "wte.cipher.s1-the-remnant",
    "ss": 90,
    "tier": "special",
    "type": "Prepared Action (3 min)",
@@ -503,6 +574,7 @@
   },
   {
    "name": "S2 — CHRONAL ECHO",
+   "id": "wte.cipher.s2-chronal-echo",
    "ss": 75,
    "tier": "special",
    "type": "Prepared Action",
@@ -510,6 +582,7 @@
   },
   {
    "name": "S3 — ABSOLUTE INCOGNITO",
+   "id": "wte.cipher.s3-absolute-incognito",
    "ss": 60,
    "tier": "special",
    "type": "Standard Action",
@@ -517,6 +590,7 @@
   },
   {
    "name": "S4 — LEGACY CIPHER",
+   "id": "wte.cipher.s4-legacy-cipher",
    "ss": 80,
    "tier": "special",
    "type": "Prepared Action (30 min)",
@@ -524,6 +598,7 @@
   },
   {
    "name": "S5 — THE LAST STAND",
+   "id": "wte.cipher.s5-the-last-stand",
    "ss": 0,
    "tier": "special",
    "type": "Reaction (automatic)",
@@ -533,6 +608,7 @@
  "cognition": [
   {
    "name": "MIND TWEAK",
+   "id": "wte.cipher.mind-tweak",
    "ss": 25,
    "tier": "offline",
    "type": "Standard Action",
@@ -540,6 +616,7 @@
   },
   {
    "name": "DETECTION",
+   "id": "wte.cipher.detection",
    "ss": 15,
    "tier": "offline",
    "type": "Bonus Action",
@@ -547,6 +624,7 @@
   },
   {
    "name": "BRAIN WASH",
+   "id": "wte.cipher.brain-wash",
    "ss": 40,
    "tier": "offline",
    "type": "Prepared Action",
@@ -554,6 +632,7 @@
   },
   {
    "name": "TRANSLATE",
+   "id": "wte.cipher.translate",
    "ss": 20,
    "tier": "offline",
    "type": "Bonus Action",
@@ -561,6 +640,7 @@
   },
   {
    "name": "FILTER",
+   "id": "wte.cipher.filter",
    "ss": 50,
    "tier": "offline",
    "type": "Prepared Action",
@@ -568,6 +648,7 @@
   },
   {
    "name": "PERCEPTI",
+   "id": "wte.cipher.percepti",
    "ss": 54,
    "tier": "offline",
    "type": "Standard Action",
@@ -575,6 +656,7 @@
   },
   {
    "name": "ARITHMETIC",
+   "id": "wte.cipher.arithmetic",
    "ss": 40,
    "tier": "offline",
    "type": "Bonus Action",
@@ -582,6 +664,7 @@
   },
   {
    "name": "DIFFUSE",
+   "id": "wte.cipher.diffuse",
    "ss": 35,
    "tier": "offline",
    "type": "Standard Action",
@@ -589,6 +672,7 @@
   },
   {
    "name": "ALGORIM",
+   "id": "wte.cipher.algorim",
    "ss": 55,
    "tier": "offline",
    "type": "Prepared Action",
@@ -596,6 +680,7 @@
   },
   {
    "name": "RESONANT FIELD",
+   "id": "wte.cipher.resonant-field",
    "ss": 45,
    "tier": "offline",
    "type": "Bonus Action",
@@ -603,6 +688,7 @@
   },
   {
    "name": "NEURAL BRIDGE",
+   "id": "wte.cipher.neural-bridge",
    "ss": 30,
    "tier": "online",
    "type": "Bonus Action",
@@ -610,6 +696,7 @@
   },
   {
    "name": "MEMORY WIPE",
+   "id": "wte.cipher.memory-wipe",
    "ss": 55,
    "tier": "online",
    "type": "Standard Action",
@@ -617,6 +704,7 @@
   },
   {
    "name": "COGNITIVE DOWNLOAD",
+   "id": "wte.cipher.cognitive-download",
    "ss": 45,
    "tier": "online",
    "type": "Prepared Action",
@@ -624,6 +712,7 @@
   },
   {
    "name": "MASS DETECTION",
+   "id": "wte.cipher.mass-detection",
    "ss": 35,
    "tier": "online",
    "type": "Bonus Action",
@@ -631,6 +720,7 @@
   },
   {
    "name": "PSYCHIC SCREAM",
+   "id": "wte.cipher.psychic-scream",
    "ss": 50,
    "tier": "online",
    "type": "Standard Action",
@@ -638,6 +728,7 @@
   },
   {
    "name": "DREAM STATE",
+   "id": "wte.cipher.dream-state",
    "ss": 40,
    "tier": "online",
    "type": "Standard Action",
@@ -645,6 +736,7 @@
   },
   {
    "name": "COGNITIVE FORTRESS",
+   "id": "wte.cipher.cognitive-fortress",
    "ss": 45,
    "tier": "online",
    "type": "Bonus Action",
@@ -652,6 +744,7 @@
   },
   {
    "name": "SYNAPTIC SURGE",
+   "id": "wte.cipher.synaptic-surge",
    "ss": 55,
    "tier": "online",
    "type": "Bonus Action",
@@ -659,6 +752,7 @@
   },
   {
    "name": "COLLECTIVE MIND",
+   "id": "wte.cipher.collective-mind",
    "ss": 65,
    "tier": "online",
    "type": "Prepared Action",
@@ -666,6 +760,7 @@
   },
   {
    "name": "S1 — OMNISCIENT MOMENT",
+   "id": "wte.cipher.s1-omniscient-moment",
    "ss": 70,
    "tier": "special",
    "type": "Bonus Action",
@@ -673,6 +768,7 @@
   },
   {
    "name": "S2 — SOUL STITCH",
+   "id": "wte.cipher.s2-soul-stitch",
    "ss": 60,
    "tier": "special",
    "type": "Prepared Action",
@@ -680,6 +776,7 @@
   },
   {
    "name": "S3 — THE EMPTY",
+   "id": "wte.cipher.s3-the-empty",
    "ss": 80,
    "tier": "special",
    "type": "Standard Action",
@@ -687,6 +784,7 @@
   },
   {
    "name": "S4 — COGNITIVE CASCADE",
+   "id": "wte.cipher.s4-cognitive-cascade",
    "ss": 90,
    "tier": "special",
    "type": "Standard Action",
@@ -694,6 +792,7 @@
   },
   {
    "name": "S5 — ENLIGHTENMENT",
+   "id": "wte.cipher.s5-enlightenment",
    "ss": 100,
    "tier": "special",
    "type": "Prepared Action (10 min meditation)",
@@ -703,6 +802,7 @@
  "evolution": [
   {
    "name": "GENETIC MODEL",
+   "id": "wte.cipher.genetic-model",
    "ss": 25,
    "tier": "offline",
    "type": "Prepared Action",
@@ -710,6 +810,7 @@
   },
   {
    "name": "GENE EDIT",
+   "id": "wte.cipher.gene-edit",
    "ss": 50,
    "tier": "offline",
    "type": "Prepared Action",
@@ -717,6 +818,7 @@
   },
   {
    "name": "MODIFY",
+   "id": "wte.cipher.modify",
    "ss": 45,
    "tier": "offline",
    "type": "Standard Action",
@@ -724,6 +826,7 @@
   },
   {
    "name": "DEVELOP",
+   "id": "wte.cipher.develop",
    "ss": 35,
    "tier": "offline",
    "type": "Bonus Action",
@@ -731,6 +834,7 @@
   },
   {
    "name": "INDUCE",
+   "id": "wte.cipher.induce",
    "ss": 50,
    "tier": "offline",
    "type": "Standard Action",
@@ -738,6 +842,7 @@
   },
   {
    "name": "SPECIA",
+   "id": "wte.cipher.specia",
    "ss": 35,
    "tier": "offline",
    "type": "Bonus Action",
@@ -745,6 +850,7 @@
   },
   {
    "name": "INTER-SPECI",
+   "id": "wte.cipher.inter-speci",
    "ss": 70,
    "tier": "offline",
    "type": "Prepared Action",
@@ -752,6 +858,7 @@
   },
   {
    "name": "TEMP HP",
+   "id": "wte.cipher.temp-hp",
    "ss": 35,
    "tier": "offline",
    "type": "Bonus Action",
@@ -759,6 +866,7 @@
   },
   {
    "name": "GENETIC HERITAGE",
+   "id": "wte.cipher.genetic-heritage",
    "ss": 50,
    "tier": "offline",
    "type": "Standard Action",
@@ -766,6 +874,7 @@
   },
   {
    "name": "CELLULAR MASTERY",
+   "id": "wte.cipher.cellular-mastery",
    "ss": 55,
    "tier": "offline",
    "type": "Standard Action",
@@ -773,6 +882,7 @@
   },
   {
    "name": "ANCESTRAL AWAKENING",
+   "id": "wte.cipher.ancestral-awakening",
    "ss": 70,
    "tier": "offline",
    "type": "Standard Action",
@@ -780,6 +890,7 @@
   },
   {
    "name": "RAPID ADAPTATION",
+   "id": "wte.cipher.rapid-adaptation",
    "ss": 40,
    "tier": "online",
    "type": "Standard Action",
@@ -787,6 +898,7 @@
   },
   {
    "name": "EVOLUTIONARY FORK",
+   "id": "wte.cipher.evolutionary-fork",
    "ss": 55,
    "tier": "online",
    "type": "Standard Action",
@@ -794,6 +906,7 @@
   },
   {
    "name": "GENETIC LOCK",
+   "id": "wte.cipher.genetic-lock",
    "ss": 35,
    "tier": "online",
    "type": "Bonus Action",
@@ -801,6 +914,7 @@
   },
   {
    "name": "MASS INDUCTION",
+   "id": "wte.cipher.mass-induction",
    "ss": 65,
    "tier": "online",
    "type": "Standard Action",
@@ -808,6 +922,7 @@
   },
   {
    "name": "CELLULAR REGENERATION",
+   "id": "wte.cipher.cellular-regeneration",
    "ss": 45,
    "tier": "online",
    "type": "Standard Action",
@@ -815,6 +930,7 @@
   },
   {
    "name": "SPECIES MEMORY",
+   "id": "wte.cipher.species-memory",
    "ss": 50,
    "tier": "online",
    "type": "Prepared Action",
@@ -822,6 +938,7 @@
   },
   {
    "name": "SYMBIOSIS LINK",
+   "id": "wte.cipher.symbiosis-link",
    "ss": 40,
    "tier": "online",
    "type": "Prepared Action",
@@ -829,6 +946,7 @@
   },
   {
    "name": "EVOLUTIONARY PRESSURE",
+   "id": "wte.cipher.evolutionary-pressure",
    "ss": 60,
    "tier": "online",
    "type": "Standard Action",
@@ -836,6 +954,7 @@
   },
   {
    "name": "GENE VAULT",
+   "id": "wte.cipher.gene-vault",
    "ss": 25,
    "tier": "online",
    "type": "Prepared Action",
@@ -843,6 +962,7 @@
   },
   {
    "name": "S1 — NEW SPECIES",
+   "id": "wte.cipher.s1-new-species",
    "ss": 100,
    "tier": "special",
    "type": "Prepared Action (24 hours)",
@@ -850,6 +970,7 @@
   },
   {
    "name": "S2 — GENESIS",
+   "id": "wte.cipher.s2-genesis",
    "ss": 120,
    "tier": "special",
    "type": "Prepared Action (72 hours)",
@@ -857,6 +978,7 @@
   },
   {
    "name": "S3 — THE APEX",
+   "id": "wte.cipher.s3-the-apex",
    "ss": 85,
    "tier": "special",
    "type": "Standard Action",
@@ -864,6 +986,7 @@
   },
   {
    "name": "S4 — GENETIC HERITAGE: COMPLETE",
+   "id": "wte.cipher.s4-genetic-heritage-complete",
    "ss": 75,
    "tier": "special",
    "type": "Standard Action",
@@ -871,6 +994,7 @@
   },
   {
    "name": "S5 — LIFE WEAVE",
+   "id": "wte.cipher.s5-life-weave",
    "ss": 110,
    "tier": "special",
    "type": "Prepared Action (48 hours)",
@@ -880,6 +1004,7 @@
  "warfare": [
   {
    "name": "WEAPONIZE",
+   "id": "wte.cipher.weaponize",
    "ss": 25,
    "tier": "offline",
    "type": "Bonus Action",
@@ -887,6 +1012,7 @@
   },
   {
    "name": "TRIXT LINK",
+   "id": "wte.cipher.trixt-link",
    "ss": 24,
    "tier": "offline",
    "type": "Bonus Action",
@@ -894,6 +1020,7 @@
   },
   {
    "name": "COMMAND",
+   "id": "wte.cipher.command",
    "ss": 36,
    "tier": "offline",
    "type": "Standard Action",
@@ -901,6 +1028,7 @@
   },
   {
    "name": "SEIZE",
+   "id": "wte.cipher.seize",
    "ss": 45,
    "tier": "offline",
    "type": "Standard Action",
@@ -908,6 +1036,7 @@
   },
   {
    "name": "BULLWARK",
+   "id": "wte.cipher.bullwark",
    "ss": 35,
    "tier": "offline",
    "type": "Bonus Action",
@@ -915,6 +1044,7 @@
   },
   {
    "name": "AUTHORITATIVE",
+   "id": "wte.cipher.authoritative",
    "ss": 45,
    "tier": "offline",
    "type": "Standard Action",
@@ -922,6 +1052,7 @@
   },
   {
    "name": "DECEIST",
+   "id": "wte.cipher.deceist",
    "ss": 15,
    "tier": "offline",
    "type": "Bonus Action",
@@ -929,6 +1060,7 @@
   },
   {
    "name": "LAW BIND",
+   "id": "wte.cipher.law-bind",
    "ss": 25,
    "tier": "offline",
    "type": "Prepared Action",
@@ -936,6 +1068,7 @@
   },
   {
    "name": "HOLLOW SHELL",
+   "id": "wte.cipher.hollow-shell",
    "ss": 25,
    "tier": "offline",
    "type": "Prepared Action",
@@ -943,6 +1076,7 @@
   },
   {
    "name": "MARTIAL CODE",
+   "id": "wte.cipher.martial-code",
    "ss": 40,
    "tier": "offline",
    "type": "Bonus Action",
@@ -950,6 +1084,7 @@
   },
   {
    "name": "ARSENAL",
+   "id": "wte.cipher.arsenal",
    "ss": 55,
    "tier": "online",
    "type": "Standard Action",
@@ -957,6 +1092,7 @@
   },
   {
    "name": "TACTICAL GRID",
+   "id": "wte.cipher.tactical-grid",
    "ss": 45,
    "tier": "online",
    "type": "Prepared Action",
@@ -964,6 +1100,7 @@
   },
   {
    "name": "CHAIN COMMAND",
+   "id": "wte.cipher.chain-command",
    "ss": 60,
    "tier": "online",
    "type": "Standard Action",
@@ -971,6 +1108,7 @@
   },
   {
    "name": "FORTRESS",
+   "id": "wte.cipher.fortress",
    "ss": 65,
    "tier": "online",
    "type": "Standard Action",
@@ -978,6 +1116,7 @@
   },
   {
    "name": "WAR CRY",
+   "id": "wte.cipher.war-cry",
    "ss": 30,
    "tier": "online",
    "type": "Bonus Action",
@@ -985,6 +1124,7 @@
   },
   {
    "name": "CRUSHING ADVANCE",
+   "id": "wte.cipher.crushing-advance",
    "ss": 50,
    "tier": "online",
    "type": "Standard Action",
@@ -992,6 +1132,7 @@
   },
   {
    "name": "NULL ZONE",
+   "id": "wte.cipher.null-zone",
    "ss": 70,
    "tier": "online",
    "type": "Standard Action",
@@ -999,6 +1140,7 @@
   },
   {
    "name": "IRON WILL",
+   "id": "wte.cipher.iron-will",
    "ss": 45,
    "tier": "online",
    "type": "Bonus Action",
@@ -1006,6 +1148,7 @@
   },
   {
    "name": "THE VICTOR'S CLAIM",
+   "id": "wte.cipher.the-victors-claim",
    "ss": 35,
    "tier": "online",
    "type": "Bonus Action (after combat victory)",
@@ -1013,6 +1156,7 @@
   },
   {
    "name": "S1 — WAR DECLARATION",
+   "id": "wte.cipher.s1-war-declaration",
    "ss": 50,
    "tier": "special",
    "type": "Prepared Action (1 min ritual)",
@@ -1020,6 +1164,7 @@
   },
   {
    "name": "S2 — ARMY OF ONE",
+   "id": "wte.cipher.s2-army-of-one",
    "ss": 150,
    "tier": "special",
    "type": "Standard Action",
@@ -1027,6 +1172,7 @@
   },
   {
    "name": "S3 — ABSOLUTE AUTHORITY",
+   "id": "wte.cipher.s3-absolute-authority",
    "ss": 90,
    "tier": "special",
    "type": "Standard Action",
@@ -1034,6 +1180,7 @@
   },
   {
    "name": "S4 — THE LAST WAR",
+   "id": "wte.cipher.s4-the-last-war",
    "ss": 110,
    "tier": "special",
    "type": "Standard Action",
@@ -1041,6 +1188,7 @@
   },
   {
    "name": "S5 — FIELD MARSHAL",
+   "id": "wte.cipher.s5-field-marshal",
    "ss": 80,
    "tier": "special",
    "type": "Prepared Action",

@@ -156,6 +156,58 @@ describe("built-in ability pages round-trip through parseCodexEntry", () => {
   }
 });
 
+// Stamping permanent ids into ciphers.json is a data change to files these
+// pages are generated FROM. If the stamped value differed from what the
+// generator used to derive on the fly, all 148 cipher pages would come out
+// different — and a campaign's revision hash would move for every table that
+// changed nothing. Generating each page from a stripped copy is the direct
+// statement of that invariant.
+describe("stamped ids leave the built-in pages exactly as they were", () => {
+  function unstamped<T extends { id?: string }>(value: T): T {
+    const copy = { ...value };
+    delete copy.id;
+    return copy;
+  }
+
+  it("emits the same cipher page with and without the stamp", () => {
+    for (const [paradigmId, ciphers] of Object.entries(bakedCiphers())) {
+      for (const cipher of ciphers) {
+        expect(cipher.id, cipher.name).toBeTruthy();
+        expect(bakedCipherPageContent(cipher, paradigmId), cipher.name).toBe(
+          bakedCipherPageContent(unstamped(cipher), paradigmId)
+        );
+      }
+    }
+  });
+
+  it("emits the same catalog entry — id, stem, title and content", () => {
+    const pages = bakedCodexPages().filter((p) => p.kind === "cipher");
+    const byId = new Map(pages.map((p) => [p.id, p]));
+    for (const [paradigmId, ciphers] of Object.entries(bakedCiphers())) {
+      for (const cipher of ciphers) {
+        const page = byId.get(`wte.cipher.${slugify(cipher.name)}`);
+        expect(page, cipher.name).toBeDefined();
+        expect(page!.stem).toBe(`cipher-${slugify(cipher.name)}`);
+        expect(page!.title).toBe(cipher.name);
+        expect(page!.content).toBe(bakedCipherPageContent(unstamped(cipher), paradigmId));
+      }
+    }
+  });
+
+  // The innate ids ride in speciesInnate.json, which the Species pages read for
+  // effect prose only. A stamp leaking into that emission would rewrite nine
+  // more pages.
+  it("keeps the innate bullets free of the stamp", () => {
+    for (const species of bakedSpecies()) {
+      const md = bakedSpeciesPageContent(species);
+      expect(md, species.name).not.toContain("wte.innate.");
+      for (const innate of bakedSpeciesInnate(species.id)) {
+        expect(innate.id, `${species.id}/${innate.name}`).toBeTruthy();
+      }
+    }
+  });
+});
+
 describe("built-in page catalog", () => {
   it("covers every compiled species and paradigm exactly once", () => {
     const pages = bakedCodexPages();

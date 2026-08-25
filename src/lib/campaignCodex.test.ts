@@ -349,7 +349,60 @@ describe("room snapshot game-data compilation", () => {
     expect(merged[0].tier).toBe(official.tier);
     // Byte-identical effect: the Rank/Component rows reassembled into the header.
     expect(merged[0].effect).toBe(official.effect);
-    expect(usableCiphers("science", ["LIGHT WEIGHT"])[0]).toMatchObject({ name: "LIGHT WEIGHT", ss: 9 });
+    // The fork's ID row names the CAMPAIGN layer; identity stays the official
+    // concept. Filing an outcome under the layer id would orphan it the moment
+    // the table drops the override.
+    expect(merged[0].id).toBe(official.id);
+    expect(usableCiphers("science", ["LIGHT WEIGHT"])[0]).toMatchObject({
+      name: "LIGHT WEIGHT",
+      id: official.id,
+      ss: 9,
+    });
+  });
+
+  // pageIdentity writes the previous name into an Aliases row on every rename,
+  // and a player's stored loadout still holds that name. The compile step is the
+  // only place the row can reach the cipher record, so a table that renames its
+  // own cipher must not cost every character who took it a blank 0-SS row.
+  it("carries a renamed campaign cipher's former name onto the compiled record", async () => {
+    const content = [
+      "# WYRM STATIC",
+      "",
+      "| Field | Value |",
+      "|---|---|",
+      "| Type | Cipher |",
+      "| ID | campaign.campaign-alpha.cipher.wyrm-static |",
+      "| Name | WYRM STATIC |",
+      "| Aliases | STATIC WYRM |",
+      "| Paradigm | science |",
+      "| Tier | online |",
+      "| SS | 14 |",
+      "| Activation | Bonus Action |",
+      "",
+      "## Effect",
+      "",
+      "Crackles.",
+      "",
+    ].join("\n");
+    const pages = [
+      page({
+        id: "campaign.campaign-alpha.cipher.wyrm-static",
+        stem: "cipher-wyrm-static",
+        title: "WYRM STATIC",
+        kind: "cipher",
+        source: "campaign",
+        ownerId: CAMPAIGN_ID,
+        pulled: true,
+        content,
+      }),
+    ];
+    installRoomCodex(parseCampaignCodexSnapshot(snapshot({ pages }), CAMPAIGN_ID)!);
+
+    await loadCodexGameData();
+
+    const compiled = ciphersForParadigm("science").find((cipher) => cipher.name === "WYRM STATIC")!;
+    expect(compiled.aliases).toEqual(["STATIC WYRM"]);
+    expect(usableCiphers("science", ["STATIC WYRM"])[0]).toMatchObject({ name: "WYRM STATIC", ss: 14 });
   });
 
   it("inherits the official cipher rule text when a fork deletes the Effect body or the Rank row", async () => {

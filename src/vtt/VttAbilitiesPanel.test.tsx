@@ -103,6 +103,9 @@ describe("target roll chips", () => {
       abilityId: "ability-1",
       abilityName: "Gravitic Snare",
       sourceCharacterId: "caster-1",
+      // The prose rides along so the shell can read what failing this save
+      // costs without resolving the ability a second time.
+      effect: "Living creatures make Endurance Saves (DC 18).",
       label: "Endurance save · DV 26",
       stat: "Endurance",
       dc: 26,
@@ -141,6 +144,7 @@ describe("target roll chips", () => {
       abilityId: "ability-axis",
       abilityName: "Phase Trap",
       sourceCharacterId: "caster-1",
+      effect: "The target makes a Physical Save — Evasion.",
       label: "Physical Save — Evasion · DV 26",
       stat: undefined,
       rollAxis: { path: "evasion", direction: "save" },

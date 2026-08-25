@@ -37,6 +37,11 @@ export type AbilitySource = "action" | "genus" | "cipher" | "racial";
 
 export interface VttAbility {
   id: string;
+  /** The ability's PERMANENT Codex id, when the row resolved to a record that
+   *  carries one. `id` above is positional and changes the moment a loadout is
+   *  reordered, which is fine for a React key and useless for correlating an
+   *  outcome back to the ability that caused it. */
+  abilityId?: string;
   name: string;
   source: AbilitySource;
   effect: string;
@@ -68,11 +73,12 @@ function mk(
   source: AbilitySource,
   name: string,
   i: number,
-  opts: { effect?: string | null; range?: string | null; target?: string | null; ss?: number; focus?: number; hit?: number; damage?: string | null }
+  opts: { abilityId?: string; effect?: string | null; range?: string | null; target?: string | null; ss?: number; focus?: number; hit?: number; damage?: string | null }
 ): VttAbility {
   const effect = opts.effect || "";
   return {
     id: `${source}:${name}:${i}`,
+    abilityId: opts.abilityId,
     name,
     source,
     effect,
@@ -184,12 +190,12 @@ export function characterActionSet(rec: CharacterRecord, layers?: RuleLayer[]): 
   // mechanics instead of a row of blanks, and a campaign override reaches the
   // VTT exactly as it reaches the sheet.
   const genus = usableGenusResolved(genusNames, codexCtx(rec.campaignId, rec.id), spend.genus, layers).map((a, i) =>
-    mk("genus", a.name, i, { effect: a.effect, range: a.range, target: a.target, ss: a.ss ?? 0, focus: a.focus })
+    mk("genus", a.name, i, { abilityId: a.id, effect: a.effect, range: a.range, target: a.target, ss: a.ss ?? 0, focus: a.focus })
   );
 
-  const cipher = usableCiphers(s.paradigmId, s.cipherLoadout ?? []).map((a, i) => mk("cipher", a.name, i, { effect: a.effect, ss: a.ss ?? 0 }));
+  const cipher = usableCiphers(s.paradigmId, s.cipherLoadout ?? []).map((a, i) => mk("cipher", a.name, i, { abilityId: a.id, effect: a.effect, ss: a.ss ?? 0 }));
 
-  const racial = usableRacial(s.speciesId, s.variantName, s.variantOption, s.innateChoice).map((a, i) => mk("racial", a.name, i, { effect: a.effect }));
+  const racial = usableRacial(s.speciesId, s.variantName, s.variantOption, s.innateChoice).map((a, i) => mk("racial", a.name, i, { abilityId: a.id, effect: a.effect }));
 
   return { actions, genus, cipher, racial };
 }

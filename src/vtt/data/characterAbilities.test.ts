@@ -1,7 +1,8 @@
+// @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
-import { zeroAttributes, zeroSpecialties } from "../../game/wte";
+import { bakedCiphers, zeroAttributes, zeroSpecialties } from "../../game/wte";
 import type { CharacterRecord } from "../../lib/characters";
-import { characterEffectiveRollScores, characterRollAxisStats } from "./characterAbilities";
+import { characterActionSet, characterEffectiveRollScores, characterRollAxisStats } from "./characterAbilities";
 
 describe("VTT effective roll scores", () => {
   it("matches the sheet's background, equipment, Soul, and specialty-cap stack", () => {
@@ -40,5 +41,47 @@ describe("VTT effective roll scores", () => {
     const axis = characterRollAxisStats(rec);
     expect(axis.attr).toMatchObject({ phy: 1, dex: 1, ap: -4, int: 1 });
     expect(axis.spec.bal).toBe(32);
+  });
+});
+
+// `VttAbility.id` is positional — `cipher:LIGHT WEIGHT:0` — so it changes the
+// moment a player reorders a loadout or a Curator renames the ability. An
+// outcome filed under it could never be correlated back. `abilityId` is the
+// permanent Codex id, carried alongside so the UI keying stays untouched.
+describe("VTT ability rows carry the permanent Codex id", () => {
+  const cipherName = bakedCiphers()["cognition"][0].name;
+  const cipherId = bakedCiphers()["cognition"][0].id;
+
+  const rec = {
+    id: "ability-ids",
+    campaignId: "table",
+    name: "Ident",
+    createdAt: 0,
+    updatedAt: 0,
+    sheet: {
+      attributes: zeroAttributes(),
+      specialties: zeroSpecialties(),
+      paradigmId: "cognition",
+      speciesId: "hyomen",
+      rank: 3,
+      cipherLoadout: [cipherName],
+      innateChoice: ["Omen"],
+      genusLoadout: ["Lark"],
+      focusSpend: { genus: { Lark: 4 }, incepts: [] },
+    },
+  } as unknown as CharacterRecord;
+
+  it("populates it for genus, cipher and racial rows", () => {
+    const set = characterActionSet(rec);
+    expect(set.genus.map((a) => a.abilityId)).toEqual(["wte.genus.lark"]);
+    expect(set.cipher.map((a) => a.abilityId)).toEqual([cipherId]);
+    expect(set.racial.map((a) => a.abilityId)).toEqual(["wte.innate.hyomen-omen"]);
+  });
+
+  it("leaves the positional id exactly as the UI already keys off it", () => {
+    const set = characterActionSet(rec);
+    expect(set.genus[0].id).toBe("genus:Lark:0");
+    expect(set.cipher[0].id).toBe(`cipher:${cipherName}:0`);
+    expect(set.racial[0].id).toBe("racial:Omen:0");
   });
 });

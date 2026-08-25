@@ -2,162 +2,198 @@
   "hyomen": [
     {
       "name": "Prodigal Mind",
+      "id": "wte.innate.hyomen-prodigal-mind",
       "effect": "Passive (Self) · Permanent · Automatic. Witnessing the activation of any Varna 10 or more times permanently unlocks that Varna path for you. You simultaneously develop a personal Variant of the Varna you have witnessed most frequently (built with the Curator on the same power budget)."
     },
     {
       "name": "Omen",
+      "id": "wte.innate.hyomen-omen",
       "effect": "Active (Standard, Bonus, or Reaction) · Target: 1 Creature · Vector: Contact · Duration: Scene · Resolution: Automatic — the application cannot be countered, negated, or nullified · Limit: one Omen active at a time. Your touch marks the target with an inescapable causal thread, applying the Omen condition. Nothing prevents the application — the counterplay lives inside the condition itself: while Omen-marked, the bearer's causality is claimed; the marker may, once, either convert one of the bearer's rolls into a Clash against the marker's Wisdom, or collect the Omen when the bearer fails any save, gaining Advantage on their next contest against the bearer. The thread is perceivable by Divination; the condition (never its application) ends at scene's end or when collected."
     },
     {
       "name": "Indomitable Will",
+      "id": "wte.innate.hyomen-indomitable-will",
       "effect": "Passive (Self) · Always · Automatic. You gain Advantage on Wisdom and Mental Fortitude checks made against a creature. The potency of this advantage scales directly with your Rank Multiplier."
     },
     {
       "name": "Peak Evolution",
+      "id": "wte.innate.hyomen-peak-evolution",
       "effect": "Target: Self, then chain · Vector: Contact-range chain · Duration: Instant · Resolution: Adaption checks · Limit: force-success 1/scene; the full chain 1/Downtime. Upon failing an Adaption check, you may force an automatic success and overpower the roll. Cascade Effect: immediately force one creature in your vicinity to make the identical Adaption check. Control Loop: if it fails, it must immediately succeed against your raw Adaption Specialty or gain the Subjugated condition (capped control: the controller directs movement and Standard Actions; the subject never harms itself, never spends its own Synaptic Space unwillingly, re-checks at the end of each of its turns and whenever it takes damage; always ends when the scene ends). Cloning Tumor: while Subjugated by this chain, the target's tissue violently mutates, seeding an organic tumor that sheds and matures over 3 In-game (ITT) days into a loyal, fully autonomous clone of that creature. One clone per creature, ever; the clone is a Curator-run person, not a puppet."
     }
   ],
   "voaulton": [
     {
       "name": "Chemical Mastery",
+      "id": "wte.innate.voaulton-chemical-mastery",
       "effect": "Target: Self / 1 Creature or Object · Vector: Contact · Duration: Instant · Resolution: Control check for synthesis · Limit: one dose per scene. Advanced biochemical manipulation and resistance: you identify compounds on contact and gain Advantage on saves against Poison and Acid. Once per scene, synthesize one field dose from available matter — antidote, irritant, or catalyst (Curator adjudicates within those bounds)."
     },
     {
       "name": "Robotic Integration",
+      "id": "wte.innate.voaulton-robotic-integration",
       "effect": "Passive (Self) · Always · Automatic. Natural affinity for machine-bonding and technological augmentation: powered gear you wear counts as part of your body, and you interface with unsecured technology by touch. Once per round, one gear-based roll gains +2."
     },
     {
       "name": "Adaptive Analysis",
+      "id": "wte.innate.voaulton-adaptive-analysis",
       "effect": "Passive (Self) · Always · Automatic · Limit: one true question per scene. Rapid environmental and tactical threat assessment: +2 on checks to read terrain, mechanisms, or formations. Once per scene, ask the Curator one true tactical question about a threat you can observe."
     },
     {
       "name": "Energetic Synergy",
+      "id": "wte.innate.voaulton-energetic-synergy",
       "effect": "Self (Bonus Action) · Duration: 1 round · Automatic. Synchronize personal energy output with an external power system in reach: your next ability activation this round costs −1 Synaptic Space (−2 when drawing from a Grade 2+ source)."
     }
   ],
   "mirga": [
     {
       "name": "Perfect Mimicry",
+      "id": "wte.innate.mirga-perfect-mimicry",
       "effect": "Self (Active) · Duration: Sustained · Resolution: Control check for supernatural/mechanical traits. Flawless replication of observed biological and physical traits — appearance, mannerisms, voice. Supernatural or mechanical traits replicate cosmetically unless the check succeeds."
     },
     {
       "name": "Mimetic Adaptation",
+      "id": "wte.innate.mirga-mimetic-adaptation",
       "effect": "Passive (Self) · Duration: Sustained · Automatic. Your mimicked form automatically adapts to environmental pressures — gills in water, insulation in cold — without a conscious shift. Each auto-adaptation is visible and carries its obvious drawback."
     },
     {
       "name": "Illusory Disguise",
+      "id": "wte.innate.mirga-illusory-disguise",
       "effect": "Self (Active) · Duration: Scene · Resolution: contested by close inspection (Perception/Insight). Project false appearances beyond physical mimicry — including aura, energy signature, and perceived identity. Detection-class abilities read your projected identity unless the inspector wins the contest."
     },
     {
       "name": "Emotional Mimicry",
+      "id": "wte.innate.mirga-emotional-mimicry",
       "effect": "Target: Multi (nearby creatures) · Vector: Ambient · Duration: Sustained · Resolution: Wisdom save to shrug the broadcast · Limit: one mode active at a time. Mirror and broadcast the emotional states of nearby creatures: stabilize group morale (allies gain +1 on Feared saves) or destabilize it (chosen creatures save or suffer −1 on their next contest). Never outright compels behavior."
     }
   ],
   "oriyu": [
     {
       "name": "Vesul Enkludtiu",
+      "id": "wte.innate.oriyu-vesul-enkludtiu",
       "effect": "Passive · Target/Area: Immediate Zone · Vector: Ambient · Duration: Sustained · Resolution: S-Stability trigger. Your physical presence exerts a continuous, subconscious gravitational pressure on the local metric, allowing you to selectively compress spatial structures: halve the Volume (V) of any active energy effect in your immediate zone to double its Density (D). The Enanstnivou (Pinched) Condition: targets caught within the compacted space immediately gain Enanstnivou, imposing a hard −0.25 penalty to S-Stability. A target whose Stability drops below 1.0 is forced to roll on the Chaos Table or face a catastrophic Backlash."
     },
     {
       "name": "Vesul Exovertntiu",
+      "id": "wte.innate.oriyu-vesul-exovertntiu",
       "effect": "Passive Reaction · Trigger: any incoming energy-based attack, automatic · Resolution: opposed Control + Inspiration check vs the attacker's roll. By inducing saddle curvature (negative metric curvature) in the local area, you bend space-time to deflect incoming strikes along non-Euclidean paths. A successful check nullifies the incoming damage and converts the attack's Imaginary Number (IN) value into Ves-traktiu (Metric Tension), stored as a resource. Storage Cap: maximum Ves-traktiu held equals your Raw Control Stat (Control 16 → 16 units)."
     },
     {
       "name": "Unravel Spacia",
+      "id": "wte.innate.oriyu-unravel-spacia",
       "effect": "Active · Range/Area: Self (horizon) · Duration: 1 round · Damage: 3d10 Force on collapse · Automatic. Loosen the metric of space around yourself, projecting a Ves-lymn (Metric Horizon) of extreme spatial expansion: local Volume tends toward infinity, the Density of any energy within falls to zero, and all energy-based damage within the horizon is completely nullified. The Law of Origin: energy must always exist within physical space — when the effect resolves, the Enigma vacuum collapses the void: everything adjacent to the horizon (you included) takes the listed collapse damage. The collapse deals its listed damage only — it never deletes creatures or their gear; unattended objects inside may be lost."
     },
     {
       "name": "Dyn Formn",
+      "id": "wte.innate.oriyu-dyn-formn",
       "effect": "Active · Range/Area: Single Target / Area · Vector: Burst · Duration: Instant · Damage: E = (ING × D × V) ÷ TG · Resolution: Endurance Save vs Prone (Pinched targets). Release your stored Ves-traktiu, causing space to violently and instantaneously snap back to flat equilibrium; the energy output (E) of the snap follows the listed high-velocity formula. Secondary Effect: the instant re-flattening is physically jarring — any targets currently Enanstnivou (Pinched) must succeed on an Endurance Save or be knocked prone as space collapses back."
     }
   ],
   "insectoid": [
     {
       "name": "Regenerative Limbs",
+      "id": "wte.innate.insectoid-regenerative-limbs",
       "effect": "Self · Duration: Clock · Automatic. Lost or damaged limbs regrow over time, at a rate scaling with your health state: above half HP, a limb returns in one Downtime; below half, two. Regrowing limbs work at −1 until whole."
     },
     {
       "name": "Eyeless",
+      "id": "wte.innate.insectoid-eyeless",
       "effect": "Passive (Self) · Always · Automatic. Navigate through non-visual sensory systems — vibration, electromagnetic, chemical — out to 30 ft. Immune to vision-based attacks and illusions; Gaze Vectors cannot target you."
     },
     {
       "name": "Reflexive Assurance",
+      "id": "wte.innate.insectoid-reflexive-assurance",
       "effect": "Passive (Self, Reaction) · Duration: Instant · Automatic. Automatic reaction to perceived threats without conscious deliberation: +5 on Action Priority-based DC checks, and once per round you may take a Reaction even while Surprised or Stagnant."
     },
     {
       "name": "Peak Evolution",
+      "id": "wte.innate.insectoid-peak-evolution",
       "effect": "Passive (Self) · Permanent · Automatic. Your genome holds open a broad range of Asymmetry evolution paths: whenever the Director compiles an Asymmetry pool for you, one additional candidate of your choice from your species/variant list is always eligible. Cocoon-class and mutation-class Incepts manifest for you at one step lower Resonance cost."
     }
   ],
   "subdermin": [
     {
       "name": "Forsaken Touch",
+      "id": "wte.innate.subdermin-forsaken-touch",
       "effect": "Target: 1 Creature or Object · Vector: Contact · Duration: Instant · Damage: 1d10 Entropy (untrained); unattended objects take demolition · Resolution: Endurance save, half. Physical contact has a degrading or corrosive effect on matter. Precise control requires training — until a Curator-recognized discipline milestone, you cannot choose to suppress it against things you touch barehanded."
     },
     {
       "name": "Radioactive Anatomy",
+      "id": "wte.innate.subdermin-radioactive-anatomy",
       "effect": "Target/Area: nearby · Vector: Ambient · Always · Automatic. Internal biology emits low-level radiation: a passive area deterrent (creatures ending 2+ consecutive turns adjacent gain 1 Irradiated stack) that interacts uniquely with certain energy types — your Energetic-family Genus effects gain +1 per die. Detectors always find you."
     },
     {
       "name": "Terrestrial Knowledge",
+      "id": "wte.innate.subdermin-terrestrial-knowledge",
       "effect": "Passive (Self) · Always · Automatic. Innate deep awareness of geological and subterranean environments — you cannot become lost underground. Tremor, void, and structural weakness within 30 ft of a surface you touch are simply known to you."
     },
     {
       "name": "Living Planet Merge",
+      "id": "wte.innate.subdermin-living-planet-merge",
       "effect": "Self · Vector: Contact · Duration: Sustained · Automatic. Temporary physical integration with planetary matter — merge with stone, earth, or natural underground formations, moving through them at half speed while merged. You perceive through the material; attacking or being forcibly extracted ends the merge."
     }
   ],
   "inderi": [
     {
       "name": "Eldritch Physiology",
+      "id": "wte.innate.inderi-eldritch-physiology",
       "effect": "Passive (Self) · Always · Automatic. Body functions on Eldritch energy rather than biological processes: immune to effects that target biology — Poison, Pathogenic, and biological-targeting abilities. What sustains you also marks you — Divination reads you as a phenomenon, not a person."
     },
     {
       "name": "Enhanced Regeneration",
+      "id": "wte.innate.inderi-enhanced-regeneration",
       "effect": "Passive (Self) · Duration: Clock · Automatic. Accelerated healing well beyond other species: regenerate significant damage over short rests (1d10 HP per short rest; one Wound may close per full rest without treatment)."
     },
     {
       "name": "Perfect Reflex Calibration",
+      "id": "wte.innate.inderi-perfect-reflex-calibration",
       "effect": "Passive (Self) · Always · Automatic. Reaction speed calibrated to near-perfect levels — virtually never caught fully off-guard: roll Action Priority with Advantage, and Surprised/Stagnant states never deny you your Reaction."
     },
     {
       "name": "True Eye of Solitude",
+      "id": "wte.innate.inderi-true-eye-of-solitude",
       "effect": "Self (Active) · Duration: Sustained (unmoving focus) · Resolution: contested by the concealment's owner. Perceive truth through isolation and stillness: while fully focused, you see through concealment, illusion, and false identity in your line of sight. Each broken veil is announced only to you."
     }
   ],
   "seraph": [
     {
       "name": "Thi Voth",
+      "id": "wte.innate.seraph-thi-voth",
       "effect": "Type: Bonus Action · Target: Personal Medium · Duration: Scene / until dismissed · Resolution: Automatic · Limit: one awakened Medium at a time. Awaken the Medium and establish a sustained connection to the Voice. While awakened, the Medium becomes the origin point for your Vibras and retains its 5-ft Voice Reach. The first creature other than you to make direct contact with the Medium each round takes 1d40 Spirit damage."
     },
     {
       "name": "Thi Vothu",
+      "id": "wte.innate.seraph-thi-vothu",
       "effect": "Type: Bonus Action · Origin: Medium · Area: Voice Reach · Duration: 1 round · Resolution: Mental Check — Influence vs Mental Save — Perception · Limit: once per round. Release a destabilizing Tone through the Medium, causing nearby matter and sensory information to vibrate. On a failed Save, the target experiences intrusive Vibra hallucinations and has Disadvantage on its next Density Check governed by Action Priority before the beginning of your next turn. Creatures without a sensory mechanism capable of experiencing the Vibra are unaffected."
     },
     {
       "name": "Rapture",
+      "id": "wte.innate.seraph-rapture",
       "effect": "Type: Prepared Action · Origin: Medium · Area: 10-ft radius · Duration: 2 rounds · Resolution: Mental Check — Influence vs Mental Save — Perception · Limit: one Rapture active at a time. Release a Tone that interprets the consciousness of creatures entering or beginning their turn within the area. On a failed Save, a personalized fear Vibra manifests within that creature's perception and is visible only to it. While responding directly to the manifestation, the target has Disadvantage on the first Perception Check, Perception Save, or Evasion Save it makes each round. The target may repeat its Perception Save at the end of each turn, ending the effect on success."
     },
     {
       "name": "Kirkndomou",
+      "id": "wte.innate.seraph-kirkndomou",
       "effect": "Type: Prepared Action · Target: 1 Vibra manifested through your Medium · Duration: 2 rounds · Resolution: Mental Check — Capacity vs Curator-set DV based on complexity · Limit: one embodied Vibra at a time. Complete an existing Vibra by allowing its Tone to acquire temporary physical expression. On success, it becomes locally real and acts according to the concept it represents. A creature without a dedicated profile uses 75 HP · Attack Power 10 · Evasion 10 · Action Priority 5 · all other resolutions 7. An embodied Vibra is an interpretation, not the original creature, and does not reproduce Species Innates, Paradigm Affinity, Ciphers, Genera, Incepts, supernatural abilities, or unique biological traits unless another rule explicitly permits it."
     }
   ],
   "stygians": [
     {
       "name": "Interstitial Intrusion",
+      "id": "wte.innate.stygians-interstitial-intrusion",
       "effect": "Passive · Target: Multi · Vector: Ambient · Duration: Sustained · Area: Zone of Influence (30-ft radius) · Resolution: Automatic on positioning. Whenever you position yourself physically between two objects or creatures within your Zone of Influence, you violently warp their local space, inflicting the Stinous condition. Under Stinous, physical geometry distorts unpredictably (solid walls spiral; biological targets appear massively bloated in some areas and emaciated in others). A Stinous target suffers a penalty to all checks and rolls equal to your Inspiration Modifier, and any action or attack they direct at a target other than you is reduced by this same modifier."
     },
     {
       "name": "Engraving",
+      "id": "wte.innate.stygians-engraving",
       "effect": "Passive trigger · Target: 1 Stinous creature or object · Vector: Gaze · Duration: Scene · Resolution: opposed Inspiration + Influence Check vs their Wisdom · Limit: one Engraving held at a time. When a creature or object afflicted with Stinous exits your Influence Range, win the opposed check to engrave your presence into their shadow. While engraved: teleport adjacent to them from their shadow as a Bonus Action, and execute any active Genus or Cipher ability using their shadow as the origin point of the effect."
     },
     {
       "name": "Parasitic Shadow",
+      "id": "wte.innate.stygians-parasitic-shadow",
       "effect": "Active (Standard Action) · Target: 1 Creature · Vector: Contact (shadow-touch; both in shadow) · Duration: Scene · Resolution: threshold trigger · Limit: one Parasitic Shadow active at a time; a threshold below 11 collapses at its first backfire. While standing in shadow, extend dark, entropic tendrils to touch the shadow of a target within melee range and declare a d20 threshold value (e.g., 15). Whenever that target makes a check or save where the natural d20 meets or exceeds your threshold, the action backfires: the roll fails, and you can redirect the full force, damage, or effect of that action onto any Stinous creature within your Influence Range."
     },
     {
       "name": "Locked in Time",
+      "id": "wte.innate.stygians-locked-in-time",
       "effect": "Active (Prepared Action) · Target: Multi (Stinous) · Vector: Ambient · Duration: Sustained · Area: Zone of Influence · Resolution: Wisdom Check vs your Inspiration DC + Inspiration Modifier. While positioned interstitially between two objects or creatures, you distort their temporal perception — linear time feels agonizingly elongated. To execute any action, an affected Stinous target must pass the check; on a failure, their Action Priority is suppressed, and any action or ability they attempt takes three times longer to resolve (consuming triple the normal AP cost or forcing them to accumulate 2 points of Fatigue)."
     }
   ]

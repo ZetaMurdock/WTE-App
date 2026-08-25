@@ -54,7 +54,7 @@ import {
   type VttToken,
   type VttWall,
 } from "../types/scene";
-import { applyOp, sanitizePlayerTokenUpdatePatch, sanitizeTokenUpdatePatch, type VttOp } from "../sync/patches";
+import { applyOp, sanitizePlayerTokenUpdatePatch, sanitizeTokenUpdatePatch, sanitizeTokenVitalsPatch, type VttOp } from "../sync/patches";
 import { canControlToken as tokenControlAllowed } from "../sync/tokenPermissions";
 import { canOccupy, nearestFreeCell } from "../data/occupancy";
 import type { VttTool } from "../types/tool";
@@ -1023,6 +1023,36 @@ export class PixiVttApp {
     this.onChanged();
     if (ownerChange !== undefined) this.onOp({ op: "token.assign", id, owner: ownerChange });
     if (Object.keys(safe).length) this.onOp({ op: "token.update", id, patch: safe });
+  }
+  /**
+   * The Curator's confirmed ruling reaching a body — the one write that may
+   * land on a token the Curator does not own.
+   *
+   * `updateToken` refuses another peer's token on purpose: a stray drag or an
+   * inspector edit must never rewrite a player's character. Damage from a roll
+   * the whole table watched is the opposite case. It is adjudication, it is the
+   * Curator's to declare, and the alternative is a resolution card that reports
+   * 27 damage while the op is dropped on the floor — a lie the table cannot see
+   * through. So the ownership gate is spent here, and nowhere else, on the two
+   * fields a ruling is allowed to touch.
+   *
+   * Returns whether the write was authorized, so a caller never announces HP it
+   * did not commit. An authorized write that changed nothing still returns true
+   * — the ruling landed; the number was simply already there.
+   */
+  adjudicateTokenVitals(id: string, patch: Partial<VttToken>): boolean {
+    if (!this.scene || this.playerView) return false;
+    const t = this.scene.data.tokens.find((x) => x.id === id);
+    if (!t) return false;
+    const safe = sanitizeTokenVitalsPatch(patch);
+    if (!Object.keys(safe).length) return false;
+    const changed = Object.entries(safe).some(([field, value]) => (t as unknown as Record<string, unknown>)[field] !== value);
+    if (!changed) return true;
+    Object.assign(t, safe);
+    this.redraw();
+    this.onChanged();
+    this.onOp({ op: "token.update", id, patch: safe });
+    return true;
   }
   /** Explicit Curator recovery path for a mistaken/stale ownership binding.
    * Ordinary Curator input still cannot move, edit, or remove another player's

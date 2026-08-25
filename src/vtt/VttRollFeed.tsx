@@ -18,6 +18,11 @@ export interface RollLock {
   requestId?: string;
   requestedBy?: string;
   dc?: number;
+  /** Who ANSWERS this roll, when that is not the tray's own actor. A Curator
+   *  rolling a target's save on their own machine files it under the TARGET;
+   *  attributing it to the caster would put the defender's save in the feed,
+   *  and in the campaign's roll history, under the wrong character. */
+  actor?: VttRollActor;
 }
 
 export interface VttRollActor {
@@ -98,6 +103,7 @@ export function VttRollFeed({ campaignId, sessionKey, actor, publishRoll, author
       const id = createRollId();
       const at = Date.now();
       const mode = roll.detail.mode ?? "normal";
+      const who = context?.actor ?? actor;
       const message: RollMessage = {
         t: "roll",
         id,
@@ -111,21 +117,21 @@ export function VttRollFeed({ campaignId, sessionKey, actor, publishRoll, author
         requestId: context?.requestId,
         actor: {
           peerId: net.selfId,
-          characterId: actor?.characterId ?? undefined,
-          tokenId: actor?.tokenId,
-          name: actor?.name,
+          characterId: who?.characterId ?? undefined,
+          tokenId: who?.tokenId,
+          name: who?.name,
         },
       };
       if (feedKey) {
         addSessionRoll(feedKey, {
           id,
-          who: actor?.name || "You",
+          who: who?.name || "You",
           label: message.label,
           formula: message.formula,
           result: message.result,
           at,
-          characterId: actor?.characterId,
-          tokenId: actor?.tokenId,
+          characterId: who?.characterId,
+          tokenId: who?.tokenId,
           requestId: message.requestId,
           baseExpr,
           mode,
@@ -133,12 +139,12 @@ export function VttRollFeed({ campaignId, sessionKey, actor, publishRoll, author
         });
       }
       if (campaignId) {
-        void logRoll(campaignId, actor?.characterId ?? null, roll, {
+        void logRoll(campaignId, who?.characterId ?? null, roll, {
           id,
           at,
           baseExpr,
-          actorName: actor?.name || "You",
-          tokenId: actor?.tokenId,
+          actorName: who?.name || "You",
+          tokenId: who?.tokenId,
           requestId: context?.requestId,
           mode,
         });

@@ -108,7 +108,12 @@ export function parseLegacySheet(data: unknown): LegacyImportResult {
       g.abilities.flatMap((a) => [a.name, ...(a.aliases ?? [])].map(norm))
     )
   );
-  const stdCipherNames = new Set(ciphersForParadigm(paradigm?.id).map((c) => norm(c.name)));
+  // Aliases count as standard, exactly as they do for Genus above: a legacy
+  // sheet naming a cipher by a name the rules have since replaced is holding a
+  // real cipher, and dropping it to the leftovers block loses it.
+  const stdCipherNames = new Set(
+    ciphersForParadigm(paradigm?.id).flatMap((c) => [c.name, ...(c.aliases ?? [])].map(norm))
+  );
   const stdCipher = new Set([
     ...stdCipherNames,
     ...Object.entries(CIPHER_RENAMES)

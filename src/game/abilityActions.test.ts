@@ -1,7 +1,8 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { GENUS_DOMAIN_NAMES, getGenusDomain } from "./wte";
 import { parseAbilityActions } from "./abilityActions";
-import { speciesInnate } from "./wte";
+import { CIPHER_DATA_BY_ID, GENUS_DATA_BY_ID, SPECIES, inceptsForSpecies, speciesInnate } from "./wte";
 
 describe("ability action parser", () => {
   it("pulls damage dice with their type", () => {
@@ -163,5 +164,100 @@ describe("the 2026-08 Genus/Cipher vocabulary", () => {
     // Homebrew "<X> Level" bonus terms still parse.
     const legacy = parseAbilityActions("make a Physical Save — Recovery (DV 16 + Code Level) each round");
     expect(legacy.find((a) => a.rollAxis?.path === "recovery")?.dcBonus).toBe("Code Level");
+  });
+});
+
+describe("who the dice land on, and which way the pool moves", () => {
+  it("charges the Inquisitor's backlash to the Inquisitor, not the target", () => {
+    // PSYCHIC SCREAM, verbatim: the caster's price shares a sentence with the
+    // target's damage, and only the 2d8 belongs to whoever was screamed at.
+    const acts = parseAbilityActions(
+      "Creatures in a 20-ft cone take 2d8 psychic damage and are Stunned for 1 round. " +
+        "On success: half damage, not Stunned. The Inquisitor takes 1d4 psychic backlash damage regardless."
+    );
+    expect(acts.find((a) => a.expr === "2d8")).toMatchObject({ kind: "damage" });
+    expect(acts.find((a) => a.expr === "2d8")?.self).toBeUndefined();
+    expect(acts.find((a) => a.expr === "1d4")).toMatchObject({ kind: "damage", self: true });
+  });
+
+  it("reads a bystander 'you' as a landmark, not as the one taking the hit", () => {
+    // Luminance Overload names the user only as the point the cone is measured
+    // from — the animates in it are the ones paying.
+    const acts = parseAbilityActions(
+      "Any animate within a 10 foot cone of the user will take 1d10 radiance damage."
+    );
+    expect(acts.find((a) => a.expr === "1d10")?.self).toBeUndefined();
+    for (const preposition of ["of", "from", "near", "around", "within", "beside", "behind", "by", "with"]) {
+      const near = parseAbilityActions(`Creatures ${preposition} you take 2d6 fire damage.`);
+      expect(near.find((a) => a.expr === "2d6")?.self).toBeUndefined();
+    }
+    // The bare subject still reads as the caster's own cost.
+    expect(parseAbilityActions("You take 2d6 fire damage.").find((a) => a.expr === "2d6")).toMatchObject({ self: true });
+  });
+
+  it("flags every SS tier of one heal, not just the first", () => {
+    // Reconstruct, verbatim. "heals" is said ONCE and then three sets of dice
+    // follow across semicolons — a clause-bounded window reaches only the 2d8
+    // and the resolution card would deal 4d8 and 6d8 to the patient.
+    const acts = parseAbilityActions(
+      "On objects: restores structural integrity regardless of damage type. " +
+        "On creatures: heals HP — 2d8 at SS 5; 4d8 at SS 10; 6d8 at SS 15; full HP + condition clear at SS 20."
+    );
+    for (const expr of ["2d8", "4d8", "6d8"]) {
+      expect(acts.find((a) => a.expr === expr), expr).toMatchObject({ kind: "damage", restorative: true });
+    }
+  });
+
+  it("catches a heal verb that sits further back than a clause window reaches", () => {
+    // Enhanced Regeneration: 43 characters separate "regenerate" from its dice.
+    const acts = parseAbilityActions(
+      "Accelerated healing well beyond other species: regenerate significant damage over short rests (1d10 HP per short rest)."
+    );
+    expect(acts.find((a) => a.expr === "1d10")).toMatchObject({ restorative: true });
+    // Other restorative verbs the shipped corpus uses.
+    expect(parseAbilityActions("Target recovers 3d8 HP immediately.").find((a) => a.expr === "3d8")).toMatchObject({ restorative: true });
+    expect(parseAbilityActions("stop bleeding (heal 1d8 HP as free action)").find((a) => a.expr === "1d8")).toMatchObject({ restorative: true });
+    expect(parseAbilityActions("immediately regenerate 1d20 + END modifier HP instead.").find((a) => a.restorative)).toBeTruthy();
+  });
+
+  it("does not let a heal in an earlier sentence claim later damage", () => {
+    const acts = parseAbilityActions("The ally heals 2d6 HP. The target then takes 3d10 Entropy damage.");
+    expect(acts.find((a) => a.expr === "2d6")).toMatchObject({ restorative: true });
+    expect(acts.find((a) => a.expr === "3d10")?.restorative).toBeUndefined();
+  });
+
+  it("keeps both flags off the rest of the shipped corpus", () => {
+    // A flag that spreads is worse than a flag that misses: `self` silently
+    // drops a consequence from the resolution card and `restorative` inverts
+    // one. Pin the abilities that legitimately carry them so a future widening
+    // of either predicate has to be deliberate.
+    const corpus = [
+      ...[...GENUS_DATA_BY_ID.values()].map((a) => ({ name: a.name, effect: a.effect })),
+      ...[...CIPHER_DATA_BY_ID.values()].map((a) => ({ name: a.name, effect: a.effect })),
+      ...SPECIES.flatMap((s) => speciesInnate(s.id).map((a) => ({ name: a.name, effect: a.effect }))),
+      ...SPECIES.flatMap((s) => inceptsForSpecies(s.id).map((a) => ({ name: a.name, effect: a.effect }))),
+    ];
+    expect(corpus.length).toBeGreaterThan(300);
+
+    const named = (flag: "self" | "restorative") =>
+      [...new Set(corpus.filter((a) => parseAbilityActions(a.effect).some((x) => x[flag])).map((a) => a.name))].sort();
+
+    expect(named("self")).toEqual(["PSYCHIC SCREAM"]);
+    expect(named("restorative")).toEqual([
+      "CELLULAR MASTERY",
+      "CELLULAR REGENERATION",
+      "Enhanced Regeneration",
+      "Neurochemical Surge",
+      "Rapid Regeneration",
+      "Reconstruct",
+    ]);
+  });
+
+  it("builds its patterns on every engine the app ships to", () => {
+    // Tauri bundles for WebKit as well as WebView2, and an unsupported regex
+    // construct throws where it is BUILT, not where it fails to match — one
+    // such pattern would take out every ability row in the app, not one clause.
+    const source = readFileSync(new URL("./abilityActions.ts", import.meta.url), "utf8");
+    expect(source).not.toMatch(/\(\?<[=!]/);
   });
 });

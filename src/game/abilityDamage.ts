@@ -42,14 +42,30 @@ export interface DamageSummary {
   none: boolean;
 }
 
+/**
+ * Prose meaning the dice that FOLLOW it move the pool the other way: they
+ * restore rather than harm.
+ *
+ * Each pattern runs to the end of the sentence rather than to the next clause,
+ * because one heal verb governs every tier it goes on to list — Reconstruct's
+ * "heals HP — 2d8 at SS 5; 4d8 at SS 10; 6d8 at SS 15" says "heals" once and
+ * then three sets of dice. A window measured in clauses or characters reaches
+ * the first set and reads the other two as damage.
+ */
+const RESTORATIVE_BEFORE = [
+  /\bheals?\b[^.]*$/i,              // "heals HP — 2d8 at SS 5"
+  /\bhealing\b[^.]*$/i,
+  /\bregenerat\w*\b[^.]*$/i,        // "regenerate 1d20 HP per turn", "regeneration"
+  /\brestores?\b[^.]*$/i,
+  /\brecovers?\b[^.]*$/i,           // "Target recovers 3d8 HP"
+  /\btemp(?:orary)?\s+hp\b[^.]*$/i,
+];
+
 /** Phrases meaning the dice near them are NOT this ability's damage output. */
 const NOT_DAMAGE_BEFORE = [
   /\bdc\s*(?:of|=)?\s*$/i,          // "DC 12", "a dc of d40"
-  /\bheals?\b[^.]*$/i,              // "heals HP — 2d8 at SS 5"
-  /\bregenerate[sd]?\b[^.]*$/i,     // "regenerate 1d20 HP per turn"
-  /\brestores?\b[^.]*$/i,
+  ...RESTORATIVE_BEFORE,            // a heal is not damage either
   /\bhp equal to\b[^.]*$/i,         // a construct's own HP
-  /\btemporary hp\b[^.]*$/i,
   /\broll\s*(?:a\s*)?$/i,           // "roll a d6 — on a 1" (a table roll)
 ];
 const NOT_DAMAGE_AFTER = [
@@ -58,9 +74,25 @@ const NOT_DAMAGE_AFTER = [
   /^\s*(?:rounds?|minutes?|turns?|feet|ft)\b/i,
 ];
 
+/** How far back a dice match reads for the prose that qualifies it. */
+const BEFORE_WINDOW = 60;
+
+/**
+ * Do the dice at `idx` restore rather than harm?
+ *
+ * Exported because the ability ACTION parser needs the same verdict: the Damage
+ * column and the VTT resolution card read the same prose, and a heal that one
+ * of them applies as damage to a token is the worst kind of disagreement. One
+ * list, one answer.
+ */
+export function isRestorativeAt(text: string, idx: number): boolean {
+  const before = text.slice(Math.max(0, idx - BEFORE_WINDOW), idx);
+  return RESTORATIVE_BEFORE.some((re) => re.test(before));
+}
+
 /** Is the dice match at `idx` this ability's damage, or something else? */
 function isDamageAt(text: string, idx: number, matchLen: number): boolean {
-  const before = text.slice(Math.max(0, idx - 60), idx);
+  const before = text.slice(Math.max(0, idx - BEFORE_WINDOW), idx);
   const after = text.slice(idx + matchLen, idx + matchLen + 24);
   if (NOT_DAMAGE_BEFORE.some((re) => re.test(before))) return false;
   if (NOT_DAMAGE_AFTER.some((re) => re.test(after))) return false;

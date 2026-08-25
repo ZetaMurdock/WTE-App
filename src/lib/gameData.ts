@@ -29,7 +29,7 @@ import { setCodexCatalog, setCodexRuntimeEntries } from "./codex";
 import { applyCodexPages, beginCodexLoad, codexLoadIsCurrent, noCodexPages, type PageSkip } from "../game/codexService";
 import { scanGenusCorpus, type RawPage } from "./genusCorpus";
 import { mergeVisibility, type GenusPage } from "../game/codexGenusSource";
-import { parseId } from "../game/codexId";
+import { overriddenId, parseId } from "../game/codexId";
 import { getActiveCampaignId } from "./repo";
 import { activeRoomCodex, listCampaignMechanicPages, markRoomCodexReady } from "./campaignCodex";
 import type { CodexEntry, Weapon, Equipment } from "../models/codex";
@@ -580,6 +580,16 @@ export async function loadCodexGameData(): Promise<void> {
         const effect = body && header && CIPHER_BODY_MARKER.test(body) ? `${header} ${body}` : body;
         (ciphers[key] ??= []).push({
           name: entry.name,
+          // Identity survives an override: a fork is the SAME cipher, so it
+          // keeps the OFFICIAL permanent id. A customized page's ID row names
+          // the layer (`campaign.<table>.cipher.…`), not the concept, and
+          // filing an outcome under the layer would lose it the moment the
+          // table drops the override.
+          id: official?.id ?? (entry.id ? overriddenId(entry.id) ?? entry.id : undefined),
+          // pageIdentity records the previous name in an Aliases row whenever a
+          // Curator renames a cipher page. Dropping it here is what left every
+          // player holding the pre-rename name with a blank 0-SS row.
+          aliases: entry.aliases,
           ss: entry.ss ?? official?.ss ?? null,
           tier: entry.tier || official?.tier || "offline",
           type: entry.activation ?? official?.type,

@@ -32,6 +32,7 @@ export const ID_KINDS = [
   "genus",
   "cipher",
   "incept",
+  "innate",
   "ability",
   "species",
   "variant",

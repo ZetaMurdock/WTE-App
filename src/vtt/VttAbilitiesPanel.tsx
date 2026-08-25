@@ -36,6 +36,9 @@ export interface VttTargetRollIntent {
   stat?: string;
   rollAxis?: NetRollAxisRequest;
   dc?: number;
+  /** The ability's own prose, so the shell can read what a failed save costs
+   *  without resolving the ability a second time. */
+  effect?: string;
 }
 
 interface Props {
@@ -192,8 +195,11 @@ export function VttAbilitiesPanel({
                     disabled={!onRequestTargetRoll}
                     onClick={() =>
                       onRequestTargetRoll?.({
-                        abilityId: a.id,
+                        // The permanent id when the ability carries one: an
+                        // outcome outlives the loadout position it was fired from.
+                        abilityId: a.abilityId ?? a.id,
                         abilityName: a.name,
+                        effect: a.effect,
                         sourceCharacterId: character?.id,
                         label: keyed ? `${savePlainLabel(s)} · DV ${keyed.dv}` : s.label,
                         stat: s.stat,
@@ -203,8 +209,8 @@ export function VttAbilitiesPanel({
                     }
                     title={
                       (onRequestTargetRoll
-                        ? "Ask the selected target's player to make this roll"
-                        : "Select a player-controlled target to request this roll") +
+                        ? "Resolve this roll against the selected target"
+                        : "Select a target token to resolve this roll") +
                       (keyed ? ` · ${saveDvBreakdown(keyed)}` : "")
                     }
                   >

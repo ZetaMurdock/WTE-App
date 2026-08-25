@@ -65,6 +65,11 @@ const PLAYER_TOKEN_UPDATE_KEYS = new Set<keyof VttToken>([
   "name", "size", "color", "img", "rotation", "hp", "hpMax", "facing", "statuses",
 ]);
 
+/** The narrow slice a Curator's adjudication touches: what a resolution costs a
+ *  body, and nothing about whose body it is. Ownership, identity, art and size
+ *  stay outside so an adjudicated hit can never reshape a player's token. */
+const TOKEN_VITALS_KEYS = new Set<keyof VttToken>(["hp", "statuses"]);
+
 function tokenUpdateValueAllowed(field: keyof VttToken, value: unknown): boolean {
   if (value === undefined) return true;
   switch (field) {
@@ -106,6 +111,15 @@ export function sanitizePlayerTokenUpdatePatch(patch: unknown): Partial<VttToken
   const safe = sanitizeTokenUpdatePatch(patch);
   for (const field of Object.keys(safe) as (keyof VttToken)[]) {
     if (!PLAYER_TOKEN_UPDATE_KEYS.has(field)) delete safe[field];
+  }
+  return safe;
+}
+
+/** Same value rules as any other token write, then cut down to vitals. */
+export function sanitizeTokenVitalsPatch(patch: unknown): Partial<VttToken> {
+  const safe = sanitizeTokenUpdatePatch(patch);
+  for (const field of Object.keys(safe) as (keyof VttToken)[]) {
+    if (!TOKEN_VITALS_KEYS.has(field)) delete safe[field];
   }
   return safe;
 }

@@ -155,6 +155,14 @@ export const SPEC_KEYS: SpecKey[] = SPECIALTIES.map((s) => s.key);
 export type SpeciesFamily = "Humanity" | "Omenity" | "Asternem";
 export interface SpeciesVariantAbility {
   name: string;
+  /** Permanent Codex id, stamped into speciesInnate.json. Optional because a
+   *  variant ability, a page-sourced innate or a homebrew one need not carry
+   *  one; every official innate does. */
+  id?: string;
+  /** Former names. A stored innate choice or an Incept seed holds a NAME, so a
+   *  rename would otherwise leave the character with neither the ability nor
+   *  the seed it was supposed to become. */
+  aliases?: string[];
   effect: string;
 }
 export interface SpeciesVariant {
@@ -864,6 +872,13 @@ export interface GenusDomain {
 }
 export interface CipherAbility {
   name: string;
+  /** Permanent Codex id, stamped into ciphers.json. Optional because a
+   *  page-sourced or homebrew cipher need not carry one; every official one does. */
+  id?: string;
+  /** Former names and respellings (ANIMATION -> SPYDER). A stored loadout must
+   *  keep resolving to this record; see CIPHER_RENAMES for the same problem
+   *  solved by hand before ciphers had identity. */
+  aliases?: string[];
   ss: number | null;
   tier: string;
   type?: string | null;
@@ -880,6 +895,15 @@ const CIPHER_DATA = nullRecord(cipherData as Record<string, CipherAbility[]>);
 export const GENUS_DATA_BY_ID: Map<string, GenusAbility> = new Map(
   Object.values(GENUS_DOMAINS).flatMap((d) =>
     d.abilities.filter((a) => a.id).map((a) => [a.id as string, a] as const)
+  )
+);
+
+/** Official cipher mechanics by permanent id, the counterpart to
+ *  GENUS_DATA_BY_ID. Ciphers still LOAD by name, so this is what lets an
+ *  outcome name the ability it came from after a rename or a reorder. */
+export const CIPHER_DATA_BY_ID: Map<string, CipherAbility> = new Map(
+  Object.values(CIPHER_DATA).flatMap((list) =>
+    list.filter((a) => a.id).map((a) => [a.id as string, a] as const)
   )
 );
 
@@ -984,6 +1008,15 @@ export const CIPHER_TIERS = ["offline", "online", "special"] as const;
 // ── Racial abilities + unified "usable" ability model (for the Actions rail) ──
 const SPECIES_INNATE = nullRecord(speciesInnateData as Record<string, SpeciesVariantAbility[]>);
 
+/** Official innate mechanics by permanent id. Innate ids carry the species
+ *  (`wte.innate.hyomen-peak-evolution`) because two lineages ship an innate of
+ *  the same name and they are not the same ability. */
+export const INNATE_DATA_BY_ID: Map<string, SpeciesVariantAbility> = new Map(
+  Object.values(SPECIES_INNATE).flatMap((list) =>
+    list.filter((a) => a.id).map((a) => [a.id as string, a] as const)
+  )
+);
+
 // ── Baked catalog readers, for the "Built-in" pages in Campaign Settings ──
 // These deliberately read the BASE arrays, never the overlaid live ones. A
 // campaign's own override must not come back to it labelled as the official
@@ -1028,13 +1061,29 @@ export function speciesInnate(speciesId?: string): SpeciesVariantAbility[] {
   // A bare id with no species record (an old save, a deleted lineage): the
   // baked list is the only thing left that can describe it.
   if (!names.length) return wiki;
-  const effects = new Map(wiki.map((a) => [a.name.toLowerCase(), a]));
+  // Former names key the map too, so a lineage whose `Innate` row still lists a
+  // pre-rename name gets the effect AND the permanent id rather than a blank.
+  // Every current name is claimed BEFORE any alias: one innate's former name is
+  // allowed to be another's current name, and the living ability owns it — the
+  // other way round hands a lineage the wrong effect and the wrong permanent id.
+  const effects = new Map<string, SpeciesVariantAbility>();
+  for (const a of wiki) effects.set(a.name.toLowerCase(), a);
+  for (const a of wiki) {
+    for (const alias of a.aliases ?? []) {
+      const key = alias.toLowerCase();
+      if (!effects.has(key)) effects.set(key, a);
+    }
+  }
   return names.map((name) => effects.get(name.toLowerCase()) ?? { name, effect: "" });
 }
 
 export type AbilitySource = "genus" | "cipher" | "racial" | "incept";
 export interface UsableAbility {
   source: AbilitySource;
+  /** Permanent Codex id, when the record it resolved to carries one. `name` is
+   *  a label a Curator may change and loadout position is a label the player
+   *  may change; this is the only key an applied outcome can be filed under. */
+  id?: string;
   name: string;
   ss: number;
   effect?: string | null;
@@ -1076,6 +1125,7 @@ export function usableGenus(
     }
     return {
       source: "genus" as const,
+      id: a?.id,
       name,
       ss: a?.ss ?? 0,
       effect: a?.effect,
@@ -1101,13 +1151,49 @@ export const CIPHER_RENAMES: Record<string, string> = {
   DIFUSE: "DIFFUSE",
   AUTHORATATIVE: "AUTHORITATIVE",
 };
+/** A cipher by anything a saved loadout can be holding: its current name, its
+ *  permanent id, or a former name. Exact name first, so the resolution a table
+ *  has today is untouched and the rest is only reached where it used to miss. */
+function matchCipher(all: CipherAbility[], ref: string): CipherAbility | undefined {
+  const key = ref.toLowerCase();
+  return (
+    all.find((x) => x.name === ref) ??
+    all.find((x) => x.id === ref) ??
+    all.find((x) => (x.aliases ?? []).some((a) => a.toLowerCase() === key))
+  );
+}
+/** The hand-kept respelling table has the first word on what a stored entry
+ *  means: it predates identity and covers typos no record ever carried. */
+function cipherRef(raw: string): string {
+  return ownRecordValue(CIPHER_RENAMES, raw) ?? raw;
+}
+/** The cipher a stored loadout entry resolves to. Exported so the Ciphers picker
+ *  ticks its rows from the SAME resolution the Actions rail runs: a row left
+ *  unticked while the sheet lists the ability is how a player ends up holding
+ *  two loadout entries for one cipher, paying for it twice. */
+export function resolveCipherRef(all: CipherAbility[], raw: string): CipherAbility | undefined {
+  return matchCipher(all, cipherRef(raw));
+}
 export function usableCiphers(paradigmId: string | undefined, loadout: string[]): UsableAbility[] {
   const all = ciphersForParadigm(paradigmId);
   return loadout.map((raw) => {
-    const name = ownRecordValue(CIPHER_RENAMES, raw) ?? raw;
-    const a = all.find((x) => x.name === name);
-    return { source: "cipher" as const, name, ss: a?.ss ?? 0, effect: a?.effect, activation: a?.type };
+    const a = resolveCipherRef(all, raw);
+    // The record's own name when one answered — an id or a former name in the
+    // loadout must display as the cipher is called NOW, never as a raw id.
+    const name = a?.name ?? cipherRef(raw);
+    return { source: "cipher" as const, id: a?.id, name, ss: a?.ss ?? 0, effect: a?.effect, activation: a?.type };
   });
+}
+/** Is this innate one of the chosen two? The stored choice holds NAMES, so it
+ *  must also answer to a former name and to the permanent id — usableRacial,
+ *  inceptSeeds and the creator's 2-of-4 picker split the same list on this
+ *  predicate, and a disagreement would put one ability in both halves or in
+ *  neither. */
+export function innateChosen(ability: SpeciesVariantAbility, choice: string[]): boolean {
+  if (choice.includes(ability.name)) return true;
+  if (ability.id && choice.includes(ability.id)) return true;
+  const aliases = (ability.aliases ?? []).map((a) => a.toLowerCase());
+  return aliases.length > 0 && choice.some((c) => aliases.includes(c.toLowerCase()));
 }
 export function usableRacial(
   speciesId?: string,
@@ -1118,13 +1204,13 @@ export function usableRacial(
   innateChoice?: string[],
 ): UsableAbility[] {
   let innates = speciesInnate(speciesId);
-  if (innateChoice && innateChoice.length) innates = innates.filter((a) => innateChoice.includes(a.name));
-  const out: UsableAbility[] = innates.map((a) => ({ source: "racial" as const, name: a.name, ss: 0, effect: a.effect }));
+  if (innateChoice && innateChoice.length) innates = innates.filter((a) => innateChosen(a, innateChoice));
+  const out: UsableAbility[] = innates.map((a) => ({ source: "racial" as const, id: a.id, name: a.name, ss: 0, effect: a.effect }));
   const variant = getSpecies(speciesId)?.variants.find((v) => v.name === variantName);
   if (variant) {
-    variant.abilities.forEach((a) => out.push({ source: "racial", name: a.name, ss: 0, effect: a.effect }));
+    variant.abilities.forEach((a) => out.push({ source: "racial", id: a.id, name: a.name, ss: 0, effect: a.effect }));
     const opt = variant.options?.find((o) => o.label === variantOption);
-    if (opt) out.push({ source: "racial", name: opt.ability.name, ss: 0, effect: opt.ability.effect });
+    if (opt) out.push({ source: "racial", id: opt.ability.id, name: opt.ability.name, ss: 0, effect: opt.ability.effect });
   }
   return out;
 }
@@ -1132,7 +1218,7 @@ export function usableRacial(
 /** The 2 unselected innate abilities — the Incept-pool seeds. */
 export function inceptSeeds(speciesId?: string, innateChoice?: string[]): SpeciesVariantAbility[] {
   if (!innateChoice || !innateChoice.length) return [];
-  return speciesInnate(speciesId).filter((a) => !innateChoice.includes(a.name));
+  return speciesInnate(speciesId).filter((a) => !innateChosen(a, innateChoice));
 }
 
 // ── Incepts ──────────────────────────────────────────────────────────────────
