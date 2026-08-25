@@ -51,6 +51,7 @@ const KIND_LABELS: Readonly<Record<string, string>> = {
   gear: "Equipment",
   cipher: "Cipher",
   genus: "Genus",
+  incept: "Incept",
   species: "Species",
   paradigm: "Paradigm",
   background: "Background",
@@ -191,6 +192,23 @@ ${table([
   ["Bonuses", backgroundBonuses(background)],
   ["Note", background.note ?? ""],
 ])}`;
+}
+
+/**
+ * The permanent concept id an official ARTICLE describes, when it exactly
+ * matches a catalog record — `Cognition.md` → `wte.paradigm.cognition`.
+ *
+ * Campaign Settings uses this to collapse an article and the built-in
+ * mechanics page for the same rule into ONE listing: a Curator asking "what is
+ * Cognition at this table" should get one answer, not a lore page, a built-in
+ * page and their own fork side by side.
+ */
+export function officialConceptIdFor(hint: CodexPageHint): string | null {
+  const known = findKnownMechanic(hint);
+  if (!known) return null;
+  if (known.kind === "Species") return `wte.species.${known.value.id}`;
+  if (known.kind === "Paradigm") return `wte.paradigm.${known.value.id}`;
+  return null; // backgrounds have no built-in page to collide with
 }
 
 /** Best display/editor section for a page. Explicit author metadata wins; then

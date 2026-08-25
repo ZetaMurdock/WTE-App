@@ -23,6 +23,7 @@ import { reportSaveFailure } from "../../lib/appToast";
 import { onOpenCodexPage } from "../../lib/openCodexPage";
 import { findBakedCodexPage } from "../../lib/bakedCodexPages";
 import { invalidatePageFileCache } from "../../lib/campaignCodex";
+import { pushUndo } from "../../lib/undoRedo";
 import { slugify } from "../../game/codexId";
 import { parseRollFormulaPage } from "../../game/rollFormula";
 import {
@@ -404,7 +405,7 @@ export function CodexBrowser({
     });
   }
 
-  async function savePageDraft(draft: PageDraft) {
+  async function savePageDraft(draft: PageDraft, forUndo: "user" | "history" = "user") {
     try {
       // Pin the page's identity INTO the page before writing it. A generated id
       // that never reaches disk is not stable — it gets re-derived from the title
@@ -451,6 +452,20 @@ export function CodexBrowser({
       setScanState("idle");
       setEditor(null);
       notifyPagesChanged();
+      // One edit, one undo step: put the page back exactly as the editor found
+      // it. New pages have no prior content to restore, so they register no
+      // step rather than a destructive one.
+      const priorContent = editor?.initial?.content;
+      const priorLabel = editor?.initial?.label;
+      if (forUndo === "user" && priorContent && priorContent !== draft.content) {
+        const redoDraft = { ...draft };
+        const undoDraft: PageDraft = { ...draft, content: priorContent, label: priorLabel ?? draft.label };
+        pushUndo({
+          label: `edit \u201c${draft.title}\u201d`,
+          undo: () => savePageDraft(undoDraft, "history"),
+          redo: () => savePageDraft(redoDraft, "history"),
+        });
+      }
       setUploadNote(
         campaignMode
           ? `Saved “${draft.title}” to this campaign's Codex.${idNote}`

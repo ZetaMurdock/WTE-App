@@ -90,6 +90,7 @@ import type { RollAxisStats } from "../../game/rollAxis";
 import { GenusContestPanel } from "./GenusContestPanel";
 import { CorruptSheetNotice } from "./CorruptSheetNotice";
 import { registerSaver } from "../../lib/saveQueue";
+import { pushUndo } from "../../lib/undoRedo";
 import { BioFields } from "./BioFields";
 import { parseBioFields, type BioField } from "../../lib/bioFields";
 
@@ -307,7 +308,15 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
   const sheetWryde = wrydeTierFor(sheet.speciesId, spend.incepts);
   const bioFields = parseBioFields(sheet.bioFields);
 
-  function persist(next: CharacterRecord) {
+  function persist(next: CharacterRecord, forUndo: "user" | "history" = "user") {
+    if (forUndo === "user" && rec) {
+      const before = rec;
+      pushUndo({
+        label: `edit ${next.name || "character"}`,
+        undo: () => persist(before, "history"),
+        redo: () => persist(next, "history"),
+      });
+    }
     setRec(next);
     pending.current = next;
     saver.current?.markPending();

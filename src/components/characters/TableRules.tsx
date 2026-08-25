@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { pushUndo } from "../../lib/undoRedo";
 import { POOL_COMP_RATE, SPEC_MAX, SPEC_TOTAL } from "../../game/wte";
 import {
   ATTR_BUDGET_MAX,
@@ -27,8 +28,17 @@ export function TableRules({ campaignId, onClose }: Props) {
   }, [onClose]);
 
   function patch(p: Partial<CampaignRules>) {
+    const before = rules;
     const next = { ...rules, ...p };
-    setRules(saveRules(campaignId, next));
+    const saved = saveRules(campaignId, next);
+    setRules(saved);
+    pushUndo({
+      label: "table rules change",
+      // setRules here only updates THIS dialog if it is still open; the saved
+      // value is what every consumer reads, so the inverse is complete either way.
+      undo: () => setRules(saveRules(campaignId, before)),
+      redo: () => setRules(saveRules(campaignId, next)),
+    });
   }
 
   return (

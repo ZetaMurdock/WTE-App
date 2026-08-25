@@ -1,6 +1,8 @@
 import type { WteUpdate } from "../lib/tauri";
 import { useNet } from "../net/NetContext";
 import { ProfileMenu } from "./ProfileMenu";
+import { useSyncExternalStore } from "react";
+import { redoOnce, subscribeUndoRedo, undoOnce, undoRedoState } from "../lib/undoRedo";
 
 // Legacy iframe tabs (sheet/vtt/wiki) are retired from the nav — the React Sheet,
 // VTT, and Codex are the app now. The TabId union keeps the ids so old deep links
@@ -57,6 +59,7 @@ export function TopBar({
   dotCursor,
   onToggleDotCursor,
 }: TopBarProps) {
+  const undoState = useSyncExternalStore(subscribeUndoRedo, undoRedoState);
   const net = useNet();
   // Per-campaign Curator claim: you're the Curator of campaigns you own. The only
   // "player" case is joining someone else's netplay room as a player — hide the
@@ -95,6 +98,24 @@ export function TopBar({
         </span>
       </div>
       <span className="spacer" />
+      <span className="undo-redo" aria-label="Undo and redo">
+        <button
+          className="undo-btn"
+          disabled={!undoState.canUndo}
+          onClick={() => void undoOnce()}
+          title={undoState.canUndo ? `Undo ${undoState.undoLabel ?? ""} (Ctrl+Z)` : "Nothing to undo in this window"}
+        >
+          ↶
+        </button>
+        <button
+          className="undo-btn"
+          disabled={!undoState.canRedo}
+          onClick={() => void redoOnce()}
+          title={undoState.canRedo ? `Redo ${undoState.redoLabel ?? ""} (Ctrl+X)` : "Nothing to redo"}
+        >
+          ↷
+        </button>
+      </span>
       {update && (
         <span className="upd">
           <span>Update {update.version || ""} available</span>

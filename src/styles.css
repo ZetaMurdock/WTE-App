@@ -1146,6 +1146,48 @@ body.wte-dot-cursor * {
 .campaign-codex-pages {
   display: grid;
 }
+/* The second collapse level: domains inside Genus, paradigms inside Ciphers. */
+.campaign-codex-subgroups {
+  display: grid;
+  gap: 7px;
+  padding: 8px;
+}
+.campaign-codex-group.sub {
+  border-radius: 6px;
+}
+.campaign-codex-grouphead.sub {
+  border-left-width: 2px;
+  font-size: 9px;
+  letter-spacing: 1.4px;
+  padding: 6px 9px;
+  position: static; /* the PARENT header owns the sticky slot */
+}
+
+/* Genus domains and Cipher suites read as GALLERIES — a wall of small cards,
+   one per ability, instead of a hundred full-width rows. */
+.campaign-codex-pages.gallery {
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 8px;
+  padding: 9px;
+}
+.campaign-codex-pages.gallery .campaign-codex-page {
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 8px 9px;
+}
+.campaign-codex-pages.gallery .campaign-codex-page + .campaign-codex-page {
+  border-top: 1px solid var(--panel-line);
+}
+.campaign-codex-pages.gallery .campaign-codex-page-id {
+  display: none;
+}
+.campaign-codex-pages.gallery .campaign-codex-statuses {
+  flex-wrap: wrap;
+}
 .campaign-codex-page {
   display: grid;
   grid-template-columns: minmax(200px, 1fr) auto auto;
@@ -1207,6 +1249,32 @@ body.wte-dot-cursor * {
   border-color: rgba(126, 207, 202, 0.55);
   color: var(--accent);
 }
+/* Universal undo/redo, in the top bar. Disabled means "nothing in THIS
+   window's trail" — history never crosses workspaces. */
+.undo-redo {
+  display: inline-flex;
+  gap: 2px;
+  margin-right: 8px;
+}
+.undo-btn {
+  background: none;
+  border: 1px solid var(--panel-line);
+  border-radius: 6px;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 3px 8px;
+}
+.undo-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.undo-btn:disabled {
+  cursor: default;
+  opacity: 0.3;
+}
+
 /* The Curator's genus-contest chip — an aggressive action, styled like one. */
 .chip.contest {
   border-color: #a1584a;

@@ -32,6 +32,7 @@ import {
 } from "./lib/tauri";
 import { pendingLibraryUpdates } from "./lib/publishedPages";
 import { pushToast } from "./lib/appToast";
+import { redoOnce, setUndoScope, undoOnce } from "./lib/undoRedo";
 import { installSaveGuards } from "./lib/saveQueue";
 import { migrateCampaignToDb } from "./lib/campaignStore";
 import type { Campaign } from "./models/campaign";
@@ -367,6 +368,33 @@ export default function App() {
     setActiveCampaignId(null);
     await reload();
   }
+
+  // Undo history is scoped to the WORKSPACE. Campaign Settings and the Codex
+  // are one workspace — customizing a rule walks dashboard → codex editor →
+  // back, and the trail must survive that walk. Every other tab is its own
+  // window; switching to it drops the previous trail.
+  useEffect(() => {
+    const workspace = activeTab === "dashboard" || activeTab === "codex" ? "workspace:campaign" : `workspace:${activeTab}`;
+    setUndoScope(workspace);
+  }, [activeTab]);
+
+  // Ctrl+Z undoes, Ctrl+X redoes — one action per press. Typing surfaces keep
+  // their native behavior: hijacking Ctrl+X inside a text field would turn
+  // "cut" into "redo", so editable elements are exempt.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!event.ctrlKey || event.altKey || event.metaKey) return;
+      const key = event.key.toLowerCase();
+      if (key !== "z" && key !== "x") return;
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+      event.preventDefault();
+      if (key === "z") void undoOnce();
+      else void redoOnce();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const currentCodexSourceKey = activeRoomCodex()?.campaignId ?? codexCampaignKey;
   const mechanicsBlocked = codexLoad.status !== "ready" || codexLoad.sourceKey !== currentCodexSourceKey;

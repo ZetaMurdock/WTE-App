@@ -7,7 +7,10 @@ import {
   type CampaignCodexSnapshot,
 } from "../lib/campaignCodex";
 import { openCodexPage, type OpenCodexPageIntent } from "../lib/openCodexPage";
-import { inferCodexSectionLabel } from "../lib/codexMechanicScaffold";
+import { inferCodexSectionLabel, officialConceptIdFor } from "../lib/codexMechanicScaffold";
+import { readField } from "../lib/pageIdentity";
+import { getSpecies } from "../game/wte";
+import { resolveCampaignCodexPages } from "../lib/campaignCodex";
 import {
   isPinned,
   moveQuickLink,
@@ -44,19 +47,132 @@ function humanize(value: string): string {
 // custom label a table had invented — and on a Codex that is mostly lore, the
 // nine rules a Curator edits were somewhere in the middle of the list.
 const SECTION_ORDER = [
-  "species", "paradigm", "background", "genus", "cipher",
+  "species", "paradigm", "background", "genus", "cipher", "incept",
   "weapon", "equipment", "creature", "roll formula",
 ];
 /** Generic buckets. Real content, but never what someone opened settings for. */
 const SECTION_LAST = ["lore", "page", "pages", "unsorted"];
 
 function sectionRank(key: string): number {
-  const known = SECTION_ORDER.indexOf(key);
+  // A domain/paradigm subgroup ranks where its parent section does; the
+  // domains then order alphabetically among themselves via the label sort.
+  const base = key.includes("\u00b7") ? key.split("\u00b7")[0].trim() : key;
+  const known = SECTION_ORDER.indexOf(base);
   if (known >= 0) return known;
-  return SECTION_LAST.includes(key) ? SECTION_ORDER.length + 1 : SECTION_ORDER.length;
+  return SECTION_LAST.includes(base) ? SECTION_ORDER.length + 1 : SECTION_ORDER.length;
+}
+
+/**
+ * The rules actually IN FORCE, one entry per rule.
+ *
+ * Three records can describe the same rule at once: the official wiki article,
+ * the generated built-in mechanics page, and a campaign fork. Character
+ * creation reads exactly one of them — so this panel lists exactly one: the
+ * fork when it exists, else the article, else the built-in.
+ */
+export function effectiveCampaignCodexView(
+  pages: CampaignCodexPage[],
+  builtIn: CampaignCodexPage[]
+): CampaignCodexPage[] {
+  // Campaign forks shadow the official pages they override (or share a stem
+  // with) — the same collapse players receive.
+  const resolved = resolveCampaignCodexPages(pages);
+  // Then collapse by CONCEPT: a fork carrying `Overrides: wte.paradigm.cognition`
+  // and the official Cognition article describe the same rule even though their
+  // ids differ. The fork wins — it is what character creation reads.
+  const conceptOf = (page: CampaignCodexPage): string => {
+    if (page.overrides && page.overrides.toLowerCase() !== "none") return page.overrides;
+    return (
+      officialConceptIdFor({ stem: page.stem, content: page.content, label: page.label, kind: page.kind }) ?? page.id
+    );
+  };
+  // Priority per concept: the campaign fork (what creation actually reads),
+  // then the BUILT-IN mechanics page (generated from the live catalog — its
+  // innates and variants are exactly creation's), then the lore article. The
+  // article losing to the built-in is deliberate: after a species rework the
+  // prose page may lag, but Campaign Settings is the RULES view, and it must
+  // show what the character creator will offer.
+  const MECHANIC_TYPES = new Set(["species", "paradigm", "background", "genus", "cipher", "incept", "weapon", "equipment", "gear", "roll formula", "formula"]);
+  const rank = (page: CampaignCodexPage): number => {
+    if (page.source === "campaign") return 4;
+    if (page.builtIn) return 2;
+    // A PULLED official page that declares a mechanic Type feeds the catalogs —
+    // creation reads it, so it outranks the generated stand-in. Prose never does.
+    const type = (readField(page.content, "Type") || "").trim().toLowerCase();
+    return page.pulled && MECHANIC_TYPES.has(type) ? 3 : 1;
+  };
+  const byConcept = new Map<string, CampaignCodexPage>();
+  for (const page of [...resolved, ...builtIn]) {
+    const key = conceptOf(page);
+    const prior = byConcept.get(key);
+    if (!prior || rank(page) > rank(prior)) byConcept.set(key, page);
+  }
+  return [...byConcept.values()];
+}
+
+/** Genus groups by their Genera domain; ciphers by their paradigm. The field
+ *  is on the page itself, so campaign forks group with their domain too. */
+function subgroupOf(page: CampaignCodexPage, sectionKey: string): { key: string; label: string } | null {
+  if (sectionKey === "genus") {
+    const domain = (readField(page.content, "Domain") || "").trim();
+    if (domain) return { key: `genus·${domain.toLowerCase()}`, label: `Genus · ${domain}` };
+  }
+  if (sectionKey === "incept") {
+    const speciesId = (readField(page.content, "Species") || readField(page.content, "Pool") || "").trim();
+    if (speciesId) {
+      const name = getSpecies(speciesId.toLowerCase())?.name ?? humanize(speciesId);
+      return { key: `incept·${speciesId.toLowerCase()}`, label: `Incepts · ${name}` };
+    }
+  }
+  if (sectionKey === "cipher") {
+    const paradigm = (readField(page.content, "Paradigm") || "").trim();
+    if (paradigm) {
+      const name = paradigm[0].toUpperCase() + paradigm.slice(1).toLowerCase();
+      return { key: `cipher·${paradigm.toLowerCase()}`, label: `Ciphers · ${name}` };
+    }
+  }
+  return null;
 }
 
 /** A dynamic view model: a new Codex kind automatically becomes a new group. */
+export interface SectionTree {
+  key: string;
+  label: string;
+  /** Flat sections carry pages directly; Genus/Ciphers carry children. */
+  pages?: CampaignCodexPage[];
+  children?: PageGroup[];
+  count: number;
+}
+
+/**
+ * Nest the domain/paradigm subgroups under one collapsed parent each: open
+ * "Ciphers", then migrate into the paradigm you want — 148 ciphers never sit
+ * flat in the section list.
+ */
+export function campaignCodexSectionTree(groups: PageGroup[]): SectionTree[] {
+  const out: SectionTree[] = [];
+  const parents = new Map<string, SectionTree>();
+  for (const group of groups) {
+    const sep = group.key.indexOf("\u00b7");
+    if (sep < 0) {
+      out.push({ key: group.key, label: group.label, pages: group.pages, count: group.pages.length });
+      continue;
+    }
+    const parentKey = group.key.slice(0, sep).trim();
+    const parentLabel =
+      parentKey === "genus" ? "Genus" : parentKey === "cipher" ? "Ciphers" : parentKey === "incept" ? "Incepts" : humanize(parentKey);
+    let parent = parents.get(parentKey);
+    if (!parent) {
+      parent = { key: parentKey, label: parentLabel, children: [], count: 0 };
+      parents.set(parentKey, parent);
+      out.push(parent);
+    }
+    parent.children!.push(group);
+    parent.count += group.pages.length;
+  }
+  return out;
+}
+
 export function groupCampaignCodexPages(pages: CampaignCodexPage[]): PageGroup[] {
   const groups = new Map<string, PageGroup>();
   for (const page of pages) {
@@ -66,11 +182,13 @@ export function groupCampaignCodexPages(pages: CampaignCodexPage[]): PageGroup[]
       label: page.label,
       kind: page.kind,
     }) || page.kind.trim() || "Pages";
-    const key = raw.toLocaleLowerCase();
+    const sectionKey = raw.toLocaleLowerCase();
+    const sub = subgroupOf(page, sectionKey);
+    const key = sub?.key ?? sectionKey;
     // Preserve an explicitly authored label's casing. Inferred/kind labels keep
     // the panel's existing sentence-case presentation (for example
     // "Roll formula" rather than changing an established dashboard heading).
-    const displayLabel = page.label?.trim() ? humanize(raw) : humanize(raw.toLocaleLowerCase());
+    const displayLabel = sub?.label ?? (page.label?.trim() ? humanize(raw) : humanize(raw.toLocaleLowerCase()));
     const group = groups.get(key) ?? { key, label: displayLabel, pages: [] };
     group.pages.push(page);
     groups.set(key, group);
@@ -145,11 +263,10 @@ export function CampaignCodexPanel({ campaignId, campaignName, curator }: Props)
   // The compiled catalog, shown alongside the stored pages. A real official page
   // with the same identity is the better record of the same rule (someone
   // uploaded the actual article), so the generated stand-in steps aside.
-  const allPages = useMemo(() => {
-    const pages = snapshot?.pages ?? [];
-    const known = new Set(pages.map((page) => page.id));
-    return [...pages, ...(snapshot?.builtIn ?? []).filter((page) => !known.has(page.id))];
-  }, [snapshot]);
+  const allPages = useMemo(
+    () => effectiveCampaignCodexView(snapshot?.pages ?? [], snapshot?.builtIn ?? []),
+    [snapshot]
+  );
 
   const groups = useMemo(() => {
     const needle = filter.trim().toLowerCase();
@@ -160,6 +277,7 @@ export function CampaignCodexPanel({ campaignId, campaignName, curator }: Props)
       : allPages;
     return groupCampaignCodexPages(pages);
   }, [allPages, filter]);
+  const tree = useMemo(() => campaignCodexSectionTree(groups), [groups]);
 
   // A rule renamed in the Codex should read by its new name in the pin rail, and
   // a rule that no longer exists should not sit there as a dead button.
@@ -184,6 +302,51 @@ export function CampaignCodexPanel({ campaignId, campaignName, curator }: Props)
   function movePin(id: string, delta: -1 | 1): void {
     if (!campaignId) return;
     setPins(moveQuickLink(campaignId, id, delta));
+  }
+
+  function pageCard(page: CampaignCodexPage) {
+    const actionIntent: OpenCodexPageIntent = page.source === "campaign" ? "edit" : "customize";
+    return (
+      <article className="campaign-codex-page" key={`${page.source}:${page.id}`}>
+        <button
+          className="campaign-codex-page-main"
+          onClick={() => openPage(page, campaignId, "read")}
+          title={`Open ${page.title} in the Codex`}
+        >
+          <span className="campaign-codex-page-title">{page.title}</span>
+          <span className="campaign-codex-page-id">{page.id}</span>
+        </button>
+        <div className="campaign-codex-statuses" aria-label={`${page.title} status`}>
+          <span className={`campaign-codex-badge source-${page.builtIn ? "builtin" : page.source}`}>
+            {page.source === "campaign" ? "Campaign" : page.builtIn ? "Built-in" : "Official"}
+          </span>
+          <span className={`campaign-codex-badge visibility-${page.visibility}`}>
+            {page.visibility === "curator" ? "Curator only" : "Players"}
+          </span>
+          {/* "Not pulled" would read as broken on a built-in rule.
+              It is already in force — that is what built-in means. */}
+          <span className={`campaign-codex-badge ${page.builtIn ? "pulled" : page.pulled ? "pulled" : "not-pulled"}`}>
+            {page.builtIn ? "In force" : page.pulled ? "Pulled" : "Not pulled"}
+          </span>
+        </div>
+        <div className="campaign-codex-actions">
+          <button
+            className={"ghost-btn xs" + (isPinned(pins, page.id) ? " pinned" : "")}
+            onClick={() => togglePin(page)}
+            aria-pressed={isPinned(pins, page.id)}
+            title={isPinned(pins, page.id) ? "Remove from quick links" : "Add to quick links"}
+          >
+            {isPinned(pins, page.id) ? "★" : "☆"}
+          </button>
+          <button className="ghost-btn xs" onClick={() => openPage(page, campaignId, "read")}>
+            Open
+          </button>
+          <button className="primary-btn xs" onClick={() => openPage(page, campaignId, actionIntent)}>
+            {page.source === "campaign" ? "Edit" : "Customize"}
+          </button>
+        </div>
+      </article>
+    );
   }
 
   if (!curator) return null;
@@ -286,67 +449,50 @@ export function CampaignCodexPanel({ campaignId, campaignName, curator }: Props)
 
       {groups.length > 0 && (
         <div className="campaign-codex-groups">
-          {groups.map((group) => (
+          {tree.map((section) => (
             <details
               className="campaign-codex-group"
-              key={group.key}
+              key={section.key}
               // A filter is a search: showing the matches inside collapsed
               // sections would hide the very thing that was searched for.
-              open={!!filter.trim() || openGroups.includes(group.key)}
+              open={!!filter.trim() || openGroups.includes(section.key)}
               onToggle={(event) =>
-                setOpenGroups(setGroupOpen(campaignId, group.key, event.currentTarget.open))
+                setOpenGroups(setGroupOpen(campaignId, section.key, event.currentTarget.open))
               }
             >
               <summary className="campaign-codex-grouphead">
-                <span>{group.label}</span>
-                <span className="campaign-codex-count">{group.pages.length}</span>
+                <span>{section.label}</span>
+                <span className="campaign-codex-count">{section.count}</span>
               </summary>
-              <div className="campaign-codex-pages">
-                {group.pages.map((page) => {
-                  const actionIntent: OpenCodexPageIntent = page.source === "campaign" ? "edit" : "customize";
-                  return (
-                    <article className="campaign-codex-page" key={`${page.source}:${page.id}`}>
-                      <button
-                        className="campaign-codex-page-main"
-                        onClick={() => openPage(page, campaignId, "read")}
-                        title={`Open ${page.title} in the Codex`}
-                      >
-                        <span className="campaign-codex-page-title">{page.title}</span>
-                        <span className="campaign-codex-page-id">{page.id}</span>
-                      </button>
-                      <div className="campaign-codex-statuses" aria-label={`${page.title} status`}>
-                        <span className={`campaign-codex-badge source-${page.builtIn ? "builtin" : page.source}`}>
-                          {page.source === "campaign" ? "Campaign" : page.builtIn ? "Built-in" : "Official"}
-                        </span>
-                        <span className={`campaign-codex-badge visibility-${page.visibility}`}>
-                          {page.visibility === "curator" ? "Curator only" : "Players"}
-                        </span>
-                        {/* "Not pulled" would read as broken on a built-in rule.
-                            It is already in force — that is what built-in means. */}
-                        <span className={`campaign-codex-badge ${page.builtIn ? "pulled" : page.pulled ? "pulled" : "not-pulled"}`}>
-                          {page.builtIn ? "In force" : page.pulled ? "Pulled" : "Not pulled"}
-                        </span>
+              {section.pages && (
+                <div className="campaign-codex-pages">
+                  {section.pages.map((page) => pageCard(page))}
+                </div>
+              )}
+              {/* Genus and Ciphers open into their domains/paradigms — a second
+                  collapse level, so 148 ciphers never sit flat in the list. */}
+              {section.children && (
+                <div className="campaign-codex-subgroups">
+                  {section.children.map((child) => (
+                    <details
+                      className="campaign-codex-group sub"
+                      key={child.key}
+                      open={!!filter.trim() || openGroups.includes(child.key)}
+                      onToggle={(event) =>
+                        setOpenGroups(setGroupOpen(campaignId, child.key, event.currentTarget.open))
+                      }
+                    >
+                      <summary className="campaign-codex-grouphead sub">
+                        <span>{child.label}</span>
+                        <span className="campaign-codex-count">{child.pages.length}</span>
+                      </summary>
+                      <div className="campaign-codex-pages gallery">
+                        {child.pages.map((page) => pageCard(page))}
                       </div>
-                      <div className="campaign-codex-actions">
-                        <button
-                          className={"ghost-btn xs" + (isPinned(pins, page.id) ? " pinned" : "")}
-                          onClick={() => togglePin(page)}
-                          aria-pressed={isPinned(pins, page.id)}
-                          title={isPinned(pins, page.id) ? "Remove from quick links" : "Add to quick links"}
-                        >
-                          {isPinned(pins, page.id) ? "★" : "☆"}
-                        </button>
-                        <button className="ghost-btn xs" onClick={() => openPage(page, campaignId, "read")}>
-                          Open
-                        </button>
-                        <button className="primary-btn xs" onClick={() => openPage(page, campaignId, actionIntent)}>
-                          {page.source === "campaign" ? "Edit" : "Customize"}
-                        </button>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
+                    </details>
+                  ))}
+                </div>
+              )}
             </details>
           ))}
         </div>

@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildCampaignCodexSnapshot, type CampaignCodexPage } from "../lib/campaignCodex";
 import { OPEN_CODEX_PAGE, type OpenCodexPageDetail } from "../lib/openCodexPage";
-import { CampaignCodexPanel, groupCampaignCodexPages } from "./CampaignCodexPanel";
+import { CampaignCodexPanel, campaignCodexSectionTree, effectiveCampaignCodexView, groupCampaignCodexPages } from "./CampaignCodexPanel";
 
 vi.mock("../lib/campaignCodex", async (loadOriginal) => {
   const original = await loadOriginal<typeof import("../lib/campaignCodex")>();
@@ -168,9 +168,10 @@ describe("built-in rules in the panel", () => {
   });
 
   it("steps aside for a real page describing the same rule", async () => {
-    // Someone uploaded the actual Oriyu article. That is the better record, and
-    // showing both would be one lineage listed twice.
-    const uploaded: CampaignCodexPage = { ...builtIn, builtIn: undefined, content: "# Oriyu (uploaded)", pulled: true };
+    // Someone uploaded the actual Oriyu MECHANICS page — pulled, typed, feeding
+    // the catalogs. That is what creation reads, so it replaces the stand-in.
+    // (Bare prose with the same id would NOT: live rules beat lore.)
+    const uploaded: CampaignCodexPage = { ...builtIn, builtIn: undefined, content: "# Oriyu\n\n| Type | Species |", pulled: true };
     await mountWith([builtIn], [uploaded]);
     expect(host.querySelectorAll(".campaign-codex-page")).toHaveLength(1);
     expect(host.textContent).not.toContain("Built-in");
@@ -299,5 +300,173 @@ describe("section ordering", () => {
     ]);
     expect(groups).toHaveLength(1);
     expect(groups[0].pages).toHaveLength(3);
+  });
+});
+
+describe("effective-only view — one entry per rule", () => {
+  const builtInCognition: CampaignCodexPage = {
+    id: "wte.paradigm.cognition",
+    stem: "paradigm-cognition",
+    title: "Cognition",
+    kind: "paradigm",
+    label: "Paradigm",
+    content: "# Cognition\n\n| Type | Paradigm |",
+    visibility: "player",
+    pulled: false,
+    source: "official",
+    builtIn: true,
+  };
+  const article: CampaignCodexPage = {
+    id: "wte.page.cognition",
+    stem: "Cognition",
+    title: "Cognition",
+    kind: "page",
+    label: "Paradigm",
+    content: "# Cognition\n\nLore article about the paradigm.",
+    visibility: "player",
+    pulled: true,
+    source: "official",
+  };
+  const fork: CampaignCodexPage = {
+    id: `campaign.${CAMPAIGN}.paradigm.cognition`,
+    stem: "paradigm-cognition",
+    title: "Cognition",
+    kind: "paradigm",
+    content: "# Cognition\n\n| Type | Paradigm |\n| Name | Insight |",
+    visibility: "player",
+    pulled: true,
+    source: "campaign",
+    ownerId: CAMPAIGN,
+    overrides: "wte.paradigm.cognition",
+  };
+
+  it("shows only the campaign fork when one exists", () => {
+    const view = effectiveCampaignCodexView([article, fork], [builtInCognition]);
+    const cognitions = view.filter((page) => page.title === "Cognition");
+    expect(cognitions).toHaveLength(1);
+    expect(cognitions[0].source).toBe("campaign");
+  });
+
+  it("shows the BUILT-IN over the article when there is no fork", () => {
+    // The built-in is generated from the live catalog — its rows are exactly
+    // what character creation offers. After the Seraph rework, showing the
+    // article here meant Campaign Settings displayed pre-rework prose while
+    // the creator offered the new innates and variants.
+    const view = effectiveCampaignCodexView([article], [builtInCognition]);
+    const cognitions = view.filter((page) => page.title === "Cognition");
+    expect(cognitions).toHaveLength(1);
+    expect(cognitions[0].id).toBe("wte.paradigm.cognition");
+    expect(cognitions[0].builtIn).toBe(true);
+  });
+
+  it("shows the built-in when nothing else describes the rule", () => {
+    const view = effectiveCampaignCodexView([], [builtInCognition]);
+    expect(view).toEqual([builtInCognition]);
+  });
+});
+
+describe("genus and cipher galleries group by domain and paradigm", () => {
+  const genusPage = (name: string, domain: string): CampaignCodexPage => ({
+    id: `wte.genus.${name.toLowerCase()}`,
+    stem: `genus-${name.toLowerCase()}`,
+    title: name,
+    kind: "genus",
+    label: "Genus",
+    content: `# ${name}\n\n| Type | Genus |\n| Domain | ${domain} |`,
+    visibility: "player",
+    pulled: false,
+    source: "official",
+    builtIn: true,
+  });
+  const cipherPage = (name: string, paradigm: string): CampaignCodexPage => ({
+    id: `wte.cipher.${name.toLowerCase()}`,
+    stem: `cipher-${name.toLowerCase()}`,
+    title: name,
+    kind: "cipher",
+    label: "Cipher",
+    content: `# ${name}\n\n| Type | Cipher |\n| Paradigm | ${paradigm} |`,
+    visibility: "player",
+    pulled: false,
+    source: "official",
+    builtIn: true,
+  });
+
+  it("puts Neutral genus with Neutral, Photonic with Photonic", () => {
+    const groups = groupCampaignCodexPages([
+      genusPage("Hearth", "Neutral"),
+      genusPage("Blitz", "Photonic"),
+      genusPage("Deus", "Neutral"),
+    ]);
+    const labels = groups.map((group) => group.label);
+    expect(labels).toContain("Genus · Neutral");
+    expect(labels).toContain("Genus · Photonic");
+    const neutral = groups.find((group) => group.label === "Genus · Neutral")!;
+    expect(neutral.pages.map((page) => page.title).sort()).toEqual(["Deus", "Hearth"]);
+  });
+
+  it("puts each cipher suite under its paradigm", () => {
+    const groups = groupCampaignCodexPages([
+      cipherPage("SPYDER", "remnant"),
+      cipherPage("MIND TWEAK", "cognition"),
+    ]);
+    expect(groups.map((group) => group.label)).toEqual(
+      expect.arrayContaining(["Ciphers · Remnant", "Ciphers · Cognition"])
+    );
+  });
+
+  it("nests incepts under one Incepts parent, one child per species pool", () => {
+    const incept = (name: string, speciesId: string): CampaignCodexPage => ({
+      id: `wte.incept.${speciesId}-${name.toLowerCase()}`,
+      stem: `incept-${speciesId}-${name.toLowerCase()}`,
+      title: name,
+      kind: "incept",
+      label: "Incept",
+      content: `# ${name}
+
+| Type | Incept |
+| Species | ${speciesId} |`,
+      visibility: "player",
+      pulled: false,
+      source: "official",
+      builtIn: true,
+    });
+    const tree = campaignCodexSectionTree(
+      groupCampaignCodexPages([incept("Sanction", "hyomen"), incept("Prodigy", "hyomen"), incept("Eldritch Mind", "inderi")])
+    );
+    const parent = tree.find((section) => section.label === "Incepts")!;
+    expect(parent.count).toBe(3);
+    expect(parent.children!.map((child) => child.label).sort()).toEqual(["Incepts · Hyomen", "Incepts · Inderi"]);
+  });
+
+  it("nests domains under one Genus parent and paradigms under one Ciphers parent", () => {
+    const tree = campaignCodexSectionTree(
+      groupCampaignCodexPages([
+        genusPage("Hearth", "Neutral"),
+        genusPage("Blitz", "Photonic"),
+        cipherPage("SPYDER", "remnant"),
+      ])
+    );
+    const genusParent = tree.find((section) => section.label === "Genus")!;
+    expect(genusParent.count).toBe(2);
+    expect(genusParent.children!.map((child) => child.label).sort()).toEqual(["Genus · Neutral", "Genus · Photonic"]);
+    const cipherParent = tree.find((section) => section.label === "Ciphers")!;
+    expect(cipherParent.children![0].label).toBe("Ciphers · Remnant");
+    // No stray flat sections for the nested kinds.
+    expect(tree.filter((section) => section.label.includes("·"))).toHaveLength(0);
+  });
+
+  it("a campaign fork of a genus groups with its domain, not in a separate bucket", () => {
+    const forked: CampaignCodexPage = {
+      ...genusPage("Hearth", "Neutral"),
+      id: `campaign.${CAMPAIGN}.genus.hearth`,
+      source: "campaign",
+      builtIn: undefined,
+      ownerId: CAMPAIGN,
+      overrides: "wte.genus.hearth",
+    };
+    const groups = groupCampaignCodexPages([forked, genusPage("Deus", "Neutral")]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].label).toBe("Genus · Neutral");
+    expect(groups[0].pages).toHaveLength(2);
   });
 });
