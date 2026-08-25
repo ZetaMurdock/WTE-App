@@ -27,9 +27,12 @@ export type RollFormulaPath = (typeof ROLL_FORMULA_PATHS)[number];
 export const ROLL_FORMULA_DIRECTIONS = ["check", "save"] as const;
 export type RollFormulaDirection = (typeof ROLL_FORMULA_DIRECTIONS)[number];
 
-const PATH_DIRECTIONS: Readonly<Record<RollFormulaPath, readonly RollFormulaDirection[]>> = {
+/** Legal directions per path. Must mirror the `directions` on ROLL_AXIS_PATHS
+ * in rollAxis.ts (and AXIS_PATH_RULES in abilityActions.ts); this module cannot
+ * import them without a cycle, so rollFormula.test.ts enforces the agreement. */
+export const PATH_DIRECTIONS: Readonly<Record<RollFormulaPath, readonly RollFormulaDirection[]>> = {
   power: ["check"],
-  density: ["save"],
+  density: ["check"],
   evasion: ["save"],
   recovery: ["save"],
   capacity: ["check"],

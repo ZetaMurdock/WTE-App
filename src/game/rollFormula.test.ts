@@ -3,9 +3,12 @@ import {
   parseRollFormulaPage,
   resolveCodexRollFormula,
   setCodexRollFormulas,
+  PATH_DIRECTIONS,
+  ROLL_FORMULA_PATHS,
 } from "./rollFormula";
 import { rollSpecialty } from "./wte";
-import { rollAxisChoices, rollAxisPaths, rollAxisRoll, type RollAxisStats } from "./rollAxis";
+import { ROLL_AXIS_PATHS, rollAxisChoices, rollAxisPaths, rollAxisRoll, type RollAxisStats } from "./rollAxis";
+import { AXIS_PATH_RULES } from "./abilityActions";
 
 function page(rows: string[], title = "House Formula"): string {
   return [`# ${title}`, "", "| Field | Value |", "|---|---|", "| Type | Roll Formula |", ...rows].join("\n");
@@ -199,6 +202,26 @@ describe("safe Codex Roll Formula parsing", () => {
     ]), "evasion-check");
     expect(evasionCheck).toMatchObject({ ok: false });
     expect(evasionCheck && !evasionCheck.ok ? evasionCheck.errors.join(" ") : "").toMatch(/evasion does not support check/i);
+
+    const densitySave = parseRollFormulaPage(page([
+      "| Target | Roll Axis Attribute |",
+      "| Path | Density |",
+      "| Direction | Save |",
+      "| Die | 20 |",
+      "| Modifier | source + derived |",
+    ]), "density-save");
+    expect(densitySave).toMatchObject({ ok: false });
+    expect(densitySave && !densitySave.ok ? densitySave.errors.join(" ") : "").toMatch(/density does not support save/i);
+  });
+});
+
+describe("path/direction tables agree across modules", () => {
+  it("keeps PATH_DIRECTIONS and AXIS_PATH_RULES mirroring ROLL_AXIS_PATHS for every path", () => {
+    expect([...ROLL_FORMULA_PATHS].sort()).toEqual(ROLL_AXIS_PATHS.map((path) => path.id).sort());
+    for (const path of ROLL_AXIS_PATHS) {
+      expect(PATH_DIRECTIONS[path.id], `rollFormula directions for ${path.id}`).toEqual(path.directions);
+      expect(AXIS_PATH_RULES[path.id], `abilityActions rules for ${path.id}`).toEqual({ axis: path.axis, directions: path.directions });
+    }
   });
 });
 
@@ -272,6 +295,27 @@ describe("Codex formula roll integration", () => {
     const savePath = rollAxisPaths("mental", "save").find((path) => path.id === "perception")!;
     expect(rollAxisChoices(checkPath, "check", stats)[0].totalMod).toBe(6);
     expect(rollAxisChoices(savePath, "save", stats)[0].totalMod).toBe(0);
+  });
+
+  it("accepts a Density check formula and fires it on the sheet's Density Physical Check", () => {
+    const formula = valid(page([
+      "| Target | Roll Axis Attribute |",
+      "| Path | Density |",
+      "| Direction | Check |",
+      "| Die | 20 |",
+      "| Modifier | source + derived + 1 |",
+    ], "Density Formula"));
+    setCodexRollFormulas([formula]);
+    const stats: RollAxisStats = {
+      attr: { phy: 2, ap: 1, dex: 2, end: 0, wis: 1, int: 3, cha: -1 },
+      spec: { wm: 4, pre: 3, bal: -2, adp: 1, mf: 0, per: 5, cun: -3 },
+      derived: { atk: 3, ad: 2, ev: -3, rr: -1, nc: 4, pr: 1, inf: -2 },
+    };
+    const path = rollAxisPaths("physical", "check").find((p) => p.id === "density")!;
+    expect(rollAxisChoices(path, "check", stats)[0]).toMatchObject({
+      totalMod: 4, // AP 1 + AD 2 + 1
+      codexFormula: { name: "Density Formula" },
+    });
   });
 
   it("keeps the published Roll Axis audit formula inside the network wire bound", () => {

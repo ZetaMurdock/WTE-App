@@ -39,14 +39,21 @@ export interface AbilityAction {
   damageType?: string;
 }
 
-const DAMAGE_TYPES = "Force|Radiant|Antimatter|Psychic|Spirit|Entropy|Fire|Cold|Kinetic|Void|Null|Acid|Poison|Crushing|Cold|Sonic|Lightning|Necrotic";
+/** Damage type vocabulary, exported for authoring UIs; the parser derives its
+ *  alternation from this list so the two can never disagree. */
+export const DAMAGE_TYPE_WORDS = [
+  "Force", "Radiant", "Antimatter", "Psychic", "Spirit", "Entropy", "Fire", "Cold",
+  "Kinetic", "Void", "Null", "Acid", "Poison", "Crushing", "Sonic", "Lightning", "Necrotic",
+] as const;
+const DAMAGE_TYPES = DAMAGE_TYPE_WORDS.join("|");
 
 // Stat words the resolver in wte.ts understands, as an alternation for scanning.
 const STAT_WORDS =
   "Physical|Strength|Dexterity|Endurance|Action Priority|AP|Wisdom|Charisma|Intelligence|" +
   "Inspiration|Balance|Weight|Precision|Control|Weapon Mastery|Mental Fortitude|Perception|Adaptation|Adaption|Cunning|Influence";
 
-const AXIS_PATH_RULES: Record<AbilityRollAxisPath, { axis: AbilityRollAxis; directions: readonly AbilityRollDirection[] }> = {
+/** Must mirror ROLL_AXIS_PATHS in rollAxis.ts; rollFormula.test.ts enforces it. */
+export const AXIS_PATH_RULES: Record<AbilityRollAxisPath, { axis: AbilityRollAxis; directions: readonly AbilityRollDirection[] }> = {
   power: { axis: "physical", directions: ["check"] },
   density: { axis: "physical", directions: ["check"] },
   evasion: { axis: "physical", directions: ["save"] },

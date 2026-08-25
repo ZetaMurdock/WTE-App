@@ -20,14 +20,21 @@
 // than no page at all.
 import {
   ATTRIBUTES,
+  bakedCiphers,
   bakedParadigms,
   bakedSpecies,
   bakedSpeciesInnate,
   bakedSpeciesSize,
+  GENUS_DOMAIN_NAMES,
+  getGenusDomain,
+  type CipherAbility,
+  type GenusAbility,
   type Paradigm,
   type Species,
   type SpeciesVariantAbility,
 } from "../game/wte";
+import { slugify } from "../game/codexId";
+import { splitCipherEffect } from "./codexParse";
 import type { CampaignCodexPage } from "./campaignCodex";
 
 /** Table cells are read with `|([^|]+)|([^|]+)|`, so a pipe inside a value would
@@ -127,6 +134,57 @@ export function bakedParadigmPageContent(paradigm: Paradigm): string {
   ].join("\n\n")}\n`;
 }
 
+/** One Genus ability page. Every row round-trips through parseCodexEntry, so a
+ *  campaign fork of this page IS the campaign override the Genus resolver
+ *  honours — same id-keyed layering as any hand-authored campaign Genus page.
+ *
+ *  No preamble prose: parseCodexEntry sweeps loose prose into `effect`, so the
+ *  only text outside the field table must be the effect itself. The Customize
+ *  guidance the species pages carry lives in the mechanics editor instead. */
+export function bakedGenusPageContent(ability: GenusAbility, domain: string): string {
+  const sections = [
+    `# ${ability.name}`,
+    fieldTable([
+      ["Type", "Genus"],
+      ["ID", ability.id ?? `wte.genus.${slugify(ability.name)}`],
+      ["Domain", domain],
+      ["SS", ability.ss],
+      ["Activation", ability.activation],
+      ["Range", ability.range],
+      ["Target", ability.target],
+      ["Classification", ability.classification],
+      ["Limit", ability.limit],
+    ]),
+  ];
+  const effect = (ability.effect ?? "").trim();
+  if (effect) sections.push("## Effect", effect);
+  return `${sections.join("\n\n")}\n`;
+}
+
+/** One cipher page. Ciphers resolve by NAME (the legacy merge, not the id
+ *  registry), so a fork keeps working only while its Name row still names the
+ *  official cipher. Prose-free for the same reason as the Genus pages. */
+export function bakedCipherPageContent(cipher: CipherAbility, paradigmId: string): string {
+  const split = cipher.effect ? splitCipherEffect(cipher.effect) : null;
+  const sections = [
+    `# ${cipher.name}`,
+    fieldTable([
+      ["Type", "Cipher"],
+      ["ID", `wte.cipher.${slugify(cipher.name)}`],
+      ["Name", cipher.name],
+      ["Paradigm", paradigmId],
+      ["Tier", cipher.tier],
+      ["SS", cipher.ss],
+      ["Activation", cipher.type],
+      ["Rank", split?.rank],
+      ["Component", split?.component],
+    ]),
+  ];
+  const body = (split ? split.body : cipher.effect ?? "").trim();
+  if (body) sections.push("## Effect", body);
+  return `${sections.join("\n\n")}\n`;
+}
+
 function page(id: string, stem: string, title: string, kind: string, label: string, content: string): CampaignCodexPage {
   return {
     id,
@@ -169,13 +227,54 @@ export function bakedCodexPages(): CampaignCodexPage[] {
         bakedParadigmPageContent(paradigm)
       )
     ),
+    ...GENUS_DOMAIN_NAMES.flatMap((domain) =>
+      (getGenusDomain(domain)?.abilities ?? []).map((ability) =>
+        page(
+          ability.id ?? `wte.genus.${slugify(ability.name)}`,
+          `genus-${slugify(ability.name)}`,
+          ability.name,
+          "genus",
+          "Genus",
+          bakedGenusPageContent(ability, domain)
+        )
+      )
+    ),
+    ...Object.entries(bakedCiphers()).flatMap(([paradigmId, ciphers]) =>
+      ciphers.map((cipher) =>
+        page(
+          `wte.cipher.${slugify(cipher.name)}`,
+          `cipher-${slugify(cipher.name)}`,
+          cipher.name,
+          "cipher",
+          "Cipher",
+          bakedCipherPageContent(cipher, paradigmId)
+        )
+      )
+    ),
   ];
 }
 
 /** Resolve a built-in page by id, or by the stem an authoring surface was given.
- *  Used by the Codex browser so "Customize" on a built-in page can open it. */
+ *  Used by the Codex browser so "Customize" on a built-in page can open it.
+ *
+ *  Indexed: the browser's type scan calls this once per stem, and rebuilding
+ *  the ~260-page catalog for each lookup made one scan quadratic. The index is
+ *  dropped on `wte-pages-changed` — the same signal every catalog change
+ *  already fires — so a mid-session change still regenerates. */
+let bakedIndex: Map<string, CampaignCodexPage> | null = null;
+if (typeof window !== "undefined") {
+  window.addEventListener("wte-pages-changed", () => {
+    bakedIndex = null;
+  });
+}
 export function findBakedCodexPage(ref: { id?: string; stem?: string }): CampaignCodexPage | undefined {
-  const pages = bakedCodexPages();
-  return (ref.id ? pages.find((p) => p.id === ref.id) : undefined) ??
-    (ref.stem ? pages.find((p) => p.stem === ref.stem) : undefined);
+  if (!bakedIndex) {
+    bakedIndex = new Map();
+    for (const page of bakedCodexPages()) {
+      if (!bakedIndex.has(`id:${page.id}`)) bakedIndex.set(`id:${page.id}`, page);
+      if (!bakedIndex.has(`stem:${page.stem}`)) bakedIndex.set(`stem:${page.stem}`, page);
+    }
+  }
+  return (ref.id ? bakedIndex.get(`id:${ref.id}`) : undefined) ??
+    (ref.stem ? bakedIndex.get(`stem:${ref.stem}`) : undefined);
 }

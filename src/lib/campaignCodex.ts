@@ -182,6 +182,11 @@ function pageVisibility(content: string, meta: PageMeta, stored?: CampaignCodexV
     : "player";
 }
 
+// genus/cipher are deliberately absent: a typed file page with no ID row would
+// derive wte.genus.<stem> and collide with the id another page already pinned
+// for the same ability — and a duplicate official id makes every player's room
+// codex fail closed while the host sees nothing wrong. Editor saves pin real
+// ids anyway; only hand-dropped files hit this fallback.
 const OFFICIAL_FALLBACK_KINDS: Readonly<Record<string, IdKind>> = {
   species: "species",
   paradigm: "paradigm",

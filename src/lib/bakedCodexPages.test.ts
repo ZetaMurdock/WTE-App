@@ -1,12 +1,24 @@
 import { describe, expect, it } from "vitest";
 import {
+  bakedCipherPageContent,
   bakedCodexPages,
+  bakedGenusPageContent,
   bakedParadigmPageContent,
   bakedSpeciesPageContent,
   findBakedCodexPage,
 } from "./bakedCodexPages";
+import { parseCodexEntry, splitCipherEffect } from "./codexParse";
 import { parseParadigmPage, parseSpeciesDefinitionPage } from "./gameData";
-import { bakedParadigms, bakedSpecies, bakedSpeciesInnate, bakedSpeciesSize } from "../game/wte";
+import {
+  bakedCiphers,
+  bakedParadigms,
+  bakedSpecies,
+  bakedSpeciesInnate,
+  bakedSpeciesSize,
+  GENUS_DOMAIN_NAMES,
+  getGenusDomain,
+} from "../game/wte";
+import { slugify } from "../game/codexId";
 
 // A built-in page exists so a Curator can fork it. If the generator and the
 // parser disagree by even one field, "Customize" hands them a page that quietly
@@ -93,6 +105,55 @@ describe("built-in pages round-trip through the page parser", () => {
   });
 });
 
+// Genus and Cipher pages fork into ordinary campaign ability pages, so the
+// parser that reads THOSE is parseCodexEntry — the round-trip that matters is
+// baked page → entry, field for field, effect byte for byte. A cipher's
+// "Rank: … · Component: …" header is split into rows on emission and
+// reassembled on parse, so effect equality here proves that seam too.
+describe("built-in ability pages round-trip through parseCodexEntry", () => {
+  for (const domain of GENUS_DOMAIN_NAMES) {
+    it(`${domain} Genus abilities parse back to their compiled records`, () => {
+      for (const ability of getGenusDomain(domain)!.abilities) {
+        const entry = parseCodexEntry(bakedGenusPageContent(ability, domain), `genus-${slugify(ability.name)}`);
+        expect(entry, ability.name).toMatchObject({ type: "genus", name: ability.name, domain });
+        if (entry?.type !== "genus") continue;
+        expect(entry.id, `${ability.name} id`).toBe(ability.id);
+        expect(entry.ss ?? null, `${ability.name} ss`).toBe(ability.ss ?? null);
+        expect(entry.effect ?? null, `${ability.name} effect`).toBe(ability.effect ?? null);
+        expect(entry.activation ?? null, `${ability.name} activation`).toBe(ability.activation ?? null);
+        expect(entry.range ?? null, `${ability.name} range`).toBe(ability.range ?? null);
+        expect(entry.target ?? null, `${ability.name} target`).toBe(ability.target ?? null);
+        expect(entry.limit ?? null, `${ability.name} limit`).toBe(ability.limit ?? null);
+        expect(entry.classification ?? null, `${ability.name} classification`).toBe(ability.classification ?? null);
+      }
+    });
+  }
+
+  for (const [paradigmId, ciphers] of Object.entries(bakedCiphers())) {
+    it(`${paradigmId} ciphers parse back to their compiled records`, () => {
+      for (const cipher of ciphers) {
+        const entry = parseCodexEntry(bakedCipherPageContent(cipher, paradigmId), `cipher-${slugify(cipher.name)}`);
+        expect(entry, cipher.name).toMatchObject({ type: "cipher", name: cipher.name, paradigm: paradigmId });
+        if (entry?.type !== "cipher") continue;
+        expect(entry.id, `${cipher.name} id`).toBe(`wte.cipher.${slugify(cipher.name)}`);
+        expect(entry.tier ?? null, `${cipher.name} tier`).toBe(cipher.tier ?? null);
+        expect(entry.ss ?? null, `${cipher.name} ss`).toBe(cipher.ss ?? null);
+        expect(entry.activation ?? null, `${cipher.name} activation`).toBe(cipher.type ?? null);
+        // The header travels as Rank/Component rows; the effect keeps the body.
+        // gameData recomposes them — asserted byte-for-byte piecewise here and
+        // end-to-end by the campaignCodex fork tests.
+        const split = cipher.effect ? splitCipherEffect(cipher.effect) : null;
+        expect(entry.effect ?? null, `${cipher.name} effect body`).toBe(split ? split.body : cipher.effect ?? null);
+        expect(entry.rank ?? null, `${cipher.name} rank`).toBe(split?.rank ?? null);
+        expect(entry.component ?? null, `${cipher.name} component`).toBe(split?.component ?? null);
+        if (split) {
+          expect(`Rank: ${split.rank} · Component: ${split.component} ${split.body}`, `${cipher.name} recompose`).toBe(cipher.effect);
+        }
+      }
+    });
+  }
+});
+
 describe("built-in page catalog", () => {
   it("covers every compiled species and paradigm exactly once", () => {
     const pages = bakedCodexPages();
@@ -101,6 +162,12 @@ describe("built-in page catalog", () => {
     );
     expect(pages.filter((p) => p.kind === "paradigm").map((p) => p.id)).toEqual(
       bakedParadigms().map((p) => `wte.paradigm.${p.id}`)
+    );
+    expect(pages.filter((p) => p.kind === "genus")).toHaveLength(
+      GENUS_DOMAIN_NAMES.reduce((n, d) => n + (getGenusDomain(d)?.abilities.length ?? 0), 0)
+    );
+    expect(pages.filter((p) => p.kind === "cipher")).toHaveLength(
+      Object.values(bakedCiphers()).reduce((n, list) => n + list.length, 0)
     );
     expect(new Set(pages.map((p) => p.id)).size).toBe(pages.length);
     expect(new Set(pages.map((p) => p.stem)).size).toBe(pages.length);
