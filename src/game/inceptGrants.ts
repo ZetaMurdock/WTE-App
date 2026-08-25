@@ -69,7 +69,10 @@ const RESOURCE_WORDS: Readonly<Record<string, InceptResource>> = {
  *  a value to guess at. */
 const EXPR_RE = /^\d*d\d+(?:\s*[+-]\s*\d+)?$|^\d+$/i;
 
-function resourceOf(word: string): InceptResource | undefined {
+/** The one resource vocabulary. Exported so the `## Actions` grammar names
+ *  pools the same way `## Grants` does — two spellings of "SS" would be two
+ *  rules. */
+export function resourceOf(word: string): InceptResource | undefined {
   const key = word.trim().toLowerCase();
   return Object.prototype.hasOwnProperty.call(RESOURCE_WORDS, key) ? RESOURCE_WORDS[key] : undefined;
 }
