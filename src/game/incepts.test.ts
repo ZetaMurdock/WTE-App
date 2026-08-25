@@ -31,9 +31,17 @@ describe("incept pools", () => {
   });
 
   it("no longer carries Dominance / Recessiveness — retired from the model", () => {
+    // Guards the retirement, not the shape. Asserting a CLOSED key set made this
+    // fail the moment Incepts gained Roll Axis grants, which is a legitimate
+    // addition — so it now names what may appear and rejects everything else.
+    const allowed = new Set(["name", "weight", "effect", "memory", "grants"]);
     for (const sp of SPECIES) {
       for (const i of inceptsForSpecies(sp.id)) {
-        expect(Object.keys(i).sort()).toEqual(i.memory ? ["effect", "memory", "name", "weight"] : ["effect", "name", "weight"]);
+        for (const key of Object.keys(i)) {
+          expect(allowed, `${i.name} carries unexpected "${key}"`).toContain(key);
+        }
+        expect(i).not.toHaveProperty("dom");
+        expect(i).not.toHaveProperty("rec");
       }
     }
   });

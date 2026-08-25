@@ -32,8 +32,9 @@ import {
   type VttMoveRequestMessage,
 } from "../net/protocol";
 import { addSessionRoll, clearSessionRolls, rollSessionScope } from "./sync/rollSession";
+import { contestTokens } from "./data/genusContest";
 import { enqueueRollLock } from "./sync/rollLocks";
-import { logRoll, validateCompletedRoll } from "../lib/rolls";
+import { canonicalRollExpr, createRollId, logRoll, validateCompletedRoll } from "../lib/rolls";
 import { SfxPlayer } from "./audio/sfxPlayer";
 import { getMasterVolume, subscribeMasterVolume } from "../lib/audioPrefs";
 import { reportSaveFailure, pushToast } from "../lib/appToast";
@@ -1966,6 +1967,74 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
   const boundPlayerCharacterId = isNetPlayer ? net.table?.inUseCharacterId ?? null : null;
   const abilityCharKey = isNetPlayer ? boundPlayerCharacterId : abilityCharId ?? selTokenCharId ?? characters[0]?.id;
   const abilityChar = characters.find((c) => c.id === abilityCharKey) ?? null;
+
+  // ── Genus contest: Curator's combatant vs the selected token ──
+  // The defender is whatever token is selected, resolved to its character
+  // record. Both sides' Focus, Control and rank come off the records; the
+  // defender answers with their most strongly focused genus.
+  const contestDefender = useMemo(() => {
+    if (asPlayer || sel?.kind !== "token") return null;
+    const token = live?.data.tokens.find((candidate) => candidate.id === sel.id);
+    if (!token?.characterId || token.characterId === abilityChar?.id) return null;
+    const record =
+      characters.find((candidate) => candidate.id === token.characterId) ??
+      partySheets.find((entry) => entry.record.id === token.characterId)?.record ??
+      null;
+    return record ? { record, name: record.name || token.name || "the target", tokenId: token.id } : null;
+  }, [asPlayer, sel, live, characters, partySheets, abilityChar]);
+
+  const contestSelectedToken = useCallback(
+    (ability: VttAbility) => {
+      if (!abilityChar || !contestDefender) return;
+      const outcome = contestTokens(abilityChar, ability, contestDefender.record, ruleLayers);
+      if (!outcome) {
+        pushToast(`${contestDefender.name} has no genus to contest ${ability.name} — it resolves unopposed.`, "info");
+        return;
+      }
+      // Dice were thrown only on a Focus tie; commit them to the feed so the
+      // whole table sees the same contested Control rolls the verdict used.
+      const commit = (roll: import("../game/wte").RollResult | undefined, who: string, characterId: string | undefined) => {
+        if (!roll || !rollScope) return;
+        const modifier = roll.detail.modifier;
+        const baseExpr = roll.baseExpr ?? `1d${roll.detail.die}${modifier > 0 ? `+${modifier}` : modifier < 0 ? String(modifier) : ""}`;
+        const id = createRollId();
+        const at = Date.now();
+        addSessionRoll(rollScope, {
+          id,
+          label: roll.detail.label,
+          formula: roll.formula,
+          baseExpr,
+          result: roll.result,
+          mode: roll.detail.mode ?? "normal",
+          detail: roll.detail,
+          who,
+          at,
+          characterId,
+        });
+        publishVttRoll({
+          t: "roll",
+          id,
+          label: roll.detail.label,
+          formula: roll.formula,
+          baseExpr,
+          result: roll.result,
+          mode: roll.detail.mode ?? "normal",
+          detail: roll.detail,
+          at,
+          actor: { characterId, name: who },
+        } as RollMessage);
+      };
+      commit(outcome.result.aRoll, abilityChar.name || "Attacker", abilityChar.id);
+      commit(outcome.result.bRoll, contestDefender.name, contestDefender.record.id);
+      pushToast(
+        `Contest — ${ability.name} (Focus ${outcome.attacker.focus}) vs ${contestDefender.name}'s ${outcome.defenderAbility} (Focus ${outcome.defender.focus}): ${outcome.verdict}`,
+        "info",
+        9000
+      );
+    },
+    [abilityChar, contestDefender, rollScope, publishVttRoll, ruleLayers]
+  );
+
   const abilityCharacters = isNetPlayer
     ? characters.filter((record) => record.id === boundPlayerCharacterId)
     : characters;
@@ -2004,7 +2073,10 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
     pendingRollRequests.current.set(requestId, {
       request,
       ownerPeerId: target.owner,
-      expectedBaseExprs: expectedOptions?.map((option) => option.expr),
+      // Canonicalized: the responder's tray sends canonicalRollExpr output, so
+      // the comparison must be canonical-vs-canonical or it never matches.
+      expectedBaseExprs: expectedOptions
+        ?.map((option) => canonicalRollExpr(option.expr) ?? option.expr),
     });
     window.setTimeout(() => pendingRollRequests.current.delete(requestId), 5 * 60_000 + 1000);
     net.publish(request, target.owner);
@@ -2286,6 +2358,8 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
               ? requestTargetRoll
               : undefined
           }
+          onContestTarget={contestDefender && !asPlayer ? contestSelectedToken : undefined}
+          contestTargetName={contestDefender?.name}
           onUseAbility={(ability) => {
             // The roll already fired; if the ability implies an area, prompt to
             // place an editable hitbox.

@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import { PARADIGMS, ciphersForParadigm, genusForParadigm, usableCiphers } from "./wte";
 
 describe("Remnant Paradigm rework", () => {
-  it("energy domains are Null and Neutral", () => {
-    expect(PARADIGMS.find((p) => p.id === "remnant")?.domains).toEqual(["Null", "Neutral"]);
+  it("energy domains are Photonic and Neutral (2026-08 Codex update)", () => {
+    // The updated pages settled the old question the other way around: the new
+    // Photonic page names Remnant deliberately, and the new Null page dropped it.
+    expect(PARADIGMS.find((p) => p.id === "remnant")?.domains).toEqual(["Photonic", "Neutral"]);
     const domains = genusForParadigm("remnant").map((g) => g.domain);
-    expect(domains).toContain("Null");
+    expect(domains).toContain("Photonic");
     expect(domains).toContain("Neutral");
+    expect(domains).not.toContain("Null");
     expect(domains).not.toContain("Kinetic");
   });
 
@@ -14,7 +17,7 @@ describe("Remnant Paradigm rework", () => {
     const all = ciphersForParadigm("remnant");
     expect(all.some((c) => c.name === "ANIMATION")).toBe(false);
     const spyder = all.find((c) => c.name === "SPYDER");
-    expect(spyder).toMatchObject({ ss: 25, tier: "offline", type: "Bonus Action" });
+    expect(spyder).toMatchObject({ ss: 15, tier: "offline", type: "Bonus action" });
     expect(spyder?.effect).toContain("Wanderer");
     expect(spyder?.effect).toContain("Causal Connection");
     expect(spyder?.effect).toContain("Minimum Success");
@@ -23,8 +26,8 @@ describe("Remnant Paradigm rework", () => {
   it("saved loadouts holding old cipher names resolve to the new ones", () => {
     const [c] = usableCiphers("remnant", ["ANIMATION"]);
     expect(c.name).toBe("SPYDER");
-    expect(c.ss).toBe(25);
-    expect(c.activation).toBe("Bonus Action");
+    expect(c.ss).toBe(15); // repriced by the 2026-08 Cipher update
+    expect(c.activation).toBe("Bonus action");
     const [c2] = usableCiphers("remnant", ["SPYDER SPYDER"]);
     expect(c2.name).toBe("SPYDER");
     const [c3] = usableCiphers("science", ["STABLIZE"]);

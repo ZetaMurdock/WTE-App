@@ -20,15 +20,24 @@
 // than no page at all.
 import {
   ATTRIBUTES,
+  SPECIALTIES,
+  bakedInceptPools,
   bakedParadigms,
   bakedSpecies,
   bakedSpeciesInnate,
   bakedSpeciesSize,
+  type Incept,
   type Paradigm,
   type Species,
   type SpeciesVariantAbility,
 } from "../game/wte";
+import { isRollGrant, rollRefLabel, type InceptGrant } from "../game/inceptGrants";
 import type { CampaignCodexPage } from "./campaignCodex";
+
+/** Page ids and stems are slugs; an Incept name is free text. */
+function slugId(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
 
 /** Table cells are read with `|([^|]+)|([^|]+)|`, so a pipe inside a value would
  *  end the cell early and truncate the rule. No baked string contains one; this
@@ -112,6 +121,62 @@ export function bakedSpeciesPageContent(species: Species): string {
   return `${sections.join("\n\n")}\n`;
 }
 
+/** One Incept page: its pool, its Weight Class, its executable grants, and the
+ *  prose a player reads. Grants are emitted only where the Incept has been
+ *  converted — an empty section would read as "this Incept does nothing". */
+export function bakedInceptPageContent(speciesId: string, incept: Incept): string {
+  const sections = [
+    `# ${incept.name}`,
+    PREAMBLE,
+    fieldTable([
+      ["Type", "Incept"],
+      ["ID", `wte.incept.${slugId(speciesId)}-${slugId(incept.name)}`],
+      ["Name", incept.name],
+      ["Species", speciesId],
+      ["Weight", incept.weight],
+      ["Memory", incept.memory],
+    ]),
+  ];
+  if (incept.grants?.length) {
+    sections.push("## Grants", incept.grants.map((g) => `- ${grantLine(g)}`).join("\n"));
+  }
+  if (incept.effect) sections.push("## Effect", incept.effect.trim());
+  return `${sections.join("\n\n")}\n`;
+}
+
+/** A grant in the exact syntax parseInceptGrants reads back. */
+function grantLine(grant: InceptGrant): string {
+  if (isRollGrant(grant)) {
+    const word = grant.kind === "advantage" ? "Advantage" : "Disadvantage";
+    const who = grant.target === "target" ? " (target)" : "";
+    return `${word}${who}: ${rollRefLabel(grant.on)}`;
+  }
+  if (grant.kind === "damage") return `Damage: ${grant.expr}${grant.damageType ? ` ${grant.damageType}` : ""}`;
+  const resource = grant.resource === "ss" ? "SS" : grant.resource === "health" ? "Health" : "Focus";
+  return `${grant.kind === "restore" ? "Restore" : "Cost"}: ${grant.expr} ${resource}`;
+}
+
+const ATTR_LABELS: Readonly<Record<string, string>> = Object.fromEntries(
+  ATTRIBUTES.map((attribute) => [attribute.key, attribute.label])
+);
+const SPEC_LABELS: Readonly<Record<string, string>> = Object.fromEntries(
+  SPECIALTIES.map((specialty) => [specialty.key, specialty.label])
+);
+
+function favoredAttrRow(paradigm: Paradigm): string | undefined {
+  if (!paradigm.favoredAttrs?.length) return undefined;
+  const names = paradigm.favoredAttrs.map((key) => ATTR_LABELS[key] ?? key);
+  if (paradigm.favoredChoice) names.push("Choose 1 Additional Attribute");
+  return names.join(" · ");
+}
+
+function favoredSpecRow(paradigm: Paradigm): string | undefined {
+  if (!paradigm.favoredSpecs?.length) return undefined;
+  const names = paradigm.favoredSpecs.map((key) => SPEC_LABELS[key] ?? key);
+  if (paradigm.favoredChoice) names.push("Choose 1 Additional Specialty");
+  return names.join(" · ");
+}
+
 export function bakedParadigmPageContent(paradigm: Paradigm): string {
   return `${[
     `# ${paradigm.name}`,
@@ -123,6 +188,8 @@ export function bakedParadigmPageContent(paradigm: Paradigm): string {
       ["Group", paradigm.group],
       ["Weapons", paradigm.weapons.join(", ")],
       ["Domains", paradigm.domains.join(", ")],
+      ["Favored Attributes", favoredAttrRow(paradigm)],
+      ["Favored Specialties", favoredSpecRow(paradigm)],
     ]),
   ].join("\n\n")}\n`;
 }
@@ -157,6 +224,18 @@ export function bakedCodexPages(): CampaignCodexPage[] {
         "species",
         "Species",
         bakedSpeciesPageContent(species)
+      )
+    ),
+    ...Object.entries(bakedInceptPools()).flatMap(([speciesId, pool]) =>
+      pool.incepts.map((incept) =>
+        page(
+          `wte.incept.${slugId(speciesId)}-${slugId(incept.name)}`,
+          `incept-${slugId(speciesId)}-${slugId(incept.name)}`,
+          incept.name,
+          "incept",
+          "Incept",
+          bakedInceptPageContent(speciesId, incept)
+        )
       )
     ),
     ...bakedParadigms().map((paradigm) =>

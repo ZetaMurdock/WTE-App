@@ -22,6 +22,8 @@ import {
 } from "./data/characterAbilities";
 import { hasAoe, suggestedTemplate } from "./data/effectMeta";
 import { rollAxisChoices, rollAxisPaths, type RollAxis, type RollAxisStats, type RollDirection, type RollAxisPath } from "../game/rollAxis";
+import { affinityLabel } from "../game/paradigmAffinity";
+import { abilitySaveDv, saveDvBreakdown, savePlainLabel } from "../game/saveDv";
 import type { NetRollAxisRequest } from "../net/protocol";
 
 /** A target-side check parsed from an ability. The VTT shell supplies the
@@ -37,6 +39,10 @@ export interface VttTargetRollIntent {
 }
 
 interface Props {
+  /** Curator-only: resolve a genus contest against the selected target token.
+   *  Present only when a contestable target is selected. */
+  onContestTarget?: (ability: VttAbility) => void;
+  contestTargetName?: string;
   character: CharacterRecord | null;
   characters: { id: string; name: string }[];
   onPickCharacter: (id: string) => void;
@@ -87,7 +93,7 @@ function armSelfOptions(
     if (!path) return [];
     return rollAxisChoices(path, action.rollAxis.direction, axisStats).map((choice) => ({
       label: `${action.label} · ${choice.sourceLabel}`,
-      buttonLabel: choice.sourceLabel,
+      buttonLabel: choice.affinity ? `${choice.sourceLabel} ${affinityLabel(choice.affinity)}` : choice.sourceLabel,
       expr: choice.expr,
     }));
   }
@@ -116,6 +122,8 @@ export function VttAbilitiesPanel({
   onArmRoll,
   onUseAbility,
   onRequestTargetRoll,
+  onContestTarget,
+  contestTargetName,
   lockCharacter = false,
   onClose,
   layers,
@@ -171,32 +179,39 @@ export function VttAbilitiesPanel({
           )}
           {saves.length > 0 && (
             <div className="vtt2-abil-saves">
-              {saves.map((s, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  className="vtt2-abil-savechip"
-                  disabled={!onRequestTargetRoll}
-                  onClick={() =>
-                    onRequestTargetRoll?.({
-                      abilityId: a.id,
-                      abilityName: a.name,
-                      sourceCharacterId: character?.id,
-                      label: s.label,
-                      stat: s.stat,
-                      ...(s.rollAxis ? { rollAxis: { path: s.rollAxis.path, direction: s.rollAxis.direction } } : {}),
-                      dc: s.dc,
-                    })
-                  }
-                  title={
-                    onRequestTargetRoll
-                      ? "Ask the selected target's player to make this roll"
-                      : "Select a player-controlled target to request this roll"
-                  }
-                >
-                  vs {s.label}
-                </button>
-              ))}
+              {saves.map((s, i) => {
+                // Attacker-keyed DV (21 + this character's paired check mod)
+                // replaces the page's printed number — it rides the request so
+                // the target's roll prompt shows the DV that actually applies.
+                const keyed = axisStats ? abilitySaveDv(s, actions, axisStats) : null;
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    className="vtt2-abil-savechip"
+                    disabled={!onRequestTargetRoll}
+                    onClick={() =>
+                      onRequestTargetRoll?.({
+                        abilityId: a.id,
+                        abilityName: a.name,
+                        sourceCharacterId: character?.id,
+                        label: keyed ? `${savePlainLabel(s)} · DV ${keyed.dv}` : s.label,
+                        stat: s.stat,
+                        ...(s.rollAxis ? { rollAxis: { path: s.rollAxis.path, direction: s.rollAxis.direction } } : {}),
+                        dc: keyed?.dv ?? s.dc,
+                      })
+                    }
+                    title={
+                      (onRequestTargetRoll
+                        ? "Ask the selected target's player to make this roll"
+                        : "Select a player-controlled target to request this roll") +
+                      (keyed ? ` · ${saveDvBreakdown(keyed)}` : "")
+                    }
+                  >
+                    vs {keyed ? `${savePlainLabel(s)} · DV ${keyed.dv}` : s.label}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -248,6 +263,15 @@ export function VttAbilitiesPanel({
             {selfRolls.length === 0 && dmgRolls.length === 0 && (
               <button className="chip" onClick={() => use(a)} title="Roll this ability">
                 Use
+              </button>
+            )}
+            {onContestTarget && a.source === "genus" && (
+              <button
+                className="chip contest"
+                onClick={() => onContestTarget(a)}
+                title={`Genus contest: ${a.name} (Focus ${a.focus ?? 0}) against ${contestTargetName ?? "the selected target"} — higher Focus wins outright, ties go to contested Control`}
+              >
+                ⚔ vs {contestTargetName ?? "target"}
               </button>
             )}
           </div>
@@ -309,6 +333,7 @@ export function VttAbilitiesPanel({
                       onClick={() => onArmRoll(`${choice.label} · ${choice.sourceShort} ${signedMod(choice.sourceMod)} · ${item.derived.short} ${signedMod(choice.derivedMod)}`, choice.expr)}
                     >
                       {choice.sourceLabel}
+                      {choice.affinity ? <em className="affinity-badge">{affinityLabel(choice.affinity)}</em> : null}
                       <small>d{choice.die} {signedMod(choice.sourceMod)} + {item.derived.short} {signedMod(choice.derivedMod)} = {signedMod(choice.totalMod)}</small>
                     </button>
                   ))}

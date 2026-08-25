@@ -1,116 +1,112 @@
 # Science
 
-<div class="mw-content-ltr mw-parser-output" lang="en" dir="ltr"> <div style="background:#0d0d0d;border:1px solid #1e1e1e;padding:24px 32px;margin-bottom:16px"><div style="font-family:monospace;font-size:9px;letter-spacing:3px;color:#4e7fa5;margin-bottom:6px"><a data-wte-link="wte://rules/Wonderland_of_The_Enigma_Wiki">HOME</a> / <a data-wte-link="wte://rules/What_is_a_Paradigm">PARADIGMS</a> / SCIENCE</div><div style="font-size:28px;font-weight:700;color:#dedede;letter-spacing:1px">Science Paradigm</div><div style="color:#565656;font-size:11px;margin-top:6px;font-style:italic;letter-spacing:1px">"Discovery is the foundation of progress — and we intend to build everything on it."</div><div style="background:#111;border-left:3px solid #4e7fa5;padding:10px 16px;font-size:12px;color:#909090;line-height:1.7">
-<p>The <b>Science Paradigm</b> embodies the relentless pursuit of knowledge and understanding of the natural — and sometimes unnatural — world. Members study, test, and manipulate reality through investigation, invention, and experimentation, no matter how impractical or dangerous their methods may seem. Advancement through understanding. Every mystery solved grants further control over the physical and metaphysical laws of existence.
-</p>
-</div></div><div style="background:#121212;border:1px solid #1e1e1e;padding:20px 24px;margin-bottom:12px"><div style="font-size:9.5px;text-transform:uppercase;letter-spacing:2px;color:#4e7fa5;font-weight:700;border-bottom:1px solid #1e1e1e;padding-bottom:8px;margin-bottom:14px">PARADIGM IDENTITY</div><div style="display:flex;gap:16px;flex-wrap:wrap"><div style="flex:1;min-width:200px;background:#0d0d0d;border:1px solid #1e1e1e;border-top:2px solid #4e7fa5;padding:14px"><div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:#4e7fa5;margin-bottom:6px">Who Joins</div><div style="color:#909090;font-size:11px;line-height:1.7">Thinkers, innovators, and explorers of ideas — those who believe that observation and logic can rival faith and tradition. Researchers, inventors, technicians, and anyone driven by the need to understand.</div></div><div style="flex:1;min-width:200px;background:#0d0d0d;border:1px solid #1e1e1e;border-top:2px solid #4e7fa5;padding:14px"><div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:#4e7fa5;margin-bottom:6px">Culture</div><div style="color:#909090;font-size:11px;line-height:1.7">Scientists prize curiosity, precision, and persistence. They often clash with more instinct-driven doctrines, seeing ignorance as the only true threat. Collective belief: <i>"Anything can be known — and what is known can be improved."</i></div></div><div style="flex:1;min-width:200px;background:#0d0d0d;border:1px solid #1e1e1e;border-top:2px solid #4e7fa5;padding:14px"><div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:#4e7fa5;margin-bottom:6px">Archetype Feel</div><div style="color:#909090;font-size:11px;line-height:1.7">Artificer / Wizard fusion. The Science Inquisitor is part field researcher and part inventor — equal parts precision instrument and volatile experiment.</div></div></div></div><div style="background:#121212;border:1px solid #1e1e1e;padding:20px 24px;margin-bottom:12px"><div style="font-size:9.5px;text-transform:uppercase;letter-spacing:2px;color:#4e7fa5;font-weight:700;border-bottom:1px solid #1e1e1e;padding-bottom:8px;margin-bottom:14px">AUTHORITY PROFILE</div><div style="color:#909090;font-size:12px;margin-bottom:12px">Members hold privileged access to <b>laboratories, experimental archives, research AIs, and prototyping facilities</b>. Any lab without strict authority-level security defaults to Science Paradigm clearance — allowing rapid experimentation and material acquisition.</div><div style="background:#0d0d0d;border:1px solid #1e1e1e;padding:12px 16px;font-size:11px;color:#909090;line-height:1.7">
-<p><b>Advancement:</b> Stems from verifiable research results and technological innovation. Conducting experiments, publishing findings, or improving existing tech all contribute to higher Authority Rank — which functions jointly with Designation Rank to determine lab command and access privileges.
-</p>
-</div></div><div style="background:#121212;border:1px solid #1e1e1e;padding:20px 24px;margin-bottom:12px"><div style="font-size:9.5px;text-transform:uppercase;letter-spacing:2px;color:#4e7fa5;font-weight:700;border-bottom:1px solid #1e1e1e;padding-bottom:8px;margin-bottom:14px">AUTHORITY RANKS · DESIGNATION PROGRESSION</div>
-<table style="width:100%;border-collapse:collapse;">
-<tbody><tr>
-<th style="text-align:left;padding:7px 10px;background:#1a1a1a;color:#565656;font-size:9px;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #1e1e1e;">Rank
-</th>
-<th style="text-align:left;padding:7px 10px;background:#1a1a1a;color:#565656;font-size:9px;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #1e1e1e;">Title
-</th>
-<th style="text-align:left;padding:7px 10px;background:#1a1a1a;color:#565656;font-size:9px;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #1e1e1e;">Role
-</th>
-<th style="text-align:left;padding:7px 10px;background:#1a1a1a;color:#565656;font-size:9px;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #1e1e1e;">Access
-</th></tr>
-<tr>
-<td style="padding:9px 10px;color:#4e7fa5;font-weight:700;border-bottom:1px solid #181818;">1
-</td>
-<td style="padding:9px 10px;color:#dedede;border-bottom:1px solid #181818;">Intern
-</td>
-<td style="padding:9px 10px;color:#909090;border-bottom:1px solid #181818;font-size:11px;">Entry-level learner gaining field experience
-</td>
-<td style="padding:9px 10px;color:#565656;border-bottom:1px solid #181818;font-size:11px;">Basic lab and equipment access, observation rights
-</td></tr>
-<tr>
-<td style="padding:9px 10px;color:#4e7fa5;font-weight:700;border-bottom:1px solid #181818;">2
-</td>
-<td style="padding:9px 10px;color:#dedede;border-bottom:1px solid #181818;">Researcher
-</td>
-<td style="padding:9px 10px;color:#909090;border-bottom:1px solid #181818;font-size:11px;">Applied scientist conducting assigned studies or field tests
-</td>
-<td style="padding:9px 10px;color:#565656;border-bottom:1px solid #181818;font-size:11px;">Full lab use without restricted clearance; may propose independent experiments
-</td></tr>
-<tr>
-<td style="padding:9px 10px;color:#4e7fa5;font-weight:700;border-bottom:1px solid #181818;">3
-</td>
-<td style="padding:9px 10px;color:#dedede;border-bottom:1px solid #181818;">Scientist
-</td>
-<td style="padding:9px 10px;color:#909090;border-bottom:1px solid #181818;font-size:11px;">Department or project leader
-</td>
-<td style="padding:9px 10px;color:#565656;border-bottom:1px solid #181818;font-size:11px;">Can issue research orders, manage lab teams, override base-tier access
-</td></tr>
-<tr>
-<td style="padding:9px 10px;color:#7ab2d8;font-weight:700;">4
-</td>
-<td style="padding:9px 10px;color:#dedede;">Formal Sciences
-</td>
-<td style="padding:9px 10px;color:#909090;font-size:11px;">Oversees a region, institute, or special project
-</td>
-<td style="padding:9px 10px;color:#565656;font-size:11px;">Controls advanced facilities; selects a specialization field
-</td></tr></tbody></table>
-<div style="margin-top:12px;background:#0d0d0d;border:1px solid #1e1e1e;padding:12px 16px"><div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:#4e7fa5;margin-bottom:8px">Rank 4 Specialization Fields</div><div style="display:flex;gap:12px;flex-wrap:wrap"><div style="flex:1;min-width:160px;padding:8px 12px;border-left:2px solid #4e7fa5"><div style="color:#7ab2d8;font-size:10px;font-weight:700;margin-bottom:3px">Formal Sciences</div><div style="color:#565656;font-size:11px">Logic, mathematics, computation. Enhances planning, prediction, and synthetic model accuracy.</div></div><div style="flex:1;min-width:160px;padding:8px 12px;border-left:2px solid #4e7fa5"><div style="color:#7ab2d8;font-size:10px;font-weight:700;margin-bottom:3px">Natural Sciences</div><div style="color:#565656;font-size:11px">Physics, chemistry, biology, geology. Expands experimental resource pools; improves material research bonuses.</div></div><div style="flex:1;min-width:160px;padding:8px 12px;border-left:2px solid #4e7fa5"><div style="color:#7ab2d8;font-size:10px;font-weight:700;margin-bottom:3px">Social Sciences</div><div style="color:#565656;font-size:11px">Psychology, linguistics, culture dynamics. Increases diplomacy or analysis bonuses in social investigations.</div></div></div></div></div><div style="background:#121212;border:1px solid #1e1e1e;padding:20px 24px;margin-bottom:12px"><div style="font-size:9.5px;text-transform:uppercase;letter-spacing:2px;color:#4e7fa5;font-weight:700;border-bottom:1px solid #1e1e1e;padding-bottom:8px;margin-bottom:14px">COMBAT SPECIALTY</div><div style="color:#909090;font-size:12px;margin-bottom:12px">Science combatants tend toward <b>tactical or support-oriented</b> roles. They use specialized equipment, field devices, or energy manipulation to influence conditions rather than brute force them.</div><div style="background:#0d0d0d;border:1px solid #1e1e1e;padding:12px 16px;font-size:11px;color:#565656;font-style:italic">
-<p><b>Style:</b> Tactical, precision-based, and persistent. Most scientific combatants rely on preparation, experimentation, and adaptive problem-solving during engagements.
-</p>
-</div></div><div style="background:#121212;border:1px solid #1e1e1e;padding:20px 24px;margin-bottom:12px"><div style="font-size:9.5px;text-transform:uppercase;letter-spacing:2px;color:#4e7fa5;font-weight:700;border-bottom:1px solid #1e1e1e;padding-bottom:8px;margin-bottom:14px">WEAPON &amp; GEAR ACCESS</div>
-<table style="width:100%;border-collapse:collapse;">
-<tbody><tr>
-<th style="text-align:left;padding:7px 10px;background:#1a1a1a;color:#565656;font-size:9px;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #1e1e1e;">Weight
-</th>
-<th style="text-align:left;padding:7px 10px;background:#1a1a1a;color:#565656;font-size:9px;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #1e1e1e;">Slot
-</th>
-<th style="text-align:left;padding:7px 10px;background:#1a1a1a;color:#565656;font-size:9px;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #1e1e1e;">Class · Examples
-</th></tr>
-<tr>
-<td style="padding:9px 10px;color:#dedede;border-bottom:1px solid #181818;">Light
-</td>
-<td style="padding:9px 10px;color:#565656;border-bottom:1px solid #181818;">½
-</td>
-<td style="padding:9px 10px;color:#909090;border-bottom:1px solid #181818;font-size:11px;"><b>Hybrid</b> — tools, hand-gadgets
-</td></tr>
-<tr>
-<td style="padding:9px 10px;color:#dedede;border-bottom:1px solid #181818;">Medium
-</td>
-<td style="padding:9px 10px;color:#565656;border-bottom:1px solid #181818;">1
-</td>
-<td style="padding:9px 10px;color:#909090;border-bottom:1px solid #181818;font-size:11px;"><b>Exotic</b> — arcane rifles, modular autocasters, focusing rods
-</td></tr>
-<tr>
-<td style="padding:9px 10px;color:#dedede;">Heavy
-</td>
-<td style="padding:9px 10px;color:#565656;">2
-</td>
-<td style="padding:9px 10px;color:#909090;font-size:11px;"><b>Kinetic</b> — field generators, launchers, heavy gauntlets
-</td></tr></tbody></table>
-<div style="margin-top:10px;font-size:11px;color:#565656;font-style:italic">Science Paragons often modify weapons through prototypes and inventions, combining mechanical precision with arcane or chemical unpredictability.</div></div><div style="background:#121212;border:1px solid #1e1e1e;padding:20px 24px;margin-bottom:12px"><div style="font-size:9.5px;text-transform:uppercase;letter-spacing:2px;color:#4e7fa5;font-weight:700;border-bottom:1px solid #1e1e1e;padding-bottom:8px;margin-bottom:14px">SPECIALTIES · GENERA DOMAINS</div><div style="display:flex;gap:12px;flex-wrap:wrap"><div style="flex:1;min-width:180px;background:#0d0d0d;border:1px solid #1e1e1e;border-top:2px solid #4e7fa5;padding:14px"><div style="color:#7ab2d8;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">General Sciences</div><div style="color:#909090;font-size:11px;line-height:1.7">Broad foundation of investigative knowledge; enhances research action rolls and invention success rates.</div></div><div style="flex:1;min-width:180px;background:#0d0d0d;border:1px solid #1e1e1e;border-top:2px solid #4e7fa5;padding:14px"><div style="color:#7ab2d8;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Neutral Energy</div><div style="color:#909090;font-size:11px;line-height:1.7">Focus on manipulating non-elemental energies such as magnetism, gravity, or force.</div></div><div style="flex:1;min-width:180px;background:#0d0d0d;border:1px solid #1e1e1e;border-top:2px solid #4e7fa5;padding:14px"><div style="color:#7ab2d8;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Elemental Energy</div><div style="color:#909090;font-size:11px;line-height:1.7">Studies and applies fire, lightning, cryo, or plasma energy through experimental synthesis and weapon modification.</div></div></div></div><div style="background:#121212;border:1px solid #1e1e1e;padding:20px 24px;margin-bottom:12px"><div style="font-size:9.5px;text-transform:uppercase;letter-spacing:2px;color:#4e7fa5;font-weight:700;border-bottom:1px solid #1e1e1e;padding-bottom:8px;margin-bottom:14px">INTERACTIONS &amp; PHILOSOPHY</div><div style="color:#909090;font-size:12px;line-height:1.8;margin-bottom:12px">The Science Paradigm's devotion to methodical progress often alienates groups that value instinct <span style="color:#565656">(Evolution)</span>, perception <span style="color:#565656">(Cognition)</span>, or unstructured adaptability <span style="color:#565656">(Simulation)</span>. Still, their inventions appear in nearly every organization due to their unmatched practical results.</div><div style="display:flex;gap:12px;flex-wrap:wrap"><div style="flex:1;min-width:180px;background:#0d0d0d;border:1px solid #1e1e1e;padding:12px 16px"><div style="font-size:9px;color:#4e7fa5;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Allies</div><div style="font-size:11px;color:#909090">Cognition (data processing), Warfare (equipment contracts), Evolution (research collaboration)</div></div><div style="flex:1;min-width:180px;background:#0d0d0d;border:1px solid #1e1e1e;padding:12px 16px"><div style="font-size:9px;color:#4e7fa5;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Tensions</div><div style="font-size:11px;color:#909090">Cognition and Evolution (ethical boundaries, data ownership), Remnant (dismissal of instinct-based methods)</div></div></div></div><div style="background:#0d0d0d;border:1px solid #1e1e1e;border-left:3px solid #4e7fa5;padding:14px 20px;margin-bottom:16px"><div style="font-size:9px;text-transform:uppercase;letter-spacing:2px;color:#4e7fa5;margin-bottom:6px">PARADIGM CIPHER ACCESS</div><div style="font-size:12px;color:#909090">Science Inquisitors receive a dedicated Cipher line reflecting their mastery of energy, matter, and knowledge systems. → <a data-wte-link="wte://rules/Science_Ciphers"><span style="color:#7ab2d8">View Science Ciphers ▸</span></a></div></div><div style="background:#121212;border:1px solid #1e1e1e;padding:14px 20px;margin-bottom:16px"><div style="font-size:9px;text-transform:uppercase;letter-spacing:2px;color:#565656;font-weight:700;margin-bottom:8px">PARADIGM INDEX</div><div style="font-size:11px;color:#909090"><a data-wte-link="wte://rules/What_is_a_Paradigm">Paradigm Overview</a> · <span style="color:#7ab2d8"><b>Science</b></span> · <a data-wte-link="wte://rules/Simulation">Simulation</a> · <a data-wte-link="wte://rules/Remnant">Remnant</a> · <a data-wte-link="wte://rules/Cognition">Cognition</a> · <a data-wte-link="wte://rules/Evolution">Evolution</a> · <a data-wte-link="wte://rules/Warfare">Warfare</a></div></div><div style="background:#0d0d0d;border:1px solid #1e1e1e;padding:14px 20px;font-family:monospace;font-size:9px;letter-spacing:2px;color:#565656;text-align:center">
-<p>WTE · YEAR 3261 · <a data-wte-link="wte://rules/Wonderland_of_The_Enigma_Wiki">← RETURN TO HOME</a>
-</p>
-</div>
-<!-- 
-NewPP limit report
-Cached time: 20260705225625
-Cache expiry: 1209600
-Reduced expiry: false
-Complications: []
-CPU time usage: 0.011 seconds
-Real time usage: 0.012 seconds
-Preprocessor visited node count: 77/1000000
-Post‐expand include size: 0/2097152 bytes
-Template argument size: 0/2097152 bytes
-Highest expansion depth: 1/100
-Expensive parser function count: 0/100
-Unstrip recursion depth: 0/20
-Unstrip post‐expand size: 0/5000000 bytes
--->
-<!--
-Transclusion expansion time report (%,ms,calls,template)
-100.00%    0.000      1 -total
--->
+> "Discovery is the foundation of progress — and we intend to build everything on it."
 
-<!-- Saved in parser cache with key 1.43.8_prod_wonderlandoftheenigma:pcache:idhash:414-0!sseVary=RegularPage!FandomDesktop!LegacyGalleries and timestamp 20260705225625 and revision id 2263. Rendering was triggered because: page-view
- -->
-</div>
+The Science Paradigm embodies the relentless pursuit of knowledge and understanding of the natural — and sometimes unnatural — world. Members study, test, and manipulate reality through investigation, invention, and experimentation, no matter how impractical or dangerous their methods may seem. Advancement through understanding. Every mystery solved grants further control over the physical and metaphysical laws of existence.
+
+## Paradigm Identity
+
+**Who Joins** — Thinkers, innovators, and explorers of ideas — those who believe that observation and logic can rival faith and tradition. Researchers, inventors, technicians, and anyone driven by the need to understand.
+
+**Culture** — Scientists prize curiosity, precision, and persistence. They often clash with more instinct-driven doctrines, seeing ignorance as the only true threat. Collective belief: "Anything can be known — and what is known can be improved."
+
+**Archetype Feel** — Artificer / Wizard fusion. The Science Inquisitor is part field researcher and part inventor — equal parts precision instrument and volatile experiment.
+
+## Roll Axis Profile
+
+Science occupies 5 of the 7 universal Roll Paths. Its native mechanics emphasize bodily survival, cognitive operation, active investigation, sensory defense, and influence over information or behavior. Science Ciphers do not natively specialize in Power or Density, though Science Inquisitors may still make those rolls normally whenever the situation calls for them.
+
+| Roll Path | Native | Direction | Science Function |
+|---|---|---|---|
+| Power | — | Check | Not native to Science mechanics; ordinary physical force remains universally available. |
+| Density | — | Check | Not native to Science mechanics; rapid physical execution remains universally available. |
+| Evasion | ● | Save | Avoid experimental hazards, sudden discharges, unstable devices, and physically dangerous phenomena. |
+| Recovery | ● | Save | Endure contamination, experimental backlash, hostile environments, bodily destabilization, and material exposure. |
+| Capacity | ● | Check | Research, calculate, model, operate complex systems, sustain experimental processes, and coordinate technical workloads. |
+| Perception | ● | Check / Save | Actively investigate data or phenomena and recognize false readings, hidden variables, sensory distortion, or manipulated evidence. |
+| Influence | ● | Check / Save | Present findings, negotiate access, direct research personnel, defend professional judgment, or resist coercive interference. |
+
+**PROFILE STANDARD** — Science's Roll Profile describes the Paths its native Paradigm mechanics are built around. It does not prevent a Science Inquisitor from making Power or Density rolls during ordinary play, and it does not overwrite the natural Roll Path of weapons, Genera, copied abilities, environmental effects, or other external systems.
+
+## Science Paradigm Affinity
+
+Science does not favor every statistic contained inside its Roll Profile. Its Affinities represent the capabilities that scientific doctrine specifically trains beyond ordinary reliability: sustained cognition, disciplined thought, bodily resilience, and adaptation to dangerous experimentation.
+
+| Field | Value |
+|---|---|
+| Favored Attributes | Wisdom · Endurance |
+| Favored Specialties | Mental Fortitude · Adaptation |
+
+Wisdom supports sustained cognitive operation. Endurance supports survival through dangerous physical consequence. Mental Fortitude reinforces disciplined cognitive workload. Adaptation reinforces adjustment to changing, hazardous, or experimental conditions.
+
+| Designation Rank | Favored Attribute | Favored Specialty |
+|---|---|---|
+| 1–2 | +1d5 | +1d10 |
+| 3–5 | +2d5 | +2d10 |
+| 6–8 | +3d5 | +3d10 |
+| 9 | +4d5 | +4d10 |
+
+**SIGNATURE CONVERGENCE · CAPACITY** — Wisdom + Mental Fortitude creates Science's primary cognitive Convergence. When both legitimately govern a Capacity Check, Science receives both the Favored Attribute and Favored Specialty Affinity pools. This represents trained scientific discipline: maintaining calculations, operating complex systems, controlling experiments, processing anomalous information, and sustaining several technical operations at once.
+
+**SIGNATURE CONVERGENCE · RECOVERY** — Endurance + Adaptation creates Science's primary physical Convergence. When both legitimately govern a Recovery Save, Science receives both Affinity pools. This represents scientists surviving exposure, contamination, material instability, environmental backlash, experimental failure, and repeated adjustment to hostile conditions.
+
+**WHAT SCIENCE DOES NOT FAVOR** — Science has native access to Evasion, Perception, and Influence, but it does not automatically gain Affinity on Dexterity, Balance, Intelligence, Perception, Charisma, or Cunning. These Paths remain part of Science's mechanical vocabulary without being institutional areas of exceptional training.
+
+## Authority Profile
+
+Members hold privileged access to laboratories, experimental archives, research AIs, and prototyping facilities. Any lab without strict authority-level security defaults to Science Paradigm clearance — allowing rapid experimentation and material acquisition.
+
+**Advancement** — Stems from verifiable research results and technological innovation. Conducting experiments, publishing findings, or improving existing tech all contribute to higher Authority Rank — which functions jointly with Designation Rank to determine lab command and access privileges.
+
+## Authority Ranks · Designation Progression
+
+| Rank | Title | Role | Access |
+|---|---|---|---|
+| 1 | Intern | Entry-level learner gaining field experience | Basic lab and equipment access, observation rights |
+| 2 | Researcher | Applied scientist conducting assigned studies or field tests | Full lab use without restricted clearance; may propose independent experiments |
+| 3 | Scientist | Department or project leader | Can issue research orders, manage lab teams, override base-tier access |
+| 4 | Formal Sciences | Oversees a region, institute, or special project | Controls advanced facilities; selects a specialization field |
+
+### Rank 4 Specialization Fields
+
+**Formal Sciences** — Logic, mathematics, computation. Most formal analysis resolves through Capacity and, where observation or interpretation is central, Perception.
+
+**Natural Sciences** — Physics, chemistry, biology, geology. Emphasizes Capacity for active experimentation and Recovery when scientific work exposes the Inquisitor to hazardous physical consequence.
+
+**Social Sciences** — Psychology, linguistics, culture dynamics. Commonly engages Influence for active social direction and Perception for behavioral or cultural analysis.
+
+## Combat Specialty
+
+Science combatants tend toward tactical or support-oriented roles. They use specialized equipment, field devices, or energy manipulation to influence conditions rather than brute force them. Their native mechanics most often reward Capacity, Perception, Evasion, and Recovery rather than direct Power or Density specialization.
+
+**Style** — Tactical, precision-based, and persistent. Most scientific combatants rely on preparation, experimentation, and adaptive problem-solving during engagements.
+
+## Weapon & Gear Access
+
+| Weight | Slot | Class · Examples |
+|---|---|---|
+| Light | ½ | Hybrid — tools, hand-gadgets |
+| Medium | 1 | Exotic — arcane rifles, modular autocasters, focusing rods |
+| Heavy | 2 | Photonic — field generators, launchers, heavy gauntlets |
+
+Science Paragons often modify weapons through prototypes and inventions, combining mechanical precision with arcane or chemical unpredictability.
+
+## Specialties · Genera Domains
+
+**General Sciences** — Broad foundation of investigative knowledge; research, invention, and technical problem-solving most commonly resolve through Capacity or Perception depending on whether the task is operational or investigative.
+
+**Neutral Energy** — Focus on manipulating non-elemental energies such as magnetism, gravity, or force.
+
+**Elemental Energy** — Studies and applies fire, lightning, cryo, or plasma energy through experimental synthesis and weapon modification.
+
+## Interactions & Philosophy
+
+The Science Paradigm's devotion to methodical progress often alienates groups that value instinct (Evolution), perception (Cognition), or unstructured adaptability (Simulation). Still, their inventions appear in nearly every organization due to their unmatched practical results.
+
+**Allies** — Cognition (data processing), Warfare (equipment contracts), Evolution (research collaboration)
+
+**Tensions** — Cognition and Evolution (ethical boundaries, data ownership), Remnant (dismissal of instinct-based methods)
+
+## Paradigm Cipher Access
+
+Science Inquisitors receive a dedicated Cipher line reflecting their mastery of energy, matter, and knowledge systems. See [Science Ciphers](Science_Ciphers).

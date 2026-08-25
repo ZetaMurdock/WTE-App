@@ -25,7 +25,27 @@
       {
         "name": "Sanction",
         "weight": "Medium",
-        "effect": "You turn momentum into dominance.\nIf you move toward a creature and your available movement exceeds theirs: gain Advantage on Action Priority.\nOn a successful attack during this movement:\nThe target gains Disadvantage on Dexterity Saving Throws.\nThe target suffers Disadvantage on Balance Checks until the end of their next turn."
+        "effect": "You turn momentum into dominance.\nIf you move toward a creature and your available movement exceeds theirs: gain Advantage on Action Priority.\nOn a successful attack during this movement:\nThe target gains Disadvantage on Dexterity Saving Throws.\nThe target suffers Disadvantage on Balance Checks until the end of their next turn.",
+        "grants": [
+          {
+            "kind": "advantage",
+            "on": {
+              "axis": "physical",
+              "direction": "check",
+              "path": "density"
+            },
+            "target": "self"
+          },
+          {
+            "kind": "disadvantage",
+            "on": {
+              "axis": "physical",
+              "direction": "save",
+              "path": "evasion"
+            },
+            "target": "target"
+          }
+        ]
       },
       {
         "name": "Environmental Protection",
@@ -252,7 +272,18 @@
       {
         "name": "Eldritch Mind",
         "weight": "Light",
-        "effect": "Your cognition operates beyond mortal constraints.\nGain +2 to all Intelligence and Wisdom DC-based checks.\nMental attacks targeting you suffer -3 to their rolls.\nGain Advantage on Mental Fortitude Checks against creatures with a lower Ode Level than you."
+        "effect": "Your cognition operates beyond mortal constraints.\nGain +2 to all Intelligence and Wisdom DC-based checks.\nMental attacks targeting you suffer -3 to their rolls.\nGain Advantage on Mental Fortitude Checks against creatures with a lower Ode Level than you.",
+        "grants": [
+          {
+            "kind": "advantage",
+            "on": {
+              "axis": "mental",
+              "direction": "check",
+              "path": "capacity"
+            },
+            "target": "self"
+          }
+        ]
       },
       {
         "name": "Mirrored Awareness",
@@ -272,7 +303,18 @@
       {
         "name": "Eldritch Horror",
         "weight": "Medium",
-        "effect": "Your presence induces primal terror.\nCreatures with a lower Action Priority than you suffer -15 to all non-attack rolls while targeting you.\nCreatures of a lower Level than you are Frightened:\nThey flinch when acting against you.\nThey have Disadvantage on Dexterity Saving Throws.\nTheir Movement Speed is doubled (a panic response)."
+        "effect": "Your presence induces primal terror.\nCreatures with a lower Action Priority than you suffer -15 to all non-attack rolls while targeting you.\nCreatures of a lower Level than you are Frightened:\nThey flinch when acting against you.\nThey have Disadvantage on Dexterity Saving Throws.\nTheir Movement Speed is doubled (a panic response).",
+        "grants": [
+          {
+            "kind": "disadvantage",
+            "on": {
+              "axis": "physical",
+              "direction": "save",
+              "path": "evasion"
+            },
+            "target": "target"
+          }
+        ]
       },
       {
         "name": "Unrivaled Essence",

@@ -97,13 +97,15 @@ describe("target roll chips", () => {
 
     await act(async () => chip!.click());
 
+    // The printed DC 18 is replaced by the attacker-keyed DV: 21 + the caster's
+    // best Capacity check route (WIS +1 + NC +4 = +5) → 26.
     expect(request).toHaveBeenCalledWith({
       abilityId: "ability-1",
       abilityName: "Gravitic Snare",
       sourceCharacterId: "caster-1",
-      label: "Endurance save · DC 18",
+      label: "Endurance save · DV 26",
       stat: "Endurance",
-      dc: 18,
+      dc: 26,
     });
   });
 
@@ -133,14 +135,16 @@ describe("target roll chips", () => {
     expect(chip).toBeDefined();
 
     await act(async () => chip!.click());
+    // No printed DV in the prose — the attacker-keyed DV still applies, so the
+    // target's prompt carries a number instead of a shrug.
     expect(request).toHaveBeenCalledWith({
       abilityId: "ability-axis",
       abilityName: "Phase Trap",
       sourceCharacterId: "caster-1",
-      label: "Physical Save — Evasion",
+      label: "Physical Save — Evasion · DV 26",
       stat: undefined,
       rollAxis: { path: "evasion", direction: "save" },
-      dc: undefined,
+      dc: 26,
     });
   });
 

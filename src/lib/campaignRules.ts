@@ -22,6 +22,10 @@ export interface CampaignRules {
    *  rather than a flat number. Off by default: it is a real buff to shaped
    *  builds, and the flat version is what every existing sheet was built under. */
   poolCompensation: boolean;
+  /** Paradigm Affinity (2026-08): Favored-stat dice on Roll Axis rolls. ON by
+   *  default — it is a published rule, not a house rule; the toggle exists for
+   *  tables that want the flatter pre-Affinity math. */
+  paradigmAffinity: boolean;
 }
 
 /** Seven d20s average 73.5 — the default budget sits just under an average roll. */
@@ -37,6 +41,7 @@ export const DEFAULT_RULES: CampaignRules = {
   attrBudgetPoints: ATTR_BUDGET_DEFAULT,
   specTotal: SPEC_TOTAL,
   poolCompensation: false,
+  paradigmAffinity: true,
 };
 
 const key = (campaignId: string) => `wte-campaign-rules:${campaignId}`;
@@ -67,6 +72,8 @@ export function parseRules(raw: unknown): CampaignRules {
     attrBudgetPoints: clamp(o.attrBudgetPoints, ATTR_BUDGET_MIN, ATTR_BUDGET_MAX, ATTR_BUDGET_DEFAULT),
     specTotal: clamp(o.specTotal, SPEC_TOTAL_MIN, SPEC_TOTAL_MAX, SPEC_TOTAL),
     poolCompensation: o.poolCompensation === true,
+    // Published rule: absent (older blobs, older peers) means ON.
+    paradigmAffinity: o.paradigmAffinity !== false,
   };
 }
 

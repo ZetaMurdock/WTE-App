@@ -33,9 +33,10 @@ describe("character-sheet Roll Axis panel", () => {
   it("walks Physical → Saves → Evasion and rolls the full visible pipeline", async () => {
     const onRoll = vi.fn();
     await act(async () => root.render(<RollAxisPanel stats={stats} onRoll={onRoll} />));
-    const find = (name: string) => [...host.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.trim() === name);
+    // Path cards carry a source summary under the name, so match by prefix.
+    const find = (name: string) => [...host.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.trim().startsWith(name));
     await act(async () => find("Physical")!.click());
-    await act(async () => find("Saves")!.click());
+    await act(async () => find("Save — you resist")!.click());
     await act(async () => find("Evasion Save")!.click());
 
     const dexterity = [...host.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("Dexterity"));

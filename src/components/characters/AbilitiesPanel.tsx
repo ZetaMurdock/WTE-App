@@ -1,6 +1,7 @@
 import type { RuleLayer } from "../../game/ruleLayers";
 import { Collapsible } from "../ui/Collapsible";
 import { codexCtx, genusCatalogFor, genusFocusFor, genusKeyFor } from "../../game/resolvedGenus";
+import { grantLabel } from "../../game/inceptGrants";
 import {
   ciphersForParadigm,
   CIPHER_TIERS,
@@ -204,6 +205,18 @@ export function AbilitiesBody({
                   >
                     {on ? "✓" : "+"}
                   </button>
+                  {/* What the Incept actually DOES, in the same Roll Axis words
+                      the rest of the sheet uses. An Incept with no grants is
+                      narrative — it reads, it just has nothing to roll. */}
+                  {inc?.grants?.length ? (
+                    <div className="incept-grants">
+                      {inc.grants.map((grant, i) => (
+                        <span className={"grant-chip " + grant.kind} key={i}>
+                          {grantLabel(grant)}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               );
             })}

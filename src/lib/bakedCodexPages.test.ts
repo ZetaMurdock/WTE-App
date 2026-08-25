@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   bakedCodexPages,
+  bakedInceptPageContent,
   bakedParadigmPageContent,
   bakedSpeciesPageContent,
   findBakedCodexPage,
 } from "./bakedCodexPages";
-import { parseParadigmPage, parseSpeciesDefinitionPage } from "./gameData";
-import { bakedParadigms, bakedSpecies, bakedSpeciesInnate, bakedSpeciesSize } from "../game/wte";
+import { parseInceptPage, parseParadigmPage, parseSpeciesDefinitionPage } from "./gameData";
+import { bakedInceptPools, bakedParadigms, bakedSpecies, bakedSpeciesInnate, bakedSpeciesSize } from "../game/wte";
 
 // A built-in page exists so a Curator can fork it. If the generator and the
 // parser disagree by even one field, "Customize" hands them a page that quietly
@@ -131,5 +132,67 @@ describe("built-in page catalog", () => {
     for (const name of ["Salaris", "Trevant", "Qerran"]) {
       expect(text).toContain(`### ${name}`);
     }
+  });
+});
+
+describe("built-in Incept pages", () => {
+  const pools = Object.entries(bakedInceptPools());
+
+  it("covers every compiled Incept", () => {
+    const pages = bakedCodexPages().filter((p) => p.kind === "incept");
+    const total = pools.reduce((n, [, pool]) => n + pool.incepts.length, 0);
+    expect(pages).toHaveLength(total);
+    expect(new Set(pages.map((p) => p.id)).size).toBe(total);
+    expect(new Set(pages.map((p) => p.stem)).size).toBe(total);
+  });
+
+  for (const [speciesId, pool] of pools) {
+    for (const incept of pool.incepts) {
+      it(`${speciesId} · ${incept.name} parses back to its compiled record`, () => {
+        const md = bakedInceptPageContent(speciesId, incept);
+        const back = parseInceptPage(md, `incept-${speciesId}`);
+        expect(back).not.toBeNull();
+        expect(back!.speciesId).toBe(speciesId);
+        expect(back!.incept.name).toBe(incept.name);
+        // Weight drives Synaptic Focus cost AND the Wryde chaos tier, so a
+        // round trip that lost it would silently reprice and de-risk the Incept.
+        expect(back!.incept.weight).toBe(incept.weight);
+        expect(back!.incept.memory).toBe(incept.memory);
+        expect(back!.incept.grants ?? []).toEqual(incept.grants ?? []);
+      });
+    }
+  }
+
+  it("keeps the Memory line the Mirga Incepts carry", () => {
+    const mirga = bakedInceptPools()["mirga"].incepts.find((i) => i.memory);
+    expect(mirga).toBeDefined();
+    expect(bakedInceptPageContent("mirga", mirga!)).toContain("| Memory |");
+  });
+
+  it("omits the Grants section for an Incept with nothing executable yet", () => {
+    const md = bakedInceptPageContent("hyomen", { name: "Prose Only", weight: "Light", effect: "Words." });
+    expect(md).not.toContain("## Grants");
+    expect(parseInceptPage(md, "x")!.incept.grants).toBeUndefined();
+  });
+
+  it("round-trips every grant kind through the page", () => {
+    const md = bakedInceptPageContent("hyomen", {
+      name: "Full Kit",
+      weight: "Heavy",
+      effect: "Everything at once.",
+      grants: [
+        { kind: "advantage", on: { axis: "physical", direction: "check", path: "power" }, target: "self" },
+        { kind: "disadvantage", on: { axis: "physical", direction: "save", path: "evasion" }, target: "target" },
+        { kind: "damage", expr: "3d10", damageType: "Entropy" },
+        { kind: "restore", expr: "1d50", resource: "ss" },
+        { kind: "cost", expr: "10", resource: "focus" },
+      ],
+    });
+    const back = parseInceptPage(md, "x")!;
+    expect(back.incept.grants).toHaveLength(5);
+    expect(back.incept.grants![1]).toEqual({
+      kind: "disadvantage", on: { axis: "physical", direction: "save", path: "evasion" }, target: "target",
+    });
+    expect(back.incept.effect).toBe("Everything at once.");
   });
 });

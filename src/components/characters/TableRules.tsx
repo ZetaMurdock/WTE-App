@@ -99,6 +99,21 @@ export function TableRules({ campaignId, onClose }: Props) {
 
         <div className="rule-block">
           <label className="rule-toggle">
+            <input type="checkbox" checked={rules.paradigmAffinity} onChange={(e) => patch({ paradigmAffinity: e.target.checked })} />
+            <span>Paradigm Affinity dice</span>
+          </label>
+          <p className="rule-note">
+            The published Favored-stat rule: a Roll Axis roll governed by a
+            paradigm's Favored Attribute adds +1d5 per rank tier, a Favored
+            Specialty adds +1d10, and a Convergence path (both Favored) adds
+            both pools. On by default — turn it off for the flatter
+            pre-Affinity math. Remnants pick their two extra Favored stats on
+            the sheet's Roll Axis panel.
+          </p>
+        </div>
+
+        <div className="rule-block">
+          <label className="rule-toggle">
             <input type="checkbox" checked={rules.poolCompensation} onChange={(e) => patch({ poolCompensation: e.target.checked })} />
             <span>Proportional compensation on the core pools</span>
           </label>

@@ -49,6 +49,8 @@ import {
   type RollResult,
   type EquipmentItem,
   sizeOf,
+  ATTR_KEYS,
+  SPEC_KEYS,
 } from "../../game/wte";
 import { DerivedPreview } from "./DerivedPreview";
 import { CharacterVitals } from "./CharacterVitals";
@@ -281,6 +283,17 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
       cun: specRollMod(Math.min(SPEC_MAX, effSpec.cun)),
     },
     derived: { atk: derived.atk, ad: derived.ad, ev: derived.ev, rr: derived.rr, nc: derived.ncMod, pr: derived.pr, inf: derived.inf },
+    // Paradigm Affinity: favored-stat dice, unless this table turned them off.
+    ...(rules.paradigmAffinity
+      ? {
+          affinity: {
+            paradigmId: sheet.paradigmId,
+            rank,
+            extraAttr: ATTR_KEYS.includes(sheet.favoredAttr as AttrKey) ? (sheet.favoredAttr as AttrKey) : undefined,
+            extraSpec: SPEC_KEYS.includes(sheet.favoredSpec as SpecKey) ? (sheet.favoredSpec as SpecKey) : undefined,
+          },
+        }
+      : {}),
   };
   const ncUsed = loadoutNC(weaponLoadout, gearLoadout);
   const slotsUsed = weaponSlotsUsed(weaponLoadout);
@@ -629,7 +642,24 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
           </div>
 
           <div className="sheet-tabpanel">
-            {tab === "stats" && <RollAxisPanel stats={rollAxisStats} onRoll={doRoll} />}
+            {tab === "stats" && (
+              <RollAxisPanel
+                stats={rollAxisStats}
+                onRoll={doRoll}
+                fieldAffinity={
+                  paradigm?.favoredChoice
+                    ? {
+                        attr: ATTR_KEYS.includes(sheet.favoredAttr as AttrKey) ? (sheet.favoredAttr as AttrKey) : undefined,
+                        spec: SPEC_KEYS.includes(sheet.favoredSpec as SpecKey) ? (sheet.favoredSpec as SpecKey) : undefined,
+                        fixedAttr: paradigm.favoredAttrs ?? [],
+                        fixedSpec: paradigm.favoredSpecs ?? [],
+                        onChange: (attr, spec) =>
+                          persist({ ...rec!, sheet: { ...sheet, favoredAttr: attr, favoredSpec: spec } }),
+                      }
+                    : undefined
+                }
+              />
+            )}
             {tab === "stats" && (
               <div className="stats-grid">
                 <div className="stats-col">
@@ -769,6 +799,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
 
             {tab === "actions" && (
               <ActionsTable
+                rollAxisStats={rollAxisStats}
                 weapons={equippedWeapons}
                 genus={usableGenusResolved(knownGenusNames, codexCtx(campaignId, characterId, role), spend.genus, ruleLayers)}
                 ciphers={usableCiphers(sheet.paradigmId, cipherLoadout)}
@@ -779,7 +810,9 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                 onRoll={doRoll}
                 onSpend={spendSS}
                 onManage={() => setTab("loadout")}
-                onContest={(a) => setContestAbility(a)}
+                // Contests are the Curator's move: they hold the opposing
+                // numbers, and the VTT resolves them automatically from records.
+                onContest={curator ? (a) => setContestAbility(a) : undefined}
               />
             )}
 

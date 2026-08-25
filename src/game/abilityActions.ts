@@ -35,11 +35,19 @@ export interface AbilityAction {
   rollAxis?: AbilityRollAxisRef;
   /** Save/DC for a target-side resolution (save only). */
   dc?: number;
+  /** A named modifier the DV adds, e.g. "DV 13 + Neuronal Capacity Modifier". */
+  dcBonus?: string;
+  /** A DV that is ROLLED rather than fixed — "against a d40 Dice Value". */
+  dcDie?: number;
   /** Damage type word, when the text names one (damage only). */
   damageType?: string;
 }
 
-const DAMAGE_TYPES = "Force|Radiant|Antimatter|Psychic|Spirit|Entropy|Fire|Cold|Kinetic|Void|Null|Acid|Poison|Crushing|Cold|Sonic|Lightning|Necrotic";
+// "Radiance" and "Radiant" are the same energy written two ways in the 2026-08
+// Genus pages; Eldritch and Elemental damage arrived with the same update.
+// Radiance is listed before Radiant so the longer word wins the alternation.
+const DAMAGE_TYPES =
+  "Force|Radiance|Radiant|Antimatter|Psychic|Spirit|Entropy|Fire|Cold|Kinetic|Void|Null|Acid|Poison|Crushing|Sonic|Lightning|Necrotic|Eldritch|Elemental";
 
 // Stat words the resolver in wte.ts understands, as an alternation for scanning.
 const STAT_WORDS =
@@ -56,14 +64,46 @@ const AXIS_PATH_RULES: Record<AbilityRollAxisPath, { axis: AbilityRollAxis; dire
   influence: { axis: "mental", directions: ["check", "save"] },
 };
 
+/** Chip-sized names for the modifier terms DV expressions actually use. */
+function shortStat(term: string): string {
+  return term
+    .replace(/neuronal capacity/i, "NC")
+    .replace(/\bmodifier\b/i, "Mod")
+    .replace(/\bcode level\b/i, "Code Lv")
+    .replace(/\bode level\b/i, "Ode Lv")
+    .trim();
+}
+
+// Effect prose is immutable per ability and this parser runs a battery of
+// regexes — the VTT re-parses every visible row on every render. One cache
+// entry per distinct effect string makes that free. Bounded by wholesale reset:
+// a table cycles through hundreds of abilities, not tens of thousands, so
+// eviction sophistication would outweigh the cost being avoided. Callers treat
+// the returned array as frozen — filter/map it, never push into it.
+const PARSE_CACHE_MAX = 512;
+const parseCache = new Map<string, AbilityAction[]>();
+
 /** Parse ability effect prose into the concrete actions a table clicks. */
 export function parseAbilityActions(effect: string | null | undefined): AbilityAction[] {
   const text = String(effect || "");
   if (!text.trim()) return [];
+  const cached = parseCache.get(text);
+  if (cached) return cached;
+  const parsed = parseAbilityActionsUncached(text);
+  if (parseCache.size >= PARSE_CACHE_MAX) parseCache.clear();
+  parseCache.set(text, parsed);
+  return parsed;
+}
+
+function parseAbilityActionsUncached(text: string): AbilityAction[] {
   const out: AbilityAction[] = [];
   const seen = new Map<string, number>();
   const push = (a: AbilityAction) => {
     const stat = a.stat?.trim().toLowerCase();
+    // A stat word that IS a Roll Axis path name, arriving after that path was
+    // already parsed in full, is a back-reference ("If the Perception Save
+    // fails…"), not a second roll.
+    if (!a.rollAxis && stat && out.some((prior) => prior.rollAxis && prior.rollAxis.path === stat)) return;
     const k = a.kind === "damage"
       ? `${a.kind}|${a.expr ?? a.label}|${a.damageType ?? ""}`
       : a.rollAxis
@@ -86,6 +126,10 @@ export function parseAbilityActions(effect: string | null | undefined): AbilityA
   const dmgRe = new RegExp(`(\\d*d\\d+(?:\\s*[+-]\\s*\\d+)?)\\s*(${DAMAGE_TYPES})?`, "gi");
   let dm: RegExpExecArray | null;
   while ((dm = dmgRe.exec(text))) {
+    // "each against a d40 Dice Value" is a DV, not damage — without this guard
+    // every rolled DV also spawned a phantom d40 damage button.
+    const dmTail = text.slice(dm.index + dm[0].length, dm.index + dm[0].length + 16);
+    if (/^\s*Dice\s+Value/i.test(dmTail)) continue;
     const expr = dm[1].replace(/\s+/g, "");
     const type = dm[2] ? dm[2][0].toUpperCase() + dm[2].slice(1).toLowerCase() : undefined;
     push({ kind: "damage", label: type ? `${expr} ${type}` : expr, expr, damageType: type });
@@ -97,11 +141,12 @@ export function parseAbilityActions(effect: string | null | undefined): AbilityA
   // DEX or Balance PLUS the Evasion derived modifier, and the active Codex may
   // replace that path/direction formula.
   const axisRanges: { start: number; end: number }[] = [];
-  const axisRe = /\b(Physical|Mental)\s+(Save|Check)\s*(?:[\u2014\u2013:\-]\s*)?(Power|Density|Evasion|Recovery|Capacity|Perception|Influence)\b/gi;
+  const axisRe = /\b(Physical|Mental)\s+(Saves?|Checks?)\s*(?:[\u2014\u2013:\-]\s*)?(Power|Density|Evasion|Recovery|Capacity|Perception|Influence)\b/gi;
   let ar: RegExpExecArray | null;
   while ((ar = axisRe.exec(text))) {
     const axis = ar[1].toLowerCase() as AbilityRollAxis;
-    const direction = ar[2].toLowerCase() as AbilityRollDirection;
+    const plural = /s$/i.test(ar[2]);
+    const direction = ar[2].toLowerCase().replace(/s$/, "") as AbilityRollDirection;
     const path = ar[3].toLowerCase() as AbilityRollAxisPath;
     axisRanges.push({ start: ar.index, end: ar.index + ar[0].length });
     const route = AXIS_PATH_RULES[path];
@@ -118,12 +163,34 @@ export function parseAbilityActions(effect: string | null | undefined): AbilityA
     const before = text.slice(Math.max(clauseStart + 1, ar.index - 100), ar.index);
     const targetSubject = /\b(?:the\s+target|target|they|the\s+creature|creatures|opponent|unwilling\s+creatures?)\b[^.;·]{0,75}\b(?:rolls?|makes?|with|using|repeat(?:s)?)\s+(?:an?\s+)?$/i.test(before);
     const selfSubject = /\b(?:you|your\s+character|the\s+inquisitor)\b[^.;·]{0,75}\b(?:rolls?|makes?)\s+(?:an?\s+)?$/i.test(before);
+    // A plural mention with no rolling subject is penalty/reference prose
+    // ("disadvantage on Physical Saves — Evasion") — recorded in axisRanges so
+    // the broad scanners skip it, but it is not itself a roll anyone makes.
+    if (plural && !targetSubject && !selfSubject) continue;
     const kind: AbilityActionKind = targetSubject ? "save" : selfSubject ? "self" : direction === "check" ? "self" : "save";
-    const dcTail = text.slice(ar.index + ar[0].length, ar.index + ar[0].length + 64);
-    const dcMatch = /^[^.;·]{0,40}\bD(?:C|V)\s*(?:of|=)?\s*(\d+)/i.exec(dcTail);
+    // The updated pages write DVs three ways: fixed ("DV 13"), fixed plus a
+    // named modifier ("DV 13 + Neuronal Capacity Modifier"), and rolled
+    // ("each against a d40 Dice Value"). The window spans "and a Mental Save
+    // — Influence, each against a" so a shared rolled DV reaches BOTH saves,
+    // but never crosses a sentence boundary.
+    const dcTail = text.slice(ar.index + ar[0].length, ar.index + ar[0].length + 96);
+    const dcMatch = /^[^.;·]{0,64}\bD(?:C|V)\s*(?:of|=)?\s*(\d+)(?:\s*[–—-]\s*(\d+))?(?:\s*\+\s*([A-Za-z][A-Za-z ]*?(?:Modifier|Level)))?/i.exec(dcTail);
+    const dieMatch = dcMatch ? null : /^[^.;·]{0,64}\bd(\d+)\s+Dice\s+Value/i.exec(dcTail);
     const dc = dcMatch ? parseInt(dcMatch[1], 10) : undefined;
-    const label = `${ar[1]} ${ar[2][0].toUpperCase()}${ar[2].slice(1).toLowerCase()} — ${ar[3]}${dc != null ? ` · DC ${dc}` : ""}`;
-    push({ kind, label, rollAxis: { axis, direction, path }, dc });
+    // "DV 12–18 based on complexity": dc keeps the low bound, the label keeps
+    // the authored range rather than silently understating it.
+    const dcHigh = dcMatch?.[2] ? parseInt(dcMatch[2], 10) : undefined;
+    const dcBonus = dcMatch?.[3]?.trim();
+    const dcDie = dieMatch ? parseInt(dieMatch[1], 10) : undefined;
+    const dvText =
+      dc != null
+        ? `DV ${dc}${dcHigh != null ? `–${dcHigh}` : ""}${dcBonus ? ` + ${shortStat(dcBonus)}` : ""}`
+        : dcDie != null
+          ? `DV d${dcDie}`
+          : "";
+    const word = direction === "check" ? "Check" : "Save";
+    const label = `${ar[1]} ${word} — ${ar[3]}${dvText ? ` · ${dvText}` : ""}`;
+    push({ kind, label, rollAxis: { axis, direction, path }, dc, dcBonus, dcDie });
   }
   const overlapsAxisPhrase = (index: number, length: number) =>
     axisRanges.some((range) => index < range.end && index + length > range.start);

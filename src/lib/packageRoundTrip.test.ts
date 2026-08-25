@@ -49,7 +49,7 @@ function fullPackage(): CampaignPackage {
     encounters: [],
     assets: [],
     kv: [],
-    rules: { attrBudget: true, attrBudgetPoints: 82, specTotal: 240, poolCompensation: true },
+    rules: { attrBudget: true, attrBudgetPoints: 82, specTotal: 240, poolCompensation: true, paradigmAffinity: true },
     pages: [{ stem: "Ashen_Lark", content: housePage }],
     ruleLayers: [
       { id: "L1", targetId: `campaign.${OLD}.genus.ashen-lark`, scope: "campaign", owner: OLD, op: "add", value: 2, note: "surcharge" },
@@ -79,7 +79,7 @@ describe("the envelope refuses what it cannot fully understand", () => {
       attrBudget: false,
       attrBudgetPoints: 70,
       specTotal: 200,
-      poolCompensation: false,
+      poolCompensation: false, paradigmAffinity: true
     });
   });
 

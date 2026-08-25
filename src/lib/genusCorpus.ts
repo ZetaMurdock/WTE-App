@@ -108,13 +108,18 @@ export function scanGenusCorpus(pages: RawPage[]): CorpusScan {
     }
   }
 
-  // A domain page the data file has no domain for. Right now the installed corpus
-  // ships Kinetic_Genus while the data file calls that domain Photonic, so 20
-  // abilities have no page and one page describes no known domain. Reporting it
-  // beats either half silently going missing.
+  // A domain page the data file has no domain for. A page named for a domain's
+  // FORMER name (Kinetic_Genus after the Photonic rework) is not unknown — it is
+  // a stale mirror of a claimed domain, kept as a redirect for old links — so
+  // alias-named pages are exempted. Anything else is a real content problem.
+  const aliasStems = new Set(
+    GENUS_DOMAIN_NAMES.flatMap((domain) =>
+      (getGenusDomain(domain)?.aliases ?? []).map((alias) => `${slugify(alias)}-genus`)
+    )
+  );
   const unknownPages = genusPages
     .map((p) => p.stem)
-    .filter((stem) => !claimed.has(stem) && !/^genera$/i.test(stem));
+    .filter((stem) => !claimed.has(stem) && !/^genera$/i.test(stem) && !aliasStems.has(slugify(stem)));
 
   return { pages: out, unlocated, domainMismatch: { missingPages, unknownPages } };
 }

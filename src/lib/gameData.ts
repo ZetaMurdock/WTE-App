@@ -9,6 +9,8 @@ import {
   type SpeciesFamily,
   type SpeciesVariant,
   type SpeciesVariantAbility,
+  type Incept,
+  type InceptWeight,
   type CodexSpeciesDefinition,
   type SpeciesMechanicField,
   type Paradigm,
@@ -21,6 +23,7 @@ import {
 } from "../game/wte";
 import { parseCodexEntry } from "./codexParse";
 import { codexPlainSource } from "./codexPlain";
+import { parseInceptGrants } from "../game/inceptGrants";
 import { setCodexCatalog, setCodexRuntimeEntries } from "./codex";
 import { applyCodexPages, beginCodexLoad, codexLoadIsCurrent, noCodexPages, type PageSkip } from "../game/codexService";
 import { scanGenusCorpus, type RawPage } from "./genusCorpus";
@@ -169,6 +172,46 @@ function parseInnateAbilities(source: string): SpeciesVariantAbility[] {
   return out;
 }
 
+/** Everything under a `## <Name>` heading, up to the next one. */
+function section(md: string, name: string): string {
+  const re = new RegExp(String.raw`^#{2,3}\s+${name}\s*$`, "im");
+  const at = md.split(re)[1];
+  if (at === undefined) return "";
+  return at.split(/^#{1,3}\s/m)[0];
+}
+
+/**
+ * `Type: Incept` — one Incept, belonging to a species' pool.
+ *
+ * Weight is required and drives two live systems (Synaptic Focus cost and the
+ * Wryde chaos tier), so an unreadable one is not defaulted quietly. Grants are
+ * optional: an Incept that has not been converted to Roll Axis yet still reads
+ * on the sheet, it just has nothing to roll.
+ */
+export function parseInceptPage(md: string, stem: string): { speciesId: string; incept: Incept } | null {
+  const f = readFields(md);
+  if ((f["type"] || "").toLowerCase() !== "incept") return null;
+  const name = f["name"] || titleOf(md, stem);
+  const speciesId = slug(f["species"] || f["pool"] || "");
+  if (!speciesId || !name) return null;
+  const weightRaw = (f["weight"] || "").trim().toLowerCase();
+  const weight: InceptWeight =
+    weightRaw === "heavy" ? "Heavy" : weightRaw === "light" ? "Light" : "Medium";
+  const plain = codexPlainSource(md);
+  const { grants } = parseInceptGrants(section(plain, "Grants"));
+  const effect = section(plain, "Effect").trim() || f["effect"] || "";
+  return {
+    speciesId,
+    incept: {
+      name,
+      weight,
+      memory: f["memory"] || undefined,
+      effect,
+      grants: grants.length ? grants : undefined,
+    },
+  };
+}
+
 function ownField(fields: Record<string, string>, ...names: string[]): boolean {
   return names.some((name) => Object.prototype.hasOwnProperty.call(fields, name));
 }
@@ -243,16 +286,45 @@ export function parseSpeciesPage(md: string, stem: string): Species | null {
   return parseSpeciesDefinitionPage(md, stem)?.species ?? null;
 }
 
+/** "Wisdom · Endurance" / "Dexterity · Choose 1 Additional Attribute" →
+ *  attribute keys plus whether a player choice slot is declared. */
+function parseFavoredList<K extends string>(
+  raw: string | undefined,
+  names: Readonly<Record<string, K>>
+): { keys: K[]; choice: boolean } | null {
+  if (raw === undefined) return null;
+  const keys: K[] = [];
+  let choice = false;
+  for (const part of raw.split(/[·,;/]/)) {
+    const term = strip(part).toLowerCase().replace(/\s+/g, " ").trim();
+    if (!term) continue;
+    if (/^choose\b/.test(term)) {
+      choice = true;
+      continue;
+    }
+    const key = ownRecordValue(names, term);
+    if (key && !keys.includes(key)) keys.push(key);
+  }
+  return { keys, choice };
+}
+
 export function parseParadigmPage(md: string, stem: string): Paradigm | null {
   const f = readFields(md);
   if ((f["type"] || "").toLowerCase() !== "paradigm") return null;
   const name = f["name"] || titleOf(md, stem);
+  // Affinity rows are OPTIONAL — a page without them inherits the baked
+  // doctrine's favored stats rather than deleting them (see the registry merge).
+  const favAttrs = parseFavoredList(f["favored attributes"], ATTR_NAMES);
+  const favSpecs = parseFavoredList(f["favored specialties"], SPEC_NAMES);
   return {
     id: mechanicSlug(f, name, "paradigm"),
     name,
     group: f["group"] || "Codex",
     weapons: csv(f["weapons"]),
     domains: csv(f["domains"]),
+    ...(favAttrs ? { favoredAttrs: favAttrs.keys } : {}),
+    ...(favSpecs ? { favoredSpecs: favSpecs.keys } : {}),
+    ...(favAttrs?.choice || favSpecs?.choice ? { favoredChoice: true } : {}),
   };
 }
 
@@ -387,6 +459,7 @@ export async function loadCodexGameData(): Promise<void> {
   const genus = nullRecord<GenusAbility[]>();
   const ciphers = nullRecord<CipherAbility[]>();
   const backgrounds: CodexBackground[] = [];
+  const incepts = nullRecord<Incept[]>();
   const runtimeEntries: CodexEntry[] = [];
   const rollFormulas: { formula: CodexRollFormula; campaign: boolean }[] = [];
 
@@ -422,6 +495,11 @@ export async function loadCodexGameData(): Promise<void> {
     const pd = parseParadigmPage(md, name);
     if (pd) {
       paradigms.push(pd);
+      continue;
+    }
+    const inc = parseInceptPage(md, name);
+    if (inc) {
+      (incepts[inc.speciesId] ??= []).push(inc.incept);
       continue;
     }
     const bg = parseBackgroundPage(md, name);
@@ -523,7 +601,7 @@ export async function loadCodexGameData(): Promise<void> {
   // All catalogs below are process-wide singletons. Do not let a slower pass
   // for the campaign we just left land over the newest campaign's data.
   if (!codexLoadIsCurrent(token)) return;
-  registerCodexGameData({ species, paradigms, sizes, genus, ciphers, backgrounds });
+  registerCodexGameData({ species, paradigms, sizes, genus, ciphers, backgrounds, incepts });
   // Official definitions establish the baseline; campaign definitions are
   // installed last and therefore win for the same target/path. Invalid pages
   // never reach this registry, and every load replaces it atomically.

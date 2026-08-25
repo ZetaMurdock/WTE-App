@@ -9,6 +9,7 @@ import variantsData from "./data/variants.json";
 import speciesInnateData from "./data/speciesInnate.json";
 import inceptData from "./data/incepts.json";
 import { resolveCodexRollFormula } from "./rollFormula";
+import type { InceptGrant } from "./inceptGrants";
 
 /** Content-authored ids and names are valid dictionary keys even when they
  * match Object.prototype (for example `constructor`). */
@@ -281,19 +282,26 @@ export interface Paradigm {
   group: string;
   weapons: string[];
   domains: string[];
+  /** Paradigm Affinity (2026-08): the Attributes this doctrine trains beyond
+   *  ordinary reliability. A Roll Axis roll governed by one gains +Nd5. */
+  favoredAttrs?: AttrKey[];
+  /** The Specialties this doctrine favors. A governed roll gains +Nd10. */
+  favoredSpecs?: SpecKey[];
+  /** Remnant's Field Affinity Selection: the player adds one Attribute and one
+   *  Specialty of their own to the favored lists. */
+  favoredChoice?: boolean;
 }
 export const PARADIGMS: Paradigm[] = [
-  // Domains mirror each Genus page's "Paradigm Access" block, with one deliberate
-  // exception: the Kinetic domain was reworked into PHOTONIC, so simulation and
-  // warfare follow it across — but REMNANT keeps Null + Neutral per its own rework
-  // (v0.8.21). The Photonic page lists Remnant; that mention is a leftover and the
-  // Remnant rework wins. See remnant.test.ts.
-  { id: "science", name: "Science", group: "Scientific", weapons: ["Hybrid", "Medium", "Kinetic"], domains: ["Neutral", "Elemental"] },
-  { id: "simulation", name: "Simulation", group: "Scientific", weapons: ["Kinetic", "Hybrid"], domains: ["Photonic", "Null"] },
-  { id: "remnant", name: "Remnant", group: "Esoteric & Survival", weapons: ["Kinetic", "Energy", "Hybrid"], domains: ["Null", "Neutral"] },
-  { id: "cognition", name: "Cognition", group: "Esoteric & Survival", weapons: ["Energy", "Exotic", "Hybrid"], domains: ["Eldritch", "Null"] },
-  { id: "evolution", name: "Evolution", group: "Esoteric & Survival", weapons: ["Energy", "Exotic", "Hybrid"], domains: ["Elemental", "Eldritch"] },
-  { id: "warfare", name: "Warfare", group: "Tactical Combat", weapons: ["Hybrid", "Exotic", "Kinetic"], domains: ["Neutral", "Photonic"] },
+  // Domains mirror each Genus page's "Paradigm Access" block exactly. The
+  // 2026-08 Codex update settled the old Remnant question the other way around:
+  // the new Photonic page names Remnant deliberately, and the new Null page no
+  // longer does — so Remnant now runs Photonic + Neutral. See remnant.test.ts.
+  { id: "science", name: "Science", group: "Scientific", weapons: ["Hybrid", "Medium", "Kinetic"], domains: ["Neutral", "Elemental"], favoredAttrs: ["wis", "end"], favoredSpecs: ["mf", "adp"] },
+  { id: "simulation", name: "Simulation", group: "Scientific", weapons: ["Kinetic", "Hybrid"], domains: ["Photonic", "Null"], favoredAttrs: ["int", "wis"], favoredSpecs: ["per", "mf"] },
+  { id: "remnant", name: "Remnant", group: "Esoteric & Survival", weapons: ["Kinetic", "Energy", "Hybrid"], domains: ["Photonic", "Neutral"], favoredAttrs: ["dex"], favoredSpecs: ["adp"], favoredChoice: true },
+  { id: "cognition", name: "Cognition", group: "Esoteric & Survival", weapons: ["Energy", "Exotic", "Hybrid"], domains: ["Eldritch", "Null"], favoredAttrs: ["cha", "int"], favoredSpecs: ["cun", "per"] },
+  { id: "evolution", name: "Evolution", group: "Esoteric & Survival", weapons: ["Energy", "Exotic", "Hybrid"], domains: ["Elemental", "Eldritch"], favoredAttrs: ["phy", "end"], favoredSpecs: ["adp", "bal"] },
+  { id: "warfare", name: "Warfare", group: "Tactical Combat", weapons: ["Hybrid", "Exotic", "Kinetic"], domains: ["Neutral", "Photonic"], favoredAttrs: ["phy", "ap"], favoredSpecs: ["wm", "pre"] },
 ];
 
 // ── Data-driven registry (Codex pull) ────────────────────────────────────────
@@ -314,6 +322,8 @@ export interface CodexGameData {
   paradigms?: Paradigm[];
   /** speciesId → size key, for page-defined species. */
   sizes?: Record<string, string>;
+  /** Incept pages, already grouped by the species pool they belong to. */
+  incepts?: Record<string, Incept[]>;
   /** domain → genus abilities from pulled pages (append/override by name). */
   genus?: Record<string, GenusAbility[]>;
   /** paradigmId → ciphers from pulled pages (append/override by name). */
@@ -387,10 +397,38 @@ export function registerCodexGameData(data: CodexGameData): void {
   PARADIGMS.push(...BASE_PARADIGMS);
   for (const p of data.paradigms ?? []) {
     const i = PARADIGMS.findIndex((x) => x.id === p.id);
-    if (i >= 0) PARADIGMS[i] = p;
-    else PARADIGMS.push(p);
+    // A campaign paradigm page that never mentions Affinity must not strip the
+    // doctrine of it — favored stats inherit unless the page declares its own.
+    const base = i >= 0 ? PARADIGMS[i] : undefined;
+    // A page that DECLARES Affinity rows owns the whole affinity block: its
+    // silence on "Choose…" means no choice slot, not "inherit Remnant's".
+    const declaredAffinity = p.favoredAttrs !== undefined || p.favoredSpecs !== undefined;
+    const merged: Paradigm = {
+      ...p,
+      favoredAttrs: p.favoredAttrs ?? base?.favoredAttrs,
+      favoredSpecs: p.favoredSpecs ?? base?.favoredSpecs,
+      favoredChoice: p.favoredChoice ?? (declaredAffinity ? undefined : base?.favoredChoice),
+    };
+    if (i >= 0) PARADIGMS[i] = merged;
+    else PARADIGMS.push(merged);
   }
   for (const [id, size] of Object.entries(data.sizes ?? {})) SPECIES_SIZE[id] = size;
+  // Incept pools: baked first, then page Incepts by name within their pool.
+  // Rebuilt from BASE_INCEPTS every pass — a pool the previous campaign added
+  // must not survive into a campaign that never declared it.
+  const pools = nullRecord<InceptPool>();
+  for (const [speciesId, pool] of Object.entries(BASE_INCEPTS)) {
+    pools[speciesId] = { blurb: pool.blurb, incepts: pool.incepts.slice() };
+  }
+  for (const [speciesId, incepts] of Object.entries(data.incepts ?? {})) {
+    const pool = (pools[speciesId] ??= { blurb: "", incepts: [] });
+    for (const incept of incepts) {
+      const i = pool.incepts.findIndex((x) => x.name.toLowerCase() === incept.name.toLowerCase());
+      if (i >= 0) pool.incepts[i] = incept;
+      else pool.incepts.push(incept);
+    }
+  }
+  INCEPT_DATA = pools;
   pageGenus = nullRecord(data.genus);
   pageCiphers = nullRecord(data.ciphers);
   BACKGROUNDS.length = 0;
@@ -788,6 +826,9 @@ export function sizeOf(sizeId: string | undefined, speciesId?: string): SizeClas
 // ── Genus & Ciphers (baked from the Codex wiki mirror) ────────────────────
 export interface GenusAbility {
   name: string;
+  /** Former names, from domain reworks (Teleport -> Molecular Divergence). A
+   *  character that stored the old name must keep resolving to this record. */
+  aliases?: string[];
   /** Permanent Codex id, stamped into genus.json. Optional because a page-sourced
    *  or homebrew ability need not carry one; every official ability does. */
   id?: string;
@@ -913,7 +954,10 @@ function mergeAbilities<T extends { name: string }>(base: T[], page: T[]): T[] {
  */
 function appendUnofficial(base: GenusAbility[], page: GenusAbility[]): GenusAbility[] {
   if (!page.length) return base;
-  const official = new Set(base.map((b) => b.name.toLowerCase()));
+  // Former names guard too: a stale pulled page titled "Teleport" describes the
+  // official Molecular Divergence, and must not be appended beside it as a
+  // second ability carrying pre-rework mechanics.
+  const official = new Set(base.flatMap((b) => [b.name, ...(b.aliases ?? [])].map((n) => n.toLowerCase())));
   return [...base, ...page.filter((p) => !official.has(p.name.toLowerCase()))];
 }
 
@@ -1044,7 +1088,7 @@ export function usableGenus(
 /** Ciphers replaced or respelled in the rules: saved loadouts holding the old
  *  name resolve (and display) as the replacement, so nobody's character
  *  silently loses one. */
-const CIPHER_RENAMES: Record<string, string> = {
+export const CIPHER_RENAMES: Record<string, string> = {
   ANIMATION: "SPYDER",
   "SPYDER SPYDER": "SPYDER",
   STABLIZE: "STABILIZE",
@@ -1093,6 +1137,11 @@ export function inceptSeeds(speciesId?: string, innateChoice?: string[]): Specie
 export type InceptWeight = "Light" | "Medium" | "Heavy";
 export interface Incept {
   name: string;
+  /** What this Incept does, as data the engine can act on. Prose stays in
+   *  `effect` for the reader; `grants` is what the sheet and the VTT execute.
+   *  Empty means the Incept has not been converted to Roll Axis yet — it still
+   *  reads, it just cannot be rolled. */
+  grants?: InceptGrant[];
   /** Weight Class sets the KIND of Wryde an incept throws: the heavier the
    *  incept, the more chaotic its mutation. See wrydeTier(). */
   weight: InceptWeight;
@@ -1201,7 +1250,16 @@ export interface InceptPool {
   blurb: string;
   incepts: Incept[];
 }
-const INCEPT_DATA = nullRecord(inceptData as Record<string, InceptPool>);
+const BASE_INCEPTS = nullRecord(inceptData as Record<string, InceptPool>);
+// Live pools: the baked data with any pulled/campaign Incept pages layered over
+// it. Replaced wholesale by registerCodexGameData, never mutated in place, so a
+// campaign that leaves cannot leave a pool behind.
+let INCEPT_DATA: Record<string, InceptPool> = nullRecord(BASE_INCEPTS);
+
+/** The compiled pools, before any campaign overlay — for the built-in pages. */
+export function bakedInceptPools(): Readonly<Record<string, InceptPool>> {
+  return BASE_INCEPTS;
+}
 
 /** The named Incept pool for a species (empty when unknown). */
 export function inceptsForSpecies(speciesId?: string): Incept[] {
@@ -1458,6 +1516,9 @@ export type RollMode = "normal" | "adv" | "dis" | "double-adv" | "double-dis";
 export interface RollResult {
   formula: string;
   result: number;
+  /** Canonical dice expression, when the roll came from one — what network
+   *  peers validate against. Absent on profile-based rolls (attribute d20s). */
+  baseExpr?: string;
   detail: { die: number; roll: number; modifier: number; label: string; mode?: RollMode; rolls?: number[] };
 }
 export function rollDie(sides: number): number {
@@ -1544,6 +1605,55 @@ export function rollToHit(label: string, mod: number, mode: RollMode = "normal")
 }
 
 /** Parse a dice expression — "2d6+3", "d20", "3d8-1" (whitespace tolerant). */
+export interface DiceTerm {
+  count: number;
+  sides: number;
+}
+
+/**
+ * Parse a dice SUM: "1d20+2d5+1d10+7-2" — one or more dice terms plus flat
+ * modifiers, in authored order. Paradigm Affinity is why this exists: a
+ * favored roll is a d20 core plus rank-scaled d5/d10 pools, and the same
+ * expression string has to survive the sheet, the VTT tray, and network
+ * correlation unchanged.
+ *
+ * Dice terms are always positive — "-2d5" is an authoring error, not a rule.
+ */
+export function parseDiceTerms(raw: string): { terms: DiceTerm[]; mod: number } | null {
+  const clean = raw.trim().toLowerCase().replace(/\s/g, "");
+  // Strict term grammar: no leading sign, no doubled or trailing operators —
+  // the loose gate let "1d20-+5" silently drop its minus, and canonicalization
+  // shares this parser with network correlation.
+  if (!clean || clean.length > 64 || !/^(?:\d*d\d+|\d+)(?:[+-](?:\d*d\d+|\d+))*$/.test(clean)) return null;
+  const tokens = clean.match(/[+-]?[^+-]+/g) ?? [];
+  const terms: DiceTerm[] = [];
+  let mod = 0;
+  for (const token of tokens) {
+    const dice = token.match(/^\+?(\d+)?d(\d+)$/);
+    if (dice) {
+      const count = Math.min(99, parseInt(dice[1] || "1", 10));
+      const sides = Math.min(1000, parseInt(dice[2], 10));
+      if (count < 1 || sides < 2 || terms.length >= 8) return null;
+      terms.push({ count, sides });
+      continue;
+    }
+    const flat = token.match(/^([+-]?\d+)$/);
+    if (!flat) return null;
+    mod += parseInt(flat[1], 10);
+  }
+  // A modifier past this bound is a typo or an attack, and huge values break
+  // canonical round-tripping (exponential notation) and float-exact results.
+  if (!terms.length || Math.abs(mod) > 10_000) return null;
+  return { terms, mod };
+}
+
+/** The canonical text of a parsed dice sum — what every peer re-derives. */
+export function diceTermsExpr(parsed: { terms: DiceTerm[]; mod: number }): string {
+  const dice = parsed.terms.map((t) => `${t.count}d${t.sides}`).join("+");
+  const mod = parsed.mod > 0 ? `+${parsed.mod}` : parsed.mod < 0 ? String(parsed.mod) : "";
+  return `${dice}${mod}`;
+}
+
 export function parseDiceExpr(raw: string): { count: number; sides: number; mod: number } | null {
   const m = raw
     .trim()
@@ -1562,11 +1672,14 @@ export function parseDiceExpr(raw: string): { count: number; sides: number; mod:
  *  null when the expression doesn't parse. Advantage/disadvantage roll the
  *  whole expression twice and keep the higher/lower total. */
 export function rollDiceExpr(label: string, raw: string, mode: RollMode = "normal"): RollResult | null {
-  const p = parseDiceExpr(raw);
+  const p = parseDiceTerms(raw);
   if (!p) return null;
+  // Each attempt rolls the WHOLE pool — every term, including Affinity dice.
+  // That preserves the documented semantic ("advantage rolls the expression
+  // twice and keeps the higher total") for single- and multi-term alike.
   const once = () => {
     let sum = 0;
-    for (let i = 0; i < p.count; i++) sum += rollDie(p.sides);
+    for (const term of p.terms) for (let i = 0; i < term.count; i++) sum += rollDie(term.sides);
     return sum;
   };
   const a = once();
@@ -1577,8 +1690,17 @@ export function rollDiceExpr(label: string, raw: string, mode: RollMode = "norma
     if (mode.startsWith("double-")) totals.push(once());
     sum = mode.endsWith("adv") ? Math.max(...totals) : Math.min(...totals);
   }
-  const formula = `${p.count}d${p.sides}${p.mod > 0 ? "+" + p.mod : p.mod < 0 ? String(p.mod) : ""}${modeTag(mode, totals)}`;
-  return { formula, result: sum + p.mod, detail: { die: p.sides, roll: sum, modifier: p.mod, label, mode, rolls: totals } };
+  const formula = `${diceTermsExpr(p)}${modeTag(mode, totals)}`;
+  // detail.die stays the LEAD die — the core d20/d40 a formula is read around.
+  // baseExpr carries the FULL canonical expression: reconstructing it from
+  // detail.die+modifier (as RollButton once did) drops every extra dice term,
+  // so peers rejected multi-term rolls whose pool total exceeded one die.
+  return {
+    formula,
+    result: sum + p.mod,
+    baseExpr: diceTermsExpr(p),
+    detail: { die: p.terms[0].sides, roll: sum, modifier: p.mod, label, mode, rolls: totals },
+  };
 }
 
 /** First dice expression found in free text ("deals 3d6 fire…" → "3d6"), for

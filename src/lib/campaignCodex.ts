@@ -292,7 +292,17 @@ export function campaignCodexRevision(
       page.content,
     ].join("\u001f")
   );
-  if (rules) chunks.push(JSON.stringify(parseRules(rules)));
+  if (rules) {
+    // New rule fields are EXCLUDED from the hash while at their published
+    // default. parseRules gained paradigmAffinity (default ON); hashing it
+    // unconditionally would give old and new builds different revisions for
+    // identical content — every mixed-version table would reject the other
+    // side's snapshot. A toggled-OFF table hashes the field (old builds cannot
+    // represent that state, and refusing it is correct).
+    const hashed: Record<string, unknown> = { ...parseRules(rules) };
+    if (hashed.paradigmAffinity === true) delete hashed.paradigmAffinity;
+    chunks.push(JSON.stringify(hashed));
+  }
   chunks.push(JSON.stringify([...ruleLayers].sort((a, b) => a.id.localeCompare(b.id))));
   for (const text of chunks) {
     for (let i = 0; i < text.length; i++) {
@@ -456,7 +466,9 @@ function parseSnapshotRules(raw: unknown): CampaignRules | null {
     typeof value.attrBudget !== "boolean" ||
     typeof value.attrBudgetPoints !== "number" || !Number.isFinite(value.attrBudgetPoints) ||
     typeof value.specTotal !== "number" || !Number.isFinite(value.specTotal) ||
-    typeof value.poolCompensation !== "boolean"
+    typeof value.poolCompensation !== "boolean" ||
+    // Optional on the wire: an older host's snapshot omits it (defaults ON).
+    (value.paradigmAffinity !== undefined && typeof value.paradigmAffinity !== "boolean")
   ) return null;
   const parsed = parseRules(value);
   // parseRules deliberately clamps damaged local storage. A network document is

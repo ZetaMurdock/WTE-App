@@ -45,7 +45,10 @@ export function RollButton({ make, onLocal, className = "roll-btn", title, child
     onLocal(roll);
     if (net.status === "connected" && dest !== "self") {
       const modifier = roll.detail.modifier;
-      const baseExpr = `1d${roll.detail.die}${modifier > 0 ? `+${modifier}` : modifier < 0 ? String(modifier) : ""}`;
+      // The roll's own canonical expression when it has one; the single-die
+      // reconstruction is only right for profile rolls that never carry it.
+      const baseExpr =
+        roll.baseExpr ?? `1d${roll.detail.die}${modifier > 0 ? `+${modifier}` : modifier < 0 ? String(modifier) : ""}`;
       const msg: RollMessage = {
         t: "roll",
         id: createRollId(),

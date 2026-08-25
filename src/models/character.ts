@@ -27,6 +27,11 @@ export interface CharacterSheet {
   paradigmId?: string;
   /** Curator-managed rank 0..9. */
   rank?: number;
+  /** Remnant's Field Affinity Selection: the player-chosen additional Favored
+   *  Attribute / Specialty (attr/spec keys). Only meaningful when the active
+   *  paradigm declares a choice slot; Quick Hack may retune them mid-scene. */
+  favoredAttr?: string;
+  favoredSpec?: string;
   /** Character portrait — a PNG data URL the player uploads. */
   portrait?: string;
   background?: Background;

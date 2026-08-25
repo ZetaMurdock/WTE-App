@@ -26,6 +26,8 @@ function fullSheet(): CharacterSheet {
     innateChoice: ["Innate One", "Innate Two"],
     paradigmId: "a-paradigm",
     rank: 7,
+    favoredAttr: "end",
+    favoredSpec: "bal",
     portrait: "data:image/png;base64,iVBORw0KGgo=",
     background: {
       name: "A Background",

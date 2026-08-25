@@ -1207,6 +1207,77 @@ body.wte-dot-cursor * {
   border-color: rgba(126, 207, 202, 0.55);
   color: var(--accent);
 }
+/* The Curator's genus-contest chip — an aggressive action, styled like one. */
+.chip.contest {
+  border-color: #a1584a;
+  color: #c47a68;
+}
+.chip.contest:hover {
+  background: rgba(161, 88, 74, 0.15);
+}
+
+/* Paradigm Affinity — Favored dice on Roll Axis sources, and Remnant's
+   Field Affinity Selection row. Convergence reads hotter than plain Affinity. */
+.affinity-badge {
+  color: var(--accent);
+  font-size: 9.5px;
+  font-style: normal;
+  letter-spacing: 0.4px;
+  margin-left: 6px;
+}
+.affinity-badge.convergence {
+  color: #c6aa5d;
+  text-shadow: 0 0 6px rgba(198, 170, 93, 0.35);
+}
+.field-affinity {
+  align-items: center;
+  border: 1px dashed var(--panel-line);
+  border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 9px;
+  padding: 6px 9px;
+}
+.field-affinity-fixed {
+  color: var(--muted);
+  font-size: 10.5px;
+}
+.field-affinity-pick {
+  background: rgba(8, 14, 25, 0.62);
+  border: 1px solid var(--panel-line);
+  border-radius: 6px;
+  color: var(--ink);
+  font-size: 11px;
+  padding: 3px 6px;
+}
+
+/* An Incept's executable grants, on its row in the pool. Advantage and
+   disadvantage read as opposites at a glance; resource movement stays neutral. */
+.incept-grants {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  grid-column: 1 / -1;
+  margin-top: 4px;
+}
+.grant-chip {
+  border: 1px solid var(--panel-line);
+  border-radius: 9px;
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.4px;
+  padding: 2px 7px;
+}
+.grant-chip.advantage {
+  border-color: rgba(126, 207, 202, 0.55);
+  color: var(--accent);
+}
+.grant-chip.disadvantage {
+  border-color: #a1584a;
+  color: #c47a68;
+}
+
 /* Quick links — the handful of rules this Curator actually works on, lifted out
    of three hundred alphabetised entries and straight onto an edit button. */
 .campaign-codex-pinned {
@@ -3742,6 +3813,50 @@ body.wte-dot-cursor * {
   gap: 6px;
   margin-top: 7px;
 }
+.roll-axis-step-name {
+  align-self: center;
+  min-width: 34px;
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+}
+/* The seven Roll Paths as cards that state their sources up front — the
+   attribute, the specialty, and the derived modifier that always rides along —
+   so choosing a path never requires already knowing the table by heart. */
+.roll-axis-paths {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 7px;
+  margin-top: 9px;
+}
+.roll-axis-path {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  background: rgba(8, 14, 25, 0.5);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+.roll-axis-path small {
+  color: var(--muted);
+  font-size: 9.5px;
+  letter-spacing: 0.4px;
+}
+.roll-axis-path:hover {
+  border-color: var(--accent);
+}
+.roll-axis-path.active {
+  border-color: var(--accent);
+  background: rgba(126, 207, 202, 0.09);
+}
+.roll-axis-path.active .roll-axis-path-name {
+  color: var(--accent);
+}
 .roll-axis-source-grid,
 .vtt2-axis-choices {
   display: grid;
@@ -3779,6 +3894,39 @@ body.wte-dot-cursor * {
 .roll-axis-source small b {
   color: var(--accent);
   font-weight: 600;
+}
+/* An ability's parsed Roll Axis actions on the sheet's Actions rail. */
+.act-axis-group {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 3px 6px;
+  border: 1px dashed var(--panel-line);
+  border-radius: 8px;
+}
+.act-axis-label {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+}
+.roll-btn.axis,
+.roll-btn.dmg {
+  font-size: 11px;
+}
+.act-saves {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 2px;
+}
+.act-save-chip {
+  border: 1px solid #a08a4f;
+  border-radius: 9px;
+  color: #c6aa5d;
+  font-size: 10px;
+  letter-spacing: 0.4px;
+  padding: 2px 8px;
 }
 .stats-grid {
   display: grid;

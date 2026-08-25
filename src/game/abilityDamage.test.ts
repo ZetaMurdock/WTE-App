@@ -93,7 +93,9 @@ describe("across the whole Genus catalog", () => {
         expect(s.label, `${d}/${a.name}`).not.toMatch(/\bSS\b/);
       }
     }
-    expect(withDamage).toBe(21);
+    // 23 as of the 2026-08 Genus update: the Photonic rework turned two
+    // movement utilities into radiance dealers (Remembrance, Dazzling Jump).
+    expect(withDamage).toBe(23);
   });
 
   it("spot-checks real abilities", () => {

@@ -238,3 +238,87 @@ describe("a paradigm edit reaches character creation", () => {
     expect(getParadigm("cognition")?.name).toBe("Cognition");
   });
 });
+
+describe("an Incept edit reaches the game and stays in its campaign", () => {
+  function inceptPage(campaignId: string, name: string, body: string): StoredCodexPage {
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const content = `# ${name}
+
+| Field | Value |
+|---|---|
+| Type | Incept |
+| ID | campaign.${campaignId}.incept.${slug} |
+| Overrides | wte.incept.hyomen-${slug} |
+| Name | ${name} |
+| Species | hyomen |
+| Weight | Heavy |
+
+${body}`;
+    return {
+      id: `campaign.${campaignId}.incept.${slug}`,
+      campaignId,
+      stem: `incept-hyomen-${slug}`,
+      kind: "incept",
+      title: name,
+      content,
+      visibility: "player",
+      aliases: [],
+      updatedAt: 1,
+    };
+  }
+
+  it("overrides a compiled Incept in place", async () => {
+    const page = inceptPage(TABLE_A, "Sanction", `## Grants
+- Advantage: Mental Check — Capacity
+
+## Effect
+Rewritten at this table.`);
+    await loadFor(TABLE_A, [page]);
+    const { inceptsForSpecies } = await import("../game/wte");
+    const sanction = inceptsForSpecies("hyomen").find((i) => i.name === "Sanction")!;
+    expect(sanction.weight).toBe("Heavy"); // was Medium
+    expect(sanction.effect).toBe("Rewritten at this table.");
+    expect(sanction.grants).toEqual([
+      { kind: "advantage", on: { axis: "mental", direction: "check", path: "capacity" }, target: "self" },
+    ]);
+    // Overriding one Incept must not shrink the pool.
+    expect(inceptsForSpecies("hyomen").length).toBe(11);
+  });
+
+  it("adds an Incept the compiled pool never had", async () => {
+    const page = inceptPage(TABLE_A, "Housebound Echo", `## Grants
+- Disadvantage (target): Physical Save — Evasion
+- Restore: 2d6 SS
+
+## Effect
+Invented at this table.`);
+    await loadFor(TABLE_A, [page]);
+    const { inceptsForSpecies } = await import("../game/wte");
+    const added = inceptsForSpecies("hyomen").find((i) => i.name === "Housebound Echo");
+    expect(added?.grants).toHaveLength(2);
+    expect(inceptsForSpecies("hyomen").length).toBe(12);
+  });
+
+  it("does not leak to another table, and reverts when removed", async () => {
+    const rows = [inceptPage(TABLE_A, "Sanction", "## Effect\nRewritten at this table.")];
+    await loadFor(TABLE_A, rows);
+    const wte = await import("../game/wte");
+    expect(wte.inceptsForSpecies("hyomen").find((i) => i.name === "Sanction")!.weight).toBe("Heavy");
+
+    await loadFor(TABLE_B, rows);
+    expect(wte.inceptsForSpecies("hyomen").find((i) => i.name === "Sanction")!.weight).toBe("Medium");
+
+    await loadFor(TABLE_A, []);
+    expect(wte.inceptsForSpecies("hyomen").find((i) => i.name === "Sanction")!.weight).toBe("Medium");
+  });
+
+  it("reprices Synaptic Focus and re-tiers the Wryde with the new Weight", async () => {
+    // Weight is not cosmetic: it drives cost AND how chaotic the mutation is.
+    await loadFor(TABLE_A, [inceptPage(TABLE_A, "Sanction", "## Effect\nHeavier now.")]);
+    const { inceptCost } = await import("../game/synapticFocus");
+    const { wrydeTier, inceptsForSpecies } = await import("../game/wte");
+    const sanction = inceptsForSpecies("hyomen").find((i) => i.name === "Sanction")!;
+    expect(inceptCost(sanction.weight)).toBe(5);
+    expect(wrydeTier(sanction.weight).tier).toBe(3);
+  });
+});

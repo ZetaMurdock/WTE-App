@@ -1,5 +1,6 @@
 import { rollDiceExpr, type AttrKey, type DerivedKey, type RollMode, type RollResult, type SpecKey } from "./wte";
 import { resolveCodexRollFormula, type RollFormulaPath } from "./rollFormula";
+import { affinityExpr, affinityFor, affinityLabel, type AffinityContext, type AffinityDice } from "./paradigmAffinity";
 
 export type RollAxis = "physical" | "mental";
 export type RollDirection = "check" | "save";
@@ -11,6 +12,9 @@ export interface RollAxisStats {
   attr: Record<RollAxisAttrKey, number>;
   spec: Record<RollAxisSpecKey, number>;
   derived: Record<RollAxisDerivedKey, number>;
+  /** Paradigm Affinity context. Absent (or table-rule-disabled suppliers simply
+   *  omit it) means no Favored dice are added to any choice. */
+  affinity?: AffinityContext;
 }
 
 export interface RollAxisPath {
@@ -45,6 +49,8 @@ export interface RollAxisChoice {
   totalMod: number;
   label: string;
   expr: string;
+  /** Paradigm Affinity dice riding on this choice (already inside `expr`). */
+  affinity?: AffinityDice;
   /** Present when a pulled Codex formula, rather than the built-in sum, won. */
   codexFormula?: { id: string; name: string };
 }
@@ -74,6 +80,11 @@ export function rollAxisChoices(path: RollAxisPath, direction: RollDirection, st
     );
     const die = codex?.die ?? (attribute ? 20 : 40);
     const totalMod = codex?.modifier ?? sourceMod + derivedMod;
+    // Favored dice ride INSIDE the expression, so every consumer — the sheet's
+    // direct roll, the VTT tray, a networked roll request — carries them
+    // identically. A Codex formula replacing the die/modifier does not silence
+    // Affinity: the doctrine trains the statistic, whatever math resolves it.
+    const affinity = stats.affinity ? affinityFor(path, source, stats.affinity) ?? undefined : undefined;
     return {
       path,
       direction,
@@ -84,8 +95,13 @@ export function rollAxisChoices(path: RollAxisPath, direction: RollDirection, st
       sourceMod,
       derivedMod,
       totalMod,
+      affinity,
       label: `${path.name} ${direction === "check" ? "Check" : "Save"} · ${sourceLabel}`,
-      expr: `1d${die}${suffix(totalMod)}`,
+      // CANONICAL term order — dice first, flat modifier last — because this
+      // exact string is what network peers re-derive via canonicalRollExpr; a
+      // mod placed before the affinity dice would never match and every
+      // requested roll would be silently dropped by the host.
+      expr: `1d${die}${affinity ? affinityExpr(affinity) : ""}${suffix(totalMod)}`,
       codexFormula: codex ? { id: codex.id, name: codex.name } : undefined,
     };
   };
@@ -103,10 +119,11 @@ export function rollAxisRoll(choice: RollAxisChoice, mode: RollMode = "normal"):
   if (!roll) throw new Error(`Invalid Roll Axis expression: ${choice.expr}`);
   const posture = roll.formula.includes(" · ") ? roll.formula.slice(roll.formula.indexOf(" · ")) : "";
   const codexLabel = choice.codexFormula?.name.replace(/\s+/g, " ").trim().slice(0, 48);
+  const aff = choice.affinity ? ` ${affinityLabel(choice.affinity)}${choice.affinity.convergence ? " Convergence" : " Affinity"}` : "";
   return {
     ...roll,
     formula: choice.codexFormula
-      ? `1d${choice.die} ${signed(choice.sourceMod)} ${choice.sourceShort} ${signed(choice.derivedMod)} ${choice.path.derived.short} · Codex ${codexLabel || "Formula"} = ${signed(choice.totalMod)}${posture}`
-      : `1d${choice.die} ${signed(choice.sourceMod)} ${choice.sourceShort} ${signed(choice.derivedMod)} ${choice.path.derived.short}${posture}`,
+      ? `1d${choice.die} ${signed(choice.sourceMod)} ${choice.sourceShort} ${signed(choice.derivedMod)} ${choice.path.derived.short} · Codex ${codexLabel || "Formula"} = ${signed(choice.totalMod)}${aff}${posture}`
+      : `1d${choice.die} ${signed(choice.sourceMod)} ${choice.sourceShort} ${signed(choice.derivedMod)} ${choice.path.derived.short}${aff}${posture}`,
   };
 }

@@ -5,6 +5,10 @@ import type { RuleLayer } from "../../game/ruleLayers";
 import { codexCtx, usableGenusResolved } from "../../game/resolvedGenus";
 import type { CharacterRecord } from "../../lib/characters";
 import {
+  ATTR_KEYS,
+  SPEC_KEYS,
+  type AttrKey,
+  type SpecKey,
   usableRacial,
   usableCiphers,
   computeDerived,
@@ -21,12 +25,10 @@ import {
   type Attributes,
   type Specialties,
   type EquipMods,
-  type AttrKey,
-  type SpecKey,
   sizeOf,
 } from "../../game/wte";
 import { getWeapon, loadoutMods, isRangedWeapon } from "../../lib/codex";
-import { derivedRules } from "../../lib/campaignRules";
+import { derivedRules, loadRules } from "../../lib/campaignRules";
 import { knownGenus, parseSpend } from "../../game/synapticFocus";
 import { parseEffectMeta, type EffectMeta } from "./effectMeta";
 import type { RollAxisStats } from "../../game/rollAxis";
@@ -41,6 +43,8 @@ export interface VttAbility {
   range?: string | null;
   target?: string | null;
   ss: number;
+  /** Synaptic Focus invested (genus only) — what a contest is fought with. */
+  focus?: number;
   /** To-hit modifier for weapon actions (rolled as 1d20 + hit). */
   hit?: number;
   damage?: string | null;
@@ -64,7 +68,7 @@ function mk(
   source: AbilitySource,
   name: string,
   i: number,
-  opts: { effect?: string | null; range?: string | null; target?: string | null; ss?: number; hit?: number; damage?: string | null }
+  opts: { effect?: string | null; range?: string | null; target?: string | null; ss?: number; focus?: number; hit?: number; damage?: string | null }
 ): VttAbility {
   const effect = opts.effect || "";
   return {
@@ -74,6 +78,7 @@ function mk(
     effect,
     range: opts.range,
     target: opts.target,
+    focus: opts.focus,
     ss: opts.ss ?? 0,
     hit: opts.hit,
     damage: opts.damage,
@@ -123,7 +128,20 @@ export function characterRollAxisStats(rec: CharacterRecord): RollAxisStats {
     overrides: s.derivedOverrides,
     ...derivedRules(rec.campaignId),
   });
+  const rules = loadRules(rec.campaignId ?? "");
   return {
+    // Paradigm Affinity flows through the VTT exactly as on the sheet, gated by
+    // the same table rule.
+    ...(rules.paradigmAffinity
+      ? {
+          affinity: {
+            paradigmId: s.paradigmId,
+            rank: s.rank ?? 0,
+            extraAttr: ATTR_KEYS.includes(s.favoredAttr as AttrKey) ? (s.favoredAttr as AttrKey) : undefined,
+            extraSpec: SPEC_KEYS.includes(s.favoredSpec as SpecKey) ? (s.favoredSpec as SpecKey) : undefined,
+          },
+        }
+      : {}),
     attr: {
       phy: rollMod(eff.phy), ap: rollMod(eff.ap), dex: rollMod(eff.dex), end: rollMod(eff.end),
       wis: rollMod(eff.wis), int: rollMod(eff.int), cha: rollMod(eff.cha),
@@ -166,7 +184,7 @@ export function characterActionSet(rec: CharacterRecord, layers?: RuleLayer[]): 
   // mechanics instead of a row of blanks, and a campaign override reaches the
   // VTT exactly as it reaches the sheet.
   const genus = usableGenusResolved(genusNames, codexCtx(rec.campaignId, rec.id), spend.genus, layers).map((a, i) =>
-    mk("genus", a.name, i, { effect: a.effect, range: a.range, target: a.target, ss: a.ss ?? 0 })
+    mk("genus", a.name, i, { effect: a.effect, range: a.range, target: a.target, ss: a.ss ?? 0, focus: a.focus })
   );
 
   const cipher = usableCiphers(s.paradigmId, s.cipherLoadout ?? []).map((a, i) => mk("cipher", a.name, i, { effect: a.effect, ss: a.ss ?? 0 }));

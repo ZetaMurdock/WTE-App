@@ -135,7 +135,11 @@ export function buildOfficialGenus(pages: GenusPage[] = []): OfficialGenusSource
 
   for (const domain of GENUS_DOMAIN_NAMES) {
     for (const a of getGenusDomain(domain)?.abilities ?? []) {
-      const matches = byName.get(slugify(a.name)) ?? [];
+      // A stale mirror page is usually titled by the FORMER name and declares
+      // no aliases of its own — look it up by every name the ability has held.
+      const matches = [
+        ...new Set([a.name, ...(a.aliases ?? [])].flatMap((n) => byName.get(slugify(n)) ?? [])),
+      ];
       // A page that names itself the ability's id wins over one matched by title.
       const page =
         matches.find((p) => p.id && a.id && p.id === a.id) ??
@@ -151,7 +155,11 @@ export function buildOfficialGenus(pages: GenusPage[] = []): OfficialGenusSource
         });
       }
 
-      const aliases = [...new Set((page?.aliases ?? []).filter((x) => slugify(x) !== slugify(a.name)))];
+      // Former names come from two places: the mirror page, and the BAKED
+      // record itself (domain reworks rename abilities in genus.json). Both
+      // must resolve, or a character that stored "Teleport" dangles the moment
+      // the data file calls it "Molecular Divergence".
+      const aliases = [...new Set([...(a.aliases ?? []), ...(page?.aliases ?? [])].filter((x) => slugify(x) !== slugify(a.name)))];
 
       const built = buildEntity({
         kind: "genus",
@@ -178,9 +186,9 @@ export function buildOfficialGenus(pages: GenusPage[] = []): OfficialGenusSource
       if (built.malformed) {
         problems.push({ kind: "malformed-id", detail: built.malformed, ids: [built.entity.id], severity: "warning" });
       }
+      if (aliases.length) manifest.aliases.set(built.entity.id, aliases);
       if (page) {
         manifest.pages.set(built.entity.id, { stem: page.stem, anchor: page.anchor });
-        if (aliases.length) manifest.aliases.set(built.entity.id, aliases);
 
         if (page.id && a.id && page.id !== a.id) {
           problems.push({

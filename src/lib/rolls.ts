@@ -1,6 +1,6 @@
 // Roll feed persisted to the SQLite `rolls` table (migration v2). Foundation for the
 // Phase 6 VTT roll feed. Desktop-only; no-ops outside Tauri.
-import { parseDiceExpr, type RollResult } from "../game/wte";
+import { parseDiceTerms, diceTermsExpr, type RollResult } from "../game/wte";
 import type { NetRollMode } from "../net/protocol";
 import { getDb, sqlAvailable } from "./db";
 
@@ -58,10 +58,8 @@ export function createRollId(): string {
 /** Normalize user-entered dice into the expression used for request
  * correlation (for example ` d20 + 03 ` -> `1d20+3`). */
 export function canonicalRollExpr(raw: string): string | null {
-  const parsed = parseDiceExpr(raw);
-  if (!parsed) return null;
-  const mod = parsed.mod > 0 ? `+${parsed.mod}` : parsed.mod < 0 ? String(parsed.mod) : "";
-  return `${parsed.count}d${parsed.sides}${mod}`;
+  const parsed = parseDiceTerms(raw);
+  return parsed ? diceTermsExpr(parsed) : null;
 }
 
 export interface ValidatedCompletedRoll {
@@ -86,6 +84,8 @@ export function validateCompletedRoll(value: unknown): ValidatedCompletedRoll | 
   const id = typeof roll.id === "string" ? roll.id.trim() : "";
   const label = typeof roll.label === "string" ? roll.label.trim() : "";
   const rawBaseExpr = typeof roll.baseExpr === "string" ? roll.baseExpr : "";
+  // Length-gate BEFORE parsing: the expression came off the network.
+  if (rawBaseExpr.length > 64) return null;
   const baseExpr = canonicalRollExpr(rawBaseExpr);
   const mode = rollMode(roll.mode);
   const detail = asRecord(roll.detail);
@@ -95,17 +95,18 @@ export function validateCompletedRoll(value: unknown): ValidatedCompletedRoll | 
     !baseExpr || baseExpr !== rawBaseExpr || !mode || !detail
   ) return null;
 
-  const parsed = parseDiceExpr(baseExpr);
+  const parsed = parseDiceTerms(baseExpr);
   if (!parsed || !Number.isFinite(parsed.mod)) return null;
   const expectedRollCount = mode === "normal" ? 1 : mode.startsWith("double-") ? 3 : 2;
   const totals = Array.isArray(detail.rolls) ? detail.rolls : null;
   if (
-    detail.die !== parsed.sides || detail.modifier !== parsed.mod ||
+    detail.die !== parsed.terms[0].sides || detail.modifier !== parsed.mod ||
     detail.label !== label || detail.mode !== mode ||
     !totals || totals.length !== expectedRollCount
   ) return null;
-  const low = parsed.count;
-  const high = parsed.count * parsed.sides;
+  // The pool's reachable range: every die at 1, every die at its maximum.
+  const low = parsed.terms.reduce((sum, term) => sum + term.count, 0);
+  const high = parsed.terms.reduce((sum, term) => sum + term.count * term.sides, 0);
   if (!totals.every((total) => Number.isInteger(total) && total >= low && total <= high)) return null;
   const selected = mode.endsWith("adv") ? Math.max(...totals) : mode.endsWith("dis") ? Math.min(...totals) : totals[0];
   const result = roll.result;
@@ -125,7 +126,7 @@ export function validateCompletedRoll(value: unknown): ValidatedCompletedRoll | 
     result,
     mode,
     detail: {
-      die: parsed.sides,
+      die: parsed.terms[0].sides,
       roll: selected,
       modifier: parsed.mod,
       label,

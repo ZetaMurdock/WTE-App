@@ -79,7 +79,7 @@ describe("a package gathers the whole campaign", () => {
   it("includes characters, scenes and settings", async () => {
     localStorage.setItem(
       "wte-campaign-rules:c-ashen",
-      JSON.stringify({ attrBudget: true, attrBudgetPoints: 84, specTotal: 240, poolCompensation: true })
+      JSON.stringify({ attrBudget: true, attrBudgetPoints: 84, specTotal: 240, poolCompensation: true, paradigmAffinity: true })
     );
     const pkg = await buildPackage(campaign);
     expect(pkg.wte).toBe("campaign");
@@ -87,7 +87,7 @@ describe("a package gathers the whole campaign", () => {
     expect(pkg.characters).toHaveLength(1);
     expect(pkg.scenes).toHaveLength(1);
     expect(pkg.kv.find((k) => k.key === "notes")?.value).toEqual([{ title: "Prep" }]);
-    expect(pkg.rules).toEqual({ attrBudget: true, attrBudgetPoints: 84, specTotal: 240, poolCompensation: true });
+    expect(pkg.rules).toEqual({ attrBudget: true, attrBudgetPoints: 84, specTotal: 240, poolCompensation: true, paradigmAffinity: true });
   });
 
   it("EXCLUDES a character whose data could not be read", async () => {
@@ -111,7 +111,7 @@ describe("a package gathers the whole campaign", () => {
       encounters: [],
       assets: [],
       kv: [],
-      rules: { attrBudget: false, attrBudgetPoints: 70, specTotal: 200, poolCompensation: false },
+      rules: { attrBudget: false, attrBudgetPoints: 70, specTotal: 200, poolCompensation: false, paradigmAffinity: true },
       ruleLayers: [],
       pages: [],
     });
@@ -150,7 +150,7 @@ describe("import validates before it trusts", () => {
       attrBudget: false,
       attrBudgetPoints: 70,
       specTotal: 200,
-      poolCompensation: false,
+      poolCompensation: false, paradigmAffinity: true
     });
   });
 
@@ -170,7 +170,7 @@ describe("import validates before it trusts", () => {
       attrBudget: false,
       attrBudgetPoints: 140,
       specTotal: 10,
-      poolCompensation: false,
+      poolCompensation: false, paradigmAffinity: true
     });
   });
 });
@@ -224,8 +224,8 @@ describe("copy mode lands alongside, merge mode lands on top", () => {
   });
 
   it("copy mode restores campaign rules under the copy without changing the source", async () => {
-    const sourceRules = { attrBudget: false, attrBudgetPoints: 70, specTotal: 180, poolCompensation: false };
-    const importedRules = { attrBudget: true, attrBudgetPoints: 91, specTotal: 260, poolCompensation: true };
+    const sourceRules = { attrBudget: false, attrBudgetPoints: 70, specTotal: 180, poolCompensation: false, paradigmAffinity: true };
+    const importedRules = { attrBudget: true, attrBudgetPoints: 91, specTotal: 260, poolCompensation: true, paradigmAffinity: true };
     localStorage.setItem("wte-campaign-rules:c-ashen", JSON.stringify(sourceRules));
 
     const r = await importPackage(
@@ -239,7 +239,7 @@ describe("copy mode lands alongside, merge mode lands on top", () => {
   });
 
   it("merge mode restores campaign rules onto the destination campaign", async () => {
-    const importedRules = { attrBudget: true, attrBudgetPoints: 77, specTotal: 225, poolCompensation: true };
+    const importedRules = { attrBudget: true, attrBudgetPoints: 77, specTotal: 225, poolCompensation: true, paradigmAffinity: true };
     const r = await importPackage(
       parsePackage({ ...incoming, version: PACKAGE_VERSION, rules: importedRules }),
       "merge"

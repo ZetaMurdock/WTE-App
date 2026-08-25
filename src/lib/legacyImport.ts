@@ -10,7 +10,7 @@ import {
   SPEC_KEYS,
   SPECIES,
   PARADIGMS,
-  genusForParadigm,
+  genusForParadigm, CIPHER_RENAMES,
   ciphersForParadigm,
   type AttrKey,
   type Attributes,
@@ -100,8 +100,21 @@ export function parseLegacySheet(data: unknown): LegacyImportResult {
   // everything else is preserved in the notes block below.
   const genusNames = rowValues(d, /^gn-name-(\d+)$/);
   const cipherNames = rowValues(d, /^c(\d+)$/);
-  const stdGenus = new Set(genusForParadigm(paradigm?.id).flatMap((g) => g.abilities.map((a) => norm(a.name))));
-  const stdCipher = new Set(ciphersForParadigm(paradigm?.id).map((c) => norm(c.name)));
+  // Former names count: legacy sheets are by definition pre-rework artifacts,
+  // so they hold exactly the names the reworks renamed (Teleport, ANIMATION…).
+  // Admitting them here is what lets the registry resolve them downstream.
+  const stdGenus = new Set(
+    genusForParadigm(paradigm?.id).flatMap((g) =>
+      g.abilities.flatMap((a) => [a.name, ...(a.aliases ?? [])].map(norm))
+    )
+  );
+  const stdCipherNames = new Set(ciphersForParadigm(paradigm?.id).map((c) => norm(c.name)));
+  const stdCipher = new Set([
+    ...stdCipherNames,
+    ...Object.entries(CIPHER_RENAMES)
+      .filter(([, current]) => stdCipherNames.has(norm(current)))
+      .map(([former]) => norm(former)),
+  ]);
   const genusLoadout = genusNames.filter((n) => stdGenus.has(norm(n)));
   const cipherLoadout = cipherNames.filter((n) => stdCipher.has(norm(n)));
 

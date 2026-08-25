@@ -84,7 +84,7 @@ describe("paradigm domain access", () => {
     expect(byParadigm).toEqual({
       science: ["Elemental", "Neutral"],
       simulation: ["Null", "Photonic"],
-      remnant: ["Neutral", "Null"],
+      remnant: ["Neutral", "Photonic"],
       cognition: ["Eldritch", "Null"],
       evolution: ["Eldritch", "Elemental"],
       warfare: ["Neutral", "Photonic"],

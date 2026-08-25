@@ -29,7 +29,10 @@ export type RollFormulaDirection = (typeof ROLL_FORMULA_DIRECTIONS)[number];
 
 const PATH_DIRECTIONS: Readonly<Record<RollFormulaPath, readonly RollFormulaDirection[]>> = {
   power: ["check"],
-  density: ["save"],
+  // Density is a CHECK — ROLL_AXIS_PATHS and the Warfare page agree; ["save"]
+  // here meant a density/check formula was rejected at sync while a
+  // density/save formula validated but could never resolve.
+  density: ["check"],
   evasion: ["save"],
   recovery: ["save"],
   capacity: ["check"],
