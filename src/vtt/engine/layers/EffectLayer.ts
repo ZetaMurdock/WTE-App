@@ -1,7 +1,7 @@
 // AoE / zone effects: translucent shapes (circle, cone, rectangular zone) with a
 // pickable centre handle. Ported from the legacy VTT's drawEffects/drawZones.
 import { Graphics } from "pixi.js";
-import type { VttEffect, VttScene } from "../../types/scene";
+import type { VttScene } from "../../types/scene";
 import type { VttSelection } from "../PixiVttApp";
 import { effectBodyContains } from "../systems/effectGeometry";
 
@@ -80,13 +80,5 @@ export class EffectLayer {
       if (effectBodyContains(e, size, wx, wy)) return e.id;
     }
     return null;
-  }
-
-  /** Is a world point inside a zone effect? (SimulationSystem membership.) */
-  static zoneContains(e: VttEffect, size: number, wx: number, wy: number): boolean {
-    if (e.kind !== "zone") return false;
-    const w = (e.data.w ?? 4) * size;
-    const h = (e.data.h ?? 4) * size;
-    return wx >= e.x && wx <= e.x + w && wy >= e.y && wy <= e.y + h;
   }
 }

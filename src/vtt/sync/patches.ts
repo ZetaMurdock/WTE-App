@@ -7,6 +7,7 @@ import { canOccupy } from "../data/occupancy";
 import { canControlToken } from "./tokenPermissions";
 import { lightVisibleTo } from "../engine/systems/VisionSystem";
 import { burnMechanicOn } from "../engine/systems/lightState";
+import { dropOrphanAuras, reanchorAuras } from "../engine/systems/AuraSystem";
 
 export type VttOp =
   | { op: "token.add"; token: VttToken }
@@ -252,6 +253,15 @@ export function applyOp(d: VttSceneData, op: VttOp): boolean {
       t.x = op.x;
       t.y = op.y;
       if (Math.hypot(dx, dy) > 2) t.facing = Math.atan2(dy, dx);
+      // An aura rides its owner, and THIS is the funnel every move that did not
+      // originate at this renderer passes through: a peer's drop, the host's own
+      // arbitration, and — the one that has no renderer at all — a move the host
+      // authorises onto a PINNED scene it is not currently looking at
+      // (VttScreen.onForeignMoveRequest mutates a stored scene through this
+      // exact call). Reanchoring anywhere further up would leave that path
+      // behind, and a desynced aura on a scene nobody is watching is the kind
+      // that is only discovered when the Curator switches to it mid-fight.
+      reanchorAuras(d);
       return true;
     }
     case "token.update": {
@@ -278,7 +288,12 @@ export function applyOp(d: VttSceneData, op: VttOp): boolean {
     case "token.remove": {
       const before = d.tokens.length;
       d.tokens = d.tokens.filter((x) => x.id !== op.id);
-      return d.tokens.length !== before;
+      if (d.tokens.length === before) return false;
+      // A token leaving takes its auras with it — see AuraSystem's
+      // `auraOwnerPresent` for why, and for why a token that crossed a border
+      // link into another scene is the same case handled by the same line.
+      dropOrphanAuras(d);
+      return true;
     }
     case "wall.add":
       if (d.walls.some((w) => w.id === op.wall.id)) return false;

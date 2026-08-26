@@ -53,21 +53,84 @@ export interface OutcomeConsequence {
   declared?: boolean;
 }
 
+/**
+ * One target inside a resolution — its own roll, its own verdict, its own
+ * record of what already landed on it.
+ *
+ * Every field here used to sit directly on `PendingOutcome`, because a
+ * resolution was a resolution against one token. An area ability breaks that:
+ * Hail Rain over a corridor is ONE ability, ONE save DV and ONE set of declared
+ * consequences resolving against everyone standing in it. Splitting that into
+ * 23 sibling cards would have made the Curator confirm the same ability 23
+ * times — the point at which "confirm everything" stops being sovereignty and
+ * starts being an obstacle people route around.
+ *
+ * So the per-target half moved down here and the shared half stayed up there.
+ * A single-target card is the degenerate case with exactly one of these, which
+ * is why there is still only one card component, one store, one expiry rule and
+ * one auto-apply gate rather than two of each drifting apart.
+ */
+export interface OutcomeTarget {
+  /** Stable within its outcome. The token id where there is one, so a second
+   *  arrival naming the same token lands on the row that already exists rather
+   *  than opening a duplicate beside it. */
+  id: string;
+  tokenId?: string;
+  name: string;
+  /** Ties THIS target to the roll request that will settle it. Per target, not
+   *  per card: 23 targets means 23 requests, arriving in whatever order their
+   *  owners get to them. */
+  requestId?: string;
+  rollTotal?: number;
+  verdict: OutcomeVerdict;
+  /** Consequence ids already committed against this target, so re-applying
+   *  takes a deliberate act — and so one target's applied damage can never
+   *  suppress another's. */
+  applied: string[];
+  /** The token left the scene while the card was still open. Kept on the card
+   *  rather than deleted: a Curator who sees a target simply vanish from a
+   *  23-row list has no way to tell that from a row they mis-counted. */
+  removed?: boolean;
+  /** The round was still waiting on this target when the round advanced. See
+   *  `lapsePendingTargets` for what that does and — far more importantly —
+   *  what it refuses to do. */
+  lapsedRound?: number;
+}
+
+/**
+ * Whether an area ability's damage is one roll or one roll per target.
+ *
+ * The corpus writes BOTH, in so many words, so neither can be the only thing
+ * the card supports:
+ *
+ *  - per-target — the Gluttony's MASS DEVOUR (rules/Anima__Gluttony.md): "All
+ *    creatures within 30ft make DEF Check (DC 13) or take 3d10 damage each."
+ *    Chainquake (rules/Archetypes.md) states it as a rule: "Roll a separate d8
+ *    for each target."
+ *  - shared — RECURRING CHAOS (rules/Archetype_List.md), whose d10 result 2 is
+ *    "All enemies within a 45-foot radius take half the damage inflicted": the
+ *    d20 was rolled once and the whole radius reads off it.
+ *
+ * `per-target` is the default because it is the reading a table can always
+ * narrow. A Curator who wanted one roll can roll once and say so; a card that
+ * assumed one roll and was wrong has already told 23 tokens the same wrong
+ * number, and the dice cannot be un-rolled.
+ */
+export type DamageRollMode = "per-target" | "shared";
+
 export interface PendingOutcome {
   id: string;
-  /** Ties this outcome to the roll request that will settle it. */
-  requestId?: string;
   /** Permanent ability id when the source carries one; the positional id otherwise. */
   sourceAbilityId: string;
   sourceAbilityName: string;
   casterCharacterId?: string;
-  targetTokenId?: string;
-  targetName: string;
-  /** The DV the roll must meet. Absent for rulings with no numeric gate. */
+  /** Everyone this ability is resolving against. Never empty; length 1 is the
+   *  single-target card the app has shipped since P0. */
+  targets: OutcomeTarget[];
+  /** The DV every target's roll must meet. Shared on purpose — one ability
+   *  poses one DV, and a per-target DV would be a different ability. */
   dc?: number;
   rollLabel: string;
-  rollTotal?: number;
-  verdict: OutcomeVerdict;
   /** The card was read off the page's `## Actions` block rather than off its
    *  prose. Recorded here rather than re-derived from `consequences`, because a
    *  block that declares only a Cost and a Save produces no consequences at all
@@ -76,8 +139,12 @@ export interface PendingOutcome {
    *  block had already superseded it. */
   fromBlock: boolean;
   consequences: OutcomeConsequence[];
-  /** Consequence ids already committed, so re-applying takes a deliberate act. */
-  applied: string[];
+  /** One roll for everyone, or one each. Derived from the page and then the
+   *  Curator's to change — the card shows which is in force. */
+  damageRoll: DamageRollMode;
+  /** The table, not the deriver, chose the mode above. The card says so, because
+   *  "the page told me" and "you told me" are different claims. */
+  damageRollByHand?: boolean;
   createdAt: number;
   expiresAt: number;
 }
@@ -262,15 +329,63 @@ export function consequencesFromSteps(steps: readonly EffectStep[]): OutcomeCons
   return out;
 }
 
+/**
+ * The phrases that mean one number for everybody.
+ *
+ * Closed and small on purpose, like `CONDITION_WORDS` and `DAMAGE_TYPE_WORDS`
+ * above it. `per-target` is the default, so this list only has to recognise the
+ * exception — a phrase it misses costs a Curator one click on the card's own
+ * toggle, while a phrase it over-reads rolls once for a page that said "each"
+ * and hands 23 tokens a number that was never theirs.
+ *
+ * Every clause names a plural recipient for exactly that reason. A bare "the
+ * same damage" was the first draft and the corpus refused it: Null's Reflect
+ * says the redirected ability keeps "the same damage, Check or Save, Roll Path",
+ * which is about one bounced attack and not about sharing a roll between bodies
+ * — and Simulation's SIMULATED EJECT reads the same way. Both were tagged
+ * `shared`, on abilities that hit one target. The test file holds that line
+ * against the whole shipped corpus.
+ *
+ * Deliberately NOT readable from an `## Actions` block: the grammar has no word
+ * for it, and inventing one here would put a rule in the engine that no page
+ * could see or fork. When the block learns to say it, this deriver becomes the
+ * fallback for the pages that never will.
+ */
+const SHARED_DAMAGE_RE =
+  /\bhalf the damage inflicted\b|\b(?:the same|that) damage to (?:all|each|every|both)\b|\bdamage (?:is |gets )?(?:split|divided|shared) (?:evenly )?(?:among|between|across)\b|\b(?:one|a single)(?: damage)? roll for (?:all|every|everyone|the whole)\b/i;
+
+/**
+ * Which damage model an ability's own words describe.
+ *
+ * Answers `per-target` for silence, which is the whole point: an ability that
+ * never says is resolved the way the corpus's explicit majority says, and the
+ * card shows the answer so a table that disagrees can see what to change.
+ */
+export function damageRollModeFor(prose: string | null | undefined): DamageRollMode {
+  return SHARED_DAMAGE_RE.test(prose || "") ? "shared" : "per-target";
+}
+
+/** A target as a caller names it, before the ledger gives it a row. */
+export interface OutcomeTargetInput {
+  tokenId?: string;
+  name: string;
+  requestId?: string;
+  /** An id for a target with no token behind it. Ignored when `tokenId` is
+   *  set — the token id is the better key, because it is the one a duplicate
+   *  wire result arrives carrying. */
+  id?: string;
+}
+
 export interface OpenOutcomeInput {
   id: string;
-  requestId?: string;
   sourceAbilityId: string;
   sourceAbilityName: string;
   effect?: string | null;
   casterCharacterId?: string;
-  targetTokenId?: string;
-  targetName: string;
+  /** Everyone the ability is resolving against, in the order the card lists
+   *  them. One entry is the single-target case; an area ability passes the
+   *  bodies its template enclosed. */
+  targets: readonly OutcomeTargetInput[];
   dc?: number;
   rollLabel: string;
   now: number;
@@ -284,50 +399,187 @@ export interface OpenOutcomeInput {
 }
 
 export function openOutcome(input: OpenOutcomeInput): PendingOutcome {
+  const seen = new Set<string>();
+  const targets: OutcomeTarget[] = [];
+  input.targets.forEach((target, i) => {
+    // One row per token, even when a caller enumerates the same body twice. A
+    // template that overlaps a token's squares, or a Curator who adds a target
+    // already in the list, must not produce two rows that both offer to apply
+    // the same 3d10 to the same creature.
+    const id = target.tokenId || target.id || `t-${i}`;
+    if (seen.has(id)) return;
+    seen.add(id);
+    targets.push({
+      id,
+      tokenId: target.tokenId,
+      name: target.name,
+      requestId: target.requestId,
+      verdict: "pending",
+      applied: [],
+    });
+  });
   return {
     id: input.id,
-    requestId: input.requestId,
     sourceAbilityId: input.sourceAbilityId,
     sourceAbilityName: input.sourceAbilityName,
     casterCharacterId: input.casterCharacterId,
-    targetTokenId: input.targetTokenId,
-    targetName: input.targetName,
+    targets,
     dc: input.dc,
     rollLabel: input.rollLabel,
-    verdict: "pending",
     fromBlock: !!input.steps?.length,
     consequences: input.steps?.length ? consequencesFromSteps(input.steps) : consequencesFor(input.effect),
-    applied: [],
+    // Read off the prose either way. A declared block has no word for the
+    // distinction yet, and guessing it from the steps would be the engine
+    // inventing a rule the page cannot state.
+    damageRoll: damageRollModeFor(input.effect),
     createdAt: input.now,
     expiresAt: input.now + (input.ttlMs ?? 5 * 60_000),
   };
 }
 
+export function targetOf(outcome: PendingOutcome, targetId: string): OutcomeTarget | null {
+  return outcome.targets.find((target) => target.id === targetId) ?? null;
+}
+
+function patchTarget(
+  outcome: PendingOutcome,
+  targetId: string,
+  patch: (target: OutcomeTarget) => OutcomeTarget
+): PendingOutcome {
+  const found = outcome.targets.find((target) => target.id === targetId);
+  if (!found) return outcome;
+  const next = patch(found);
+  if (next === found) return outcome;
+  return { ...outcome, targets: outcome.targets.map((target) => (target.id === targetId ? next : target)) };
+}
+
 /**
- * Settle an outcome against the roll that answered it.
+ * Settle one target against the roll that answered for it.
  *
  * Meeting the DV is a success — the same `>=` the save chips print, so the card
  * and the chip can never disagree about what 18-vs-18 means. With no DV there is
  * nothing to compare, and the verdict stays the Curator's to declare.
+ *
+ * FIRST RESULT WINS. Rolls for a 23-target zone arrive over the wire from 23
+ * machines, and a retried message, a reconnect replaying its queue, or a player
+ * pressing Roll twice all deliver a second total for a target already settled.
+ * Letting the later one through would move a verdict the Curator may already
+ * have applied damage on — the `applied` marks would still be there, now
+ * attached to a verdict that no longer produced them, and the card would read as
+ * "passed · applied 27 damage". A human overriding is a different act with a
+ * different door: `declareTargetVerdict`.
  */
-export function settleOutcome(outcome: PendingOutcome, rollTotal: number): PendingOutcome {
-  if (outcome.dc == null) return { ...outcome, rollTotal };
-  return { ...outcome, rollTotal, verdict: rollTotal >= outcome.dc ? "pass" : "fail" };
+export function settleTarget(outcome: PendingOutcome, targetId: string, rollTotal: number): PendingOutcome {
+  return patchTarget(outcome, targetId, (target) => {
+    if (target.rollTotal != null) return target;
+    // A late roll answers the lapse it was late for. The card stops calling this
+    // target outstanding because it no longer is.
+    const settled: OutcomeTarget = { ...target, rollTotal, lapsedRound: undefined };
+    if (outcome.dc == null) return settled;
+    return { ...settled, verdict: rollTotal >= outcome.dc ? "pass" : "fail" };
+  });
 }
 
-/** Force a verdict by hand — for the rulings, and for a table that overrides. */
-export function declareVerdict(outcome: PendingOutcome, verdict: OutcomeVerdict): PendingOutcome {
-  return { ...outcome, verdict };
+/** Force one target's verdict by hand — for the rulings, for the target the
+ *  Curator rules immune, and for a table that simply overrides. */
+export function declareTargetVerdict(
+  outcome: PendingOutcome,
+  targetId: string,
+  verdict: OutcomeVerdict
+): PendingOutcome {
+  return patchTarget(outcome, targetId, (target) => ({ ...target, verdict, lapsedRound: undefined }));
 }
 
-/** The consequences this verdict actually triggers. A passed save still lists a
- *  half-damage rider, because that is what the prose promised. */
-export function armedConsequences(outcome: PendingOutcome): OutcomeConsequence[] {
-  if (outcome.verdict === "pending") return [];
+/**
+ * The target's token is no longer on the scene.
+ *
+ * Not a deletion. A row that disappeared from a 23-row list is indistinguishable
+ * from a mis-count, and the Curator needs to know that the reason nothing landed
+ * on Ghost is that Ghost left — not that the card forgot about it. The row stays,
+ * says so, and drops out of every count and every batch plan.
+ */
+export function markTargetRemoved(outcome: PendingOutcome, targetId: string): PendingOutcome {
+  return patchTarget(outcome, targetId, (target) => (target.removed ? target : { ...target, removed: true }));
+}
+
+/**
+ * The target's token is on the scene after all.
+ *
+ * `removed` has to be reversible, because the two things that set it are not
+ * both permanent. A token deleted by hand is gone; a token that is missing
+ * because the Curator is LOOKING AT ANOTHER SCENE is not, and the reaper cannot
+ * tell them apart — a card is scoped to the campaign and the room, while the
+ * only token list anyone can reconcile against is the scene currently open. A
+ * one-way mark meant that flipping to the world map for one glance killed every
+ * open card in the session: every row said the body had left, `batchPlan` and
+ * `autoApplicable` refused all of them, and coming back changed nothing. The
+ * undo stack is the same case — a token restored by Ctrl+Z stayed dead on the
+ * card that was waiting for it.
+ */
+export function markTargetPresent(outcome: PendingOutcome, targetId: string): PendingOutcome {
+  return patchTarget(outcome, targetId, (target) => {
+    if (!target.removed) return target;
+    const back = { ...target };
+    delete back.removed;
+    return back;
+  });
+}
+
+/**
+ * THE PARTIAL RESOLUTION POLICY: the round advanced and some targets never rolled.
+ *
+ * Two answers were available and both are wrong. Expiring the unrolled targets
+ * silently drops an ability that really happened — the zone went off, and the
+ * three players who were slow to answer simply never took it. Applying them
+ * silently is worse: it is the engine deciding, on no evidence, that three
+ * absent players failed a save, and then writing HP off that decision.
+ *
+ * So neither. The round advancing is INFORMATION, not authority: it tells the
+ * table that these targets did not answer in time, and it tells the engine
+ * nothing whatsoever about what happened to them. A lapsed target therefore:
+ *
+ *   - keeps its row, marked with the round it was still waiting in, so the card
+ *     can say "3 never rolled — carried from round 4" instead of going quiet;
+ *   - is refused by `autoApplicable` even where the table opted in, because
+ *     auto-apply commits verdicts the dice decided and a lapse has no verdict;
+ *   - is refused by `batchPlan`, so the one-click act cannot sweep it up;
+ *   - stays fully live — a late roll settles it and clears the lapse, and the
+ *     Curator can declare it by hand at any point.
+ *
+ * The card outlives its TTL while a lapse is open, on purpose. The alternative
+ * is a card that vanishes carrying the only record that three saves were never
+ * answered, which is exactly the silence this policy exists to prevent.
+ */
+export function lapsePendingTargets(outcome: PendingOutcome, round: number): PendingOutcome {
+  let changed = false;
+  const targets = outcome.targets.map((target) => {
+    if (target.removed) return target;
+    if (target.verdict !== "pending" || target.rollTotal != null) return target;
+    // Re-lapsing on every later round would keep rewriting the round a target
+    // has been outstanding SINCE, which is the number the Curator is reading.
+    if (target.lapsedRound != null) return target;
+    changed = true;
+    return { ...target, lapsedRound: round };
+  });
+  return changed ? { ...outcome, targets } : outcome;
+}
+
+/** The Curator says which damage model is in force, overriding what the prose
+ *  was read to mean. Recorded as by-hand so the card can stop claiming the page
+ *  said it. */
+export function setDamageRollMode(outcome: PendingOutcome, mode: DamageRollMode): PendingOutcome {
+  if (outcome.damageRoll === mode && outcome.damageRollByHand) return outcome;
+  return { ...outcome, damageRoll: mode, damageRollByHand: true };
+}
+
+/** The consequences this target's verdict actually triggers. A passed save still
+ *  lists a half-damage rider, because that is what the prose promised. */
+export function armedConsequences(outcome: PendingOutcome, target: OutcomeTarget): OutcomeConsequence[] {
+  if (target.verdict === "pending") return [];
   return outcome.consequences.filter((consequence) => {
     if (consequence.on === "always") return true;
-    if (consequence.on === outcome.verdict) return true;
-    return outcome.verdict === "pass" && consequence.on === "fail" && consequence.half === true;
+    if (consequence.on === target.verdict) return true;
+    return target.verdict === "pass" && consequence.on === "fail" && consequence.half === true;
   });
 }
 
@@ -350,25 +602,117 @@ export function armedConsequences(outcome: PendingOutcome): OutcomeConsequence[]
  */
 export function autoApplicable(
   outcome: PendingOutcome,
+  target: OutcomeTarget,
   rules: { autoApplyDeclared: boolean }
 ): OutcomeConsequence[] {
   if (!rules.autoApplyDeclared) return [];
-  return armedConsequences(outcome).filter(
+  // A target the round left behind, or one whose token is gone, has no verdict
+  // the dice produced — see `lapsePendingTargets`. Auto-apply exists to commit
+  // what a roll decided, so it has nothing to say about either.
+  if (target.removed || target.lapsedRound != null) return [];
+  return armedConsequences(outcome, target).filter(
     (consequence) =>
       consequence.declared === true &&
       consequence.kind !== "ruling" &&
-      !outcome.applied.includes(consequence.id)
+      !target.applied.includes(consequence.id)
   );
 }
 
 /** Half rounds DOWN — a rule the table can see rather than a float in a tooltip. */
 export function damageAfterVerdict(
-  outcome: PendingOutcome,
+  target: OutcomeTarget,
   consequence: OutcomeConsequence,
   rolled: number
 ): number {
-  if (outcome.verdict === "pass" && consequence.half) return Math.floor(rolled / 2);
+  if (target.verdict === "pass" && consequence.half) return Math.floor(rolled / 2);
   return rolled;
+}
+
+/**
+ * The shape of a partly-resolved batch, in the counts the card puts on one line.
+ *
+ * Computed here rather than in the card because the same counts decide what the
+ * one-click act will touch, and a summary that said "18 failed" while the button
+ * committed a different 18 would be the card lying about what it is about to do.
+ */
+export interface OutcomeTally {
+  /** Targets still in play — removed ones are not among them. */
+  live: number;
+  removed: number;
+  failed: number;
+  passed: number;
+  /** Rolled, but the card has no DV to judge it against: the Curator's call. */
+  undecided: number;
+  /** No roll yet, and the round has not moved past them. */
+  waiting: number;
+  /** No roll, and the round moved on. `waiting` and `lapsed` are disjoint. */
+  lapsed: number;
+}
+
+export function outcomeTally(outcome: PendingOutcome): OutcomeTally {
+  const tally: OutcomeTally = { live: 0, removed: 0, failed: 0, passed: 0, undecided: 0, waiting: 0, lapsed: 0 };
+  for (const target of outcome.targets) {
+    if (target.removed) {
+      tally.removed += 1;
+      continue;
+    }
+    tally.live += 1;
+    if (target.verdict === "fail") tally.failed += 1;
+    else if (target.verdict === "pass") tally.passed += 1;
+    else if (target.rollTotal != null) tally.undecided += 1;
+    else if (target.lapsedRound != null) tally.lapsed += 1;
+    else tally.waiting += 1;
+  }
+  return tally;
+}
+
+/** One target and the consequences a batch act would commit against it. */
+export interface BatchStep {
+  target: OutcomeTarget;
+  consequences: OutcomeConsequence[];
+}
+
+/**
+ * Exactly what "apply to all 18 that failed" will do, enumerated before it does it.
+ *
+ * The single most dangerous button in the app, so its contents are a value the
+ * card can render, a test can assert, and a Curator can read — not a loop hidden
+ * inside a click handler.
+ *
+ * Four exclusions, each of which is a target the batch has no business speaking
+ * for:
+ *
+ *  - a removed target: its token is gone and the write would be refused anyway.
+ *  - a LAPSED target: no roll ever came, and the batch must not decide for it.
+ *  - a `ruling`: the page asked a human a question. Answering 18 of them with
+ *    one click is precisely the collapse this whole design is avoiding, so
+ *    rulings stay on their own rows and the card says how many are waiting.
+ *  - anything already in that target's `applied` list, so pressing the button
+ *    twice cannot send a hit twice.
+ */
+export function batchPlan(outcome: PendingOutcome, verdict: "fail" | "pass"): BatchStep[] {
+  const plan: BatchStep[] = [];
+  for (const target of outcome.targets) {
+    if (target.removed || target.lapsedRound != null) continue;
+    if (target.verdict !== verdict) continue;
+    const consequences = armedConsequences(outcome, target).filter(
+      (consequence) => consequence.kind !== "ruling" && !target.applied.includes(consequence.id)
+    );
+    if (consequences.length) plan.push({ target, consequences });
+  }
+  return plan;
+}
+
+/** Rulings a batch act cannot answer, so the card can say how many rows still
+ *  need a human after the one click lands. */
+export function pendingRulings(outcome: PendingOutcome): BatchStep[] {
+  const out: BatchStep[] = [];
+  for (const target of outcome.targets) {
+    if (target.removed) continue;
+    const rulings = armedConsequences(outcome, target).filter((consequence) => consequence.kind === "ruling");
+    if (rulings.length) out.push({ target, consequences: rulings });
+  }
+  return out;
 }
 
 /**
@@ -383,9 +727,14 @@ export function hpAfterConsequence(current: number, max: number | undefined, amo
   return Math.max(0, Math.min(max ?? Number.MAX_SAFE_INTEGER, current - amount));
 }
 
-export function markApplied(outcome: PendingOutcome, consequenceId: string): PendingOutcome {
-  if (outcome.applied.includes(consequenceId)) return outcome;
-  return { ...outcome, applied: [...outcome.applied, consequenceId] };
+export function markTargetApplied(
+  outcome: PendingOutcome,
+  targetId: string,
+  consequenceId: string
+): PendingOutcome {
+  return patchTarget(outcome, targetId, (target) =>
+    target.applied.includes(consequenceId) ? target : { ...target, applied: [...target.applied, consequenceId] }
+  );
 }
 
 /** A condition tag carries its own duration so the pip means something to a
@@ -432,7 +781,12 @@ const NO_OUTCOMES = Object.freeze([]) as unknown as PendingOutcome[];
  *  declare. A DV-less outcome keeps `pending` until they rule on it, and expiry
  *  must not take that decision away from them by clearing the card first. */
 function answered(outcome: PendingOutcome): boolean {
-  return outcome.verdict !== "pending" || outcome.rollTotal != null;
+  return outcome.targets.some(
+    // A lapse holds the card open too. It is the only surviving record that some
+    // targets never answered a save the table watched go off, and letting the
+    // TTL delete that record is the silent expiry the policy above refuses.
+    (target) => target.verdict !== "pending" || target.rollTotal != null || target.lapsedRound != null
+  );
 }
 
 export function listOutcomes(scope: string, now?: number): PendingOutcome[] {
@@ -461,14 +815,60 @@ export function pushOutcome(scope: string, outcome: PendingOutcome): void {
  * declares damage AND a condition; the damage mark vanished, its row came back
  * armed with the roll still on screen, and one click sent the hit twice.
  */
-export function markOutcomeApplied(scope: string, outcomeId: string, consequenceId: string): void {
+export function markOutcomeApplied(
+  scope: string,
+  outcomeId: string,
+  targetId: string,
+  consequenceId: string
+): void {
   const all = LEDGERS.get(scope) ?? [];
   const found = all.find((outcome) => outcome.id === outcomeId);
   if (!found) return;
-  const marked = markApplied(found, consequenceId);
+  const marked = markTargetApplied(found, targetId, consequenceId);
   if (marked === found) return;
   LEDGERS.set(scope, all.map((outcome) => (outcome.id === outcomeId ? marked : outcome)));
   emit(scope);
+}
+
+/**
+ * Apply a change to the ledger's CURRENT card, never to the caller's copy of it.
+ *
+ * The same hazard `markOutcomeApplied` was written for, and a batch makes it a
+ * live race rather than a corner. A card is handed to React as a snapshot; while
+ * the Curator reads it, wire results for the other 22 targets are settling rows
+ * on the stored card. Writing back `declareTargetVerdict(thatSnapshot, …)` would
+ * put the whole snapshot back — every roll that landed in between erased, the
+ * counts reset, and the only evidence being that the header quietly went from
+ * "18 of 23 failed" to "4 of 23 failed".
+ */
+function mutateOutcome(
+  scope: string,
+  outcomeId: string,
+  patch: (outcome: PendingOutcome) => PendingOutcome
+): void {
+  const all = LEDGERS.get(scope) ?? [];
+  const found = all.find((outcome) => outcome.id === outcomeId);
+  if (!found) return;
+  const next = patch(found);
+  if (next === found) return;
+  LEDGERS.set(scope, all.map((outcome) => (outcome.id === outcomeId ? next : outcome)));
+  emit(scope);
+}
+
+/** The Curator rules on one row — for a target they judge immune, and to
+ *  override a roll — without disturbing the rows still arriving beside it. */
+export function declareOutcomeVerdict(
+  scope: string,
+  outcomeId: string,
+  targetId: string,
+  verdict: OutcomeVerdict
+): void {
+  mutateOutcome(scope, outcomeId, (outcome) => declareTargetVerdict(outcome, targetId, verdict));
+}
+
+/** The Curator says whether the damage is one roll or one each. */
+export function setOutcomeDamageRoll(scope: string, outcomeId: string, mode: DamageRollMode): void {
+  mutateOutcome(scope, outcomeId, (outcome) => setDamageRollMode(outcome, mode));
 }
 
 export function replaceOutcome(scope: string, outcome: PendingOutcome): void {
@@ -478,15 +878,85 @@ export function replaceOutcome(scope: string, outcome: PendingOutcome): void {
   emit(scope);
 }
 
-/** Settle by request id — the wire correlation the host already maintains. */
-export function settleByRequest(scope: string, requestId: string, rollTotal: number): PendingOutcome | null {
+/**
+ * Settle by request id — the wire correlation the host already maintains.
+ *
+ * Searches TARGETS, not cards: an area ability issues one request per target, so
+ * the id that comes back off the wire identifies a row inside a card rather than
+ * the card itself. Which is also why arrival order does not matter here — each
+ * result finds its own row, and the other 22 are untouched by it.
+ */
+export function settleByRequest(
+  scope: string,
+  requestId: string,
+  rollTotal: number
+): { outcome: PendingOutcome; target: OutcomeTarget } | null {
   const all = LEDGERS.get(scope) ?? [];
-  const found = all.find((outcome) => outcome.requestId === requestId);
-  if (!found) return null;
-  const settled = settleOutcome(found, rollTotal);
-  LEDGERS.set(scope, all.map((outcome) => (outcome.id === settled.id ? settled : outcome)));
+  for (const outcome of all) {
+    const target = outcome.targets.find((row) => row.requestId === requestId);
+    if (!target) continue;
+    const settled = settleTarget(outcome, target.id, rollTotal);
+    // A duplicate result changes nothing — `settleTarget` keeps the first — so
+    // it must not emit either, or every retried wire message would re-render
+    // every card in the scope for no change at all.
+    if (settled === outcome) return { outcome, target };
+    LEDGERS.set(scope, all.map((prior) => (prior.id === settled.id ? settled : prior)));
+    emit(scope);
+    return { outcome: settled, target: targetOf(settled, target.id) as OutcomeTarget };
+  }
+  return null;
+}
+
+/**
+ * The round advanced: every target still outstanding is marked, not resolved.
+ *
+ * Idempotent, because the round tick is Curator-only and fires on a CHANGE, but
+ * the ledger cannot see that guarantee from here and a card that re-stamped its
+ * lapse round every render would keep resetting the number a Curator is reading.
+ */
+export function lapseOutcomes(scope: string, round: number): void {
+  const all = LEDGERS.get(scope) ?? [];
+  const next = all.map((outcome) => lapsePendingTargets(outcome, round));
+  if (next.every((outcome, i) => outcome === all[i])) return;
+  LEDGERS.set(scope, next);
   emit(scope);
-  return settled;
+}
+
+/**
+ * Reconcile open cards against the tokens actually on the scene.
+ *
+ * A target can die, be deleted, or be dragged to another scene between the save
+ * request and the Curator's click. Without this the card would keep offering
+ * "Apply −27 HP" for a body that is not there; VttScreen would refuse the write
+ * and toast, which is correct but tells the Curator only after they committed to
+ * the act. Marking the row instead moves that information to before the click.
+ *
+ * Targets with no token behind them are never reaped — a card opened against a
+ * name rather than a body has nothing on the scene to compare against.
+ *
+ * SYMMETRIC, and that is the whole of the correctness argument: this reconciles
+ * against whatever scene is open, while a card belongs to the campaign and the
+ * room. A body absent from the scene the Curator happens to be looking at has
+ * not necessarily left the fight, so the mark it earns has to come off again the
+ * moment the body is back in front of us. See `markTargetPresent`.
+ */
+export function syncOutcomeTargets(scope: string, liveTokenIds: ReadonlySet<string>): void {
+  const all = LEDGERS.get(scope) ?? [];
+  let changed = false;
+  const next = all.map((outcome) => {
+    let patched = outcome;
+    for (const target of outcome.targets) {
+      if (!target.tokenId) continue;
+      patched = liveTokenIds.has(target.tokenId)
+        ? markTargetPresent(patched, target.id)
+        : markTargetRemoved(patched, target.id);
+    }
+    if (patched !== outcome) changed = true;
+    return patched;
+  });
+  if (!changed) return;
+  LEDGERS.set(scope, next);
+  emit(scope);
 }
 
 export function dismissOutcome(scope: string, id: string): void {

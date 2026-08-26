@@ -1,5 +1,6 @@
-// Live measurement ruler: line + distance readout (cells × 5 ft).
+// Live measurement ruler: line + distance readout (cells × the map scale).
 import { Container, Graphics, Text } from "pixi.js";
+import { FT_PER_CELL } from "../../data/effectMeta";
 
 export class MeasurementLayer {
   readonly view = new Container();
@@ -22,7 +23,7 @@ export class MeasurementLayer {
     this.line.circle(x1, y1, 4).fill(0x7ecfca);
     this.line.circle(x2, y2, 4).fill(0x7ecfca);
     const cells = Math.hypot(x2 - x1, y2 - y1) / cellSize;
-    this.label.text = `${Math.round(cells * 10) / 10} cells · ${Math.round(cells * 5)} ft`;
+    this.label.text = `${Math.round(cells * 10) / 10} cells · ${Math.round(cells * FT_PER_CELL)} ft`;
     this.label.position.set((x1 + x2) / 2, (y1 + y2) / 2 - 8);
   }
   clear(): void {

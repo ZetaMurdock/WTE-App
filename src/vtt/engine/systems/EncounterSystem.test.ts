@@ -66,8 +66,11 @@ describe("EncounterSystem.onRound", () => {
     data.conditionClocks = [{ tokenId: "t1", status: "Slowed", bornRound: 1, rounds: 1 }];
 
     expect(system.onRound(data, 2, 70, write(data, written))).toBe(true);
-    expect(written).toEqual([[]]); // the removal was committed through the writer
-    expect(data.tokens[0].statuses).toEqual(["Slowed"]); // and the zone re-applied it
+    // BOTH halves go through the writer: the clock's removal, then the zone
+    // putting its own tag back. A zone that re-applied by touching the token
+    // directly would emit no op, and the pip would never reach a player.
+    expect(written).toEqual([[], ["Slowed"]]);
+    expect(data.tokens[0].statuses).toEqual(["Slowed"]);
     // No clock survives: the tag on the token now belongs to the zone.
     expect(data.conditionClocks).toBeUndefined();
   });

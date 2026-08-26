@@ -14,9 +14,12 @@ import {
   autoApplicable,
   consequencesFor,
   consequencesFromSteps,
-  markApplied,
+  lapsePendingTargets,
+  markTargetApplied,
+  markTargetRemoved,
   openOutcome,
-  settleOutcome,
+  settleTarget,
+  type OutcomeTarget,
   type PendingOutcome,
 } from "./outcomeLedger";
 
@@ -62,19 +65,41 @@ const DECISIVE_GRASP = genusPage("Null", "Decisive Grasp");
 const ON = { autoApplyDeclared: true };
 const OFF = { autoApplyDeclared: false };
 
-function failed(input: { steps?: EffectStep[]; effect?: string | null }): PendingOutcome {
-  const opened = openOutcome({
+function opened(input: { steps?: EffectStep[]; effect?: string | null }): PendingOutcome {
+  return openOutcome({
     id: "oc-1",
     sourceAbilityId: "a1",
     sourceAbilityName: "Test",
-    targetName: "Kira",
+    targets: [{ id: "kira", name: "Kira" }],
     dc: 15,
     rollLabel: "Physical Save — Evasion",
     now: 0,
     effect: input.effect,
     steps: input.steps,
   });
-  return settleOutcome(opened, 9);
+}
+
+function failed(input: { steps?: EffectStep[]; effect?: string | null }): PendingOutcome {
+  return settle(opened(input), 9);
+}
+
+/** The one target of a degenerate card. The gate is asked PER TARGET, because a
+ *  batch's targets sit in different states and only some of them qualify. */
+function only(outcome: PendingOutcome): OutcomeTarget {
+  return outcome.targets[0];
+}
+
+function settle(outcome: PendingOutcome, total: number): PendingOutcome {
+  return settleTarget(outcome, outcome.targets[0].id, total);
+}
+
+function mark(outcome: PendingOutcome, consequenceId: string): PendingOutcome {
+  return markTargetApplied(outcome, outcome.targets[0].id, consequenceId);
+}
+
+/** The gate, asked about the sole target of a single-target card. */
+function auto(outcome: PendingOutcome, rules: { autoApplyDeclared: boolean }) {
+  return autoApplicable(outcome, only(outcome), rules);
 }
 
 describe("where a declared consequence came from", () => {
@@ -103,12 +128,15 @@ describe("what a table may let the app apply on its own", () => {
     const outcome = failed({ steps: stepsOf(HAIL_RAIN) });
     // The same card has plenty armed — the rule, not the card, is what is empty.
     expect(outcome.consequences.length).toBeGreaterThan(1);
-    expect(autoApplicable(outcome, OFF)).toEqual([]);
+    expect(auto(outcome, OFF)).toEqual([]);
   });
 
   it("offers the declared damage and the declared condition once a table opts in", () => {
-    const auto = autoApplicable(failed({ steps: stepsOf(HAIL_RAIN) }), ON);
-    expect(auto.map((consequence) => consequence.label)).toEqual(["On fail · 2d6 Cold", "On fail · Slowed · 1 round"]);
+    const offered = auto(failed({ steps: stepsOf(HAIL_RAIN) }), ON);
+    expect(offered.map((consequence) => consequence.label)).toEqual([
+      "On fail · 2d6 Cold",
+      "On fail · Slowed · 1 round",
+    ]);
   });
 
   // The refusal this whole rule is drawn around. Hail Rain's own page declares a
@@ -117,7 +145,7 @@ describe("what a table may let the app apply on its own", () => {
   it("never offers a Ruling, even one the page declared", () => {
     const outcome = failed({ steps: stepsOf(DECISIVE_GRASP) });
     expect(outcome.consequences.map((consequence) => consequence.kind)).toContain("ruling");
-    expect(autoApplicable(outcome, ON)).toEqual([]);
+    expect(auto(outcome, ON)).toEqual([]);
   });
 
   // The entire shipped corpus is prose. Auto-apply must not reach one card of it:
@@ -126,7 +154,7 @@ describe("what a table may let the app apply on its own", () => {
   it("never offers a consequence the prose scanner guessed", () => {
     const outcome = failed({ effect: PSYCHIC_SCREAM.effect });
     expect(outcome.consequences.length).toBeGreaterThan(0);
-    expect(autoApplicable(outcome, ON)).toEqual([]);
+    expect(auto(outcome, ON)).toEqual([]);
   });
 
   it("offers nothing while the roll has not arrived", () => {
@@ -134,29 +162,29 @@ describe("what a table may let the app apply on its own", () => {
       id: "oc-2",
       sourceAbilityId: "a1",
       sourceAbilityName: "Hail Rain",
-      targetName: "Kira",
+      targets: [{ id: "kira", name: "Kira" }],
       dc: 15,
       rollLabel: "Physical Save — Evasion",
       now: 0,
       steps: stepsOf(HAIL_RAIN),
     });
-    expect(pending.verdict).toBe("pending");
-    expect(autoApplicable(pending, ON)).toEqual([]);
+    expect(only(pending).verdict).toBe("pending");
+    expect(auto(pending, ON)).toEqual([]);
   });
 
   it("offers only what the verdict armed — a held save keeps the failure branch off", () => {
-    const held = settleOutcome(failed({ steps: stepsOf(HAIL_RAIN) }), 20);
-    expect(held.verdict).toBe("pass");
-    expect(autoApplicable(held, ON)).toEqual([]);
+    const held = settle(opened({ steps: stepsOf(HAIL_RAIN) }), 20);
+    expect(only(held).verdict).toBe("pass");
+    expect(auto(held, ON)).toEqual([]);
   });
 
   // A declared "half on success" rider is still the page's own word about what a
   // successful save costs, so it is as applicable as the failure branch was.
   it("offers a declared half-on-success rider to a target that passed", () => {
-    const held = settleOutcome(failed({ steps: stepsOf(PSYCHIC_SCREAM) }), 20);
-    const auto = autoApplicable(held, ON);
-    expect(auto.map((consequence) => consequence.expr)).toEqual(["2d8"]);
-    expect(auto[0].half).toBe(true);
+    const held = settle(opened({ steps: stepsOf(PSYCHIC_SCREAM) }), 20);
+    const offered = auto(held, ON);
+    expect(offered.map((consequence) => consequence.expr)).toEqual(["2d8"]);
+    expect(offered[0].half).toBe(true);
   });
 
   // The guard against a caller that re-runs. Whatever drives this may be asked
@@ -164,12 +192,33 @@ describe("what a table may let the app apply on its own", () => {
   // stop being yes the moment the hit lands.
   it("stops offering a consequence the moment it has been committed", () => {
     const outcome = failed({ steps: stepsOf(HAIL_RAIN) });
-    const first = autoApplicable(outcome, ON);
+    const first = auto(outcome, ON);
     expect(first.length).toBe(2);
-    const after = markApplied(outcome, first[0].id);
-    expect(autoApplicable(after, ON).map((consequence) => consequence.id)).toEqual([first[1].id]);
-    const both = markApplied(after, first[1].id);
-    expect(autoApplicable(both, ON)).toEqual([]);
+    const after = mark(outcome, first[0].id);
+    expect(auto(after, ON).map((consequence) => consequence.id)).toEqual([first[1].id]);
+    const both = mark(after, first[1].id);
+    expect(auto(both, ON)).toEqual([]);
+  });
+});
+
+describe("the two states a batch adds, and the gate's answer to both", () => {
+  // The partial resolution policy, stated where auto-apply can be held to it: a
+  // target the round walked past has no verdict the dice produced, so there is
+  // nothing for auto-apply to commit on its behalf. This is the whole difference
+  // between marking an unanswered save and deciding it.
+  it("never offers anything for a target the round left behind", () => {
+    const lapsed = lapsePendingTargets(opened({ steps: stepsOf(HAIL_RAIN) }), 4);
+    expect(only(lapsed).lapsedRound).toBe(4);
+    expect(auto(lapsed, ON)).toEqual([]);
+  });
+
+  // Even with a verdict on it. A target can fail its save and THEN be lapsed by
+  // a later card's tick, or be declared by hand after the round moved; the write
+  // still must not land unattended on a row the card is flagging as unresolved.
+  it("never offers anything for a target whose token left the scene", () => {
+    const gone = markTargetRemoved(failed({ steps: stepsOf(HAIL_RAIN) }), "kira");
+    expect(only(gone).verdict).toBe("fail");
+    expect(auto(gone, ON)).toEqual([]);
   });
 });
 
@@ -180,7 +229,7 @@ describe("an undeclared ability is untouched by any of this", () => {
   it("opens the same card and offers the same nothing under either setting", () => {
     const prose = failed({ effect: PSYCHIC_SCREAM.effect });
     expect(prose.consequences).toEqual(consequencesFor(PSYCHIC_SCREAM.effect));
-    expect(autoApplicable(prose, OFF)).toEqual(autoApplicable(prose, ON));
+    expect(auto(prose, OFF)).toEqual(auto(prose, ON));
   });
 
   it("treats an empty block as no block, not as a page that declared silence", () => {
@@ -190,6 +239,6 @@ describe("an undeclared ability is untouched by any of this", () => {
     // `fromBlock` set would still change what the card says it was reading.
     expect(none).toEqual(failed({ effect: PSYCHIC_SCREAM.effect }));
     expect(none.fromBlock).toBe(false);
-    expect(autoApplicable(none, ON)).toEqual([]);
+    expect(auto(none, ON)).toEqual([]);
   });
 });

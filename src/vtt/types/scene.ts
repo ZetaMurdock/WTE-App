@@ -118,6 +118,39 @@ export interface VttEmitter {
   fxMax?: number;
 }
 export type VttEffectKind = "circle" | "cone" | "zone" | "line" | "ring" | "cross";
+/**
+ * One recurring line of a placed effect, in the form the wire can carry.
+ *
+ * An ability declares `Each round: Save: Physical Save — Recovery, DV 18` on its
+ * own page; `EffectStep` is that declaration, and it carries structure — parsed
+ * roll refs, durations, selectors — that has no business riding a scene snapshot
+ * to every peer. So placement translates a step into this flat record, which is
+ * the *residue* a placed template needs to keep firing after the ability that
+ * made it is out of scope: what to roll, against what number, and what a verdict
+ * costs. Nothing here is authoritative about the ability; the page still is.
+ */
+export interface VttEffectTick {
+  /** Stable within its effect, so a proposal can be recognised across rounds. */
+  id: string;
+  kind: "save" | "damage" | "heal" | "condition" | "ruling";
+  /** What the Curator's card says: "3d10 Cold", "Slowed · 1 round". */
+  label: string;
+  /** Which verdict arms it, matching `OutcomeConsequence.on`. */
+  on: "always" | "fail" | "pass";
+  /** save — the DV to meet, and the Roll Axis route to meet it with. */
+  dv?: number;
+  path?: string;
+  direction?: "check" | "save";
+  /** damage/heal — dice or a flat amount. */
+  expr?: string;
+  damageType?: string;
+  half?: boolean;
+  /** condition — the tag and the clock the page declared. */
+  condition?: string;
+  rounds?: number;
+  /** ruling — the question the page asks the Curator. */
+  prompt?: string;
+}
 export interface VttEffectData {
   radius?: number; // cells — circle/cone reach; line length; ring outer radius; cross arm length
   dir?: number; // facing, radians — cone facing; line direction
@@ -132,6 +165,30 @@ export interface VttEffectData {
   /** Status a zone applies to tokens standing inside it (SimulationSystem). */
   status?: string;
   label?: string;
+  /** AURA — the token this effect rides. While set, the effect's `x`/`y` are
+   *  recomputed from that token's position on every move, so a template placed
+   *  by `Zone: circle 15 ft, attach self` travels with its caster instead of
+   *  marking the square the caster happened to be standing in when it went up. */
+  auraTokenId?: string;
+  /** AURA — offset from the anchor token's centre to this effect's own anchor
+   *  point, captured when the aura was bound. Circles anchor at their centre and
+   *  carry (0,0); a rect zone anchors top-LEFT, and without the offset its
+   *  corner would snap onto the token the first time the token moved. */
+  auraDx?: number;
+  auraDy?: number;
+  /** CADENCE — the recurring lines the placing ability declared. */
+  ticks?: VttEffectTick[];
+  /** CADENCE — the last round this effect produced tick proposals. The round
+   *  hook can run twice for one round number (a re-render, a peer echo, a
+   *  Curator stepping back and forward), and a second pass must not charge the
+   *  table twice for one round of standing in the fire. */
+  tickedRound?: number;
+  /** Provenance for the cards a tick opens: without it a recurring save would
+   *  arrive on screen naming no ability, and the Curator would have no way to
+   *  tell which template on the map asked for it. */
+  sourceAbilityId?: string;
+  sourceAbilityName?: string;
+  casterCharacterId?: string;
 }
 export interface VttEffect {
   id: string;

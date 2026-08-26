@@ -8012,6 +8012,55 @@ body.wte-dot-cursor * {
   display: flex;
   gap: 5px;
 }
+/* Batch chrome — everything a many-target card says before the Curator opens
+   the rows. The counts are the glance, so they read a size up from the note
+   text under them and carry the accent the Apply buttons use. */
+.vtt2-res-tally {
+  font-family: Georgia, serif;
+  font-size: 11.5px;
+  color: var(--ink, #d5dbe6);
+  margin-bottom: 4px;
+}
+/* Outstanding targets never blend into the resolved ones. This is the partial
+   resolution policy made visible: nothing was applied to them, and the card
+   would rather be loud about that than tidy. */
+.vtt2-res-lapsed {
+  color: #d0a24a;
+}
+.vtt2-res-mode {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 10px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.vtt2-res-mode > span {
+  flex: 1;
+  min-width: 0;
+}
+.vtt2-res-batch {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+/* One target inside a batch: a hairline rule rather than a nested box, so 23 of
+   them stacked stay legible instead of turning into 23 cards again. */
+.vtt2-res-target + .vtt2-res-target {
+  border-top: 1px solid var(--panel-line);
+  padding-top: 8px;
+  margin-top: 8px;
+}
+.vtt2-res-target.gone {
+  opacity: 0.55;
+}
+.vtt2-res-tname {
+  font-family: Georgia, serif;
+  font-size: 11.5px;
+  color: var(--ink, #d5dbe6);
+}
 .vtt2-res-btn {
   appearance: none;
   background: rgba(126, 207, 202, 0.06);

@@ -10,7 +10,7 @@ import type { RuleLayer } from "../game/ruleLayers";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { Campaign } from "../models/campaign";
 import { isTauri } from "../lib/tauri";
-import { PixiVttApp, peerInkColor, type VttSelection } from "./engine/PixiVttApp";
+import { PixiVttApp, peerInkColor, type PlaceAoeOptions, type VttSelection } from "./engine/PixiVttApp";
 import { listScenes, saveScene, getScene, setActiveScene, deleteScene } from "./data/sceneRepo";
 import { newId, newScene, type VttScene, type VttToken, type VttZoneKind } from "./types/scene";
 import type { VttTool } from "./types/tool";
@@ -40,20 +40,27 @@ import { VttResolutionCard } from "./VttResolutionCard";
 import { rollDiceExpr, type RollResult } from "../game/wte";
 import {
   clearOutcomes,
-  declareVerdict,
+  declareOutcomeVerdict,
   dismissOutcome,
   hpAfterConsequence,
+  lapseOutcomes,
   listOutcomes,
   markOutcomeApplied,
   openOutcome,
   pruneOutcomes,
   pushOutcome,
-  replaceOutcome,
+  setOutcomeDamageRoll,
   settleByRequest,
   subscribeOutcomes,
+  syncOutcomeTargets,
+  type DamageRollMode,
   type OutcomeConsequence,
+  type OutcomeTarget,
   type PendingOutcome,
 } from "./data/outcomeLedger";
+import { outcomesFromProposals } from "./data/recurringOutcome";
+import type { RecurringProposal } from "./engine/systems/RecurringEffectSystem";
+import { declaredAuraOwner, declaredPlacement } from "./data/effectTicks";
 import { SfxPlayer } from "./audio/sfxPlayer";
 import { getMasterVolume, subscribeMasterVolume } from "../lib/audioPrefs";
 import { reportSaveFailure, pushToast } from "../lib/appToast";
@@ -191,7 +198,7 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
   const [pendingAoe, setPendingAoe] = useState<VttAbility | null>(null);
   // A soundboard clip armed for click-to-place as a spatial emitter.
   const [armedSound, setArmedSound] = useState<{ name: string; src: string } | null>(null);
-  const [armedAoe, setArmedAoe] = useState<{ kind: AoeKind; cells: number; rounds: number } | null>(null);
+  const [armedAoe, setArmedAoe] = useState<{ kind: AoeKind; cells: number; rounds: number; declared: PlaceAoeOptions } | null>(null);
   const [rollsOpen, setRollsOpen] = useState(false);
   const [atlasOpen, setAtlasOpen] = useState(false);
   const [atlasFocus, setAtlasFocus] = useState<AtlasFocus | null>(null);
@@ -602,6 +609,22 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
       net.publish(accepted);
     });
   }, [campaign, characters, net.publish, net.role, net.selfId, net.status, net.subscribe, partySheets, rollScope]);
+
+  // A burning field's round arrives here. The round hook lives inside the
+  // engine, which has no idea what a campaign scope is and — deliberately —
+  // no way to write the damage it just worked out. So it hands over proposals
+  // and they become Resolution Cards: the SAME cards a one-shot save opens,
+  // with the same auto-apply gate and the same authorised write behind every
+  // button. A recurring save is not a new kind of resolution and must not grow
+  // a second path with its own rules about what may land unattended.
+  const recurringRef = useRef<(proposals: RecurringProposal[]) => void>(() => {});
+  recurringRef.current = (proposals) => {
+    if (!rollScope) return;
+    // One card per field per round, carrying every token inside it. `pushOutcome`
+    // replaces by id, and a round's id is effect + round, so the same round
+    // delivered twice lands on the card that already exists.
+    for (const card of outcomesFromProposals(proposals, Date.now())) pushOutcome(rollScope, card);
+  };
 
   // PING — double-click "look here", every peer sees the pulse in your ink.
   const pingOutRef = useRef<(x: number, y: number) => void>(() => {});
@@ -1277,6 +1300,7 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
     engine.onTokenMoved = (id, x, y) => void tokenMovedRef.current(id, x, y);
     engine.onMoveRequested = (id, fromX, fromY, toX, toY) => moveRequestRef.current(id, fromX, fromY, toX, toY);
     engine.onPing = (x, y) => pingOutRef.current(x, y);
+    engine.onRecurring = (proposals) => recurringRef.current(proposals);
     // Dev-only handle for debugging sync ops in the preview (stripped in prod).
     if (import.meta.env.DEV) (window as unknown as { __vttEngine?: PixiVttApp }).__vttEngine = engine;
     // A failed init must NEVER be a silent black canvas again. That exact
@@ -2112,10 +2136,37 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
   }, [rollScope]);
 
   const outcomeToken = useCallback(
-    (outcome: PendingOutcome) =>
-      outcome.targetTokenId ? live?.data.tokens.find((token) => token.id === outcome.targetTokenId) ?? null : null,
+    (target: OutcomeTarget) =>
+      target.tokenId ? live?.data.tokens.find((token) => token.id === target.tokenId) ?? null : null,
     [live]
   );
+
+  // A batch card can outlive the bodies on it: a 23-target zone resolves over
+  // several wire round-trips, and a token can die, be deleted or be dragged to
+  // another scene in between. Reconciling against the live scene moves that fact
+  // onto the row BEFORE the Curator clicks Apply, instead of leaving them to
+  // discover it from a refusal toast afterwards.
+  useEffect(() => {
+    if (!rollScope || !live) return;
+    syncOutcomeTargets(rollScope, new Set(live.data.tokens.map((token) => token.id)));
+  }, [live, rollScope]);
+
+  // The round advanced. Targets that never rolled are MARKED, never resolved —
+  // see `lapsePendingTargets` for why silently expiring and silently applying
+  // are both refusals of the Curator's authority rather than conveniences.
+  //
+  // Fires on a CHANGE, exactly like the encounter tick, and never on the first
+  // reading: a card opened during round 4 would otherwise be told, in the same
+  // frame, that round 4 had already moved on without it.
+  const timelineRound = live?.data.timeline.round;
+  const lastRound = useRef<number | null>(null);
+  useEffect(() => {
+    if (!rollScope || timelineRound == null) return;
+    const prior = lastRound.current;
+    lastRound.current = timelineRound;
+    if (prior == null || timelineRound <= prior) return;
+    lapseOutcomes(rollScope, timelineRound);
+  }, [rollScope, timelineRound]);
 
   const rollConsequence = useCallback(
     (outcome: PendingOutcome, consequence: OutcomeConsequence): number | null => {
@@ -2135,11 +2186,11 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
   );
 
   const applyOutcomeDamage = useCallback(
-    (outcome: PendingOutcome, consequence: OutcomeConsequence, amount: number) => {
+    (outcome: PendingOutcome, target: OutcomeTarget, consequence: OutcomeConsequence, amount: number) => {
       const engine = engineRef.current;
-      const token = outcomeToken(outcome);
+      const token = outcomeToken(target);
       if (!engine || !token) {
-        pushToast(`${outcome.targetName} is no longer on this scene.`, "error");
+        pushToast(`${target.name} is no longer on this scene.`, "error");
         return;
       }
       if (token.hp == null) {
@@ -2158,7 +2209,7 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
         pushToast(`${token.name}'s HP was not changed — that token could not be written to.`, "error");
         return;
       }
-      if (rollScope) markOutcomeApplied(rollScope, outcome.id, consequence.id);
+      if (rollScope) markOutcomeApplied(rollScope, outcome.id, target.id, consequence.id);
       const verb = amount >= 0 ? "took" : "healed";
       pushToast(`${token.name} ${verb} ${Math.abs(amount)} — ${before} → ${next} HP.`, "info");
     },
@@ -2166,32 +2217,43 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
   );
 
   const applyOutcomeCondition = useCallback(
-    (outcome: PendingOutcome, consequence: OutcomeConsequence) => {
+    (outcome: PendingOutcome, target: OutcomeTarget, consequence: OutcomeConsequence) => {
       const engine = engineRef.current;
-      const token = outcomeToken(outcome);
+      const token = outcomeToken(target);
       // The BARE name, not the formatted tag: the countdown lives in the scene's
       // condition clocks, so a pip reading "Slowed (2)" would make a second
       // application of "Slowed (3)" look like a different condition and defeat
       // the Stacking rule its page declares.
       const status = consequence.condition?.trim();
       if (!engine || !token || !status) {
-        pushToast(`${outcome.targetName} is no longer on this scene.`, "error");
+        pushToast(`${target.name} is no longer on this scene.`, "error");
         return;
       }
       if (!engine.applyTokenCondition({ tokenId: token.id, status, rounds: consequence.rounds })) {
         pushToast(`${status} was not applied — ${token.name} could not be written to.`, "error");
         return;
       }
-      if (rollScope) markOutcomeApplied(rollScope, outcome.id, consequence.id);
+      if (rollScope) markOutcomeApplied(rollScope, outcome.id, target.id, consequence.id);
       const clock = consequence.rounds ? ` for ${consequence.rounds} round${consequence.rounds === 1 ? "" : "s"}` : "";
       pushToast(`${token.name} is ${status}${clock}.`, "info");
     },
     [outcomeToken, rollScope]
   );
 
+  // Both go through the scope, not through the card in hand. The card React is
+  // holding is a snapshot, and on a 23-target zone the other rows are still
+  // settling off the wire while the Curator reads it — writing the snapshot back
+  // would erase every roll that landed in between.
   const declareOutcome = useCallback(
-    (outcome: PendingOutcome, verdict: "pass" | "fail") => {
-      if (rollScope) replaceOutcome(rollScope, declareVerdict(outcome, verdict));
+    (outcome: PendingOutcome, target: OutcomeTarget, verdict: "pass" | "fail") => {
+      if (rollScope) declareOutcomeVerdict(rollScope, outcome.id, target.id, verdict);
+    },
+    [rollScope]
+  );
+
+  const chooseDamageRoll = useCallback(
+    (outcome: PendingOutcome, mode: DamageRollMode) => {
+      if (rollScope) setOutcomeDamageRoll(rollScope, outcome.id, mode);
     },
     [rollScope]
   );
@@ -2234,7 +2296,6 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
         rollScope,
         openOutcome({
           id: `oc-${requestId}`,
-          requestId,
           sourceAbilityId: intent.abilityId,
           sourceAbilityName: intent.abilityName,
           effect: intent.effect,
@@ -2243,8 +2304,9 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
           // second opinion about which source wins.
           steps: intent.steps,
           casterCharacterId: intent.sourceCharacterId,
-          targetTokenId: target.id,
-          targetName: target.name,
+          // One target, which is the batch card's degenerate case — the same
+          // card, the same store and the same policies an area ability gets.
+          targets: [{ tokenId: target.id, name: target.name, requestId }],
           dc: intent.dc,
           rollLabel: intent.label,
           now,
@@ -2312,21 +2374,64 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
 
   // Place an ability's area template at the chosen anchor (caster token / selected
   // token / view centre). placeAoeAt leaves it selected so it can be nudged/resized.
-  const placeAoe = (_ability: VttAbility, p: AoePlacement) => {
+  // What the PAGE declared, when it declared anything, in the form a placement
+  // takes. The prompt still owns shape, size and lifetime — the Curator re-aims
+  // and resizes on the fly, and a declared block must not take that away — but
+  // the cadence, the in-zone tag and the anchor are mechanics, not placement,
+  // and they come off the page.
+  //
+  // Derived HERE rather than inside `placeAoe`, because the prompt's "click"
+  // mode does not place anything: it arms the cursor and the template lands on a
+  // later pointer event, from React state. Deriving it at the drop site left
+  // that path reading nothing at all, so the most natural way to aim a field —
+  // click where you want it — was the one way that placed an inert circle.
+  //
+  // Provenance rides only a template that actually keeps happening. It is read
+  // by exactly one thing, the card a round's ticks open, so writing it onto
+  // every hand-placed area would put a field in the scene and on the wire that
+  // no reader ever looks at, for the whole undeclared corpus.
+  const declaredAoeOptions = (ability: VttAbility): PlaceAoeOptions => {
+    const placement = declaredPlacement(ability.actions);
+    const tokens = engineRef.current?.scene?.data.tokens ?? [];
+    const casterToken = abilityChar ? tokens.find((t) => t.characterId === abilityChar.id) ?? null : null;
+    // What one template cannot carry is said out loud. A page that declared two
+    // recurring saves is asking for two resolutions and gets one; silence would
+    // let it deliver less than it promised and still look complete.
+    if (placement.extraStatuses.length || placement.extraSaves.length) {
+      const missed = [...placement.extraStatuses, ...placement.extraSaves.map((tick) => tick.label)];
+      pushToast(`${ability.name}: this template carries one in-zone tag and one recurring save — ${missed.join(", ")} needs its own.`, "info");
+    }
+    const auraOwner = declaredAuraOwner(placement, casterToken?.id ?? null);
+    return {
+      ...(placement.status ? { status: placement.status } : {}),
+      ...(placement.ticks.length
+        ? {
+            ticks: placement.ticks,
+            ...(ability.abilityId ? { sourceAbilityId: ability.abilityId } : {}),
+            sourceAbilityName: ability.name,
+            ...(abilityChar ? { casterCharacterId: abilityChar.id } : {}),
+          }
+        : {}),
+      ...(auraOwner ? { auraTokenId: auraOwner } : {}),
+    };
+  };
+
+  const placeAoe = (p: AoePlacement, declared: PlaceAoeOptions) => {
     const eng = engineRef.current;
     if (!eng) return;
     const tokens = eng.scene?.data.tokens ?? [];
-    let pos: { x: number; y: number };
+    // Where the template LANDS, which is not the same question as whose body an
+    // aura rides — see `declaredAuraOwner`. Placing on a selected token used to
+    // answer both at once, which bound a caster's own field to whatever was
+    // selected: in a fight, almost always their target.
+    let anchor: VttToken | null = null;
     if (p.mode === "self") {
-      const caster = abilityChar ? tokens.find((t) => t.characterId === abilityChar.id) : null;
-      pos = caster ? { x: caster.x, y: caster.y } : eng.viewCenterWorld();
+      anchor = (abilityChar ? tokens.find((t) => t.characterId === abilityChar.id) : null) ?? null;
     } else if (p.mode === "selected") {
-      const t = sel?.kind === "token" ? tokens.find((x) => x.id === sel.id) : null;
-      pos = t ? { x: t.x, y: t.y } : eng.viewCenterWorld();
-    } else {
-      pos = eng.viewCenterWorld();
+      anchor = (sel?.kind === "token" ? tokens.find((x) => x.id === sel.id) : null) ?? null;
     }
-    eng.placeAoeAt(p.kind, pos.x, pos.y, { cells: p.cells, rounds: p.rounds });
+    const pos = anchor ? { x: anchor.x, y: anchor.y } : eng.viewCenterWorld();
+    eng.placeAoeAt(p.kind, pos.x, pos.y, { cells: p.cells, rounds: p.rounds, ...declared });
   };
 
   return (
@@ -2601,6 +2706,7 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
           onApplyDamage={applyOutcomeDamage}
           onApplyCondition={applyOutcomeCondition}
           onDeclare={declareOutcome}
+          onSetDamageRoll={chooseDamageRoll}
           onDismiss={dropOutcome}
         />
       )}
@@ -2611,8 +2717,11 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
           hasSelectedToken={sel?.kind === "token"}
           onCancel={() => setPendingAoe(null)}
           onPlace={(p) => {
-            if (p.mode === "click") setArmedAoe({ kind: p.kind, cells: p.cells, rounds: p.rounds });
-            else placeAoe(pendingAoe, p);
+            // Read ONCE, here, and carried into the armed state: the click mode
+            // lands its template on a pointer event with no ability in scope.
+            const declared = declaredAoeOptions(pendingAoe);
+            if (p.mode === "click") setArmedAoe({ kind: p.kind, cells: p.cells, rounds: p.rounds, declared });
+            else placeAoe(p, declared);
             setPendingAoe(null);
           }}
         />
@@ -2626,7 +2735,7 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
             const eng = engineRef.current;
             if (eng) {
               const w = eng.clientToWorld(e.clientX, e.clientY);
-              eng.placeAoeAt(armedAoe.kind, w.x, w.y, { cells: armedAoe.cells, rounds: armedAoe.rounds });
+              eng.placeAoeAt(armedAoe.kind, w.x, w.y, { cells: armedAoe.cells, rounds: armedAoe.rounds, ...armedAoe.declared });
             }
             setArmedAoe(null);
           }}

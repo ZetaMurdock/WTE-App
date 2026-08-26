@@ -29,6 +29,20 @@ export interface EffectMeta {
   values: EffectValue[];
 }
 
+/**
+ * Feet per grid cell — the scale the whole app measures areas by.
+ *
+ * `VttGrid` records px-per-cell and nothing else, so this is the only place the
+ * ft-to-cell ratio is decided; the ruler, the prose AoE reader and the declared
+ * `Zone:` placer all read it from here. Three separate literal `5`s is how a
+ * table that rescales its map gets a 30 ft aura that measures 30 ft on the ruler
+ * and 25 ft under the template.
+ */
+export const FT_PER_CELL = 5;
+
+/** Metres per grid cell — the metric half of the same scale. */
+export const M_PER_CELL = 1.5;
+
 export function normUnit(u: string | undefined): AoeUnit {
   const s = (u || "").toLowerCase();
   if (/^m|met/.test(s)) return "m";
@@ -106,8 +120,8 @@ export function parseEffectMeta(text: string | null | undefined): EffectMeta {
 /** Convert a range/area size + unit into world-space pixels using the grid. */
 export function metaToPixels(value: number, unit: AoeUnit, gridSize: number): number {
   if (!value) return 0;
-  if (unit === "m") return (value / 1.5) * gridSize;
-  if (unit === "ft") return (value / 5) * gridSize;
+  if (unit === "m") return (value / M_PER_CELL) * gridSize;
+  if (unit === "ft") return (value / FT_PER_CELL) * gridSize;
   return value * gridSize; // cells
 }
 
@@ -130,6 +144,6 @@ export function suggestedTemplate(meta: EffectMeta): { kind: TemplateKind; cells
     : "circle";
   const raw = meta.area?.size || 0;
   const unit = meta.area?.unit || "cells";
-  const cells = raw ? (unit === "ft" ? Math.max(1, Math.round(raw / 5)) : unit === "m" ? Math.max(1, Math.round(raw / 1.5)) : raw) : 2;
+  const cells = raw ? (unit === "ft" ? Math.max(1, Math.round(raw / FT_PER_CELL)) : unit === "m" ? Math.max(1, Math.round(raw / M_PER_CELL)) : raw) : 2;
   return { kind, cells };
 }

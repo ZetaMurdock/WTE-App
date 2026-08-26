@@ -36,8 +36,10 @@ import { ZONE_KINDS } from "../types/scene";
 import { EffectSystem } from "./systems/EffectSystem";
 import { TimelineSystem } from "./systems/TimelineSystem";
 import { SimulationSystem } from "./systems/SimulationSystem";
-import { EncounterSystem } from "./systems/EncounterSystem";
+import { EncounterSystem, type RecurringProposalSink } from "./systems/EncounterSystem";
 import { ConditionClockSystem } from "./systems/ConditionClockSystem";
+import { RecurringEffectSystem } from "./systems/RecurringEffectSystem";
+import { bindAura, dropOrphanAuras, reanchorAuras, unbindAura } from "./systems/AuraSystem";
 import {
   newId,
   TOKEN_COLORS,
@@ -47,6 +49,7 @@ import {
   type VttZoneKind,
   type VttEffectData,
   type VttEffectKind,
+  type VttEffectTick,
   type VttEmitter,
   type VttGrid,
   type VttTerrain,
@@ -71,6 +74,32 @@ export function peerInkColor(id: string | null, curator: boolean): string {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
   return palette[h % palette.length];
+}
+
+/**
+ * What a placement carries beyond shape and size.
+ *
+ * Named rather than inlined because the caller has to be able to HOLD one: the
+ * AoE prompt's "click" mode arms the cursor and lands the template on a later
+ * pointer event, so whatever the page declared has to survive in React state
+ * between the two. It did not, once — the click path built its own two-field
+ * object and dropped the declared block on the floor.
+ */
+export interface PlaceAoeOptions {
+  cells?: number;
+  rounds?: number;
+  color?: string;
+  /** The tag `In zone:` hands to whoever is standing inside. */
+  status?: string;
+  label?: string;
+  /** The `Each round:` lines this template keeps firing. */
+  ticks?: VttEffectTick[];
+  /** Provenance, so a recurring card can name the ability that caused it. */
+  sourceAbilityId?: string;
+  sourceAbilityName?: string;
+  casterCharacterId?: string;
+  /** `attach self` — the token this template rides from here on. */
+  auraTokenId?: string;
 }
 
 export class PixiVttApp {
@@ -98,7 +127,8 @@ export class PixiVttApp {
   readonly timeline = new TimelineSystem();
   readonly sim = new SimulationSystem();
   readonly conditions = new ConditionClockSystem();
-  readonly encounterSystem = new EncounterSystem(this.timeline, this.sim, this.conditions);
+  readonly recurring = new RecurringEffectSystem();
+  readonly encounterSystem = new EncounterSystem(this.timeline, this.sim, this.conditions, this.recurring);
 
   scene: VttScene | null = null;
   tool: VttTool = "select";
@@ -123,6 +153,10 @@ export class PixiVttApp {
   onMoveRequested: (id: string, fromX: number, fromY: number, toX: number, toY: number) => void = () => {};
   /** THIS client pinged the map (double-click) — React broadcasts it. */
   onPing: (x: number, y: number) => void = () => {};
+  /** A round's worth of recurring effect ticks, for React to open Resolution
+   *  Cards from. PROPOSALS: the engine has already refused to apply them, which
+   *  is the whole reason they leave the engine at all. */
+  onRecurring: RecurringProposalSink = () => {};
 
   // Custom 2D shader filter on the background (scene atmosphere.shader.glsl).
   private shaderFilter: CustomShaderFilter | null = null;
@@ -664,7 +698,7 @@ export class PixiVttApp {
   }
   /** Place an ability's area template and size it in one step, leaving it SELECTED
    *  so the caster can nudge/resize it on the fly. Size is in grid cells. */
-  placeAoeAt(kind: VttEffectKind, wx: number, wy: number, opts: { cells?: number; rounds?: number; color?: string }): void {
+  placeAoeAt(kind: VttEffectKind, wx: number, wy: number, opts: PlaceAoeOptions = {}): void {
     this.addEffectAt(kind, wx, wy);
     const sel = this.selection;
     if (sel?.kind !== "effect") return;
@@ -681,7 +715,60 @@ export class PixiVttApp {
     }
     if (opts.rounds != null) patch.rounds = opts.rounds;
     if (opts.color) patch.color = opts.color;
+    if (opts.status) patch.status = opts.status;
+    if (opts.label) patch.label = opts.label;
+    if (opts.ticks?.length) patch.ticks = opts.ticks;
+    if (opts.sourceAbilityId) patch.sourceAbilityId = opts.sourceAbilityId;
+    if (opts.sourceAbilityName) patch.sourceAbilityName = opts.sourceAbilityName;
+    if (opts.casterCharacterId) patch.casterCharacterId = opts.casterCharacterId;
     if (Object.keys(patch).length) this.updateEffect(sel.id, patch);
+    // Bound LAST, and through the same op path: `bindAura` captures the offset
+    // between the template's anchor and its owner, so it has to run after the
+    // size patch that decided where a rect zone's corner sits. Binding first
+    // would freeze an offset the resize then invalidated, and the aura would
+    // ride its caster half a template off.
+    if (opts.auraTokenId) this.bindAuraToToken(sel.id, opts.auraTokenId);
+  }
+  /**
+   * Make an effect ride a token from here on.
+   *
+   * Emitted as an ordinary `effect.update`, so a peer learns the binding the
+   * same way it learns a colour change — and from then on that peer reanchors
+   * the aura from its own copy of the token's moves, with no further traffic.
+   */
+  bindAuraToToken(effectId: string, tokenId: string): boolean {
+    if (!this.scene || this.playerView) return false;
+    if (!bindAura(this.scene.data, effectId, tokenId)) return false;
+    const effect = this.scene.data.effects.find((candidate) => candidate.id === effectId);
+    if (!effect) return false;
+    this.redraw();
+    this.onChanged();
+    this.onOp({
+      op: "effect.update",
+      id: effectId,
+      patch: { auraTokenId: tokenId, auraDx: effect.data.auraDx, auraDy: effect.data.auraDy },
+    });
+    return true;
+  }
+  /**
+   * Cut an aura loose, leaving the template exactly where it stands.
+   *
+   * Synced as a remove + re-add of the same id, the way `setEffectKind` syncs
+   * for the same reason: `effect.update` merges its patch with Object.assign,
+   * and there is no patch that can DELETE a key across the wire — an op is JSON,
+   * and JSON drops a field holding undefined on the way out. A peer handed
+   * `{ auraTokenId: undefined }` would receive `{}`, apply nothing, and go on
+   * riding an aura this client had already set free.
+   */
+  unbindAuraFrom(effectId: string): boolean {
+    if (!this.scene || this.playerView) return false;
+    if (!unbindAura(this.scene.data, effectId)) return false;
+    const effect = this.scene.data.effects.find((candidate) => candidate.id === effectId);
+    if (!effect) return false;
+    this.onChanged();
+    this.onOp({ op: "effect.remove", id: effectId });
+    this.onOp({ op: "effect.add", effect });
+    return true;
   }
   updateEffect(id: string, patch: Partial<VttEffectData>): void {
     if (this.playerView) return;
@@ -764,6 +851,15 @@ export class PixiVttApp {
     if (kind === "effect") d.effects = d.effects.filter((x) => x.id !== id);
     this.select(null);
     if (kind === "token") this.conditions.prune(d);
+    // An aura is its owner's presence on the map. Deleting the caster and
+    // leaving a 15-ft field hanging over an empty square strands an effect the
+    // table cannot explain and, worse, cannot easily remove — the inspector that
+    // would have offered a handle belonged to the token that just went away.
+    // Auras only; a template the Curator placed by hand has no owner to lose.
+    if (kind === "token") {
+      const orphaned = dropOrphanAuras(d);
+      for (const effectId of orphaned) this.onOp({ op: "effect.remove", id: effectId });
+    }
     this.onChanged();
     if (kind === "token") this.onOp({ op: "token.remove", id });
     else if (kind === "wall") this.onOp({ op: "wall.remove", id });
@@ -991,6 +1087,18 @@ export class PixiVttApp {
     const dx = x - oldX;
     const dy = y - oldY;
     if (Math.hypot(dx, dy) > 2) t.facing = Math.atan2(dy, dx);
+    // Auras ride their owner, and they are reanchored BEFORE the redraw below:
+    // a pass that ran after it would draw one frame of the aura still sitting on
+    // the square the caster just left. This covers moves that START here; every
+    // move that arrives from elsewhere goes through `applyOp`, which reanchors
+    // for itself.
+    //
+    // No effect op is emitted, deliberately. A peer is already told `token.move`
+    // (below, when `emit`), and applying that op runs the same reconcile on the
+    // same aura with the same offset — so the position converges everywhere from
+    // one op instead of three, and an aura cannot cost more wire traffic per
+    // step than the token dragging it.
+    reanchorAuras(this.scene!.data);
     this.redraw();
     this.onChanged();
     if (emit) this.onOp({ op: "token.move", id, x, y });
@@ -1134,7 +1242,8 @@ export class PixiVttApp {
         this.scene.data,
         round,
         this.scene.data.grid.size,
-        (tokenId, statuses) => this.adjudicateTokenVitals(tokenId, { statuses })
+        (tokenId, statuses) => this.adjudicateTokenVitals(tokenId, { statuses }),
+        (proposals) => this.onRecurring(proposals)
       );
       if (changed) this.redraw();
     }
