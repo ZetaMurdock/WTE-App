@@ -559,8 +559,7 @@ export class PixiVttApp {
    *  move a whole cell at a time — snapping every step is what felt jerky);
    *  `instant` is for hard cuts: engaging the lock, scene loads, teleports. */
   centerOn(wx: number, wy: number, instant = false): void {
-    const cw = this.app.canvas.clientWidth || this.app.renderer.width;
-    const ch = this.app.canvas.clientHeight || this.app.renderer.height;
+    const { width: cw, height: ch } = this.viewportSize();
     const x = cw / 2 - wx * this.camera.zoom;
     const y = ch / 2 - wy * this.camera.zoom;
     if (instant) this.camera.snapTo(x, y);
@@ -623,8 +622,7 @@ export class PixiVttApp {
         return existing;
       }
     }
-    const cw = this.app.canvas.clientWidth || this.app.renderer.width;
-    const ch = this.app.canvas.clientHeight || this.app.renderer.height;
+    const { width: cw, height: ch } = this.viewportSize();
     const wc = this.camera.screenToWorld(cw / 2, ch / 2);
     const center = this.snap(wc.x, wc.y);
     const n = this.scene.data.tokens.length;
@@ -781,11 +779,20 @@ export class PixiVttApp {
     const r = this.app.canvas.getBoundingClientRect();
     return this.camera.screenToWorld(clientX - r.left, clientY - r.top);
   }
+  /** The canvas in CSS pixels. `clientWidth` is zero before the element is laid
+   *  out and on a detached canvas, and dividing a zero viewport in half puts
+   *  every "centre of the view" answer at the world origin — so the renderer's
+   *  own backing size stands in until layout has run. */
+  viewportSize(): { width: number; height: number } {
+    return {
+      width: this.app.canvas.clientWidth || this.app.renderer.width,
+      height: this.app.canvas.clientHeight || this.app.renderer.height,
+    };
+  }
   /** World coords at the centre of the current viewport (fallback AoE drop point). */
   viewCenterWorld(): { x: number; y: number } {
-    const cw = this.app.canvas.clientWidth || this.app.renderer.width;
-    const ch = this.app.canvas.clientHeight || this.app.renderer.height;
-    return this.camera.screenToWorld(cw / 2, ch / 2);
+    const { width, height } = this.viewportSize();
+    return this.camera.screenToWorld(width / 2, height / 2);
   }
   /** Place an ability's area template and size it in one step, leaving it SELECTED
    *  so the caster can nudge/resize it on the fly. Size is in grid cells. */

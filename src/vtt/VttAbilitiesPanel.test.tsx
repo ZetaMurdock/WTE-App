@@ -121,6 +121,11 @@ vi.mock("./data/characterAbilities", () => ({
     attr: { phy: 2, ap: 1, dex: 2, end: 0, wis: 1, int: 3, cha: -1 },
     spec: { wm: 4, pre: 3, bal: -2, adp: 1, mf: 0, per: 5, cun: -3 },
     derived: { atk: 3, ad: 2, ev: -3, rr: -1, nc: 4, pr: 1, inf: -2 },
+    // A Science caster at Rank 3. Science favors Wisdom AND Mental Fortitude,
+    // which is Convergence on the Capacity path — so every Capacity control
+    // this panel draws earns "+2d5 +2d10". That is the exact label that used to
+    // widen the old button column until the ability's name had no room left.
+    affinity: { paradigmId: "science", rank: 3 },
   }),
   characterEffectiveRollScores: () => ({
     attr: { phy: 0, dex: 0, end: 0, ap: 0, wis: 0, cha: 0, int: 0 },
@@ -156,6 +161,20 @@ async function mount(
       />
     );
   });
+}
+
+/** One ability's card, by the name in its header. */
+function card(name: string): HTMLLIElement {
+  return [...document.querySelectorAll<HTMLLIElement>("li.vtt2-abil-card")].find((li) =>
+    li.querySelector(".vtt2-abil-name")?.textContent?.includes(name)
+  )!;
+}
+
+/** Open a card's disclosure. Costs, conditions, rulings and quoted invocations
+ *  live behind it — the dock lists twenty cards and draws that detail for the
+ *  one in hand. */
+async function open(name: string) {
+  await act(async () => card(name).querySelector<HTMLButtonElement>(".vtt2-abil-toggle")!.click());
 }
 
 beforeEach(() => {
@@ -269,17 +288,14 @@ describe("target roll chips", () => {
 });
 
 describe("an ability that declares its steps", () => {
-  const row = () =>
-    [...host.querySelectorAll<HTMLLIElement>("li.vtt2-abil-row")].find((li) =>
-      li.querySelector(".vtt2-abil-name")?.textContent?.includes("Cryo Lock")
-    )!;
+  const row = () => card("Cryo Lock");
 
   it("arms the declared damage instead of the damage its prose names", async () => {
     // 3d10 Cold is declared; 2d8 Cold is what the prose says. Arming both would
     // hand the table one effect as two buttons.
     const arm = vi.fn();
     await mount(undefined, arm);
-    const chips = [...row().querySelectorAll<HTMLButtonElement>(".vtt2-abil-btns .chip")];
+    const chips = [...row().querySelectorAll<HTMLButtonElement>(".vtt2-abil-actions .chip")];
     expect(chips.map((c) => c.textContent)).toEqual(["On fail · 3d10 Cold"]);
 
     await act(async () => chips[0].click());
@@ -314,29 +330,45 @@ describe("an ability that declares its steps", () => {
     expect(intent.effect).toContain("2d8 Cold");
   });
 
-  it("shows the cost, the condition and the ruling it declared", async () => {
+  it("shows the cost, the condition and the ruling it declared once opened", async () => {
     await mount();
+    // Closed, the card is a header, a summary and its firing controls — the
+    // descriptors are what opening it is for.
+    expect(row().querySelectorAll(".vtt2-abil-stepchip")).toHaveLength(0);
+    await open("Cryo Lock");
     const steps = [...row().querySelectorAll(".vtt2-abil-stepchip")].map((el) => el.textContent);
     expect(steps).toEqual(["6 SS", "On fail · Slowed · 2 rounds", "Curator rules"]);
+  });
+
+  it("keeps the controls it can fire in front of the Curator while it is closed", async () => {
+    // The disclosure hides DESCRIPTION, never an action. A card whose roll and
+    // save chips needed a click to reach would cost the table a step on every
+    // ability it used.
+    await mount(vi.fn());
+    expect(row().classList.contains("open")).toBe(false);
+    expect(row().querySelectorAll(".vtt2-abil-actions .chip").length).toBeGreaterThan(0);
+    expect(row().querySelectorAll(".vtt2-abil-savechip").length).toBeGreaterThan(0);
+  });
+
+  it("opens one card at a time", async () => {
+    // The dock is 264px wide. Two cards spilling their declared steps at once
+    // is the wall of chips this disclosure exists to remove.
+    await mount();
+    await open("Cryo Lock");
+    await open("Composed Strike");
+    expect(card("Cryo Lock").classList.contains("open")).toBe(false);
+    expect(card("Composed Strike").classList.contains("open")).toBe(true);
   });
 });
 
 describe("usage limits", () => {
   const IN_FIGHT = { scope: "camp-1", window: { sceneId: "sc1", encounterId: "en1", round: 2, turnId: "1" } };
 
-  /** The chip on one row, by ability name — rows carry no test ids. */
-  const rowChip = (name: string) => {
-    const row = [...host.querySelectorAll<HTMLLIElement>(".vtt2-abil-row")].find((li) =>
-      li.querySelector(".vtt2-abil-name")?.textContent?.includes(name)
-    );
-    return row?.querySelector(".vtt2-abil-limit");
-  };
+  /** The tally on one card, by ability name — cards carry no test ids. */
+  const rowChip = (name: string) => card(name).querySelector(".vtt2-abil-limit");
 
   const useRow = async (name: string) => {
-    const row = [...host.querySelectorAll<HTMLLIElement>(".vtt2-abil-row")].find((li) =>
-      li.querySelector(".vtt2-abil-name")?.textContent?.includes(name)
-    )!;
-    const button = [...row.querySelectorAll<HTMLButtonElement>(".vtt2-abil-btns button")][0];
+    const button = [...card(name).querySelectorAll<HTMLButtonElement>(".vtt2-abil-actions button")][0];
     await act(async () => button.click());
   };
 
@@ -358,7 +390,7 @@ describe("usage limits", () => {
     const chip = rowChip("Gravitic Snare")!;
     expect(chip.textContent).toContain("3 of 2 used");
     expect(chip.querySelector(".vtt2-abil-limitchip")?.className).toContain("spent");
-    const buttons = [...host.querySelectorAll<HTMLButtonElement>(".vtt2-abil-btns button")];
+    const buttons = [...host.querySelectorAll<HTMLButtonElement>(".vtt2-abil-actions button")];
     expect(buttons.some((button) => button.disabled)).toBe(false);
   });
 
@@ -367,8 +399,12 @@ describe("usage limits", () => {
     // reset is the table's, rather than implying it knows when one ended.
     await mount(undefined, () => {}, IN_FIGHT);
     await useRow("Phase Trap");
+    // The tally itself stays on the closed card — an exhausted ability has to
+    // be visible without being asked for. Which window it counts against, and
+    // the reset that turns it over, are detail.
+    expect(rowChip("Phase Trap")!.textContent).toContain("1 of 1 used");
+    await open("Phase Trap");
     const chip = rowChip("Phase Trap")!;
-    expect(chip.textContent).toContain("1 of 1 used");
     expect(chip.textContent).toContain("since reset");
     expect(chip.getAttribute("title")).toContain("the table's call");
   });
@@ -377,6 +413,7 @@ describe("usage limits", () => {
     await mount(undefined, () => {}, IN_FIGHT);
     await useRow("Gravitic Snare");
     await useRow("Phase Trap");
+    await open("Phase Trap");
     const reset = rowChip("Phase Trap")!.querySelector<HTMLButtonElement>(".vtt2-abil-limitreset")!;
     await act(async () => reset.click());
     expect(rowChip("Phase Trap")?.textContent).toContain("0 of 1 used");
@@ -424,10 +461,7 @@ describe("usage limits", () => {
     // so React remounts the whole list on each render and the nodes captured
     // before the first click are detached — clicking those was a no-op, and
     // this test once passed for two presses it never actually delivered.
-    const controls = () =>
-      [...host.querySelectorAll<HTMLLIElement>(".vtt2-abil-row")]
-        .find((li) => li.querySelector(".vtt2-abil-name")?.textContent?.includes("Internal Break"))!
-        .querySelectorAll<HTMLButtonElement>(".vtt2-abil-btns button");
+    const controls = () => card("Internal Break").querySelectorAll<HTMLButtonElement>(".vtt2-abil-actions button");
     const count = controls().length;
     expect(count).toBeGreaterThan(1);
     for (let i = 0; i < count; i++) await act(async () => controls()[i].click());
@@ -439,10 +473,7 @@ describe("usage limits", () => {
     // buttons and no check. Telling them apart is what keeps a once-per-turn
     // ability from reading "2 of 1 used" the first time it is thrown.
     await mount(undefined, () => {}, IN_FIGHT);
-    const controls = () =>
-      [...host.querySelectorAll<HTMLLIElement>(".vtt2-abil-row")]
-        .find((li) => li.querySelector(".vtt2-abil-name")?.textContent?.includes("Spontaneous Combustion"))!
-        .querySelectorAll<HTMLButtonElement>(".vtt2-abil-btns button");
+    const controls = () => card("Spontaneous Combustion").querySelectorAll<HTMLButtonElement>(".vtt2-abil-actions button");
     const count = controls().length;
     expect(count).toBeGreaterThan(1);
     for (let i = 0; i < count; i++) await act(async () => controls()[i].click());
@@ -454,10 +485,7 @@ describe("usage limits", () => {
     // check armed in one fight and damage armed in the next are two uses, and
     // an activation that outlived its window would have counted the second as
     // nothing at all.
-    const controls = () =>
-      [...host.querySelectorAll<HTMLLIElement>(".vtt2-abil-row")]
-        .find((li) => li.querySelector(".vtt2-abil-name")?.textContent?.includes("Internal Break"))!
-        .querySelectorAll<HTMLButtonElement>(".vtt2-abil-btns button");
+    const controls = () => card("Internal Break").querySelectorAll<HTMLButtonElement>(".vtt2-abil-actions button");
     await mount(undefined, () => {}, IN_FIGHT);
     await act(async () => controls()[0].click());
     const next = { scope: "camp-1", window: { ...IN_FIGHT.window, encounterId: "en2" } };
@@ -490,13 +518,11 @@ describe("usage limits", () => {
 });
 
 describe("an ability that invokes another by name", () => {
-  const composed = () =>
-    [...host.querySelectorAll<HTMLLIElement>(".vtt2-abil-row")].find((li) =>
-      li.querySelector(".vtt2-abil-name")?.textContent?.includes("Composed Strike")
-    )!;
+  const composed = () => card("Composed Strike");
 
   it("resolves the reference against the live catalog and says what became of it", async () => {
     await mount();
+    await open("Composed Strike");
     const chips = [...composed().querySelectorAll(".vtt2-abil-stepchip")].map((el) => el.textContent);
     // WEAPONIZE is a real shipped cipher that declares no block, so the page
     // resolved and its prose is the answer; the second name resolves to
@@ -508,13 +534,111 @@ describe("an ability that invokes another by name", () => {
 
   it("marks only the reference that failed", async () => {
     await mount();
+    await open("Composed Strike");
     const bad = [...composed().querySelectorAll(".vtt2-abil-stepchip.bad")].map((el) => el.textContent);
     expect(bad).toEqual(['Invoke "NOT AN ABILITY" · unknown']);
   });
 
   it("quotes the invoked page's own words for the Curator to run by hand", async () => {
     await mount();
+    await open("Composed Strike");
     const quoted = [...composed().querySelectorAll(".vtt2-abil-effect")].map((el) => el.textContent ?? "");
     expect(quoted.some((line) => line.startsWith("WEAPONIZE:") && line.includes("ACTIVE MODIFICATION"))).toBe(true);
+  });
+});
+
+describe("a card that holds its own content", () => {
+  // The bug this card layout exists to answer. Paradigm Affinity turned a roll
+  // chip's label from "Strength" into "Strength +2d5 +2d10"; the chips sat in a
+  // COLUMN beside the ability's text, that column took its intrinsic width from
+  // the longest label, and the text — the only shrinkable thing in the row —
+  // paid for it. "Reverse Reaction" rendered as "Rev Rea".
+  const IN_FIGHT = { scope: "camp-1", window: { sceneId: "sc1", encounterId: "en1", round: 1, turnId: "1" } };
+
+  const fireOnce = async (name: string) => {
+    const button = card(name).querySelector<HTMLButtonElement>(".vtt2-abil-actions button")!;
+    await act(async () => button.click());
+  };
+
+  it("draws the Affinity dice beside the source instead of inside its name", async () => {
+    // The player is choosing a SOURCE. Splicing the dice into that source's
+    // name is what made one chip label three times its own width, so the dice
+    // ride in a badge of their own and the chip still reads "Wisdom".
+    await mount();
+    const chip = [...card("Internal Break").querySelectorAll<HTMLButtonElement>(".vtt2-abil-actions .chip")]
+      .find((button) => button.textContent?.includes("Wisdom"))!;
+    expect(chip).toBeDefined();
+    expect(chip.querySelector(".vtt2-abil-armsrc")!.textContent).toBe("Wisdom");
+    expect(chip.querySelector(".affinity-badge")!.textContent).toBe("+2d5 +2d10");
+    // The dice still reach the tray — they are in the expression it arms.
+    expect(chip.title).toContain("1d20+2d5+2d10");
+  });
+
+  it("renders the whole ability name however wide its controls get", async () => {
+    // Internal Break draws the widest controls in the fixture: Convergence
+    // chips on both Capacity sources. Its name is unabbreviated all the same,
+    // and the chips are not in a position to charge it for their width.
+    await mount();
+    const row = card("Internal Break");
+    const labels = [...row.querySelectorAll(".vtt2-abil-actions .chip")].map((el) => el.textContent ?? "");
+    expect(labels.some((label) => label.length > "Internal Break".length)).toBe(true);
+    expect(row.querySelector(".vtt2-abil-name")!.textContent).toBe("Internal Break");
+  });
+
+  it("puts nothing beside the name that could take width from it", async () => {
+    await mount(vi.fn(), () => {}, IN_FIGHT);
+    const row = card("Internal Break");
+    const head = row.querySelector(".vtt2-abil-head")!;
+    // The header is its own full-width band. The firing controls, the save
+    // chips and the tally are SIBLINGS of it, stacked beneath — so a wide
+    // control costs a line of the card and never a letter of the name.
+    expect(head.querySelector(".vtt2-abil-actions")).toBeNull();
+    expect(head.querySelector(".vtt2-abil-savechip")).toBeNull();
+    expect(head.querySelector(".vtt2-abil-limit")).toBeNull();
+    expect(row.querySelector(".vtt2-abil-actions")!.parentElement).toBe(row);
+    expect(row.querySelector(".vtt2-abil-limit")!.parentElement).toBe(row);
+    expect([...head.children].map((el) => el.className)).toEqual(["vtt2-abil-toggle", "vtt2-abil-badges"]);
+  });
+
+  it("keeps the four kinds of chip visually distinct", async () => {
+    // An armable roll, a save the TARGET makes, a declared descriptor and a
+    // spent allowance are four different things. They wore near-identical chips
+    // before this card, which is most of why it read as a pile.
+    await mount(vi.fn(), () => {}, IN_FIGHT);
+    await open("Cryo Lock");
+    const row = card("Cryo Lock");
+    expect(row.querySelector(".vtt2-abil-actions .vtt2-abil-arm")).not.toBeNull();
+    expect(row.querySelector(".vtt2-abil-savechip")).not.toBeNull();
+    expect(row.querySelector(".vtt2-abil-stepchip")).not.toBeNull();
+    // ...and the fourth, on a card with an allowance left to spend.
+    await fireOnce("Gravitic Snare");
+    expect(card("Gravitic Snare").querySelector(".vtt2-abil-limitchip.spent")).toBeNull();
+    await fireOnce("Gravitic Snare");
+    await fireOnce("Gravitic Snare");
+    expect(card("Gravitic Snare").querySelector(".vtt2-abil-limitchip.spent")).not.toBeNull();
+  });
+
+  it("summarises the effect with the whole text in reach", async () => {
+    // Truncation the card CHOSE: two lines while closed, with the full prose in
+    // the tooltip — not whatever a width fight left of it.
+    await mount();
+    const summary = card("Internal Break").querySelector(".vtt2-abil-effect")!;
+    expect(summary.getAttribute("title")).toBe(summary.textContent);
+    expect(summary.textContent).toContain("internal structural failure");
+  });
+
+  it("keeps the disclosure focusable and says which way it goes", async () => {
+    await mount();
+    const toggle = card("Cryo Lock").querySelector<HTMLButtonElement>(".vtt2-abil-toggle")!;
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(toggle.title).toContain("Cryo Lock");
+    toggle.focus();
+    await act(async () => toggle.click());
+    // The card component lives at module scope precisely so this survives: a
+    // disclosure declared inside the panel was a new component type on every
+    // render, and React remounted the list out from under the focused button.
+    const reopened = card("Cryo Lock").querySelector<HTMLButtonElement>(".vtt2-abil-toggle")!;
+    expect(reopened.getAttribute("aria-expanded")).toBe("true");
+    expect(document.activeElement).toBe(reopened);
   });
 });

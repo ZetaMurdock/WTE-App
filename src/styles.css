@@ -4169,6 +4169,7 @@ body.wte-dot-cursor * {
 }
 .act-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 6px;
 }
@@ -6129,6 +6130,127 @@ body.wte-dot-cursor * {
   background: rgba(126, 207, 202, 0.22);
   border-color: var(--accent);
 }
+
+/* Using an ability, anchored to where the ability fires FROM. Deliberately the
+   same glass vocabulary as the token radial above — one on-map button language,
+   not two — with the abilities card's colour split carried onto the map: accent
+   for a thing you do, gold for a roll you ask somebody ELSE to make, muted for
+   the ways out. */
+.vtt2-ring {
+  position: absolute;
+  width: 0;
+  height: 0;
+  z-index: 7;
+  pointer-events: none;
+}
+/* The group is a 0x0 waypoint the ring focuses so a keyboard has a door onto a
+   surface the dock sits AFTER in the document. It draws nothing and holds no
+   content, so an outline on it would be a stray dot on the map; the buttons one
+   Tab away carry the visible focus. */
+.vtt2-ring:focus {
+  outline: none;
+}
+.vtt2-ring-btn {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 17, 34, 0.82);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(126, 207, 202, 0.4);
+  color: var(--ink);
+  font-family: Georgia, serif;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.45);
+  /* Colour only. `transform` is rewritten every frame by the anchoring loop, and
+     transitioning it makes each button smear behind the token it is glued to. */
+  transition: background 0.12s, border-color 0.12s;
+}
+.vtt2-ring-btn:hover {
+  background: rgba(126, 207, 202, 0.22);
+  border-color: var(--accent);
+}
+.vtt2-ring-btn:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 3px;
+}
+.vtt2-ring-btn.place {
+  background: rgba(104, 154, 150, 0.32);
+  border-color: var(--accent);
+}
+.vtt2-ring-btn.aim {
+  border-color: rgba(126, 207, 202, 0.72);
+}
+/* The buttons whose mark is a NUMBER — the die a roll arms, the DV a save asks
+   for. Consolas because that is already what this app sets a figure the table
+   reads aloud in; see `.vtt2-enc-init`. */
+.vtt2-ring-btn.roll,
+.vtt2-ring-btn.save {
+  font-family: Consolas, monospace;
+  font-size: 12px;
+  letter-spacing: 0;
+}
+.vtt2-ring-btn.save {
+  color: #d8b25a;
+  border-color: rgba(216, 178, 90, 0.5);
+}
+.vtt2-ring-btn.save:hover {
+  background: rgba(216, 178, 90, 0.2);
+  border-color: #d8b25a;
+}
+.vtt2-ring-btn.save:focus-visible {
+  outline-color: #d8b25a;
+}
+.vtt2-ring-btn.options,
+.vtt2-ring-btn.cancel {
+  color: var(--muted);
+  border-color: rgba(120, 132, 156, 0.4);
+}
+.vtt2-ring-btn.options:hover,
+.vtt2-ring-btn.cancel:hover {
+  color: var(--ink);
+  border-color: var(--accent);
+}
+/* What the ring is doing, in words. A ring of marks with no caption is a
+   guessing game; this reads the button under the pointer OR under the keyboard
+   focus, so both ways of driving it are told the same thing. */
+.vtt2-ring-cap {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  background: rgba(6, 10, 20, 0.88);
+  backdrop-filter: blur(4px);
+  border: 1px solid var(--panel-line);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.45);
+  text-align: center;
+  pointer-events: none;
+}
+.vtt2-ring-name {
+  font-family: Georgia, serif;
+  font-size: 11.5px;
+  letter-spacing: 0.3px;
+  color: var(--ink);
+}
+.vtt2-ring-hint {
+  font-size: 9.5px;
+  line-height: 1.35;
+  color: var(--muted);
+}
 /* Touchscreen laptops need real finger-sized targets. The canvas itself owns
    two-finger gestures, while the wide tool strip remains horizontally
    swipeable instead of shrinking its labels into tiny buttons. */
@@ -6175,6 +6297,18 @@ body.wte-dot-cursor * {
     width: 46px;
     height: 46px;
     font-size: 13px;
+  }
+  /* RING_BUTTON in data/ringAnchor is already 46, so the ring is spaced for
+     this size on every device and a finger-sized button cannot overlap its
+     neighbour here. */
+  .vtt2-ring-btn {
+    width: 46px;
+    height: 46px;
+    font-size: 17px;
+  }
+  .vtt2-ring-btn.roll,
+  .vtt2-ring-btn.save {
+    font-size: 14px;
   }
   .vtt2-rail-toggle,
   .vtt2-rail-step {
@@ -7105,26 +7239,89 @@ body.wte-dot-cursor * {
   flex-direction: column;
   gap: 5px;
 }
-.vtt2-abil-row {
+/* One ability, as a card. It was a two-column flex — prose beside a COLUMN of
+   roll buttons — back when a row held a name and one button. Paradigm Affinity
+   then made a chip's label "Strength +2d5 +2d10"; the button column took its
+   intrinsic width from that, the prose was the only shrinkable thing left, and
+   the ability's own NAME collapsed to "Rev Rea". Nothing sits beside the name
+   any more: every part of the card is a full-width band stacked down the
+   column, so a wide control costs a line and never a letter of the name. */
+.vtt2-abil-card {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
+  flex-direction: column;
+  gap: 4px;
   border: 1px solid var(--panel-line);
   border-radius: 8px;
   padding: 7px 8px;
   background: rgba(126, 207, 202, 0.03);
 }
-.vtt2-abil-main {
-  flex: 1;
+/* The card showing its declared detail. Warmed rather than outlined so the
+   open card reads as the one in hand without moving anything on the others. */
+.vtt2-abil-card.open {
+  border-color: rgba(126, 207, 202, 0.3);
+  background: rgba(126, 207, 202, 0.07);
+}
+.vtt2-abil-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+}
+.vtt2-abil-toggle {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  margin: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  /* The name takes the width and the badges take what is left — the exact
+     reverse of the layout that clipped it. */
+  flex: 1 1 auto;
   min-width: 0;
 }
+.vtt2-abil-toggle:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+}
+.vtt2-abil-caret {
+  color: var(--muted);
+  font-size: 9px;
+  flex: 0 0 auto;
+}
+.vtt2-abil-toggle:hover .vtt2-abil-caret {
+  color: var(--accent);
+}
 .vtt2-abil-name {
-  display: flex;
-  align-items: center;
-  gap: 6px;
   font-family: Georgia, serif;
   font-size: 12.5px;
   color: var(--ink, #d5dbe6);
+  /* The one thing on this card that is never abbreviated: a name too long for
+     the dock wraps to a second line instead of being cut. */
+  overflow-wrap: anywhere;
+}
+.vtt2-abil-toggle:hover .vtt2-abil-name {
+  color: #fff;
+}
+/* An ability with nothing to disclose draws no caret, and its name started
+   14px left of every name above it — a ragged left edge on the one element
+   this list is scanned by. Matches the caret plus the toggle's gap. */
+.vtt2-abil-head > .vtt2-abil-name {
+  padding-left: 14px;
+}
+.vtt2-abil-badges {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 .vtt2-abil-ss {
   font-size: 9px;
@@ -7166,16 +7363,25 @@ body.wte-dot-cursor * {
 }
 .vtt2-abil-effect {
   font-size: 10.5px;
+  line-height: 1.35;
   color: var(--muted);
-  margin-top: 2px;
+}
+/* Truncation the card CHOSE. A closed card gives its summary two lines and
+   puts the whole text in the tooltip; opening it is what asks for the rest —
+   including an invoked page's quoted prose, which only exists once open. */
+.vtt2-abil-card:not(.open) .vtt2-abil-effect {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+/* The area tag leads the summary line rather than owning a band of its own.
+   This panel is a long scrolling list read mid-fight, and a whole 20px row
+   spent on one 9px tag is a row fewer of the abilities the Curator is scrolling
+   to find. It sits FIRST so the two-line clamp can never eat it. */
 .vtt2-abil-aoe {
   display: inline-block;
-  margin-top: 4px;
+  margin-right: 5px;
   font-size: 9px;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -7862,45 +8068,91 @@ body.wte-dot-cursor * {
   accent-color: var(--accent);
 }
 
-.vtt2-abil-btns {
+/* The card's firing controls: a WRAPPING row under the header, never a column
+   beside it. A control wider than the dock now takes a line of its own, which
+   is the whole of what a long Affinity label costs. */
+.vtt2-abil-actions {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: 4px;
-  align-items: stretch;
-  /* Paradigm Affinity turned a roll chip's label from "Strength" into
-     "Strength +2d5 +2d10". This column takes its intrinsic width from the
-     longest label, and the text beside it is the only shrinkable thing in the
-     row, so the ability's own NAME collapsed to "Rev Rea" to make room for a
-     button. The column yields first now, and a label too long for it is
-     clipped rather than paid for by the name. */
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: 44%;
 }
-.vtt2-abil-btns .chip {
+/* An ARMABLE roll — the one kind of chip on this card that loads THIS player's
+   tray. Accent-filled pills, so they read apart at a glance from the gold
+   squares that ask a target for a roll and the dashed squares that only
+   describe a declared step. Also a compact `.chip`: the dock is 264px wide and
+   the full-size chip fits one control per line. */
+.vtt2-abil-arm {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  max-width: 100%;
+  padding: 3px 9px;
+  font-size: 11px;
+  border-radius: 12px;
+  color: var(--ink, #d5dbe6);
+  border-color: rgba(126, 207, 202, 0.35);
+  background: rgba(126, 207, 202, 0.09);
+}
+.vtt2-abil-arm:hover {
+  color: #fff;
+  border-color: var(--accent);
+  background: rgba(126, 207, 202, 0.2);
+}
+.vtt2-abil-arm:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+}
+/* The genus contest keeps the red `.chip.contest` reserves for it. Without
+   these two rules the accent wash and the accent hover above — later in this
+   file, so they win on equal specificity — repainted the one aggressive control
+   on the card in the same teal as the rolls that only arm a tray. */
+.vtt2-abil-arm.contest {
+  background: rgba(161, 88, 74, 0.12);
+}
+.vtt2-abil-arm.contest:hover {
+  color: #d99280;
+  border-color: #c47a68;
+  background: rgba(161, 88, 74, 0.24);
+}
+.vtt2-abil-arm.contest:focus-visible {
+  outline-color: #c47a68;
+}
+/* The source the player is choosing. It ellipsizes; the Affinity dice beside
+   it do not, because dropping the dice would hide the reason this source is
+   worth picking. */
+.vtt2-abil-armsrc {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.vtt2-abil-arm .affinity-badge {
+  flex: 0 0 auto;
+  margin-left: 0;
+  font-size: 9px;
+}
 /* Ability-understanding: target saves parsed from effect text. When a selected
-   token has a player owner these chips issue a targeted roll request. */
+   token has a player owner these chips issue a targeted roll request. Squared
+   and gold against the accent pills above: pressing one asks somebody ELSE to
+   roll. */
 .vtt2-abil-saves {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin-top: 4px;
 }
 .vtt2-abil-savechip {
   appearance: none;
   background: rgba(216, 178, 90, 0.06);
-  font-size: 9px;
+  font-size: 9.5px;
   font-family: inherit;
   letter-spacing: 0.3px;
   color: #d8b25a;
   border: 1px solid rgba(216, 178, 90, 0.4);
-  border-radius: 5px;
-  padding: 1px 5px;
+  border-radius: 4px;
+  padding: 2px 6px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
 }
@@ -7909,26 +8161,43 @@ body.wte-dot-cursor * {
   background: rgba(216, 178, 90, 0.16);
   border-color: rgba(216, 178, 90, 0.75);
 }
+.vtt2-abil-savechip:focus-visible {
+  outline: 1px solid #d8b25a;
+  outline-offset: 2px;
+}
 .vtt2-abil-savechip:disabled {
   cursor: default;
   opacity: 0.55;
 }
+/* What the card holds back until it is opened. A dock panel lists twenty of
+   these; every one drawing its costs, conditions, rulings and invocations at
+   once is the wall this disclosure exists to remove. */
+.vtt2-abil-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 1px;
+  padding-top: 5px;
+  border-top: 1px dashed var(--panel-line);
+}
 /* Same rule as the sheet: a declared step nobody rolls does not get the gold
-   reserved for the save chips a Curator can actually send to a target. */
+   reserved for the save chips a Curator can actually send to a target. Dashed
+   and unpressable — this kind of chip DESCRIBES, and reading it as a fourth
+   button was half of why the card looked like a pile of identical controls. */
 .vtt2-abil-steps {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin-top: 4px;
 }
 .vtt2-abil-stepchip {
   font-size: 9px;
   letter-spacing: 0.3px;
   color: var(--muted);
   border: 1px dashed var(--panel-line);
-  border-radius: 5px;
+  border-radius: 4px;
   padding: 1px 5px;
   white-space: nowrap;
+  cursor: default;
 }
 .vtt2-abil-stepchip.bad {
   border-style: solid;
@@ -7945,20 +8214,22 @@ body.wte-dot-cursor * {
   align-items: center;
   flex-wrap: wrap;
   gap: 4px;
-  margin-top: 4px;
 }
 .vtt2-abil-limitchip {
   font-size: 9px;
   letter-spacing: 0.3px;
   color: var(--muted);
   border: 1px solid var(--panel-line);
-  border-radius: 5px;
+  border-radius: 4px;
   padding: 1px 5px;
   white-space: nowrap;
 }
+/* A STATE, not a control: filled rather than outlined, so an exhausted limit
+   is not one more chip-shaped thing the eye tries to press. */
 .vtt2-abil-limitchip.spent {
   border-color: #c9963f;
-  color: #c9963f;
+  background: rgba(201, 150, 63, 0.16);
+  color: #e0b163;
 }
 /* A limit the app is NOT counting — a keyed one, or a window nothing here can
    see. Dashed, like every other chip that reports rather than asserts. */
@@ -7984,6 +8255,10 @@ body.wte-dot-cursor * {
 .vtt2-abil-limitreset:hover {
   color: var(--ink);
   border-color: var(--accent);
+}
+.vtt2-abil-limitreset:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* Resolution cards — the Curator's confirm step between a settled roll and an

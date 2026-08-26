@@ -13,9 +13,8 @@ import {
   resolveStatToken,
 } from "../game/wte";
 import type { AbilityAction } from "../game/abilityActions";
-import { officialAbilityCatalog } from "../game/abilityCatalog";
+import { officialAbilityCatalog, type AbilityCatalog } from "../game/abilityCatalog";
 import { abilityUnderstanding, invocationChips } from "../game/abilityUnderstanding";
-import type { EffectStep } from "../game/abilityEffects";
 import {
   characterActionSet,
   characterEffectiveRollScores,
@@ -24,12 +23,11 @@ import {
   type VttAbility,
 } from "./data/characterAbilities";
 import { hasAoe, suggestedTemplate } from "./data/effectMeta";
+import { saveIntentChip, type SaveIntentInput, type VttTargetRollIntent } from "./data/abilitySaveIntent";
 import { rollAxisChoices, rollAxisPaths, type RollAxis, type RollAxisStats, type RollDirection, type RollAxisPath } from "../game/rollAxis";
-import { affinityLabel } from "../game/paradigmAffinity";
-import { abilitySaveDv, saveChipDv, saveDvBreakdown, savePlainLabel } from "../game/saveDv";
+import { affinityLabel, type AffinityDice } from "../game/paradigmAffinity";
 import { snrChip } from "../game/snr";
-import type { NetRollAxisRequest } from "../net/protocol";
-import { parseUsageLimit } from "../game/abilityLimits";
+import { parseUsageLimit, type UsageLimit } from "../game/abilityLimits";
 import {
   clearUses,
   listUses,
@@ -38,29 +36,15 @@ import {
   usageLabel,
   usageStatus,
   usageTitle,
+  type UsageStatus,
   type UsageWindow,
 } from "./data/usageLedger";
 
-/** A target-side check parsed from an ability. The VTT shell supplies the
- * selected target and turns this intent into a targeted network roll request. */
-export interface VttTargetRollIntent {
-  abilityId: string;
-  abilityName: string;
-  sourceCharacterId?: string;
-  label: string;
-  stat?: string;
-  rollAxis?: NetRollAxisRequest;
-  dc?: number;
-  /** The ability's own prose, so the shell can read what a failed save costs
-   *  without resolving the ability a second time. */
-  effect?: string;
-  /** The page's DECLARED steps, when it has an `## Actions` block. They ride
-   *  beside the prose rather than instead of it: the shell hands both to the
-   *  ledger, which prefers these, so a declared ability's card says what the
-   *  PAGE said instead of what the prose scanner made of it. Empty/absent for
-   *  the whole undeclared corpus, which keeps the prose path byte for byte. */
-  steps?: readonly EffectStep[];
-}
+/** Re-exported from where the request is now ASSEMBLED. The dock's gold save
+ *  chip and the map ring both ask for the same roll, so the one builder they
+ *  share owns the shape of what it builds; a copy of the type here would be a
+ *  second place for a field to be added to only one of them. */
+export type { VttTargetRollIntent } from "./data/abilitySaveIntent";
 
 interface Props {
   /** Curator-only: resolve a genus contest against the selected target token.
@@ -114,32 +98,387 @@ function suggestedExpr(a: VttAbility): string | undefined {
   return a.meta.values[0]?.expr ?? diceExprFromText(a.effect) ?? undefined;
 }
 
+/** One firing control the card can draw for a parsed self-roll. */
+interface ArmOption {
+  /** What the tray and the roll feed call this roll. */
+  label: string;
+  /** The word on the chip. This is the thing the player is CHOOSING — a
+   *  SOURCE — so it stays a bare statistic name; see `affinity`. */
+  source: string;
+  /** Favored dice this source earns, drawn as a secondary badge beside the
+   *  source rather than spliced into its name. Folding them in turned a chip
+   *  reading "Strength" into "Strength +2d5 +2d10", which is what widened the
+   *  old button column until the ability's own name had no room left. */
+  affinity?: AffinityDice;
+  expr: string;
+}
+
 /** Resolve a parsed self-roll action through the same active profile used by the
  * sheet. Built-ins are d20/d40; a validated Codex formula may replace either. */
 function armSelfOptions(
   action: AbilityAction,
   scores: CharacterEffectiveRollScores,
   axisStats: RollAxisStats | null
-): { label: string; buttonLabel: string; expr: string }[] {
+): ArmOption[] {
   if (action.rollAxis && axisStats) {
     const path = rollAxisPaths(action.rollAxis.axis, action.rollAxis.direction).find((candidate) => candidate.id === action.rollAxis!.path);
     if (!path) return [];
     return rollAxisChoices(path, action.rollAxis.direction, axisStats).map((choice) => ({
       label: `${action.label} · ${choice.sourceLabel}`,
-      buttonLabel: choice.affinity ? `${choice.sourceLabel} ${affinityLabel(choice.affinity)}` : choice.sourceLabel,
+      source: choice.sourceLabel,
+      affinity: choice.affinity,
       expr: choice.expr,
     }));
   }
   const ref = action.stat ? resolveStatToken(action.stat) : null;
   if (ref?.kind === "attr") {
     const profile = attributeRollProfile(scores.attr[ref.key as keyof typeof scores.attr] ?? 0);
-    return [{ label: action.label, buttonLabel: action.label, expr: rollProfileExpr(profile) }];
+    return [{ label: action.label, source: action.label, expr: rollProfileExpr(profile) }];
   }
   if (ref?.kind === "spec") {
     const profile = specialtyRollProfile(scores.spec[ref.key as keyof typeof scores.spec] ?? 0);
-    return [{ label: action.label, buttonLabel: action.label, expr: rollProfileExpr(profile) }];
+    return [{ label: action.label, source: action.label, expr: rollProfileExpr(profile) }];
   }
-  return [{ label: action.label, buttonLabel: action.label, expr: action.expr ?? "1d20" }];
+  return [{ label: action.label, source: action.label, expr: action.expr ?? "1d20" }];
+}
+
+/** An ability's authored limit and what this character has spent against it. */
+interface RowUsage {
+  limit: UsageLimit;
+  status: UsageStatus;
+}
+
+interface AbilityRowProps {
+  a: VttAbility;
+  catalog: AbilityCatalog;
+  characterId?: string;
+  axisStats: RollAxisStats | null;
+  rollScores: CharacterEffectiveRollScores | null;
+  usageOf: RowUsage | null;
+  /** Whether this card is the one showing its declared detail. */
+  open: boolean;
+  onToggle: () => void;
+  onArmRoll: (label: string, expr?: string) => void;
+  onFire: (a: VttAbility, control: string) => void;
+  onUse: (a: VttAbility) => void;
+  onRequestTargetRoll?: (intent: VttTargetRollIntent) => void;
+  onContestTarget?: (ability: VttAbility) => void;
+  contestTargetName?: string;
+  /** Absent when nothing is being counted, so the row draws no reset it could
+   *  not honour. */
+  onResetUses?: (a: VttAbility) => void;
+}
+
+/**
+ * One ability, as a card.
+ *
+ * Declared at module scope, NOT inside the panel. A component defined inside a
+ * render body is a new type on every render, so React unmounted and remounted
+ * the whole list whenever any panel state moved — which threw keyboard focus
+ * off the control the Curator had just pressed. A disclosure that loses focus
+ * when it opens is not usable from the keyboard at all.
+ */
+function AbilityRow({
+  a,
+  catalog,
+  characterId,
+  axisStats,
+  rollScores,
+  usageOf,
+  open,
+  onToggle,
+  onArmRoll,
+  onFire,
+  onUse,
+  onRequestTargetRoll,
+  onContestTarget,
+  contestTargetName,
+  onResetUses,
+}: AbilityRowProps) {
+  const tag = aoeTag(a);
+  const tmpl = tag ? suggestedTemplate(a.meta) : null;
+  // The ability "understanding" layer: buttons the ability actually calls for
+  // (self checks, damage dice) plus a note of any target save + DC. Read from
+  // the page's `## Actions` block where one is declared, from the effect prose
+  // where it is not — one renderer either way, so a declared ability arms the
+  // same tray and the same keyed DV as a parsed one.
+  const read = a.source === "action" ? null : abilityUnderstanding(a.effect, a.actions, catalog);
+  // Where the ability sits in resolution order, from its DOMAIN page — never
+  // from the activation prose that also says it. Shown here because this is
+  // the moment the Curator is deciding what goes first; the app enforces no
+  // turn priority, so this is the Curator's call and the chip is the whole of
+  // the app's contribution to it. See src/game/snr.ts.
+  const snr = snrChip(a.abilityId ?? a.id) ?? snrChip(a.name);
+  const actions = read?.actions ?? [];
+  const selfRolls = actions.filter((x) => x.kind === "self");
+  const dmgRolls = actions.filter((x) => x.kind === "damage");
+  const saves = actions.filter((x) => x.kind === "save");
+  // Who is asking, said once for every save on the page. The map ring builds
+  // the identical context from the identical `abilityUnderstanding` read, so a
+  // save asked from the map carries the DV the dock printed.
+  const saveContext: SaveIntentInput = {
+    ability: { abilityId: a.abilityId ?? a.id, name: a.name, effect: a.effect },
+    actions,
+    steps: read?.steps,
+    declared: read?.declared === true,
+    axisStats,
+    casterCharacterId: characterId,
+  };
+  const quoted = read?.invocations.filter((one) => one.outcome === "prose" && one.prose) ?? [];
+  const summary = a.effect || [a.range, a.damage].filter(Boolean).join(" · ");
+  // What the card holds back until it is opened. A dense dock panel lists
+  // twenty of these; every one of them drawing its costs, conditions, rulings
+  // and quoted invocations at once is the wall of chips this card replaces.
+  const hasDetail =
+    !!summary || (read?.chips.length ?? 0) > 0 || (read?.invocations.length ?? 0) > 0 || !!usageOf;
+
+  return (
+    <li className={"vtt2-abil-card" + (open ? " open" : "")}>
+      {/* The header owns the FULL width of the card. Nothing sits beside the
+          name — the roll controls used to, and a long affinity label in that
+          column shrank "Reverse Reaction" to "Rev Rea". */}
+      <div className="vtt2-abil-head">
+        {hasDetail ? (
+          <button
+            type="button"
+            className="vtt2-abil-toggle"
+            aria-expanded={open}
+            onClick={onToggle}
+            title={open ? `Hide what ${a.name} declares` : `Show what ${a.name} declares`}
+          >
+            <span className="vtt2-abil-caret" aria-hidden="true">{open ? "▾" : "▸"}</span>
+            <span className="vtt2-abil-name">{a.name}</span>
+          </button>
+        ) : (
+          <span className="vtt2-abil-name">{a.name}</span>
+        )}
+        <span className="vtt2-abil-badges">
+          {a.source === "action" && a.hit != null && <span className="vtt2-abil-hit">{signedMod(a.hit)}</span>}
+          {a.ss > 0 && <span className="vtt2-abil-ss">{a.ss} SS</span>}
+          {snr && (
+            <span
+              className={"vtt2-abil-snr" + (snr.posture === "anti" ? " anti" : "")}
+              title={`${snr.domain} — ${snr.note}`}
+            >
+              {snr.label}
+            </span>
+          )}
+        </span>
+      </div>
+
+      {/* Identifying meta, the area tag leading it. Clamped to two lines while
+          the card is closed, with the whole text in the tooltip — truncation
+          the card CHOSE, rather than whatever a width fight left of it. The tag
+          leads rather than taking a band of its own because this list is
+          scrolled mid-fight and a row spent on one 9px tag is a row fewer of
+          the abilities being scrolled past. */}
+      {(summary || tag) && (
+        <div className="vtt2-abil-effect" title={summary || undefined}>
+          {tag && (
+            <span className="vtt2-abil-aoe" title={tmpl ? `Suggests a ${tmpl.kind} (~${tmpl.cells} cells) — editable on place` : ""}>
+              {tag}
+            </span>
+          )}
+          {summary}
+        </div>
+      )}
+
+      {/* Firing controls: a WRAPPING row beneath the header, so a control too
+          wide for the dock costs a line of its own and never the name. */}
+      <div className="vtt2-abil-actions">
+        {a.source === "action" ? (
+          // weapons get BOTH rolls: to-hit (1d20 + attack context) and damage
+          <>
+            {a.hit != null && (
+              <button
+                type="button"
+                className="chip vtt2-abil-arm"
+                onClick={() => onArmRoll(`${a.name} — hit`, `1d20${modSuffix(a.hit ?? 0)}`)}
+                title={`Arm the to-hit roll · 1d20${modSuffix(a.hit ?? 0)}`}
+              >
+                <span className="vtt2-abil-armsrc">Hit</span>
+              </button>
+            )}
+            <button type="button" className="chip vtt2-abil-arm" onClick={() => onUse(a)} title="Arm the damage roll">
+              <span className="vtt2-abil-armsrc">Damage</span>
+            </button>
+          </>
+        ) : (
+          // Genus / cipher / racial: buttons the parser derived from the effect
+          // text — the character's own checks + each damage die — else a plain Use.
+          <>
+            {selfRolls.flatMap((s, i) => {
+              const options = rollScores
+                ? armSelfOptions(s, rollScores, axisStats)
+                : [{ label: s.label, source: s.label, expr: s.expr ?? "1d20" } as ArmOption];
+              return options.map((option, optionIndex) => (
+                <button
+                  key={`s${i}-${optionIndex}`}
+                  type="button"
+                  className="chip vtt2-abil-arm"
+                  onClick={() => { onArmRoll(`${a.name} — ${option.label}`, option.expr); onFire(a, `s${i}-${optionIndex}`); }}
+                  title={`Arm ${option.label} · ${option.expr}`}
+                >
+                  <span className="vtt2-abil-armsrc">{option.source}</span>
+                  {option.affinity && (
+                    <em className={"affinity-badge" + (option.affinity.convergence ? " convergence" : "")}>
+                      {affinityLabel(option.affinity)}
+                    </em>
+                  )}
+                </button>
+              ));
+            })}
+            {dmgRolls.map((d, i) => (
+              <button
+                key={"d" + i}
+                type="button"
+                className="chip vtt2-abil-arm"
+                onClick={() => { onArmRoll(`${a.name} — ${d.label}`, d.expr); onFire(a, "d" + i); }}
+                title={`Arm ${d.label} · ${d.expr}`}
+              >
+                <span className="vtt2-abil-armsrc">{d.label}</span>
+              </button>
+            ))}
+            {selfRolls.length === 0 && dmgRolls.length === 0 && (
+              <button type="button" className="chip vtt2-abil-arm" onClick={() => onUse(a)} title="Roll this ability">
+                <span className="vtt2-abil-armsrc">Use</span>
+              </button>
+            )}
+            {onContestTarget && a.source === "genus" && (
+              <button
+                type="button"
+                className="chip vtt2-abil-arm contest"
+                onClick={() => onContestTarget(a)}
+                title={`Genus contest: ${a.name} (Focus ${a.focus ?? 0}) against ${contestTargetName ?? "the selected target"} — higher Focus wins outright, ties go to contested Control`}
+              >
+                <span className="vtt2-abil-armsrc">⚔ vs {contestTargetName ?? "target"}</span>
+              </button>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Rolls someone ELSE makes. Squared and gold against the accent pills
+          above them, because pressing one asks the target's owner for a roll
+          rather than arming this player's tray. */}
+      {saves.length > 0 && (
+        <div className="vtt2-abil-saves">
+          {saves.map((s, i) => {
+            // Assembled in data/abilitySaveIntent, which the map ring calls
+            // too: the same save asked from two surfaces has to carry the same
+            // DV, or the Curator gets two numbers and no way to tell which one
+            // the page meant.
+            const chip = saveIntentChip(s, saveContext);
+            return (
+              <button
+                key={i}
+                type="button"
+                className="vtt2-abil-savechip"
+                disabled={!onRequestTargetRoll}
+                onClick={() => onRequestTargetRoll?.(chip.intent)}
+                title={
+                  (onRequestTargetRoll
+                    ? "Resolve this roll against the selected target"
+                    : "Select a target token to resolve this roll") + chip.title
+                }
+              >
+                vs {chip.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* A page the reader could not finish. Never folded into the disclosure:
+          a broken step is the one thing on this card the table needs to see
+          without being asked to go looking for it. */}
+      {read && read.errors.length > 0 && (
+        <div className="vtt2-abil-steps">
+          {read.errors.map((err, i) => (
+            <span className="vtt2-abil-stepchip bad" key={"e" + i} title={err}>Unreadable step</span>
+          ))}
+        </div>
+      )}
+
+      {usageOf && (
+        <div className="vtt2-abil-limit" title={usageTitle(usageOf.limit, usageOf.status)}>
+          {usageOf.status.tracked ? (
+            <>
+              <span className={"vtt2-abil-limitchip" + (usageOf.status.exhausted ? " spent" : "")}>
+                {usageLabel(usageOf.status)}
+              </span>
+              {open && (
+                <>
+                  {/* The window's edge, in the words that say whose call it is.
+                      The app runs rounds and encounters; it does not run rests,
+                      and a chip that read "per short rest" without saying so
+                      would imply it knew when one ended. */}
+                  <span className="vtt2-abil-limitwhen">
+                    {usageOf.status.boundary === "table" ? "since reset · " : ""}
+                    {usageOf.limit.text}
+                  </span>
+                  {usageOf.status.used > 0 && onResetUses && (
+                    <button
+                      type="button"
+                      className="vtt2-abil-limitreset"
+                      title="Clear this tally — the Curator's word that the window turned over"
+                      onClick={() => onResetUses(a)}
+                    >
+                      ↺
+                    </button>
+                  )}
+                </>
+              )}
+            </>
+          ) : (
+            <span className="vtt2-abil-limitchip open">{usageOf.limit.text}</span>
+          )}
+        </div>
+      )}
+
+      {open && (read?.chips.length || read?.invocations.length || quoted.length) ? (
+        <div className="vtt2-abil-detail">
+          {/* Declared steps with no dice of their own: the cost, the condition,
+              the Curator ruling. A declared ability that showed only its dice
+              would read as doing LESS than the prose it supersedes. */}
+          {read && read.chips.length > 0 && (
+            <div className="vtt2-abil-steps">
+              {read.chips.map((chip) => (
+                <span className="vtt2-abil-stepchip" key={chip.key} title={chip.title}>{chip.label}</span>
+              ))}
+            </div>
+          )}
+          {/* Every ability this one calls by name, and what became of the call.
+              A resolved invocation's steps are already in the chips and buttons
+              above; this row exists so the table can see WHERE they came from —
+              and so a reference that did not resolve says so on the card rather
+              than contributing nothing and looking complete. */}
+          {read && read.invocations.length > 0 && (
+            <div className="vtt2-abil-steps">
+              {invocationChips(read.invocations).map((chip) => (
+                <span
+                  className={chip.fault ? "vtt2-abil-stepchip bad" : "vtt2-abil-stepchip"}
+                  key={chip.key}
+                  title={chip.title}
+                >
+                  {chip.label}
+                </span>
+              ))}
+            </div>
+          )}
+          {/* An invoked ability that declares nothing executable. Its own words
+              are quoted, because the three-states rule says an undeclared page
+              is not a broken one: the Curator runs it by hand, and the only way
+              they can is if the card puts the text in front of them. */}
+          {quoted.map((one, i) => (
+            <div className="vtt2-abil-effect" key={"iq" + i} title={`Quoted from ${one.name} — this ability declares no steps`}>
+              {one.name}: {one.prose}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </li>
+  );
 }
 
 // Left-dock Abilities panel: base rolls + specialties, weapon actions, the
@@ -182,6 +521,11 @@ export function VttAbilitiesPanel({
   const [axis, setAxis] = useState<RollAxis | null>(null);
   const [direction, setDirection] = useState<RollDirection | null>(null);
   const [path, setPath] = useState<RollAxisPath["id"] | null>(null);
+  // Which card is showing its declared detail. One at a time: the dock is
+  // 264px wide, and every card drawing its costs, conditions and invocations
+  // at once is the wall the Curator has to scroll past to reach the ability
+  // they actually want.
+  const [openId, setOpenId] = useState<string | null>(null);
   const axisPaths = axis && direction ? rollAxisPaths(axis, direction) : [];
   const axisStats = character ? characterRollAxisStats(character) : null;
   const rollScores = character ? characterEffectiveRollScores(character) : null;
@@ -196,7 +540,7 @@ export function VttAbilitiesPanel({
   );
 
   /** What this character has spent against an ability's authored limit. */
-  function limitOf(a: VttAbility) {
+  function limitOf(a: VttAbility): RowUsage | null {
     const limit = parseUsageLimit(a.limit);
     if (!limit || !usage || !character) return null;
     const status = usageStatus(limit, uses, {
@@ -252,254 +596,31 @@ export function VttAbilitiesPanel({
     fire(a, "use");
   }
 
-  function Row({ a }: { a: VttAbility }) {
-    const tag = aoeTag(a);
-    const tmpl = tag ? suggestedTemplate(a.meta) : null;
-    // The ability "understanding" layer: buttons the ability actually calls for
-    // (self checks, damage dice) plus a note of any target save + DC. Read from
-    // the page's `## Actions` block where one is declared, from the effect prose
-    // where it is not — one renderer either way, so a declared ability arms the
-    // same tray and the same keyed DV as a parsed one.
-    const read = a.source === "action" ? null : abilityUnderstanding(a.effect, a.actions, catalog);
-    // The authored `| Limit |`, and what is left of it. Shown whether or not
-    // the app can count it: an ability limited "Once per SNR window" must still
-    // say so on the card, because a limit the table cannot see is a limit the
-    // table forgets.
-    const usageOf = limitOf(a);
-    // Where the ability sits in resolution order, from its DOMAIN page — never
-    // from the activation prose that also says it. Shown here because this is
-    // the moment the Curator is deciding what goes first; the app enforces no
-    // turn priority, so this is the Curator's call and the chip is the whole of
-    // the app's contribution to it. See src/game/snr.ts.
-    const snr = snrChip(a.abilityId ?? a.id) ?? snrChip(a.name);
-    const actions = read?.actions ?? [];
-    const selfRolls = actions.filter((x) => x.kind === "self");
-    const dmgRolls = actions.filter((x) => x.kind === "damage");
-    const saves = actions.filter((x) => x.kind === "save");
-    return (
-      <li className="vtt2-abil-row">
-        <div className="vtt2-abil-main">
-          <div className="vtt2-abil-name">
-            {a.name}
-            {a.source === "action" && a.hit != null && <span className="vtt2-abil-hit">{signedMod(a.hit)}</span>}
-            {a.ss > 0 && <span className="vtt2-abil-ss">{a.ss} SS</span>}
-            {snr && (
-              <span
-                className={"vtt2-abil-snr" + (snr.posture === "anti" ? " anti" : "")}
-                title={`${snr.domain} — ${snr.note}`}
-              >
-                {snr.label}
-              </span>
-            )}
-          </div>
-          {(a.effect || a.range || a.damage) && (
-            <div className="vtt2-abil-effect">{a.effect || [a.range, a.damage].filter(Boolean).join(" · ")}</div>
-          )}
-          {tag && (
-            <div className="vtt2-abil-aoe" title={tmpl ? `Suggests a ${tmpl.kind} (~${tmpl.cells} cells) — editable on place` : ""}>
-              {tag}
-            </div>
-          )}
-          {saves.length > 0 && (
-            <div className="vtt2-abil-saves">
-              {saves.map((s, i) => {
-                // Attacker-keyed DV (21 + this character's paired check mod),
-                // which replaces a PRINTED number the prose carries — it rides
-                // the request so the target's roll prompt shows the DV that
-                // actually applies.
-                const keyed = axisStats ? abilitySaveDv(s, actions, axisStats) : null;
-                // A page that wrote its own DV in a block meant it; everything
-                // else keys. An undeclared ability has no declared DV to prefer,
-                // so it reads exactly as it did before declared DVs existed.
-                const { dv, fromPage } = saveChipDv(s, keyed, read?.declared === true);
-                return (
-                  <button
-                    key={i}
-                    type="button"
-                    className="vtt2-abil-savechip"
-                    disabled={!onRequestTargetRoll}
-                    onClick={() =>
-                      onRequestTargetRoll?.({
-                        // The permanent id when the ability carries one: an
-                        // outcome outlives the loadout position it was fired from.
-                        abilityId: a.abilityId ?? a.id,
-                        abilityName: a.name,
-                        effect: a.effect,
-                        // Omitted, not sent empty. An ability with no block has
-                        // to reach the ledger as the identical request it always
-                        // did — an extra `steps: []` riding along is a second
-                        // way for the undeclared corpus to behave differently.
-                        ...(read?.steps.length ? { steps: read.steps } : {}),
-                        sourceCharacterId: character?.id,
-                        label: dv != null ? `${savePlainLabel(s)} · DV ${dv}` : s.label,
-                        stat: s.stat,
-                        ...(s.rollAxis ? { rollAxis: { path: s.rollAxis.path, direction: s.rollAxis.direction } } : {}),
-                        dc: dv ?? s.dc,
-                      })
-                    }
-                    title={
-                      (onRequestTargetRoll
-                        ? "Resolve this roll against the selected target"
-                        : "Select a target token to resolve this roll") +
-                      (fromPage
-                        ? ` · DV ${dv} declared on this ability's page`
-                        : keyed
-                          ? ` · ${saveDvBreakdown(keyed)}`
-                          : "")
-                    }
-                  >
-                    vs {dv != null ? `${savePlainLabel(s)} · DV ${dv}` : s.label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          {/* Declared steps with no dice of their own: the cost, the condition,
-              the Curator ruling. A declared ability that showed only its dice
-              would read as doing LESS than the prose it supersedes. */}
-          {read && read.chips.length > 0 && (
-            <div className="vtt2-abil-steps">
-              {read.chips.map((chip) => (
-                <span className="vtt2-abil-stepchip" key={chip.key} title={chip.title}>{chip.label}</span>
-              ))}
-            </div>
-          )}
-          {/* Every ability this one calls by name, and what became of the call.
-              A resolved invocation's steps are already in the chips and buttons
-              above; this row exists so the table can see WHERE they came from —
-              and so a reference that did not resolve says so on the card rather
-              than contributing nothing and looking complete. */}
-          {read && read.invocations.length > 0 && (
-            <div className="vtt2-abil-steps">
-              {invocationChips(read.invocations).map((chip) => (
-                <span
-                  className={chip.fault ? "vtt2-abil-stepchip bad" : "vtt2-abil-stepchip"}
-                  key={chip.key}
-                  title={chip.title}
-                >
-                  {chip.label}
-                </span>
-              ))}
-            </div>
-          )}
-          {/* An invoked ability that declares nothing executable. Its own words
-              are quoted, because the three-states rule says an undeclared page
-              is not a broken one: the Curator runs it by hand, and the only way
-              they can is if the card puts the text in front of them. */}
-          {read?.invocations
-            .filter((one) => one.outcome === "prose" && one.prose)
-            .map((one, i) => (
-              <div className="vtt2-abil-effect" key={"iq" + i} title={`Quoted from ${one.name} — this ability declares no steps`}>
-                {one.name}: {one.prose}
-              </div>
-            ))}
-          {usageOf && (
-            <div className="vtt2-abil-limit" title={usageTitle(usageOf.limit, usageOf.status)}>
-              {usageOf.status.tracked ? (
-                <>
-                  <span className={"vtt2-abil-limitchip" + (usageOf.status.exhausted ? " spent" : "")}>
-                    {usageLabel(usageOf.status)}
-                  </span>
-                  {/* The window's edge, in the words that say whose call it is.
-                      The app runs rounds and encounters; it does not run rests,
-                      and a chip that read "per short rest" without saying so
-                      would imply it knew when one ended. */}
-                  <span className="vtt2-abil-limitwhen">
-                    {usageOf.status.boundary === "table" ? "since reset · " : ""}
-                    {usageOf.limit.text}
-                  </span>
-                  {usageOf.status.used > 0 && (
-                    <button
-                      type="button"
-                      className="vtt2-abil-limitreset"
-                      title="Clear this tally — the Curator's word that the window turned over"
-                      onClick={() =>
-                        usage &&
-                        character &&
-                        clearUses(usage.scope, { abilityId: a.abilityId ?? a.id, characterId: character.id })
-                      }
-                    >
-                      ↺
-                    </button>
-                  )}
-                </>
-              ) : (
-                <span className="vtt2-abil-limitchip open">{usageOf.limit.text}</span>
-              )}
-            </div>
-          )}
-          {read && read.errors.length > 0 && (
-            <div className="vtt2-abil-steps">
-              {read.errors.map((err, i) => (
-                <span className="vtt2-abil-stepchip bad" key={"e" + i} title={err}>Unreadable step</span>
-              ))}
-            </div>
-          )}
-        </div>
-        {a.source === "action" ? (
-          // weapons get BOTH rolls: to-hit (1d20 + attack context) and damage
-          <div className="vtt2-abil-btns">
-            {a.hit != null && (
-              <button
-                className="chip"
-                onClick={() => onArmRoll(`${a.name} — hit`, `1d20${modSuffix(a.hit ?? 0)}`)}
-                title="Arm the to-hit roll (1d20 + attack)"
-              >
-                Hit
-              </button>
-            )}
-            <button className="chip" onClick={() => use(a)} title="Arm the damage roll">
-              Dmg
-            </button>
-          </div>
-        ) : (
-          // Genus / cipher / racial: buttons the parser derived from the effect
-          // text — the character's own checks + each damage die — else a plain Use.
-          <div className="vtt2-abil-btns">
-            {selfRolls.flatMap((s, i) => {
-              const armed = rollScores
-                ? armSelfOptions(s, rollScores, axisStats)
-                : [{ label: s.label, buttonLabel: s.label, expr: s.expr ?? "1d20" }];
-              return armed.map((option, optionIndex) => (
-                <button
-                  key={`s${i}-${optionIndex}`}
-                  className="chip"
-                  onClick={() => { onArmRoll(`${a.name} — ${option.label}`, option.expr); fire(a, `s${i}-${optionIndex}`); }}
-                  title={`Arm ${option.expr}`}
-                >
-                  {option.buttonLabel}
-                </button>
-              ));
-            })}
-            {dmgRolls.map((d, i) => (
-              <button
-                key={"d" + i}
-                className="chip"
-                onClick={() => { onArmRoll(`${a.name} — ${d.label}`, d.expr); fire(a, "d" + i); }}
-                title={`Arm ${d.expr}`}
-              >
-                {d.label}
-              </button>
-            ))}
-            {selfRolls.length === 0 && dmgRolls.length === 0 && (
-              <button className="chip" onClick={() => use(a)} title="Roll this ability">
-                Use
-              </button>
-            )}
-            {onContestTarget && a.source === "genus" && (
-              <button
-                className="chip contest"
-                onClick={() => onContestTarget(a)}
-                title={`Genus contest: ${a.name} (Focus ${a.focus ?? 0}) against ${contestTargetName ?? "the selected target"} — higher Focus wins outright, ties go to contested Control`}
-              >
-                ⚔ vs {contestTargetName ?? "target"}
-              </button>
-            )}
-          </div>
-        )}
-      </li>
-    );
-  }
+  const resetUses =
+    usage && character
+      ? (a: VttAbility) => clearUses(usage.scope, { abilityId: a.abilityId ?? a.id, characterId: character.id })
+      : undefined;
+
+  const row = (a: VttAbility) => (
+    <AbilityRow
+      key={a.id}
+      a={a}
+      catalog={catalog}
+      characterId={character?.id}
+      axisStats={axisStats}
+      rollScores={rollScores}
+      usageOf={limitOf(a)}
+      open={openId === a.id}
+      onToggle={() => setOpenId(openId === a.id ? null : a.id)}
+      onArmRoll={onArmRoll}
+      onFire={fire}
+      onUse={use}
+      onRequestTargetRoll={onRequestTargetRoll}
+      onContestTarget={onContestTarget}
+      contestTargetName={contestTargetName}
+      onResetUses={resetUses}
+    />
+  );
 
   const racialSel = set.racial[racialIdx] ?? null;
 
@@ -600,21 +721,21 @@ export function VttAbilitiesPanel({
           {set.actions.length > 0 && (
             <>
               <div className="vtt2-actor-group">Actions · attacks</div>
-              <ul className="vtt2-abil-list">{set.actions.map((a) => <Row key={a.id} a={a} />)}</ul>
+              <ul className="vtt2-abil-list">{set.actions.map(row)}</ul>
             </>
           )}
 
           {set.genus.length > 0 && (
             <>
               <div className="vtt2-actor-group">Genus abilities</div>
-              <ul className="vtt2-abil-list">{set.genus.map((a) => <Row key={a.id} a={a} />)}</ul>
+              <ul className="vtt2-abil-list">{set.genus.map(row)}</ul>
             </>
           )}
 
           {set.cipher.length > 0 && (
             <>
               <div className="vtt2-actor-group">Cipher abilities</div>
-              <ul className="vtt2-abil-list">{set.cipher.map((a) => <Row key={a.id} a={a} />)}</ul>
+              <ul className="vtt2-abil-list">{set.cipher.map(row)}</ul>
             </>
           )}
 
@@ -629,7 +750,7 @@ export function VttAbilitiesPanel({
                 </select>
                 {racialSel && (
                   <ul className="vtt2-abil-list" style={{ marginTop: 6 }}>
-                    <Row a={racialSel} />
+                    {row(racialSel)}
                   </ul>
                 )}
               </div>

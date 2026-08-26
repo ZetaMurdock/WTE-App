@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { ringPlacement, ringRadius } from "./data/ringAnchor";
 import type { PixiVttApp } from "./engine/PixiVttApp";
 
 interface Props {
@@ -24,14 +25,22 @@ export function VttRadialMenu({ engine, tokenId }: Props) {
         ring.style.display = "none";
         return;
       }
+      // Shared with the ability ring — see data/ringAnchor. The four cardinal
+      // buttons here are laid out by hand rather than by `ringOffsets`, because
+      // the order the Curator's muscle memory knows is bigger/smaller top and
+      // bottom, and an even spread would move them.
       const cam = engine.camera;
-      const display = engine.tokens.displayPosition(tokenId) ?? tok;
-      const sx = display.x * cam.zoom + cam.x;
-      const sy = display.y * cam.zoom + cam.y;
-      const r = (((tok.size || 1) * (engine.scene?.data.grid.size ?? 70)) / 2) * cam.zoom + 30;
+      const radius = ringRadius({
+        camera: cam,
+        bodyCells: tok.size || 1,
+        gridSize: engine.scene?.data.grid.size ?? 70,
+      });
+      const at = ringPlacement({ world: engine.tokens.displayPosition(tokenId) ?? tok, camera: cam, radius });
+      if (!at) return;
       ring.style.display = "block";
-      ring.style.left = `${sx}px`;
-      ring.style.top = `${sy}px`;
+      ring.style.left = `${at.x}px`;
+      ring.style.top = `${at.y}px`;
+      const r = at.radius;
       const offs = [
         [0, -r],
         [0, r],

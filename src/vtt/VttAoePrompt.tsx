@@ -25,6 +25,12 @@ interface Props {
    *  Null for the abilities that never said — which is every Genus ability with
    *  no `Origin:` bullet, and they prompt exactly as they always have. */
   origin?: OriginPlan | null;
+  /** The shape and size the ability declares, when the shell has already read
+   *  its block. Absent falls back to the prose scanner, which is what every
+   *  caller did before the ring existed. Passed in rather than re-derived so
+   *  pressing "More options" on the ring cannot change the shape under the
+   *  Curator on the way to the form. */
+  template?: { kind: AoeKind; cells: number } | null;
   onPlace: (p: AoePlacement) => void;
   onCancel: () => void;
 }
@@ -32,8 +38,8 @@ interface Props {
 // Prompt shown after an ability with an area is used: the template is auto-
 // suggested from the ability text, but every field is editable before you place,
 // and the placed hitbox stays selected so you can drag/resize it on the fly.
-export function VttAoePrompt({ ability, casterName, hasSelectedToken, origin, onPlace, onCancel }: Props) {
-  const suggested = suggestedTemplate(ability.meta);
+export function VttAoePrompt({ ability, casterName, hasSelectedToken, origin, template, onPlace, onCancel }: Props) {
+  const suggested = template ?? suggestedTemplate(ability.meta);
   // A declared origin the map can find is the default: the page said where this
   // fires from, and making the Curator re-pick it every cast would make the
   // declaration decorative. An origin the map CANNOT find defaults to click —

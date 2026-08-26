@@ -19,6 +19,7 @@ import { VttActionBar } from "./VttActionBar";
 import { VttGridPanel } from "./VttGridPanel";
 import { VttSceneWheel } from "./VttSceneWheel";
 import { VttRadialMenu } from "./VttRadialMenu";
+import { VttAbilityRing, abilityRingPlan, abilityRingWorthOpening, abilityTemplate } from "./VttAbilityRing";
 // NOTE: The 3D view (engine3d/ThreeVttView) is VAULTED — the 2D top-down
 // perspective is the standard and all scene modifications render there. The
 // class file is kept on disk but is no longer instantiated from the screen.
@@ -83,12 +84,14 @@ import { VttDialogueController } from "./VttDialogueController";
 import { VttAbilitiesPanel, type VttTargetRollIntent } from "./VttAbilitiesPanel";
 import { VttRollToast } from "./VttRollToast";
 import { VttAoePrompt, type AoePlacement, type AoeKind } from "./VttAoePrompt";
+import { officialAbilityCatalog } from "../game/abilityCatalog";
+import { abilityUnderstanding } from "../game/abilityUnderstanding";
+import { characterRollAxisStats } from "./data/characterAbilities";
 import { VttSummonPrompt, type SummonMode, type SummonRow } from "./VttSummonPrompt";
 import { VttTamperPrompt } from "./VttTamperPrompt";
 import { pageTampers, planTamper, tamperRulingCard, type DeclaredTamper } from "./data/tamperPlan";
 import { findTamperTarget, listTamperTargets, type TamperTarget } from "./data/tamperTargets";
 import { commitUndoableTamper } from "./undo/tamperUndo";
-import { hasAoe } from "./data/effectMeta";
 import {
   MAX_SUMMON_BATCH,
   packSummonCells,
@@ -216,7 +219,24 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
   // The left dock shows at most one panel at a time.
   const [leftPanel, setLeftPanel] = useState<"scenes" | "actors" | "encounter" | "assets" | "abilities" | null>(null);
   const [abilityCharId, setAbilityCharId] = useState<string | null>(null);
-  const [pendingAoe, setPendingAoe] = useState<VttAbility | null>(null);
+  // The ability waiting on the placement form, and who cast it. The caster is
+  // pinned for the same reason the ring's is: `abilityCharKey` follows the map
+  // selection, and this form is most often reached from the ring — where the
+  // Curator has just been invited to click a target.
+  const [pendingCast, setPendingCast] = useState<{ ability: VttAbility; casterId: string | null } | null>(null);
+  const pendingAoe = pendingCast?.ability ?? null;
+  // The ability whose on-map ring is open, and WHO cast it. Not a snapshot of
+  // what the ring offers: the scene keeps moving while it is up — the caster
+  // walks, the Curator picks a different target — and a plan captured at open
+  // time would offer to ask a save of a token that is no longer selected.
+  //
+  // The CASTER is pinned, though, because `abilityCharKey` follows the map
+  // selection whenever the dock has no character explicitly picked. The ring's
+  // own save button asks the Curator to select a target; without this the act
+  // of selecting one re-read that target as the caster, and the save it then
+  // sent was keyed to the DV of the very body being asked to make it.
+  const [ringCast, setRingCast] = useState<{ ability: VttAbility; casterId: string | null } | null>(null);
+  const ringAbility = ringCast?.ability ?? null;
   // The ability whose declared `Summon:` steps are waiting on the Curator. The
   // ROWS are not stored beside it: the creature roster is still loading when
   // this is set, and a snapshot taken at that moment would tell the Curator a
@@ -841,14 +861,16 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
     [isNetPlayer, net, rollScope, roomCodexReady]
   );
 
-  // Esc cancels an armed click-to-place AoE / spatial sound.
+  // Esc cancels an armed click-to-place AoE / spatial sound, and closes the
+  // ability ring. The ring is a surface with no backdrop to click away, so Esc
+  // is the only way out that does not require finding its Cancel button.
   useEffect(() => {
-    if (!armedAoe && !armedSound) return;
+    if (!armedAoe && !armedSound && !ringAbility) return;
     const onEsc = (e: KeyboardEvent) =>
-      e.key === "Escape" && (setArmedAoe(null), setArmedSound(null));
+      e.key === "Escape" && (setArmedAoe(null), setArmedSound(null), setRingCast(null));
     window.addEventListener("keydown", onEsc);
     return () => window.removeEventListener("keydown", onEsc);
-  }, [armedAoe, armedSound]);
+  }, [armedAoe, armedSound, ringAbility]);
 
   // --- Live character-sheet sync (Curator control over player sheets) --------
   // Players push their full record; the Curator (and the owner) apply incoming
@@ -2549,16 +2571,20 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
    * because it depends on where bodies are STANDING: an origin that resolved to
    * a token two rounds ago is a stale square now.
    */
-  const abilityOriginPlan = (ability: VttAbility): OriginPlan => {
+  /** `who` overrides the dock's current character. The ring passes the caster it
+   *  pinned when it opened, because `abilityCharKey` follows the map selection
+   *  and an origin re-read after the Curator clicked a target would resolve
+   *  "self" to the target's body. */
+  const abilityOriginPlan = (ability: VttAbility, who = abilityChar): OriginPlan => {
     const data = engineRef.current?.scene?.data ?? null;
-    const caster = abilityChar ? data?.tokens.find((t) => t.characterId === abilityChar.id) ?? null : null;
+    const caster = who ? data?.tokens.find((t) => t.characterId === who.id) ?? null : null;
     return planOrigin(declaredOrigin(ability.effect, ability.actions), data, caster?.id ?? null);
   };
 
-  const declaredAoeOptions = (ability: VttAbility): PlaceAoeOptions => {
+  const declaredAoeOptions = (ability: VttAbility, who = abilityChar): PlaceAoeOptions => {
     const placement = declaredPlacement(ability.actions);
     const tokens = engineRef.current?.scene?.data.tokens ?? [];
-    const casterToken = abilityChar ? tokens.find((t) => t.characterId === abilityChar.id) ?? null : null;
+    const casterToken = who ? tokens.find((t) => t.characterId === who.id) ?? null : null;
     // What one template cannot carry is said out loud. A page that declared two
     // recurring saves is asking for two resolutions and gets one; silence would
     // let it deliver less than it promised and still look complete.
@@ -2573,7 +2599,7 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
     // the fallback for the abilities that never declared an origin, which is
     // every one of them today. Same binding either way: `auraTokenId`, the
     // reconcile pass P3 already wired into every path that moves a body.
-    const originToken = abilityOriginPlan(ability).tokenId;
+    const originToken = abilityOriginPlan(ability, who).tokenId;
     const auraOwner = declaredAuraOwner(placement, originToken ?? casterToken?.id ?? null);
     return {
       ...(placement.status ? { status: placement.status } : {}),
@@ -2582,7 +2608,7 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
             ticks: placement.ticks,
             ...(ability.abilityId ? { sourceAbilityId: ability.abilityId } : {}),
             sourceAbilityName: ability.name,
-            ...(abilityChar ? { casterCharacterId: abilityChar.id } : {}),
+            ...(who ? { casterCharacterId: who.id } : {}),
           }
         : {}),
       ...(auraOwner ? { auraTokenId: auraOwner } : {}),
@@ -2833,7 +2859,12 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
     setPendingTamper(null);
   };
 
-  const placeAoe = (p: AoePlacement, declared: PlaceAoeOptions, originAt?: { x: number; y: number } | null) => {
+  const placeAoe = (
+    p: AoePlacement,
+    declared: PlaceAoeOptions,
+    originAt?: { x: number; y: number } | null,
+    who = abilityChar
+  ) => {
     const eng = engineRef.current;
     if (!eng) return;
     const tokens = eng.scene?.data.tokens ?? [];
@@ -2850,13 +2881,80 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
     // selected: in a fight, almost always their target.
     let anchor: VttToken | null = null;
     if (p.mode === "self") {
-      anchor = (abilityChar ? tokens.find((t) => t.characterId === abilityChar.id) : null) ?? null;
+      anchor = (who ? tokens.find((t) => t.characterId === who.id) : null) ?? null;
     } else if (p.mode === "selected") {
       anchor = (sel?.kind === "token" ? tokens.find((x) => x.id === sel.id) : null) ?? null;
     }
     const pos = anchor ? { x: anchor.x, y: anchor.y } : eng.viewCenterWorld();
     eng.placeAoeAt(p.kind, pos.x, pos.y, { cells: p.cells, rounds: p.rounds, ...declared });
   };
+
+  // ── The ability ring ───────────────────────────────────────────────────────
+  /** The record each open surface pinned when it opened, resolved fresh so a
+   *  sheet edited mid-cast is read at its current numbers. */
+  const ringCaster = ringCast ? characters.find((one) => one.id === ringCast.casterId) ?? null : null;
+  const pendingCaster = pendingCast ? characters.find((one) => one.id === pendingCast.casterId) ?? null : null;
+
+  /**
+   * What the on-map ring offers for the ability being used, or null.
+   *
+   * Rebuilt from the LIVE scene rather than snapshotted when the ability fired.
+   * Between the roll and the drop the caster walks, the Curator selects a
+   * different body to ask for a save, and a declared origin's Component gets
+   * knocked over — a plan frozen at use time would go on offering all three as
+   * they were. WHO cast it is the one thing that is pinned; see `ringCast`.
+   */
+  const ringPlan = useMemo(() => {
+    if (!ringAbility || asPlayer) return null;
+    const tokens = live?.data.tokens ?? [];
+    const caster = ringCaster ? tokens.find((t) => t.characterId === ringCaster.id) ?? null : null;
+    // Only a body that could actually answer: `requestTargetRoll` refuses props
+    // and refuses an empty selection, so a save offered without one is a button
+    // whose whole behaviour is to report an error.
+    const target = sel?.kind === "token" ? tokens.find((t) => t.id === sel.id) ?? null : null;
+    return abilityRingPlan({
+      ability: ringAbility,
+      catalog: officialAbilityCatalog(),
+      origin: abilityOriginPlan(ringAbility, ringCaster),
+      casterTokenId: caster?.id ?? null,
+      casterName: ringCaster?.name ?? null,
+      targetName: target && !target.prop ? target.name : null,
+      axisStats: ringCaster ? characterRollAxisStats(ringCaster) : null,
+      casterCharacterId: ringCaster?.id,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the helpers below
+    // are re-created every render; the real inputs are the scene and who is
+    // selected, and listing the helpers would rebuild the plan every frame.
+  }, [ringAbility, ringCaster, asPlayer, live, sel]);
+
+  /** The shape and size an ability places, block first. Recomputed here rather
+   *  than carried out of the ring, because the ring is already gone by the time
+   *  the form behind "More options" is on screen. */
+  const abilityTemplateOf = (ability: VttAbility) =>
+    abilityTemplate(ability, ability.source === "action" ? [] : abilityUnderstanding(ability.effect, ability.actions, officialAbilityCatalog()).steps);
+
+  /** Drop the declared template at the anchor the ring named. `placeAoe` owns
+   *  the anchor rules, so the ring cannot grow a second opinion about where a
+   *  declared origin lands. */
+  const ringPlace = (kind: AoeKind, cells: number) => {
+    if (!ringAbility) return;
+    const origin = abilityOriginPlan(ringAbility, ringCaster);
+    placeAoe(
+      { mode: origin.at ? "origin" : "self", kind, cells, rounds: ringAbility.meta.duration ?? 0 },
+      declaredAoeOptions(ringAbility, ringCaster),
+      origin.at,
+      ringCaster
+    );
+  };
+
+  /** Arm the cursor instead of dropping — the same click-to-place state the
+   *  prompt's "Click to place" mode arms, so one pointer handler serves both. */
+  const ringAim = (kind: AoeKind, cells: number) => {
+    if (!ringAbility) return;
+    setArmedAoe({ kind, cells, rounds: ringAbility.meta.duration ?? 0, declared: declaredAoeOptions(ringAbility, ringCaster) });
+  };
+
+  const ringOpen = !!ringPlan && abilityRingWorthOpening(ringPlan);
 
   return (
     <div className="vtt2">
@@ -2925,8 +3023,30 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
       )}
       <div className="vtt2-stage" ref={hostRef}>
         <span className="vtt2-touch-hint" aria-hidden="true">One finger selects or drags · two fingers pan and pinch-zoom</span>
-        {sel?.kind === "token" && engine?.canControlToken(sel.id) && (
+        {/* The token radial stands down while an ability ring is up. Both are
+            rings of glass circles, and `ringRadius` puts them within a few
+            pixels of each other around a size-1 body — so a Curator who used an
+            ability with their own token selected got two interleaved rings and
+            no way to tell which circle belonged to which. */}
+        {sel?.kind === "token" && engine?.canControlToken(sel.id) && !ringOpen && (
           <VttRadialMenu engine={engine} tokenId={sel.id} />
+        )}
+        {/* An ability with nothing to place opens NO surface at all — the same
+            trigger the modal form had, so this changes what using an ability
+            looks like without changing when the app interrupts anybody. A
+            declared `Zone:` now counts as a template even when the prose never
+            said "radius", which is one ability more than the form ever caught. */}
+        {engine && ringPlan && ringOpen && (
+          <VttAbilityRing
+            engine={engine}
+            plan={ringPlan}
+            onArmRoll={armRoll}
+            onRequestSave={requestTargetRoll}
+            onPlace={ringPlace}
+            onAim={ringAim}
+            onOptions={() => setPendingCast(ringCast)}
+            onCancel={() => setRingCast(null)}
+          />
         )}
       </div>
       {!playHidden && (
@@ -3141,9 +3261,18 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
           onContestTarget={contestDefender && !asPlayer ? contestSelectedToken : undefined}
           contestTargetName={contestDefender?.name}
           onUseAbility={(ability) => {
-            // The roll already fired; if the ability implies an area, prompt to
-            // place an editable hitbox.
-            if (!asPlayer && hasAoe(ability.meta)) setPendingAoe(ability);
+            // The roll already fired; what is LEFT is spatial — the template
+            // the page declared, and the save it asks of a body on the map. So
+            // it happens on the map, anchored to what the ability fires from,
+            // instead of in a form across the middle of the screen. The form is
+            // still one press away behind the ring's "More options", for the
+            // two things a ring cannot say: an exact size and a lingering round
+            // count.
+            // Only an ability with a template opens a ring, which is the same
+            // trigger the form had. Setting this for every use left a dead
+            // ability parked in state after the ring declined to open, and the
+            // next thing to change the scene would re-read it as a live cast.
+            if (!asPlayer && abilityTemplateOf(ability)) setRingCast({ ability, casterId: abilityChar?.id ?? null });
             // A declared summon is its own proposal and rides beside the area
             // prompt rather than inside it: an ability may place a field AND
             // call bodies into it, and folding the two into one dialog would
@@ -3186,17 +3315,18 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
       {pendingAoe && (
         <VttAoePrompt
           ability={pendingAoe}
-          casterName={abilityChar?.name ?? null}
+          casterName={pendingCaster?.name ?? null}
           hasSelectedToken={sel?.kind === "token"}
-          origin={abilityOriginPlan(pendingAoe)}
-          onCancel={() => setPendingAoe(null)}
+          origin={abilityOriginPlan(pendingAoe, pendingCaster)}
+          template={abilityTemplateOf(pendingAoe)}
+          onCancel={() => setPendingCast(null)}
           onPlace={(p) => {
             // Read ONCE, here, and carried into the armed state: the click mode
             // lands its template on a pointer event with no ability in scope.
-            const declared = declaredAoeOptions(pendingAoe);
+            const declared = declaredAoeOptions(pendingAoe, pendingCaster);
             if (p.mode === "click") setArmedAoe({ kind: p.kind, cells: p.cells, rounds: p.rounds, declared });
-            else placeAoe(p, declared, abilityOriginPlan(pendingAoe).at);
-            setPendingAoe(null);
+            else placeAoe(p, declared, abilityOriginPlan(pendingAoe, pendingCaster).at, pendingCaster);
+            setPendingCast(null);
           }}
         />
       )}
