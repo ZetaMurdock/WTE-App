@@ -30,7 +30,18 @@ import type { AbilityAction } from "./abilityActions";
 /** The verbs a page may write. Closed on purpose: an unknown verb is an
  *  authoring error the page reports, never a step quietly dropped. */
 export type EffectVerb =
-  | "cost" | "roll" | "save" | "damage" | "heal" | "condition" | "modify" | "ruling" | "zone" | "counter" | "summon";
+  | "cost" | "roll" | "save" | "damage" | "heal" | "condition" | "modify" | "ruling" | "zone" | "counter" | "summon"
+  | "tamper" | "invoke" | "origin";
+
+/**
+ * What one ability does to ANOTHER ability's effect.
+ *
+ * A third of the corpus is meta — Negate, Reflect, Catalyst, Null Zone, Spyder,
+ * Quick Hack. These are only expressible because a placed effect already carries
+ * the ability that placed it (`VttEffectData.sourceAbilityId`): tamper needs
+ * effects to be objects with identity, not anonymous drawings on a map.
+ */
+export type TamperMode = "negate" | "reflect" | "redirect" | "delay" | "copy" | "end";
 
 /** The shapes the VTT can actually place. Named for the table, mapped to the
  *  engine's own kinds by the caller — a page says "circle", not "VttEffectKind". */
@@ -116,6 +127,18 @@ export interface EffectStep {
   /** summon — how many bodies arrive, and what they are called. */
   count?: number;
   summon?: string;
+  /** tamper — what this ability does to another ability's active effect. */
+  tamper?: TamperMode;
+  /** invoke — another ability, called by name. The Last War invokes Weaponize,
+   *  Hollow Shell and Trixt Link by name, so ability-as-macro is canon, not a
+   *  convenience: the engine resolves the reference rather than a page
+   *  restating rules that already live somewhere else. */
+  invoke?: string;
+  /** origin — where the ability fires FROM when that is not the caster's body:
+   *  a Seraph's Medium, a Remnant echo, a Stygian's shadow. Open text, like a
+   *  condition's name — origin words belong to a setting, and every one of the
+   *  148 Ciphers already mounts on a Component. */
+  origin?: string;
 }
 
 export interface AbilityEffects {
@@ -141,6 +164,19 @@ const VERBS: Readonly<Record<string, EffectVerb>> = {
   counter: "counter",
   track: "counter",
   summon: "summon",
+  tamper: "tamper",
+  invoke: "invoke",
+  origin: "origin",
+};
+
+const TAMPERS: Readonly<Record<string, TamperMode>> = {
+  negate: "negate",
+  reflect: "reflect",
+  redirect: "redirect",
+  delay: "delay",
+  copy: "copy",
+  end: "end",
+  dispel: "end",
 };
 
 const SHAPES: Readonly<Record<string, EffectShape>> = {
@@ -193,6 +229,11 @@ const DEFAULT_SELECTOR: Readonly<Record<EffectVerb, EffectSelector>> = {
   zone: "target",
   counter: "target",
   summon: "self",
+  // Tamper acts on an effect, not a body; the selector says whose effect, and
+  // the one worth naming is someone else's.
+  tamper: "target",
+  invoke: "self",
+  origin: "self",
 };
 
 /** Dice or a flat amount, matching the Grants validator. Anything else is an
@@ -335,6 +376,46 @@ function parseStep(body: string, errors: string[], line: string): EffectStep | n
       }
       step.cap = parseInt(cap[1], 10);
     }
+    return step;
+  }
+
+  if (verb === "tamper") {
+    const parts = value.split(",");
+    const mode = own(TAMPERS, parts[0].trim());
+    if (!mode) {
+      errors.push(`Unknown tamper "${parts[0].trim()}": ${line.trim()}`);
+      return null;
+    }
+    step.tamper = mode;
+    const tail = parts.slice(1).join(",").trim();
+    if (tail) {
+      const duration = parseDuration(tail);
+      if (!duration) {
+        errors.push(`Unreadable tamper detail "${tail}": ${line.trim()}`);
+        return null;
+      }
+      step.duration = duration;
+    }
+    return step;
+  }
+
+  if (verb === "invoke") {
+    const name = value.trim();
+    if (!name) {
+      errors.push(`Invoke needs an ability to call: ${line.trim()}`);
+      return null;
+    }
+    step.invoke = name;
+    return step;
+  }
+
+  if (verb === "origin") {
+    const name = value.trim();
+    if (!name || name.length > 32) {
+      errors.push(`Origin needs a place to fire from: ${line.trim()}`);
+      return null;
+    }
+    step.origin = name;
     return step;
   }
 
@@ -573,6 +654,12 @@ export function effectLine(step: EffectStep): string {
       return head + `${step.counter} ${step.delta! > 0 ? "+" : ""}${step.delta}` + (step.cap != null ? `, cap ${step.cap}` : "");
     case "summon":
       return head + `${step.count && step.count > 1 ? `${step.count} ` : ""}${step.summon}`;
+    case "tamper":
+      return head + step.tamper + (step.duration ? `, ${durationText(step.duration)}` : "");
+    case "invoke":
+      return head + step.invoke;
+    case "origin":
+      return head + step.origin;
   }
 }
 
@@ -602,6 +689,14 @@ export function effectStepLabel(step: EffectStep): string {
       return `${branch}${step.counter} ${step.delta! > 0 ? "+" : ""}${step.delta}${step.cap != null ? ` / ${step.cap}` : ""}${who}`;
     case "summon":
       return `${branch}Summon ${step.count && step.count > 1 ? `${step.count} ` : ""}${step.summon}`;
+    case "tamper": {
+      const word = step.tamper === "end" ? "End" : step.tamper![0].toUpperCase() + step.tamper!.slice(1);
+      return `${branch}${word} effect${step.duration ? ` · ${durationText(step.duration)}` : ""}`;
+    }
+    case "invoke":
+      return `${branch}Invoke ${step.invoke}`;
+    case "origin":
+      return `From ${step.origin}`;
   }
 }
 

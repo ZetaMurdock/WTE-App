@@ -135,3 +135,37 @@ describe("tracks and bodies", () => {
     expect(errors).toHaveLength(1);
   });
 });
+
+describe("the meta layer", () => {
+  it("reads what one ability does to another's effect", () => {
+    // Negate, Reflect, Catalyst, Null Zone, Spyder, Quick Hack — a third of the
+    // corpus acts on effects rather than bodies.
+    const steps = roundTrips(["- Tamper: negate", "- Tamper: delay, 1 round", "- Tamper: reflect"].join("\n"));
+    expect(steps.map((step) => step.tamper)).toEqual(["negate", "delay", "reflect"]);
+    expect(steps[1].duration).toEqual({ kind: "rounds", count: 1 });
+    expect(effectStepLabel(steps[0])).toContain("Negate effect");
+  });
+
+  it("calls another ability by name, because ability-as-macro is canon", () => {
+    // The Last War invokes Weaponize, Hollow Shell and Trixt Link by name.
+    const steps = roundTrips(["- Invoke: Weaponize", "- Invoke: Hollow Shell"].join("\n"));
+    expect(steps.map((step) => step.invoke)).toEqual(["Weaponize", "Hollow Shell"]);
+  });
+
+  it("takes any origin word, because a Medium belongs to a setting", () => {
+    const steps = roundTrips(["- Origin: Medium", "- Origin: shadow"].join("\n"));
+    expect(steps.map((step) => step.origin)).toEqual(["Medium", "shadow"]);
+    expect(effectStepLabel(steps[0])).toBe("From Medium");
+  });
+
+  it("refuses a tamper the engine has no operation for", () => {
+    const { steps, errors } = parseAbilityEffects("- Tamper: obliterate");
+    expect(steps).toEqual([]);
+    expect(errors[0]).toContain("obliterate");
+  });
+
+  it("refuses an invoke and an origin with nothing named", () => {
+    const { errors } = parseAbilityEffects(["- Invoke:", "- Origin:"].join("\n"));
+    expect(errors).toHaveLength(2);
+  });
+});
