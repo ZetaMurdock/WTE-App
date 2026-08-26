@@ -70,11 +70,14 @@ describe("built-in pages round-trip through the page parser", () => {
       )!;
       expect(parsed.provided).toContain("innateAbilities");
       const baked = bakedSpeciesInnate(species.id);
+      // A declared `## Actions` block rides with the effect: the page is the
+      // only copy a forked campaign gets, so an innate that loses its steps here
+      // loses them for that table permanently.
       expect(parsed.species.innateAbilities).toEqual(
-        species.innate.map((name) => ({
-          name,
-          effect: baked.find((a) => a.name.toLowerCase() === name.toLowerCase())?.effect ?? "",
-        }))
+        species.innate.map((name) => {
+          const from = baked.find((a) => a.name.toLowerCase() === name.toLowerCase());
+          return { name, effect: from?.effect ?? "", actions: from?.actions };
+        })
       );
     });
   }

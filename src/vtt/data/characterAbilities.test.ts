@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
-import { bakedCiphers, zeroAttributes, zeroSpecialties } from "../../game/wte";
+import { bakedCiphers, getGenusDomain, speciesInnate, zeroAttributes, zeroSpecialties } from "../../game/wte";
 import type { CharacterRecord } from "../../lib/characters";
 import { characterActionSet, characterEffectiveRollScores, characterRollAxisStats } from "./characterAbilities";
 
@@ -83,5 +83,45 @@ describe("VTT ability rows carry the permanent Codex id", () => {
     expect(set.genus[0].id).toBe("genus:Lark:0");
     expect(set.cipher[0].id).toBe(`cipher:${cipherName}:0`);
     expect(set.racial[0].id).toBe("racial:Omen:0");
+  });
+});
+
+// The panel asks abilityUnderstanding(effect, actions), so a row that arrives
+// without its block silently falls back to the prose parse — the ability still
+// renders, just with the edges between its steps lost again. Nothing about the
+// screen looks broken, which is exactly why this needs asserting.
+describe("VTT ability rows carry the page's declared steps", () => {
+  const genus = getGenusDomain("Eldritch")!.abilities.find((a) => a.actions)!;
+  const cipher = bakedCiphers()["science"].find((c) => c.actions)!;
+  const innate = speciesInnate("seraph").find((a) => a.actions)!;
+
+  const rec = {
+    id: "declared-steps",
+    campaignId: "table",
+    name: "Declarer",
+    createdAt: 0,
+    updatedAt: 0,
+    sheet: {
+      attributes: zeroAttributes(),
+      specialties: zeroSpecialties(),
+      paradigmId: "science",
+      speciesId: "seraph",
+      rank: 3,
+      cipherLoadout: [cipher.name],
+      innateChoice: [innate.name],
+      genusLoadout: [genus.name],
+      focusSpend: { genus: { [genus.name]: 4 }, incepts: [] },
+    },
+  } as unknown as CharacterRecord;
+
+  it("for genus, cipher and racial rows alike", () => {
+    const set = characterActionSet(rec);
+    expect(set.genus[0].actions).toBe(genus.actions);
+    expect(set.cipher[0].actions).toBe(cipher.actions);
+    expect(set.racial[0].actions).toBe(innate.actions);
+  });
+
+  it("and leaves a weapon row — which has no page to declare on — without one", () => {
+    expect(characterActionSet(rec).actions.every((a) => !a.actions)).toBe(true);
   });
 });

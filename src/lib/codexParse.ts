@@ -67,8 +67,21 @@ function fieldFromLine(line: string): [string, string] | null {
   return null;
 }
 
-function canonSection(label: string): string | null {
+function canonSection(label: string, heading = false): string | null {
   const l = label.toLowerCase();
+  // The declared-steps block (game/abilityEffects). Checked BEFORE `effect`,
+  // because an unrecognised heading is CONSUMED by the splitter without moving
+  // `cur`: every `- Cost: 6 SS` under `## Actions` used to append to whichever
+  // section came before it — normally the effect prose — polluting the rule text
+  // and spawning phantom roll buttons through parseAbilityActions.
+  //
+  // A `## Actions` HEADING and nothing else. The other section names may also be
+  // written inline (`Effect: …`), but "Actions:" is an ordinary English sentence
+  // opener, and honouring it inline swept every line after it out of the rule
+  // text of a page that declares no steps at all. Whole-label too, since the
+  // corpus is full of the singular: `| Action | Standard Action |` is a spec row
+  // and "Interactions & Philosophy" heads six Paradigm pages.
+  if (heading && /^\**\s*actions\s*\**$/.test(l.trim())) return "actions";
   if (l.includes("overclock")) return "overclock";
   if (l.includes("base attack")) return "baseAttack";
   if (l.includes("synergy") || l.includes("combat integration") || l.includes("effect")) return "effect";
@@ -121,7 +134,7 @@ function preParse(source: string, name?: string): PreParsed {
   const push = (s: string, t: string) => { sections[s] = (sections[s] ? sections[s] + "\n" : "") + t; };
   for (const line of prose) {
     const h2 = line.match(/^#{2,4}\s+(.+)$/);
-    if (h2) { const c = canonSection(h2[1]); if (c) cur = c; continue; }
+    if (h2) { const c = canonSection(h2[1], true); if (c) cur = c; continue; }
     if (isPhaseLine(line)) { cur = "overclock"; push("overclock", line.trim()); continue; }
     const lab = line.match(/^\s*(?:\*\*)?([A-Za-z][A-Za-z '&/]{2,45}?)(?:\*\*)?:[ \t]*(.*)$/);
     if (lab) {
@@ -216,6 +229,9 @@ export function parseCodexEntry(md: string, name?: string): CodexEntry | null {
   const nm = title;
   const keywords = list(fields["keywords"]);
   const effect = sections["effect"] || undefined;
+  // Empty stays undefined: a page carrying a heading and no bullets declares
+  // nothing, and must be indistinguishable from a page with no block at all.
+  const actions = sections["actions"] || undefined;
   const ede = bool(fields["ede"]);
   const oc = ede === false ? undefined : overclock(sections["overclock"]);
   if (oc && fields["domain"]) oc.requires = fields["domain"]; // the domain gate is the real Overclock requirement
@@ -224,7 +240,7 @@ export function parseCodexEntry(md: string, name?: string): CodexEntry | null {
     case "weapon": {
       const ba = fromBaseAttack(sections["baseAttack"]);
       return {
-        type: "weapon", name: nm, keywords, effect, overclock: oc,
+        type: "weapon", name: nm, keywords, effect, actions, overclock: oc,
         category: fields["category"], grade: num(fields["grade"]), slot: fields["slot"],
         weight: fields["weight"], mods: fields["mods"], ncCost: num(fields["nc cost"]),
         ede, domain: fields["domain"], sizeMin: fields["size min"],
@@ -234,7 +250,7 @@ export function parseCodexEntry(md: string, name?: string): CodexEntry | null {
     }
     case "equipment":
       return {
-        type: "equipment", name: nm, keywords, effect, overclock: oc,
+        type: "equipment", name: nm, keywords, effect, actions, overclock: oc,
         category: fields["category"] || mapped.category, slot: fields["slot"], grade: num(fields["grade"]),
         weight: fields["weight"], mods: fields["mods"], ncCost: num(fields["nc cost"]), ede, domain: fields["domain"],
       };
@@ -245,7 +261,7 @@ export function parseCodexEntry(md: string, name?: string): CodexEntry | null {
       // gameData, where the official record is known — composing here glued
       // spec rows into plain-prose pages that never carried the header.
       return {
-        type: "cipher", name: fields["name"] || nm, keywords, effect,
+        type: "cipher", name: fields["name"] || nm, keywords, effect, actions,
         paradigm: fields["paradigm"], tier: fields["tier"],
         ss: num(fields["ss"] ?? fields["ss cost"]), activation: fields["activation"], range: fields["range"],
         target: fields["target"], component: fields["component"], rank: fields["rank"],
@@ -254,7 +270,7 @@ export function parseCodexEntry(md: string, name?: string): CodexEntry | null {
       };
     case "genus":
       return {
-        type: "genus", name: nm, keywords, effect, domain: fields["domain"], ss: num(fields["ss"] ?? fields["ss cost"]),
+        type: "genus", name: nm, keywords, effect, actions, domain: fields["domain"], ss: num(fields["ss"] ?? fields["ss cost"]),
         activation: fields["activation"], range: fields["range"], target: fields["target"], limit: fields["limit"],
         classification: fields["classification"],
         id: fields["id"], aliases: splitAliases(fields["aliases"] ?? fields["alias"]),

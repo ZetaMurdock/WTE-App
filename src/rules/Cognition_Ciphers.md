@@ -207,6 +207,15 @@ EFFECT — Extends Detection to a 30-ft radius affecting all creatures simultane
 
 EFFECT — All creatures in a 35-ft radius make a Mental Save — Influence (DV 14 + Neuronal Capacity Modifier) or take 2d8 psychic damage and are Stunned for 1 round. On success: half damage, not Stunned. The Inquisitor takes 1d4 psychic backlash damage regardless. Allied Cognition Inquisitors can be designated immune with a Bonus Action setup.
 
+#### Actions
+
+- Cost: 50 SS
+- Save: Mental Save — Influence, DV 14 + Neuronal Capacity Modifier
+- Damage: 2d8 Psychic, half on success
+- Fail: Condition: Stunned, 1 round
+- Damage (self): 1d4 Psychic
+- Ruling: allied Cognition Inquisitors can be designated immune with a Bonus Action setup
+
 ### Dream State
 
 | Field | Value |

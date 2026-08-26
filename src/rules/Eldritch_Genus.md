@@ -30,6 +30,15 @@ Fires scattered bursts of entropic energy in erratic patterns — unpredictable 
 
 **LIMIT:** Once per Synaptic Focus
 
+#### Actions
+
+- Cost: 5 SS
+- Save: Physical Save — Recovery
+- Fail: Damage: 1d40 Spirit
+- Roll: Mental Check — Capacity, DV 12
+- Fail: Damage (self): 1d4
+- Ruling: the area is laced with residue — the first ability any creature attempts next round must be re-rolled if it fails
+
 ### Varken
 
 | Field | Value |
@@ -114,6 +123,13 @@ Sustains an aura of accelerated entropy. Each creature that starts or ends their
 
 **LIMIT:** Must be consciously deactivated; drains 2 SS per round maintained
 
+#### Actions
+
+- Cost: 8 SS
+- Save: Physical Save — Recovery
+- Fail: Damage: 1d6 Eldritch
+- Ruling: each creature that starts or ends its turn within range makes the Save; cannot be active at the same time as Bane of Enhancement
+
 ### Fyber Mutation
 
 | Field | Value |
@@ -141,6 +157,13 @@ Temporarily rewires one biological trait using Eldritch energy. At activation, c
 Partial Eldritch apotheosis for 1 minute. Gains: immunity to non-supernatural physical damage; −3 to all Eldritch SS costs (minimum 1); all attacks deal additional 1d40 Spirit Damage; terrifying presence (any creature that can see you makes a Mental Save — Influence (DV 16) or is Frightened). Aftermath: mandatory Downtime 1d4 rounds; all SS costs doubled for 1 minute following recovery.
 
 **LIMIT:** Once per long rest. Each use accumulates 1 Wryde charge.
+
+#### Actions
+
+- Cost: 15 SS
+- Save: Mental Save — Influence, DV 16
+- Fail: Condition: Frightened
+- Ruling: for 1 minute — immunity to non-supernatural physical damage, −3 to all Eldritch SS costs (minimum 1), and all attacks deal an additional 1d40 Spirit Damage; aftermath is mandatory Downtime 1d4 rounds and doubled SS costs for 1 minute
 
 ### Harlingsine
 

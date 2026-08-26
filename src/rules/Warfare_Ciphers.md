@@ -118,6 +118,13 @@ ACTIVE MODIFICATION — When applied to an animate subject, creates a binding be
 
 EFFECT — The bound subject cannot take a specified category of action (attack, retreat, speak, use Cipher, etc.) while the Law Bind is active. When the bind is established, the Inquisitor makes a Mental Check — Capacity and records the result. Whenever the subject attempts to violate the bind, compare that result against the subject's Influence Dice Value. If the Capacity result meets or exceeds the Influence DV, the action is suppressed and the subject is momentarily stunned as the bind reasserts. If the Influence DV exceeds the Capacity result, the action proceeds but the subject takes 1d8 psychic damage from the rupture. The bind lasts until dismissed, until the Inquisitor is incapacitated, or until the subject overcomes the bind three consecutive times. A bind can never prohibit breathing, feeding, or self-preservation — the behavioral layer refuses to hold such a law.
 
+#### Actions
+
+- Cost: 25 SS
+- Roll: Mental Check — Capacity
+- Fail: Damage: 1d8 Psychic
+- Ruling: the recorded Capacity result is compared against the subject's Influence Dice Value on every attempted violation — meeting or exceeding it suppresses the action and momentarily stuns the subject; a bind can never prohibit breathing, feeding, or self-preservation
+
 ### Hollow Shell
 
 | Field | Value |

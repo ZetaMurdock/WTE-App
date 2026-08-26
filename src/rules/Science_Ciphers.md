@@ -104,6 +104,13 @@ EFFECT — Upon activation, triggers a light inversion field around anything in 
 
 **CHARGE:** threshold capacity ≈ three rounds of absorbed light; unspent charge bleeds off harmlessly at scene's end.
 
+#### Actions
+
+- Cost: 55 SS
+- Save: Physical Save — Evasion
+- Damage: 2d10 Radiant, half on success
+- Ruling: threshold capacity is roughly three rounds of absorbed light and unspent charge bleeds off harmlessly at the end of the scene; against unattended structures the beam cuts as demolition
+
 ### BF-C
 
 | Field | Value |
@@ -292,6 +299,16 @@ EFFECT — Retrieves a complete chronological record of significant events an ob
 EFFECT — Drops temperature within a 30-ft radius to absolute zero over 2 rounds. All molecular motion ceases — objects become structurally perfect but completely brittle; living creatures make a Physical Save — Recovery (DV 18) each round or take 3d10 cold damage and lose 1 Action. Sustained up to 3 rounds. Releasing stored thermal energy detonates it — 5d10 fire damage in the same radius; affected creatures make a Physical Save — Evasion for half damage. Special Ciphers are never Online-logged.
 
 **KEYWORD — DEEP FREEZE:** the cold incapacitates rather than executes — a creature dropped to 0 HP inside the field is frozen unconscious and stable until thawed.
+
+#### Actions
+
+- Cost: 80 SS
+- Save: Physical Save — Recovery, DV 18
+- Fail: Damage: 3d10 Cold
+- Fail: Ruling: the creature also loses 1 Action; the Save repeats each round the field is sustained, up to 3 rounds
+- Save: Physical Save — Evasion
+- Damage: 5d10 Fire, half on success
+- Ruling: the detonation resolves only when the stored thermal energy is released; DEEP FREEZE — a creature dropped to 0 HP inside the field is frozen unconscious and stable until thawed
 
 ### S2 — Genesis Formula
 

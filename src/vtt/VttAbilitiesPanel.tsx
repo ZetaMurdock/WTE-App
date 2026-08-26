@@ -12,7 +12,8 @@ import {
   signedMod,
   resolveStatToken,
 } from "../game/wte";
-import { parseAbilityActions, type AbilityAction } from "../game/abilityActions";
+import type { AbilityAction } from "../game/abilityActions";
+import { abilityUnderstanding } from "../game/abilityUnderstanding";
 import {
   characterActionSet,
   characterEffectiveRollScores,
@@ -158,9 +159,13 @@ export function VttAbilitiesPanel({
   function Row({ a }: { a: VttAbility }) {
     const tag = aoeTag(a);
     const tmpl = tag ? suggestedTemplate(a.meta) : null;
-    // The ability "understanding" layer: buttons the effect text actually calls
-    // for (self checks, damage dice) plus a note of any target save + DC.
-    const actions = a.source === "action" ? [] : parseAbilityActions(a.effect);
+    // The ability "understanding" layer: buttons the ability actually calls for
+    // (self checks, damage dice) plus a note of any target save + DC. Read from
+    // the page's `## Actions` block where one is declared, from the effect prose
+    // where it is not — one renderer either way, so a declared ability arms the
+    // same tray and the same keyed DV as a parsed one.
+    const read = a.source === "action" ? null : abilityUnderstanding(a.effect, a.actions);
+    const actions = read?.actions ?? [];
     const selfRolls = actions.filter((x) => x.kind === "self");
     const dmgRolls = actions.filter((x) => x.kind === "damage");
     const saves = actions.filter((x) => x.kind === "save");
@@ -218,6 +223,23 @@ export function VttAbilitiesPanel({
                   </button>
                 );
               })}
+            </div>
+          )}
+          {/* Declared steps with no dice of their own: the cost, the condition,
+              the Curator ruling. A declared ability that showed only its dice
+              would read as doing LESS than the prose it supersedes. */}
+          {read && read.chips.length > 0 && (
+            <div className="vtt2-abil-steps">
+              {read.chips.map((chip) => (
+                <span className="vtt2-abil-stepchip" key={chip.key} title={chip.title}>{chip.label}</span>
+              ))}
+            </div>
+          )}
+          {read && read.errors.length > 0 && (
+            <div className="vtt2-abil-steps">
+              {read.errors.map((err, i) => (
+                <span className="vtt2-abil-stepchip bad" key={"e" + i} title={err}>Unreadable step</span>
+              ))}
             </div>
           )}
         </div>

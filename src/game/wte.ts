@@ -164,6 +164,11 @@ export interface SpeciesVariantAbility {
    *  the seed it was supposed to become. */
   aliases?: string[];
   effect: string;
+  /** The ability's declared steps, verbatim — the nested bullets a species page
+   *  carries under this ability. Nested rather than a shared `## Actions`
+   *  heading because one page lists every innate and every variant ability, and
+   *  a heading could not say which of them a step belonged to. */
+  actions?: string;
 }
 export interface SpeciesVariant {
   name: string;
@@ -851,6 +856,9 @@ export interface GenusAbility {
   ssNote?: string | null;
   /** Usage limit as written — including "Once per Synaptic Focus". */
   limit?: string | null;
+  /** The page's `## Actions` block, verbatim. Raw on purpose: the page text is
+   *  the rule, and game/abilityEffects reads it where the steps are needed. */
+  actions?: string | null;
 }
 
 /** Standard Null Ruling posture. Null resolves BEFORE Reactions can be declared;
@@ -883,6 +891,8 @@ export interface CipherAbility {
   tier: string;
   type?: string | null;
   effect?: string | null;
+  /** The page's `## Actions` block, verbatim (see GenusAbility.actions). */
+  actions?: string | null;
 }
 const GENUS_DOMAINS = nullRecord(genusData as Record<string, GenusDomain>);
 const GENUS_DATA: Record<string, GenusAbility[]> = nullRecord(Object.fromEntries(
@@ -1098,6 +1108,12 @@ export interface UsableAbility {
   classification?: string | null;
   /** Original SS string when the cost is variable ("8 SS (+2/round)"). */
   ssNote?: string | null;
+  /** The declaring page's `## Actions` block, verbatim, when it has one. This
+   *  is how a declared ability reaches the sheet and the VTT: both read
+   *  UsableAbility, and neither should have to know which catalog the block
+   *  came from. Absent for the whole shipped corpus, which keeps running off
+   *  `effect` prose exactly as before. */
+  actions?: string | null;
 }
 
 /** Genus a character can actually use. `loadout` is the list of names they know —
@@ -1136,6 +1152,7 @@ export function usableGenus(
       domain: g?.domain,
       classification: a?.classification,
       ssNote: a?.ssNote,
+      actions: a?.actions,
     };
   });
 }
@@ -1181,7 +1198,7 @@ export function usableCiphers(paradigmId: string | undefined, loadout: string[])
     // The record's own name when one answered — an id or a former name in the
     // loadout must display as the cipher is called NOW, never as a raw id.
     const name = a?.name ?? cipherRef(raw);
-    return { source: "cipher" as const, id: a?.id, name, ss: a?.ss ?? 0, effect: a?.effect, activation: a?.type };
+    return { source: "cipher" as const, id: a?.id, name, ss: a?.ss ?? 0, effect: a?.effect, activation: a?.type, actions: a?.actions };
   });
 }
 /** Is this innate one of the chosen two? The stored choice holds NAMES, so it
@@ -1205,12 +1222,12 @@ export function usableRacial(
 ): UsableAbility[] {
   let innates = speciesInnate(speciesId);
   if (innateChoice && innateChoice.length) innates = innates.filter((a) => innateChosen(a, innateChoice));
-  const out: UsableAbility[] = innates.map((a) => ({ source: "racial" as const, id: a.id, name: a.name, ss: 0, effect: a.effect }));
+  const out: UsableAbility[] = innates.map((a) => ({ source: "racial" as const, id: a.id, name: a.name, ss: 0, effect: a.effect, actions: a.actions }));
   const variant = getSpecies(speciesId)?.variants.find((v) => v.name === variantName);
   if (variant) {
-    variant.abilities.forEach((a) => out.push({ source: "racial", id: a.id, name: a.name, ss: 0, effect: a.effect }));
+    variant.abilities.forEach((a) => out.push({ source: "racial", id: a.id, name: a.name, ss: 0, effect: a.effect, actions: a.actions }));
     const opt = variant.options?.find((o) => o.label === variantOption);
-    if (opt) out.push({ source: "racial", id: opt.ability.id, name: opt.ability.name, ss: 0, effect: opt.ability.effect });
+    if (opt) out.push({ source: "racial", id: opt.ability.id, name: opt.ability.name, ss: 0, effect: opt.ability.effect, actions: opt.ability.actions });
   }
   return out;
 }
@@ -1238,6 +1255,10 @@ export interface Incept {
   /** Mirga incepts carry a Memory line describing the transformation cost. */
   memory?: string;
   effect: string;
+  /** The page's `## Actions` block, verbatim. `grants` is the older, narrower
+   *  declaration and stays exactly as it is; an Incept may carry either, both,
+   *  or — as all of them do today — neither. */
+  actions?: string;
 }
 
 /** Wryde chaos tiers, indexed by an incept's Weight Class. A heavier incept

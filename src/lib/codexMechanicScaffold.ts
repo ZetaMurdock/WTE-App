@@ -52,6 +52,7 @@ const KIND_LABELS: Readonly<Record<string, string>> = {
   cipher: "Cipher",
   genus: "Genus",
   incept: "Incept",
+  condition: "Condition",
   species: "Species",
   paradigm: "Paradigm",
   background: "Background",

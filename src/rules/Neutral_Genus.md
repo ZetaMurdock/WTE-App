@@ -184,6 +184,13 @@ Focuses Neutral energy inward into a target to cause internal structural failure
 
 **LIMIT:** Once per encounter
 
+#### Actions
+
+- Cost: 5 SS
+- Roll: Mental Check — Capacity, DV 13
+- Damage: 2d6
+- Ruling: the Check is required only at range — physical contact needs none; the damage ignores DHP entirely, and an object instead fractures internally so the next significant force destroys it
+
 ### Desentralization
 
 | Field | Value |

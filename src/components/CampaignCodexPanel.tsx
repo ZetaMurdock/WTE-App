@@ -48,7 +48,7 @@ function humanize(value: string): string {
 // nine rules a Curator edits were somewhere in the middle of the list.
 const SECTION_ORDER = [
   "species", "paradigm", "background", "genus", "cipher", "incept",
-  "weapon", "equipment", "creature", "roll formula",
+  "weapon", "equipment", "creature", "condition", "roll formula",
 ];
 /** Generic buckets. Real content, but never what someone opened settings for. */
 const SECTION_LAST = ["lore", "page", "pages", "unsorted"];
@@ -92,7 +92,7 @@ export function effectiveCampaignCodexView(
   // article losing to the built-in is deliberate: after a species rework the
   // prose page may lag, but Campaign Settings is the RULES view, and it must
   // show what the character creator will offer.
-  const MECHANIC_TYPES = new Set(["species", "paradigm", "background", "genus", "cipher", "incept", "weapon", "equipment", "gear", "roll formula", "formula"]);
+  const MECHANIC_TYPES = new Set(["species", "paradigm", "background", "genus", "cipher", "incept", "weapon", "equipment", "gear", "condition", "roll formula", "formula"]);
   const rank = (page: CampaignCodexPage): number => {
     if (page.source === "campaign") return 4;
     if (page.builtIn) return 2;

@@ -26,6 +26,7 @@ import { invalidatePageFileCache } from "../../lib/campaignCodex";
 import { pushUndo } from "../../lib/undoRedo";
 import { slugify } from "../../game/codexId";
 import { parseRollFormulaPage } from "../../game/rollFormula";
+import { parseConditionPage } from "../../game/conditions";
 import {
   activeRoomCodex,
   buildCampaignCodexSnapshot,
@@ -77,13 +78,13 @@ const VTT_CLASS_COLORS: Record<number, string> = {
   1: "#6b6f7a", 2: "#c9a227", 3: "#7a4b9a", 4: "#8a3a2a", 5: "#c33fbf", 6: "#20202c",
 };
 // Base "pull targets" a page can link to (feed the sheet/VTT); custom labels add to these.
-const BASE_LABELS = ["Creature", "Weapon", "Equipment", "Cipher", "Genus", "Species", "Paradigm", "Background", "Roll Formula"];
+const BASE_LABELS = ["Creature", "Weapon", "Equipment", "Cipher", "Genus", "Species", "Paradigm", "Background", "Condition", "Roll Formula"];
 const TYPE_CHIPS = ["All", ...BASE_LABELS];
 // Filter-dot colours (the circular type points above the index).
 const DOT_COLORS: Record<string, string> = {
   All: "#7ecfca", Creature: "#a1584a", Weapon: "#a08a4f", Equipment: "#689a96",
   Cipher: "#837aae", Genus: "#6f9a68", Species: "#b08040", Paradigm: "#4e7fa5",
-  Background: "#9a6f86", "Roll Formula": "#7c91bb", Lore: "#a7aebd",
+  Background: "#9a6f86", Condition: "#a2705c", "Roll Formula": "#7c91bb", Lore: "#a7aebd",
 };
 
 function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
@@ -791,6 +792,7 @@ export function CodexBrowser({
         const e = parseCodexEntry(md, p);
         if (e) map.set(p, e.type);
         else if (parseRollFormulaPage(md, p)) map.set(p, "roll formula");
+        else if (parseConditionPage(md, p)) map.set(p, "condition");
         links.set(p, extractLinks(md, p));
       } catch {
         /* unreadable page */

@@ -28,6 +28,7 @@ const SEMANTIC_KINDS: Record<string, IdKind> = {
   species: "species",
   paradigm: "paradigm",
   background: "background",
+  condition: "condition",
   formula: "formula",
   "roll formula": "formula",
 };

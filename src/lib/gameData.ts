@@ -38,6 +38,7 @@ import {
   setCodexRollFormulas,
   type CodexRollFormula,
 } from "../game/rollFormula";
+import { parseConditionPage, setCodexConditions, type CodexCondition } from "../game/conditions";
 
 /**
  * Is this page a campaign's own rule, or a mirror of an official one?
@@ -117,6 +118,19 @@ const ABILITY_BULLET = /^\s*[-*]\s*\*\*([^*]+)\*\*\s*[—–:-]\s*(.+)$/;
  *  variant (the Annunaki head shapes). Anchored on the bold ability name, so a
  *  label or an effect containing a dash cannot split it in the wrong place. */
 const OPTION_BULLET = /^\s*[-*]\s*Option:\s*(.+?)\s*[—–-]\s*\*\*([^*]+)\*\*\s*[—–:-]\s*(.+)$/i;
+/** An INDENTED bullet — one declared step belonging to the ability bullet above
+ *  it (`  - Cost: 6 SS`). A species page lists every innate and every variant
+ *  ability, so a shared `## Actions` heading could not say whose step it was;
+ *  indentation can. Tested only after the ability and option shapes, so a
+ *  nested bold bullet is still read as an ability rather than swallowed. */
+const NESTED_BULLET = /^[ \t]+[-*]\s+\S/;
+
+/** Collect declared-step bullets onto the ability they sit under. Stored
+ *  trimmed — exactly what parseAbilityEffects reads and what the page generator
+ *  writes back, so the block survives a fork unchanged. */
+function addStep(ability: SpeciesVariantAbility, line: string): void {
+  ability.actions = (ability.actions ? ability.actions + "\n" : "") + line.trim();
+}
 
 /** `### Variant` blocks under a `## Variants` heading; `- **Ability** — effect`
  *  bullets, plus `- Option: …` creation-time choices. */
@@ -126,12 +140,16 @@ function parseVariants(source: string): SpeciesVariant[] {
   if (!sec) return [];
   const out: SpeciesVariant[] = [];
   let cur: SpeciesVariant | null = null;
+  // The ability a nested step bullet belongs to. Cleared by anything that is not
+  // one, so a step can never attach itself across a note or a heading.
+  let last: SpeciesVariantAbility | null = null;
   for (const line of sec.split("\n")) {
     if (/^#{1,2}\s/.test(line)) break; // next top-level section
     const h = line.match(/^#{3,4}\s+(.+)$/);
     if (h) {
       cur = { name: strip(h[1]), abilities: [] };
       out.push(cur);
+      last = null;
       continue;
     }
     // Checked BEFORE the plain ability bullet, because an option line also
@@ -139,18 +157,26 @@ function parseVariants(source: string): SpeciesVariant[] {
     // branch and a creation-time choice was silently flattened into prose.
     const opt = line.match(OPTION_BULLET);
     if (opt && cur) {
-      (cur.options ??= []).push({
-        label: strip(opt[1]),
-        ability: { name: opt[2].trim(), effect: strip(opt[3]) },
-      });
+      const ability: SpeciesVariantAbility = { name: opt[2].trim(), effect: strip(opt[3]) };
+      (cur.options ??= []).push({ label: strip(opt[1]), ability });
+      last = ability;
       continue;
     }
     const ab = line.match(ABILITY_BULLET);
     if (ab && cur) {
-      cur.abilities.push({ name: ab[1].trim(), effect: strip(ab[2]) });
+      const ability: SpeciesVariantAbility = { name: ab[1].trim(), effect: strip(ab[2]) };
+      cur.abilities.push(ability);
+      last = ability;
       continue;
     }
-    if (cur && line.trim() && !line.startsWith("|")) cur.note = ((cur.note || "") + " " + line.trim()).trim();
+    if (last && NESTED_BULLET.test(line)) {
+      addStep(last, line);
+      continue;
+    }
+    if (cur && line.trim() && !line.startsWith("|")) {
+      cur.note = ((cur.note || "") + " " + line.trim()).trim();
+      last = null;
+    }
   }
   return out.filter((v) => v.name);
 }
@@ -165,17 +191,27 @@ function parseInnateAbilities(source: string): SpeciesVariantAbility[] {
   const sec = md.split(/^#{2,3}\s+Innate(?:\s+Abilities)?\s*$/im)[1];
   if (!sec) return [];
   const out: SpeciesVariantAbility[] = [];
+  let last: SpeciesVariantAbility | null = null;
   for (const line of sec.split("\n")) {
     if (/^#{1,3}\s/.test(line)) break; // next section, `### Variants` included
     const ab = line.match(ABILITY_BULLET);
-    if (ab) out.push({ name: ab[1].trim(), effect: strip(ab[2]) });
+    if (ab) {
+      last = { name: ab[1].trim(), effect: strip(ab[2]) };
+      out.push(last);
+      continue;
+    }
+    if (last && NESTED_BULLET.test(line)) {
+      addStep(last, line);
+      continue;
+    }
+    if (line.trim()) last = null;
   }
   return out;
 }
 
 /** Everything under a `## <Name>` heading, up to the next one. */
 function section(md: string, name: string): string {
-  const re = new RegExp(String.raw`^#{2,3}\s+${name}\s*$`, "im");
+  const re = new RegExp(String.raw`^#{2,4}\s+${name}\s*$`, "im");
   const at = md.split(re)[1];
   if (at === undefined) return "";
   return at.split(/^#{1,3}\s/m)[0];
@@ -201,6 +237,9 @@ export function parseInceptPage(md: string, stem: string): { speciesId: string; 
   const plain = codexPlainSource(md);
   const { grants } = parseInceptGrants(section(plain, "Grants"));
   const effect = section(plain, "Effect").trim() || f["effect"] || "";
+  // Raw, and undefined when the section is absent OR empty: an Incept that
+  // declares nothing must be indistinguishable from one that never had a block.
+  const actions = section(plain, "Actions").trim() || undefined;
   return {
     speciesId,
     incept: {
@@ -209,6 +248,7 @@ export function parseInceptPage(md: string, stem: string): { speciesId: string; 
       memory: f["memory"] || undefined,
       effect,
       grants: grants.length ? grants : undefined,
+      actions,
     },
   };
 }
@@ -439,6 +479,7 @@ export async function loadCodexGameData(): Promise<void> {
     // across, and deleting the last campaign page left its edits in force until
     // a restart. Registering empty data restores the baked base.
     setCodexRollFormulas([]);
+    setCodexConditions([]);
     registerCodexGameData({});
     setCodexCatalog([], []);
     setCodexRuntimeEntries([]);
@@ -463,6 +504,7 @@ export async function loadCodexGameData(): Promise<void> {
   const incepts = nullRecord<Incept[]>();
   const runtimeEntries: CodexEntry[] = [];
   const rollFormulas: { formula: CodexRollFormula; campaign: boolean }[] = [];
+  const conditions: { condition: CodexCondition; campaign: boolean }[] = [];
 
   for (let sourceOrder = 0; sourceOrder < sourcePages.length; sourceOrder++) {
     const source = sourcePages[sourceOrder];
@@ -483,6 +525,27 @@ export async function loadCodexGameData(): Promise<void> {
         });
       } else {
         skipped.push({ stem: name, reason: `invalid Roll Formula: ${rollFormula.errors.join(" ")}`, semantic: true });
+      }
+      continue;
+    }
+    const condition = parseConditionPage(md, name);
+    if (condition) {
+      if (condition.ok) {
+        conditions.push({
+          condition: {
+            ...condition.condition,
+            id: source.id,
+            scope: source.source === "campaign" ? "campaign" : "wte",
+          },
+          campaign: source.source === "campaign",
+        });
+      } else {
+        // Reported, never guessed — but not fatal the way an invalid Roll
+        // Formula is. A formula is arithmetic every roll runs through, so a bad
+        // one has to stop the load; a condition is a lookup, and one unreadable
+        // condition page must not blank the species, cipher and gear catalogs
+        // beside it. The tag simply stays undefined until the page is fixed.
+        skipped.push({ stem: name, reason: `invalid Condition: ${condition.errors.join(" ")}`, semantic: true });
       }
       continue;
     }
@@ -528,6 +591,7 @@ export async function loadCodexGameData(): Promise<void> {
       (genus[domain] ??= []).push({
         name: entry.name, ss: entry.ss ?? null, effect: entry.effect,
         activation: entry.activation, range: entry.range, target: entry.target,
+        actions: entry.actions,
       });
       // The same page, told to the Codex as a page rather than as mechanics.
       // Visibility takes the most restrictive of what the page says and what the
@@ -548,6 +612,7 @@ export async function loadCodexGameData(): Promise<void> {
           effect: entry.effect ?? null,
           limit: entry.limit ?? null,
           classification: entry.classification ?? null,
+          actions: entry.actions ?? null,
         },
       };
       // A page is a campaign rule only when it SAYS so — by declaring what it
@@ -594,6 +659,10 @@ export async function loadCodexGameData(): Promise<void> {
           tier: entry.tier || official?.tier || "offline",
           type: entry.activation ?? official?.type,
           effect,
+          // Inherits like every other row: a fork that deletes the `## Actions`
+          // section keeps playing by the official declaration rather than
+          // silently reverting the ability to prose-only.
+          actions: entry.actions ?? official?.actions,
         });
       }
     }
@@ -650,6 +719,14 @@ export async function loadCodexGameData(): Promise<void> {
     return aKey < bKey ? -1 : aKey > bKey ? 1 : 0;
   });
   setCodexRollFormulas(rollFormulas.map((entry) => entry.formula));
+  // Same layering as the formulas: official definitions establish the baseline
+  // and campaign definitions are registered last, so a fork of "Slowed" wins the
+  // name it shadows. Ties inside one layer resolve by stable id.
+  conditions.sort((a, b) => {
+    const layer = Number(a.campaign) - Number(b.campaign);
+    return layer || (a.condition.id < b.condition.id ? -1 : a.condition.id > b.condition.id ? 1 : 0);
+  });
+  setCodexConditions(conditions.map((entry) => entry.condition));
   setCodexCatalog(weapons, gear);
   setCodexRuntimeEntries(runtimeEntries);
 

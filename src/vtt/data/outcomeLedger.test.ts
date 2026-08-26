@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it } from "vitest";
 import cipherData from "../../game/data/ciphers.json";
 import genusData from "../../game/data/genus.json";
@@ -79,6 +80,23 @@ describe("what an ability costs its target", () => {
     // would charge them for being attacked.
     expect(PSYCHIC_SCREAM).toMatch(/1d4/);
     expect(consequencesFor(PSYCHIC_SCREAM).some((c) => c.expr === "1d4")).toBe(false);
+  });
+
+  it("ignores a condition word used as ordinary description", () => {
+    // The Stygian innate Locked in Time says a target's "Action Priority is
+    // suppressed" — prose about a stat, not the Suppressed condition. A
+    // case-blind scanner gave it a real chip.
+    const innate = JSON.parse(
+      readFileSync(new URL("../../game/data/speciesInnate.json", import.meta.url), "utf8")
+    ) as Record<string, { name: string; effect: string }[]>;
+    const locked = Object.values(innate).flat().find((a) => a.name === "Locked in Time");
+    expect(locked?.effect).toMatch(/is suppressed/);
+    expect(consequencesFor(locked!.effect).some((c) => c.condition === "Suppressed")).toBe(false);
+    // The capitalised form is still read.
+    expect(consequencesFor("The target is Suppressed for 2 rounds.")[0]).toMatchObject({
+      condition: "Suppressed",
+      rounds: 2,
+    });
   });
 
   it("reads restorative dice as healing rather than damage", () => {

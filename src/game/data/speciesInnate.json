@@ -79,7 +79,8 @@
     {
       "name": "Unravel Spacia",
       "id": "wte.innate.oriyu-unravel-spacia",
-      "effect": "Active · Range/Area: Self (horizon) · Duration: 1 round · Damage: 3d10 Force on collapse · Automatic. Loosen the metric of space around yourself, projecting a Ves-lymn (Metric Horizon) of extreme spatial expansion: local Volume tends toward infinity, the Density of any energy within falls to zero, and all energy-based damage within the horizon is completely nullified. The Law of Origin: energy must always exist within physical space — when the effect resolves, the Enigma vacuum collapses the void: everything adjacent to the horizon (you included) takes the listed collapse damage. The collapse deals its listed damage only — it never deletes creatures or their gear; unattended objects inside may be lost."
+      "effect": "Active · Range/Area: Self (horizon) · Duration: 1 round · Damage: 3d10 Force on collapse · Automatic. Loosen the metric of space around yourself, projecting a Ves-lymn (Metric Horizon) of extreme spatial expansion: local Volume tends toward infinity, the Density of any energy within falls to zero, and all energy-based damage within the horizon is completely nullified. The Law of Origin: energy must always exist within physical space — when the effect resolves, the Enigma vacuum collapses the void: everything adjacent to the horizon (you included) takes the listed collapse damage. The collapse deals its listed damage only — it never deletes creatures or their gear; unattended objects inside may be lost.",
+      "actions": "- Damage: 3d10 Force\n- Damage (self): 3d10 Force\n- Ruling: everything adjacent to the horizon takes the collapse damage, the user included; it never deletes creatures or their gear, though unattended objects inside may be lost"
     },
     {
       "name": "Dyn Formn",
@@ -140,7 +141,8 @@
     {
       "name": "Enhanced Regeneration",
       "id": "wte.innate.inderi-enhanced-regeneration",
-      "effect": "Passive (Self) · Duration: Clock · Automatic. Accelerated healing well beyond other species: regenerate significant damage over short rests (1d10 HP per short rest; one Wound may close per full rest without treatment)."
+      "effect": "Passive (Self) · Duration: Clock · Automatic. Accelerated healing well beyond other species: regenerate significant damage over short rests (1d10 HP per short rest; one Wound may close per full rest without treatment).",
+      "actions": "- Heal (self): 1d10\n- Ruling: per short rest; one Wound may also close per full rest without treatment"
     },
     {
       "name": "Perfect Reflex Calibration",
@@ -157,12 +159,14 @@
     {
       "name": "Thi Voth",
       "id": "wte.innate.seraph-thi-voth",
-      "effect": "Type: Bonus Action · Target: Personal Medium · Duration: Scene / until dismissed · Resolution: Automatic · Limit: one awakened Medium at a time. Awaken the Medium and establish a sustained connection to the Voice. While awakened, the Medium becomes the origin point for your Vibras and retains its 5-ft Voice Reach. The first creature other than you to make direct contact with the Medium each round takes 1d40 Spirit damage."
+      "effect": "Type: Bonus Action · Target: Personal Medium · Duration: Scene / until dismissed · Resolution: Automatic · Limit: one awakened Medium at a time. Awaken the Medium and establish a sustained connection to the Voice. While awakened, the Medium becomes the origin point for your Vibras and retains its 5-ft Voice Reach. The first creature other than you to make direct contact with the Medium each round takes 1d40 Spirit damage.",
+      "actions": "- Damage: 1d40 Spirit\n- Ruling: only the first creature other than you to make direct contact with the Medium each round takes it"
     },
     {
       "name": "Thi Vothu",
       "id": "wte.innate.seraph-thi-vothu",
-      "effect": "Type: Bonus Action · Origin: Medium · Area: Voice Reach · Duration: 1 round · Resolution: Mental Check — Influence vs Mental Save — Perception · Limit: once per round. Release a destabilizing Tone through the Medium, causing nearby matter and sensory information to vibrate. On a failed Save, the target experiences intrusive Vibra hallucinations and has Disadvantage on its next Density Check governed by Action Priority before the beginning of your next turn. Creatures without a sensory mechanism capable of experiencing the Vibra are unaffected."
+      "effect": "Type: Bonus Action · Origin: Medium · Area: Voice Reach · Duration: 1 round · Resolution: Mental Check — Influence vs Mental Save — Perception · Limit: once per round. Release a destabilizing Tone through the Medium, causing nearby matter and sensory information to vibrate. On a failed Save, the target experiences intrusive Vibra hallucinations and has Disadvantage on its next Density Check governed by Action Priority before the beginning of your next turn. Creatures without a sensory mechanism capable of experiencing the Vibra are unaffected.",
+      "actions": "- Roll: Mental Check — Influence\n- Save: Mental Save — Perception\n- Fail: Modify (target): Disadvantage on Physical Check — Density, 1 round\n- Ruling: on a failed Save the target also experiences intrusive Vibra hallucinations; creatures without a sensory mechanism capable of experiencing the Vibra are unaffected"
     },
     {
       "name": "Rapture",

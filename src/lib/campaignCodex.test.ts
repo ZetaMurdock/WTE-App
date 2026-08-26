@@ -474,4 +474,74 @@ describe("room snapshot game-data compilation", () => {
     // Fields the fork restated identically still read as the official values.
     expect(resolved[0].effect).toBe(ability.effect);
   });
+
+  // A table's own steps have four hops to survive — parseCodexEntry, the
+  // GenusPage the compile step builds, the override layer, and the adapter the
+  // sheet and VTT both read. Each was addable on its own and provable only
+  // here: the campaign page is where a Curator's declaration actually starts.
+  it("carries a campaign Genus page's declared steps all the way to the sheet row", async () => {
+    const ability = getGenusDomain("Eldritch")!.abilities.find((candidate) => candidate.id && !candidate.actions)!;
+    const baked = findBakedCodexPage({ id: ability.id! })!;
+    const fork = customizePageForCampaign({
+      content: baked.content,
+      stem: baked.stem,
+      campaignId: CAMPAIGN_ID,
+      officialId: baked.id,
+    });
+    const block = "- Cost: 4 SS\n- Save: Physical Save — Evasion, DV 15\n- Fail: Condition: Slowed, 1 round";
+    const pages = [
+      page({
+        id: fork.id,
+        stem: baked.stem,
+        title: ability.name,
+        kind: "genus",
+        source: "campaign",
+        ownerId: CAMPAIGN_ID,
+        pulled: true,
+        content: `${fork.content.trimEnd()}\n\n## Actions\n\n${block}\n`,
+      }),
+    ];
+    installRoomCodex(parseCampaignCodexSnapshot(snapshot({ pages }), CAMPAIGN_ID)!);
+
+    await loadCodexGameData();
+
+    const resolved = usableGenusResolved([ability.name], codexCtx(CAMPAIGN_ID), {}, []);
+    expect(resolved[0].actions).toBe(block);
+    // The block is an ADDITION, not a rewrite: the prose the fork left alone is
+    // still the official rule text.
+    expect(resolved[0].effect).toBe(ability.effect);
+  });
+
+  it("keeps the official declared steps when a fork deletes the Actions section", async () => {
+    const official = bakedCiphers()["science"].find((cipher) => cipher.name === "SPECTRCO")!;
+    expect(official.actions, "SPECTRCO is the seeded example this test is about").toBeTruthy();
+    const baked = findBakedCodexPage({ id: official.id! })!;
+    const fork = customizePageForCampaign({
+      content: baked.content,
+      stem: baked.stem,
+      campaignId: CAMPAIGN_ID,
+      officialId: baked.id,
+    });
+    const pages = [
+      page({
+        id: fork.id,
+        stem: baked.stem,
+        title: official.name,
+        kind: "cipher",
+        source: "campaign",
+        ownerId: CAMPAIGN_ID,
+        pulled: true,
+        content: fork.content.replace(/\n## Actions[\s\S]*$/, "\n"),
+      }),
+    ];
+    installRoomCodex(parseCampaignCodexSnapshot(snapshot({ pages }), CAMPAIGN_ID)!);
+
+    await loadCodexGameData();
+
+    // Deleting a row means "keep inheriting", the same contract every other row
+    // on the page carries. Reverting the ability to prose-only instead would be
+    // a rules change nobody asked for.
+    expect(ciphersForParadigm("science").find((c) => c.name === "SPECTRCO")!.actions).toBe(official.actions);
+    expect(usableCiphers("science", ["SPECTRCO"])[0].actions).toBe(official.actions);
+  });
 });

@@ -183,6 +183,13 @@ EFFECT — The target's biology rapidly adapts to current environmental conditio
 
 EFFECT — Target expresses two distinct evolutionary adaptations at once for 2 rounds — gaining benefits from both at 60% efficacy of each. After 2 rounds, the body collapses back to its dominant path, and the target makes a Physical Save — Recovery (DV 13) or takes 1d8 damage from the cellular strain.
 
+#### Actions
+
+- Cost: 55 SS
+- Save: Physical Save — Recovery, DV 13
+- Fail: Damage: 1d8
+- Ruling: the target expresses two adaptations at once for 2 rounds at 60% efficacy of each; the Save is made when the body collapses back to its dominant path
+
 ### Genetic Lock
 
 | Field | Value |

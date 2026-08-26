@@ -214,6 +214,15 @@ The inquisitor generates light from deep within and emits it all at once inside 
 
 **LIMIT:** Twice per encounter
 
+#### Actions
+
+- Cost: 5 SS
+- Save: Mental Save — Perception, DV d40
+- Fail: Damage: 1d10 Radiant
+- Fail: Modify (target): Disadvantage on Mental Save — Perception, 2 rounds
+- Fail: Modify (target): Disadvantage on Physical Check — Density, 2 rounds
+- Ruling: the Radiant damage is multiplied by the user's rank modifier
+
 ### Animate Object
 
 | Field | Value |

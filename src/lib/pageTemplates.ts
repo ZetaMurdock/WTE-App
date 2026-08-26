@@ -6,8 +6,9 @@
 import { parseCodexEntry } from "./codexParse";
 import { parseBackgroundPage, parseParadigmPage, parseSpeciesPage } from "./gameData";
 import { parseRollFormulaPage } from "../game/rollFormula";
+import { parseConditionPage } from "../game/conditions";
 
-export const TEMPLATE_LABELS = ["Creature", "Weapon", "Equipment", "Cipher", "Genus", "Species", "Paradigm", "Background", "Roll Formula"] as const;
+export const TEMPLATE_LABELS = ["Creature", "Weapon", "Equipment", "Cipher", "Genus", "Species", "Paradigm", "Background", "Condition", "Roll Formula"] as const;
 export type TemplateLabel = (typeof TEMPLATE_LABELS)[number];
 
 export const PAGE_TEMPLATES: Record<TemplateLabel, string> = {
@@ -130,6 +131,35 @@ What this creature is and where it's found.
 
 Note: One line on who takes this background.
 `,
+  Condition: `# New Condition
+
+| Type | Condition |
+| ID |  |
+| Stacking | refresh |
+| Aliases |  |
+| Overrides |  |
+| Visibility | player |
+
+## Effect
+What the condition does to a creature that has it.
+
+<!--
+Stacking is the rule for a SECOND application of the same condition, and it is
+required — the app will not guess it:
+  refresh  one instance; the longer of the two durations wins.
+  extend   one instance; the durations add together.
+  stack    instances count separately.
+  highest  one instance; the stronger application wins outright.
+ID — leave blank for a new condition of your own; the page derives one from its
+  name. Fill it in (for example wte.condition.slowed) only to re-declare a
+  condition that already has a permanent id.
+Overrides — put an official id here to REPLACE that rule at your table, or
+  "none" to guarantee this is never mistaken for the official condition that
+  happens to share its name.
+Aliases — former names, comma separated, so a token tagged with the old name
+  still resolves after a rename.
+-->
+`,
   "Roll Formula": `# Attribute Check Formula
 
 | Type | Roll Formula |
@@ -161,6 +191,12 @@ it blank (or use all) to affect both.
 
 /** What a draft page will become when pulled. Runs the REAL parsers. */
 export function parsePreview(md: string, stem = "draft"): string {
+  const condition = parseConditionPage(md, stem);
+  if (condition) {
+    if (!condition.ok) return `Invalid Condition — ${condition.errors.join(" ")}`;
+    const aliases = condition.condition.aliases.length ? ` · also ${condition.condition.aliases.join(", ")}` : "";
+    return `Condition — ${condition.condition.name} · stacking: ${condition.condition.stacking}${aliases}`;
+  }
   const formula = parseRollFormulaPage(md, stem);
   if (formula) {
     if (!formula.ok) return `Invalid Roll Formula — ${formula.errors.join(" ")}`;

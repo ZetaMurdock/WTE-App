@@ -28,7 +28,26 @@ vi.mock("./data/characterAbilities", () => ({
         meta: { targets: 1, range: null, area: null, pattern: null, duration: null, attach: "target", values: [] },
       },
     ],
-    cipher: [],
+    cipher: [
+      {
+        // The declared half of the panel: this page says what it does in an
+        // `## Actions` block, and its prose says something different on purpose
+        // so a renderer that read both would be caught red-handed.
+        id: "cipher-1",
+        name: "Cryo Lock",
+        source: "cipher",
+        effect: "The target makes a Physical Save — Recovery (DV 15) or takes 2d8 Cold damage.",
+        actions: [
+          "- Cost: 6 SS",
+          "- Save: Physical Save — Recovery, DV 18",
+          "- Fail: Damage: 3d10 Cold, half on success",
+          "- Fail: Condition: Slowed, 2 rounds",
+          "- Ruling: brittle objects shatter — Curator adjudicates",
+        ].join("\n"),
+        ss: 6,
+        meta: { targets: 1, range: null, area: null, pattern: null, duration: null, attach: "target", values: [] },
+      },
+    ],
     racial: [
       {
         id: "racial-1",
@@ -181,5 +200,42 @@ describe("target roll chips", () => {
     expect(strength?.title).toContain("1d10-12");
     await act(async () => strength!.click());
     expect(arm).toHaveBeenCalledWith("STR check", "1d10-12");
+  });
+});
+
+describe("an ability that declares its steps", () => {
+  const row = () =>
+    [...host.querySelectorAll<HTMLLIElement>("li.vtt2-abil-row")].find((li) =>
+      li.querySelector(".vtt2-abil-name")?.textContent?.includes("Cryo Lock")
+    )!;
+
+  it("arms the declared damage instead of the damage its prose names", async () => {
+    // 3d10 Cold is declared; 2d8 Cold is what the prose says. Arming both would
+    // hand the table one effect as two buttons.
+    const arm = vi.fn();
+    await mount(undefined, arm);
+    const chips = [...row().querySelectorAll<HTMLButtonElement>(".vtt2-abil-btns .chip")];
+    expect(chips.map((c) => c.textContent)).toEqual(["On fail · 3d10 Cold"]);
+
+    await act(async () => chips[0].click());
+    expect(arm).toHaveBeenCalledWith("Cryo Lock — On fail · 3d10 Cold", "3d10");
+  });
+
+  it("keys the target save off the declared DV, not the printed one", async () => {
+    const request = vi.fn();
+    await mount(request);
+    const chip = row().querySelector<HTMLButtonElement>(".vtt2-abil-savechip")!;
+    await act(async () => chip.click());
+    // The attacker-keyed DV still wins over the page's number, exactly as it
+    // does for a prose-parsed save — one keying path, not two.
+    expect(request).toHaveBeenCalledWith(
+      expect.objectContaining({ abilityId: "cipher-1", rollAxis: { path: "recovery", direction: "save" }, dc: 26 })
+    );
+  });
+
+  it("shows the cost, the condition and the ruling it declared", async () => {
+    await mount();
+    const steps = [...row().querySelectorAll(".vtt2-abil-stepchip")].map((el) => el.textContent);
+    expect(steps).toEqual(["6 SS", "On fail · Slowed · 2 rounds", "Curator rules"]);
   });
 });

@@ -46,7 +46,8 @@
    "ss": 55,
    "tier": "offline",
    "type": "Standard Action",
-   "effect": "Rank: Scientist · Component: Inanimate Object. ACTIVE MODIFICATION — Emits low-frequency energy waves across the object's surface, producing a faint, rhythmic luminescent glow that intensifies in synchronization with nearby powered or energetic sources. EFFECT — Upon activation, triggers a light inversion field around anything in direct contact with the host object — brightness becomes shadow, shadow becomes radiant contrast. The object absorbs this inverted light, converting it into a reservoir of condensed electromagnetic energy. Once threshold capacity is reached, the Cipher releases the stored energy as a high-intensity beam of focused electromagnetic waves — a precision discharge or cutting emission dealing 2d10 Radiant. Affected creatures make a Physical Save — Evasion for half damage; against unattended structures it cuts as demolition. CHARGE: threshold capacity ≈ three rounds of absorbed light; unspent charge bleeds off harmlessly at scene's end."
+   "effect": "Rank: Scientist · Component: Inanimate Object. ACTIVE MODIFICATION — Emits low-frequency energy waves across the object's surface, producing a faint, rhythmic luminescent glow that intensifies in synchronization with nearby powered or energetic sources. EFFECT — Upon activation, triggers a light inversion field around anything in direct contact with the host object — brightness becomes shadow, shadow becomes radiant contrast. The object absorbs this inverted light, converting it into a reservoir of condensed electromagnetic energy. Once threshold capacity is reached, the Cipher releases the stored energy as a high-intensity beam of focused electromagnetic waves — a precision discharge or cutting emission dealing 2d10 Radiant. Affected creatures make a Physical Save — Evasion for half damage; against unattended structures it cuts as demolition. CHARGE: threshold capacity ≈ three rounds of absorbed light; unspent charge bleeds off harmlessly at scene's end.",
+   "actions": "- Cost: 55 SS\n- Save: Physical Save — Evasion\n- Damage: 2d10 Radiant, half on success\n- Ruling: threshold capacity is roughly three rounds of absorbed light and unspent charge bleeds off harmlessly at the end of the scene; against unattended structures the beam cuts as demolition"
   },
   {
    "name": "BF-C",
@@ -166,7 +167,8 @@
    "ss": 80,
    "tier": "special",
    "type": "Standard Action",
-   "effect": "Rank: Distinguished Scientist · Component: Ambient thermal energy. EFFECT — Drops temperature within a 30-ft radius to absolute zero over 2 rounds. All molecular motion ceases — objects become structurally perfect but completely brittle; living creatures make a Physical Save — Recovery (DV 18) each round or take 3d10 cold damage and lose 1 Action. Sustained up to 3 rounds. Releasing stored thermal energy detonates it — 5d10 fire damage in the same radius; affected creatures make a Physical Save — Evasion for half damage. Special Ciphers are never Online-logged. KEYWORD — DEEP FREEZE: the cold incapacitates rather than executes — a creature dropped to 0 HP inside the field is frozen unconscious and stable until thawed."
+   "effect": "Rank: Distinguished Scientist · Component: Ambient thermal energy. EFFECT — Drops temperature within a 30-ft radius to absolute zero over 2 rounds. All molecular motion ceases — objects become structurally perfect but completely brittle; living creatures make a Physical Save — Recovery (DV 18) each round or take 3d10 cold damage and lose 1 Action. Sustained up to 3 rounds. Releasing stored thermal energy detonates it — 5d10 fire damage in the same radius; affected creatures make a Physical Save — Evasion for half damage. Special Ciphers are never Online-logged. KEYWORD — DEEP FREEZE: the cold incapacitates rather than executes — a creature dropped to 0 HP inside the field is frozen unconscious and stable until thawed.",
+   "actions": "- Cost: 80 SS\n- Save: Physical Save — Recovery, DV 18\n- Fail: Damage: 3d10 Cold\n- Fail: Ruling: the creature also loses 1 Action; the Save repeats each round the field is sustained, up to 3 rounds\n- Save: Physical Save — Evasion\n- Damage: 5d10 Fire, half on success\n- Ruling: the detonation resolves only when the stored thermal energy is released; DEEP FREEZE — a creature dropped to 0 HP inside the field is frozen unconscious and stable until thawed"
   },
   {
    "name": "S2 — GENESIS FORMULA",
@@ -288,7 +290,8 @@
    "ss": 76,
    "tier": "online",
    "type": "Prepared Action",
-   "effect": "Rank: Simulation Agent · Component: Inanimate Object. ACTIVE MODIFICATION — When placed onto an object, the object begins to simulate a focused wavelength that rises straight into the sky, forming an invisible channel between the object and an orbital relay or satellite keyed to this Cipher's signature. Faint distortion, static shimmer, or a soft hum marks the presence of this link. EFFECT — When activated, the satellite connection allows the user to project targeted waves down onto the battlefield, damaging animate subjects within 100 feet by focusing the pulse through their position as a ground anchor (Standard Action per use; 2d8 per pulse; Physical Save — Recovery for half). Through the same link, the user can also transmit their voice across great distances or broadcast it widely. When projecting their presence with intent, those noticeably weaker than the user may feel a pressure like increased gravity pushing them toward the ground — those of comparable strength or strong will can resist this oppressive sensation over time. RESOLUTION: the hum is audible and the object traceable — severing, unkeying, or shielding beneath cover breaks the uplink."
+   "effect": "Rank: Simulation Agent · Component: Inanimate Object. ACTIVE MODIFICATION — When placed onto an object, the object begins to simulate a focused wavelength that rises straight into the sky, forming an invisible channel between the object and an orbital relay or satellite keyed to this Cipher's signature. Faint distortion, static shimmer, or a soft hum marks the presence of this link. EFFECT — When activated, the satellite connection allows the user to project targeted waves down onto the battlefield, damaging animate subjects within 100 feet by focusing the pulse through their position as a ground anchor (Standard Action per use; 2d8 per pulse; Physical Save — Recovery for half). Through the same link, the user can also transmit their voice across great distances or broadcast it widely. When projecting their presence with intent, those noticeably weaker than the user may feel a pressure like increased gravity pushing them toward the ground — those of comparable strength or strong will can resist this oppressive sensation over time. RESOLUTION: the hum is audible and the object traceable — severing, unkeying, or shielding beneath cover breaks the uplink.",
+   "actions": "- Cost: 76 SS\n- Save: Physical Save — Recovery\n- Damage: 2d8, half on success\n- Ruling: a Standard Action per pulse, against animate subjects within 100 feet; the hum is audible and the object traceable — severing, unkeying, or shielding beneath cover breaks the uplink"
   },
   {
    "name": "OVERLAY",
@@ -498,7 +501,8 @@
    "ss": 40,
    "tier": "online",
    "type": "Bonus Action",
-   "effect": "Rank: Wanderer · Component: Inanimate object. EFFECT — Projects up to 4 independent Phase echoes at separate locations within 30 ft — each a convincing duplicate of the Inquisitor. Echoes persist for 2 rounds. Attackers make a Mental Save — Perception (DV 13) to identify the real Inquisitor. Online: echoes receive live data from Paradigm positioning satellites, allowing them to mimic predictive behavior rather than simply standing idle."
+   "effect": "Rank: Wanderer · Component: Inanimate object. EFFECT — Projects up to 4 independent Phase echoes at separate locations within 30 ft — each a convincing duplicate of the Inquisitor. Echoes persist for 2 rounds. Attackers make a Mental Save — Perception (DV 13) to identify the real Inquisitor. Online: echoes receive live data from Paradigm positioning satellites, allowing them to mimic predictive behavior rather than simply standing idle.",
+   "actions": "- Cost: 40 SS\n- Save (enemies): Mental Save — Perception, DV 13\n- Ruling: up to 4 echoes persist for 2 rounds; an attacker who fails the Save cannot tell them from the Inquisitor"
   },
   {
    "name": "MEMORY LOCK",
@@ -724,7 +728,8 @@
    "ss": 50,
    "tier": "online",
    "type": "Standard Action",
-   "effect": "Rank: Auditor · Component: Animate (self). EFFECT — All creatures in a 35-ft radius make a Mental Save — Influence (DV 14 + Neuronal Capacity Modifier) or take 2d8 psychic damage and are Stunned for 1 round. On success: half damage, not Stunned. The Inquisitor takes 1d4 psychic backlash damage regardless. Allied Cognition Inquisitors can be designated immune with a Bonus Action setup."
+   "effect": "Rank: Auditor · Component: Animate (self). EFFECT — All creatures in a 35-ft radius make a Mental Save — Influence (DV 14 + Neuronal Capacity Modifier) or take 2d8 psychic damage and are Stunned for 1 round. On success: half damage, not Stunned. The Inquisitor takes 1d4 psychic backlash damage regardless. Allied Cognition Inquisitors can be designated immune with a Bonus Action setup.",
+   "actions": "- Cost: 50 SS\n- Save: Mental Save — Influence, DV 14 + Neuronal Capacity Modifier\n- Damage: 2d8 Psychic, half on success\n- Fail: Condition: Stunned, 1 round\n- Damage (self): 1d4 Psychic\n- Ruling: allied Cognition Inquisitors can be designated immune with a Bonus Action setup"
   },
   {
    "name": "DREAM STATE",
@@ -902,7 +907,8 @@
    "ss": 55,
    "tier": "online",
    "type": "Standard Action",
-   "effect": "Rank: Modificator · Component: Animate target. EFFECT — Target expresses two distinct evolutionary adaptations at once for 2 rounds — gaining benefits from both at 60% efficacy of each. After 2 rounds, the body collapses back to its dominant path, and the target makes a Physical Save — Recovery (DV 13) or takes 1d8 damage from the cellular strain."
+   "effect": "Rank: Modificator · Component: Animate target. EFFECT — Target expresses two distinct evolutionary adaptations at once for 2 rounds — gaining benefits from both at 60% efficacy of each. After 2 rounds, the body collapses back to its dominant path, and the target makes a Physical Save — Recovery (DV 13) or takes 1d8 damage from the cellular strain.",
+   "actions": "- Cost: 55 SS\n- Save: Physical Save — Recovery, DV 13\n- Fail: Damage: 1d8\n- Ruling: the target expresses two adaptations at once for 2 rounds at 60% efficacy of each; the Save is made when the body collapses back to its dominant path"
   },
   {
    "name": "GENETIC LOCK",
@@ -1064,7 +1070,8 @@
    "ss": 25,
    "tier": "offline",
    "type": "Prepared Action",
-   "effect": "Rank: Private · Component: Animate Subject. ACTIVE MODIFICATION — When applied to an animate subject, creates a binding behavioral protocol tethered to a specific instruction or prohibition issued by the Inquisitor. The protocol embeds into the subject's behavioral layer — not overriding will, but creating a hard rule that the subject's actions are evaluated against in real time. EFFECT — The bound subject cannot take a specified category of action (attack, retreat, speak, use Cipher, etc.) while the Law Bind is active. When the bind is established, the Inquisitor makes a Mental Check — Capacity and records the result. Whenever the subject attempts to violate the bind, compare that result against the subject's Influence Dice Value. If the Capacity result meets or exceeds the Influence DV, the action is suppressed and the subject is momentarily stunned as the bind reasserts. If the Influence DV exceeds the Capacity result, the action proceeds but the subject takes 1d8 psychic damage from the rupture. The bind lasts until dismissed, until the Inquisitor is incapacitated, or until the subject overcomes the bind three consecutive times. A bind can never prohibit breathing, feeding, or self-preservation — the behavioral layer refuses to hold such a law."
+   "effect": "Rank: Private · Component: Animate Subject. ACTIVE MODIFICATION — When applied to an animate subject, creates a binding behavioral protocol tethered to a specific instruction or prohibition issued by the Inquisitor. The protocol embeds into the subject's behavioral layer — not overriding will, but creating a hard rule that the subject's actions are evaluated against in real time. EFFECT — The bound subject cannot take a specified category of action (attack, retreat, speak, use Cipher, etc.) while the Law Bind is active. When the bind is established, the Inquisitor makes a Mental Check — Capacity and records the result. Whenever the subject attempts to violate the bind, compare that result against the subject's Influence Dice Value. If the Capacity result meets or exceeds the Influence DV, the action is suppressed and the subject is momentarily stunned as the bind reasserts. If the Influence DV exceeds the Capacity result, the action proceeds but the subject takes 1d8 psychic damage from the rupture. The bind lasts until dismissed, until the Inquisitor is incapacitated, or until the subject overcomes the bind three consecutive times. A bind can never prohibit breathing, feeding, or self-preservation — the behavioral layer refuses to hold such a law.",
+   "actions": "- Cost: 25 SS\n- Roll: Mental Check — Capacity\n- Fail: Damage: 1d8 Psychic\n- Ruling: the recorded Capacity result is compared against the subject's Influence Dice Value on every attempted violation — meeting or exceeding it suppresses the action and momentarily stuns the subject; a bind can never prohibit breathing, feeding, or self-preservation"
   },
   {
    "name": "HOLLOW SHELL",

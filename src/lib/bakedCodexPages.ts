@@ -73,8 +73,38 @@ function fieldTable(rows: Array<[string, unknown]>): string {
   return `| Field | Value |\n|---|---|\n${body}`;
 }
 
+/** A declared `## Actions` block as bullet lines, and nothing else.
+ *
+ *  Emit only what the parser reads back: prose, blank lines and a stray heading
+ *  inside the block would survive a fork and come back as parse errors on a
+ *  page nobody edited. An ability that declares nothing yields NO lines, which
+ *  is what keeps an empty section off every one of the 414 shipped abilities. */
+function actionLines(actions: string | null | undefined): string[] {
+  return String(actions ?? "")
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => /^[-*]\s*\S/.test(line));
+}
+
+/** The `## Actions` section for a page that has one — an empty array otherwise,
+ *  so `sections.push(...)` adds literally nothing. */
+function actionsSection(actions: string | null | undefined): string[] {
+  const lines = actionLines(actions);
+  return lines.length ? ["## Actions", lines.join("\n")] : [];
+}
+
+/** Steps ride INDENTED under their own ability bullet: one species page carries
+ *  every innate and every variant ability, and a shared heading could not say
+ *  which of them a step belonged to (parseInnateAbilities reads them back the
+ *  same way). */
 function abilityBullets(abilities: readonly SpeciesVariantAbility[]): string {
-  return abilities.map((a) => `- **${cell(a.name)}** — ${cell(a.effect) || "—"}`).join("\n");
+  return abilities
+    .map((a) => {
+      const bullet = `- **${cell(a.name)}** — ${cell(a.effect) || "—"}`;
+      return [bullet, ...actionLines(a.actions).map((line) => `  ${line}`)].join("\n");
+    })
+    .join("\n");
 }
 
 const PREAMBLE =
@@ -106,9 +136,17 @@ export function bakedSpeciesPageContent(species: Species): string {
   // Names come from the Species record, effects from the wiki export. Emitting
   // both together is the whole point: it is the only form in which a renamed or
   // invented innate can carry an effect.
+  //
+  // The block travels with the effect, not instead of it. Taking only `effect`
+  // here left a declared innate reaching the sheet through speciesInnate() but
+  // NOT reaching its own page — so a Curator who forked the Species page got a
+  // copy with the steps silently deleted.
   const baked = bakedSpeciesInnate(species.id);
-  const effects = new Map(baked.map((a) => [a.name.toLowerCase(), a.effect]));
-  const innate = species.innate.map((name) => ({ name, effect: effects.get(name.toLowerCase()) ?? "" }));
+  const authored = new Map(baked.map((a) => [a.name.toLowerCase(), a]));
+  const innate = species.innate.map((name) => {
+    const from = authored.get(name.toLowerCase());
+    return { name, effect: from?.effect ?? "", actions: from?.actions };
+  });
   if (innate.length) sections.push(`## Innate`, abilityBullets(innate));
 
   if (species.variants.length) {
@@ -119,7 +157,12 @@ export function bakedSpeciesPageContent(species: Species): string {
       const bullets = [
         abilityBullets(variant.abilities),
         (variant.options ?? [])
-          .map((o) => `- Option: ${cell(o.label)} — **${cell(o.ability.name)}** — ${cell(o.ability.effect) || "—"}`)
+          .map((o) =>
+            [
+              `- Option: ${cell(o.label)} — **${cell(o.ability.name)}** — ${cell(o.ability.effect) || "—"}`,
+              ...actionLines(o.ability.actions).map((line) => `  ${line}`),
+            ].join("\n")
+          )
           .join("\n"),
       ].filter(Boolean);
       if (bullets.length) sections.push(bullets.join("\n"));
@@ -147,6 +190,9 @@ export function bakedInceptPageContent(speciesId: string, incept: Incept): strin
   if (incept.grants?.length) {
     sections.push("## Grants", incept.grants.map((g) => `- ${grantLine(g)}`).join("\n"));
   }
+  // Beside Grants: both are declarations the engine executes, and a reader gets
+  // them together before the prose rather than split around it.
+  sections.push(...actionsSection(incept.actions));
   if (incept.effect) sections.push("## Effect", incept.effect.trim());
   return `${sections.join("\n\n")}\n`;
 }
@@ -225,6 +271,7 @@ export function bakedGenusPageContent(ability: GenusAbility, domain: string): st
   ];
   const effect = (ability.effect ?? "").trim();
   if (effect) sections.push("## Effect", effect);
+  sections.push(...actionsSection(ability.actions));
   return `${sections.join("\n\n")}\n`;
 }
 
@@ -250,6 +297,7 @@ export function bakedCipherPageContent(cipher: CipherAbility, paradigmId: string
   ];
   const body = (split ? split.body : cipher.effect ?? "").trim();
   if (body) sections.push("## Effect", body);
+  sections.push(...actionsSection(cipher.actions));
   return `${sections.join("\n\n")}\n`;
 }
 

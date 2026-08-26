@@ -6,6 +6,13 @@
 // every emitted phrase is recognised by parseAbilityActions — can be tested
 // without a DOM. The blocks are the same rows parseCodexEntry reads, so a page
 // edited here parses into the catalogs exactly as the blocks promised.
+//
+// A page may also DECLARE its steps in an `## Actions` block (abilityEffects.ts).
+// The model carries that section WHOLE and re-emits it verbatim in one fixed
+// position, after `## Effect`. It is deliberately not folded into the effect
+// prose: the scanner sweeps loose lines into the effect, so a model that did not
+// know the section would have merged the bullets into the rule text and the
+// first rebuild would have deleted the block the ability runs on.
 import { KNOWN_KEYS, parseCodexEntry } from "../../lib/codexParse";
 import { CIPHER_TIERS, GENUS_DOMAIN_NAMES, PARADIGMS } from "../../game/wte";
 import { ROLL_AXIS_PATHS, type RollAxisPath, type RollDirection } from "../../game/rollAxis";
@@ -25,7 +32,14 @@ export interface MechanicsModel {
   title: string;
   rows: MechanicsRow[];
   effect: string;
+  /** The `## Actions` block exactly as the page wrote it, or "" when the page
+   *  declares nothing. Untouched text: the grammar belongs to abilityEffects,
+   *  and a model that re-worded the bullets would be a second author. */
+  actions: string;
 }
+
+/** The one heading whose body is declared steps rather than prose. */
+const ACTIONS_HEADING = /^actions$/i;
 
 /** Identity rows shown read-only: editing these by hand breaks the link between
  *  a fork and the official rule it replaces, so the editor displays them and
@@ -37,11 +51,11 @@ const norm = (key: string): string => key.trim().replace(/\s+/g, " ").toLowerCas
 const ROW_RE = /^\s*\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|\s*$/;
 
 /** True when the raw lines are exactly what the scanner models: one title,
- *  two-cell table rows with unique keys, an optional `## Effect` heading, and
- *  prose the pre-parser will leave alone. Anything else — visual-doc trees,
- *  extra sections, bold/tab spec rows, three-cell rows, duplicate keys — would
- *  be silently destroyed or reinterpreted by the first rebuild, so such pages
- *  stay in the Design/Code editors that can hold them. */
+ *  two-cell table rows with unique keys, optional `## Effect` and `## Actions`
+ *  headings, and prose the pre-parser will leave alone. Anything else — visual-doc
+ *  trees, extra sections, bold/tab spec rows, three-cell rows, duplicate keys —
+ *  would be silently destroyed or reinterpreted by the first rebuild, so such
+ *  pages stay in the Design/Code editors that can hold them. */
 function scanIsFaithful(source: string): boolean {
   if (source.includes("<!--wte-doc")) return false; // Visual Engine owns the page
   let sawTitle = false;
@@ -53,7 +67,8 @@ function scanIsFaithful(source: string): boolean {
         sawTitle = true;
         continue;
       }
-      if (/^effect$/i.test(heading[2].trim())) continue;
+      const label = heading[2].trim();
+      if (/^effect$/i.test(label) || ACTIONS_HEADING.test(label)) continue;
       return false; // a ## Lore / ### Overclock section the rebuild would fold into Effect
     }
     const row = line.match(ROW_RE);
@@ -99,17 +114,32 @@ export function detectMechanicsKind(source: string): MechanicsKind | null {
 
 /** Take the page apart line by line. Table rows become blocks; the `## Effect`
  *  section and any loose prose (which parseCodexEntry would sweep into the
- *  effect anyway) become the effect text. */
+ *  effect anyway) become the effect text, and `## Actions` fills the declared
+ *  block. */
 export function scanMechanicsPage(source: string, kind: MechanicsKind): MechanicsModel {
   const lines = source.replace(/\r\n/g, "\n").split("\n");
   let title = "";
   const rows: MechanicsRow[] = [];
   const prose: string[] = [];
+  const declared: string[] = [];
+  // Where the lines that follow belong. Only `## Actions` diverts them; every
+  // other heading (there is at most `## Effect`) hands them back to the prose.
+  let body = prose;
   for (const line of lines) {
     const heading = line.match(/^#{1,4}\s+(.+)$/);
     if (heading) {
-      if (!title) title = heading[1].replace(/[*_`]/g, "").trim();
-      continue; // section headings (## Effect) only steer the parser; the model keeps one effect
+      const label = heading[1].trim();
+      const section = /^effect$/i.test(label) || ACTIONS_HEADING.test(label);
+      // A section heading is never the page's name, even on a page that opens
+      // without one. Taking the first heading whatever it said made an untitled
+      // page renamed `# Actions` with its every bullet swept into the effect
+      // prose — the block deleted and re-read as rule text by the first rebuild.
+      if (!title && !section) {
+        title = label.replace(/[*_`]/g, "").trim();
+        continue;
+      }
+      body = ACTIONS_HEADING.test(label) ? declared : prose;
+      continue;
     }
     const row = line.match(ROW_RE);
     if (row) {
@@ -118,9 +148,15 @@ export function scanMechanicsPage(source: string, kind: MechanicsKind): Mechanic
       continue;
     }
     if (/^\s*\|/.test(line)) continue; // other table structure
-    prose.push(line);
+    body.push(line);
   }
-  return { kind, title, rows, effect: prose.join("\n").replace(/\n{3,}/g, "\n\n").trim() };
+  return {
+    kind,
+    title,
+    rows,
+    effect: prose.join("\n").replace(/\n{3,}/g, "\n\n").trim(),
+    actions: declared.join("\n").replace(/\n{3,}/g, "\n\n").trim(),
+  };
 }
 
 /** Canonical page source for a model — the exact shape the baked pages use. */
@@ -132,6 +168,11 @@ export function rebuildMechanicsPage(model: MechanicsModel): string {
   const sections = [`# ${model.title || "Untitled"}`, `| Field | Value |\n|---|---|\n${body}`];
   const effect = model.effect.trim();
   if (effect) sections.push("## Effect", effect);
+  // Always last, whatever order the source used: one fixed position is what
+  // makes scan and rebuild agree about where the block lives, so a page that
+  // arrived with its steps above the prose still round-trips from here on.
+  const actions = model.actions.trim();
+  if (actions) sections.push("## Actions", actions);
   return `${sections.join("\n\n")}\n`;
 }
 

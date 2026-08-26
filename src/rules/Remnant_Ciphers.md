@@ -180,6 +180,12 @@ EFFECT — When activated, anything directly touching the object at that moment 
 
 EFFECT — Projects up to 4 independent Phase echoes at separate locations within 30 ft — each a convincing duplicate of the Inquisitor. Echoes persist for 2 rounds. Attackers make a Mental Save — Perception (DV 13) to identify the real Inquisitor. Online: echoes receive live data from Paradigm positioning satellites, allowing them to mimic predictive behavior rather than simply standing idle.
 
+#### Actions
+
+- Cost: 40 SS
+- Save (enemies): Mental Save — Perception, DV 13
+- Ruling: up to 4 echoes persist for 2 rounds; an attacker who fails the Save cannot tell them from the Inquisitor
+
 ### Memory Lock
 
 | Field | Value |

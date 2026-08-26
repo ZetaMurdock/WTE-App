@@ -321,5 +321,79 @@ section (Inquisitor, Nomad, …) makes all of them selectable at once.
 | NOTE | Trained to root out heresy across the sectors. |
 ```
 
+## Condition pages
+
+`TYPE | Condition` pages define what a status tag on a token MEANS. Without one,
+"Slowed" is a coloured pip and a memory; with one, the app can say what it does
+and — through `STACKING` — what a second application does to the first.
+
+`STACKING` is required and is not guessed. It is one of:
+
+| Value | A second application… |
+|---|---|
+| `refresh` | one instance; the longer of the two durations wins. |
+| `extend` | one instance; the durations add together. |
+| `stack` | instances count separately (Blighted is written in stacks). |
+| `highest` | one instance; the stronger application wins outright. |
+
+The rule text comes from an `## Effect` section, or from a one-line `EFFECT`
+row when that is all the condition needs. `ALIASES` keeps a token tagged with a
+former name resolving after a rename, and `OVERRIDES` names the official
+condition this page replaces at your table.
+
+```
+# Slowed
+| Field | Value |
+|---|---|
+| TYPE | Condition |
+| ID | wte.condition.slowed |
+| STACKING | refresh |
+
+## Effect
+Movement is halved, no reactions, and one action OR one bonus action per turn.
+```
+
+The shipped set lives in `src/rules/Condition_*.md` — ordinary pages, forkable
+one at a time. A setting that needs "Blighted" writes a page for it; nothing in
+the parser has to learn the word.
+
+---
+
+## `## Actions` — declaring what an ability does
+
+Prose recovers the rolls an ability calls for but not the edges between them:
+"make a Save … or take 2d8" yields a Save and a damage with nothing joining
+them. A Genus, Cipher or Incept page may instead DECLARE its steps, in order, in
+an `## Actions` section. Species pages carry the same bullets INDENTED under the
+innate or variant ability they belong to, because one page lists them all.
+
+```
+## Actions
+- Cost: 6 SS
+- Save (target): Physical Save — Recovery, DV 18
+- Fail: Damage: 3d10 Cold, half on success
+- Fail: Condition: Slowed, 2 rounds
+- Ruling: brittle objects shatter — Curator adjudicates
+```
+
+**Verbs:** `Cost` · `Roll` (or `Check`) · `Save` · `Damage` · `Heal` (or
+`Restore`) · `Condition` · `Modify` · `Ruling`. The list is closed: an unknown
+verb is reported as an authoring error, never dropped in silence.
+**Branches:** prefix a line with `Fail:` `Success:` `Min:` or `Tie:` to bind it
+to a resolution outcome. No prefix means the step simply happens.
+**Selectors:** `(self)` `(target)` `(allies)` `(enemies)`, after the verb. Each
+verb has a default — a Check is the actor's, a Save the target's — so write one
+only to override it.
+`Condition` names a tag; what the tag MEANS lives on its own Condition page, so
+a table can apply one this parser has never heard of. Anything the engine
+should not decide belongs in a `Ruling`, which is shown to the Curator and
+applied by nobody else.
+
+The section is optional and stays that way. A page with no block behaves exactly
+as it always has — the rolls come from the prose. A page that declares some of
+its steps automates those and quotes the prose for the rest. Only a `## Actions`
+**heading** opens the block; a paragraph that happens to begin "Actions:" is
+rule text like any other.
+
 **Pull flags:** only pages marked *pulled* (default on; Engineers toggle per page)
 feed the creator, sheet catalogs (weapons/equipment/genus/ciphers/backgrounds), and VTT.

@@ -10,6 +10,7 @@ import {
   registerCodexGameData,
   speciesInnate,
   inceptSeeds,
+  usableRacial,
 } from "../game/wte";
 
 // The whole point of a built-in page: fork it, edit it, and see the edit in
@@ -108,6 +109,26 @@ describe("a Curator's edits reach the game", () => {
     expect(speciesInnate("seraph").find((a) => a.name === "Void Pinions")?.effect).toBeTruthy();
     // And the unselected pair still seeds the Incept Pool under the new name.
     expect(inceptSeeds("seraph", ["Rapture"]).map((a) => a.name)).toContain("Void Pinions");
+  });
+
+  it("carries an innate's declared steps through the fork to the sheet", () => {
+    // The `## Actions` block rides INDENTED under its own ability bullet, since
+    // one species page carries every innate. The fork path rewrites identity
+    // rows and nothing else, so a scaffolder that reflowed the bullet list
+    // would silently unhook every step from the ability that declared it.
+    const md = fork("seraph")
+      .split("\n")
+      .flatMap((line) =>
+        line.startsWith("- **Rapture**")
+          ? [line, "  - Cost: 6 SS", "  - Fail: Condition: Slowed, 2 rounds"]
+          : [line]
+      )
+      .join("\n");
+    expect(md).toContain("  - Cost: 6 SS");
+    install(md);
+    const rapture = speciesInnate("seraph").find((a) => a.name === "Rapture")!;
+    expect(rapture.actions).toBe("- Cost: 6 SS\n- Fail: Condition: Slowed, 2 rounds");
+    expect(usableRacial("seraph").find((a) => a.name === "Rapture")?.actions).toBe(rapture.actions);
   });
 
   it("gives a brand-new innate real effect text", () => {

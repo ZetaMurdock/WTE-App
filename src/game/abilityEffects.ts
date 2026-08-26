@@ -395,18 +395,26 @@ export function effectLine(step: EffectStep): string {
   }
 }
 
-/** How a step reads on a chip. */
+/** How a step reads on a chip.
+ *
+ * A non-default selector rides the label for the same reason `effectLine`
+ * writes it into the bullet: it is the whole difference between two steps.
+ * Unravel Spacia declares `Damage: 3d10 Force` and `Damage (self): 3d10 Force`,
+ * and without the suffix the tray offers two buttons nothing tells apart; a
+ * `Modify (target)` chip reads as though the USER took the disadvantage.
+ * Ruling is exempt — its prompt is prose that names its own subject. */
 export function effectStepLabel(step: EffectStep): string {
   const branch = step.branch === "always" ? "" : `${step.branch === "fail" ? "On fail" : `On ${step.branch}`} · `;
+  const who = step.who === DEFAULT_SELECTOR[step.verb] ? "" : ` (${step.who})`;
   switch (step.verb) {
     case "ruling": return `${branch}Curator rules`;
     case "roll":
-    case "save": return `${branch}${rollRefLabel(step.ref!)}${step.dv ? ` · ${dvText(step.dv)}` : ""}`;
-    case "modify": return `${branch}${step.modify === "disadvantage" ? "Disadvantage" : "Advantage"} · ${rollRefLabel(step.ref!)}`;
-    case "condition": return `${branch}${step.condition}${step.duration ? ` · ${durationText(step.duration)}` : ""}`;
-    case "cost": return `${step.expr} ${(step.resource ?? "ss").toUpperCase()}${step.perRound ? "/round" : ""}`;
-    case "damage": return `${branch}${step.expr}${step.damageType ? ` ${step.damageType}` : ""}`;
-    case "heal": return `${branch}Heal ${step.expr}`;
+    case "save": return `${branch}${rollRefLabel(step.ref!)}${step.dv ? ` · ${dvText(step.dv)}` : ""}${who}`;
+    case "modify": return `${branch}${step.modify === "disadvantage" ? "Disadvantage" : "Advantage"} · ${rollRefLabel(step.ref!)}${who}`;
+    case "condition": return `${branch}${step.condition}${step.duration ? ` · ${durationText(step.duration)}` : ""}${who}`;
+    case "cost": return `${step.expr} ${(step.resource ?? "ss").toUpperCase()}${step.perRound ? "/round" : ""}${who}`;
+    case "damage": return `${branch}${step.expr}${step.damageType ? ` ${step.damageType}` : ""}${who}`;
+    case "heal": return `${branch}Heal ${step.expr}${who}`;
   }
 }
 

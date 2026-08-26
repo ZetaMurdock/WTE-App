@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { rollToHit, rollGeneric, rollDiceExpr, signedMod, type UsableAbility, type RollResult } from "../../game/wte";
 import { averageDamage, summarizeDamage } from "../../game/abilityDamage";
-import { parseAbilityActions } from "../../game/abilityActions";
+import { abilityUnderstanding } from "../../game/abilityUnderstanding";
 import { rollAxisChoices, rollAxisPaths, rollAxisRoll, type RollAxisStats } from "../../game/rollAxis";
 import { abilitySaveDv, saveDvBreakdown, savePlainLabel } from "../../game/saveDv";
 import { affinityLabel } from "../../game/paradigmAffinity";
@@ -107,10 +107,13 @@ export function ActionsTable({ weapons, genus, ciphers, atk, phyMod, dexMod, par
     // The Damage column shows what the ability DEALS, read out of its effect
     // text — it used to show the SS cost, which reads as "Lark deals 5 damage".
     const dmg = summarizeDamage(a.effect, a.classification);
-    // What the effect text actually calls for: Roll Axis checks the character
-    // makes, damage dice the ability deals, and target-side saves with their
-    // DVs. Parsed only for the open row — this runs prose regexes.
-    const actions = expanded ? parseAbilityActions(a.effect) : [];
+    // What the ability actually calls for: Roll Axis checks the character makes,
+    // damage dice it deals, and target-side saves with their DVs — read from the
+    // page's `## Actions` block when it declares one and from the effect prose
+    // when it does not. Resolved only for the open row: the prose route runs
+    // regexes over free text.
+    const read = expanded ? abilityUnderstanding(a.effect, a.actions) : null;
+    const actions = read?.actions ?? [];
     const selfAxis = rollAxisStats ? actions.filter((x) => x.kind === "self" && x.rollAxis) : [];
     // Plain stat checks ("make an Endurance Check") still get a labelled d20 —
     // dropping them left abilities whose check could not be rolled at all.
@@ -143,6 +146,24 @@ export function ActionsTable({ weapons, genus, ciphers, atk, phyMod, dexMod, par
               {a.target ? <span>Target · {a.target}</span> : null}
               {a.activation ? <span>Activation · {a.activation}</span> : null}
             </div>
+            {/* Declared steps with no dice of their own — the cost, the condition
+                it applies, what the Curator is asked to decide. Without these a
+                declared ability would render as strictly less than the prose
+                beside it, which is exactly backwards. */}
+            {read && read.chips.length > 0 && (
+              <div className="act-steps">
+                {read.chips.map((chip) => (
+                  <span className="act-step-chip" key={chip.key} title={chip.title}>{chip.label}</span>
+                ))}
+              </div>
+            )}
+            {read && read.errors.length > 0 && (
+              <div className="act-steps">
+                {read.errors.map((err, i) => (
+                  <span className="act-step-chip bad" key={"e" + i} title={err}>Unreadable step</span>
+                ))}
+              </div>
+            )}
             {/* Target-side resolutions are information, not buttons — the sheet
                 has no target to ask. The DV shown is keyed to THIS character
                 (21 + their check modifier on the ability's paired path), so it

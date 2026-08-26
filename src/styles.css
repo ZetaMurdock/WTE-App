@@ -3996,6 +3996,28 @@ body.wte-dot-cursor * {
   letter-spacing: 0.4px;
   padding: 2px 8px;
 }
+/* Declared steps that carry no dice — cost, condition, ruling. Deliberately
+   NOT the gold of `.act-save-chip`: gold means "somebody rolls this", and a
+   condition the ability simply applies is not a roll anyone is waiting on. */
+.act-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 2px;
+}
+.act-step-chip {
+  border: 1px dashed var(--panel-line);
+  border-radius: 9px;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.4px;
+  padding: 2px 8px;
+}
+.act-step-chip.bad {
+  border-style: solid;
+  border-color: #d05a44;
+  color: #d05a44;
+}
 .stats-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -7850,6 +7872,28 @@ body.wte-dot-cursor * {
   cursor: default;
   opacity: 0.55;
 }
+/* Same rule as the sheet: a declared step nobody rolls does not get the gold
+   reserved for the save chips a Curator can actually send to a target. */
+.vtt2-abil-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.vtt2-abil-stepchip {
+  font-size: 9px;
+  letter-spacing: 0.3px;
+  color: var(--muted);
+  border: 1px dashed var(--panel-line);
+  border-radius: 5px;
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+.vtt2-abil-stepchip.bad {
+  border-style: solid;
+  border-color: #d05a44;
+  color: #d05a44;
+}
 
 /* Resolution cards — the Curator's confirm step between a settled roll and an
    applied consequence. Bottom-centre, but docked ABOVE `.vtt2-actionbar`: the
@@ -9875,6 +9919,29 @@ body.wte-dot-cursor * {
   font-size: 11px;
   line-height: 1.45;
   color: #c8a24a;
+}
+/* Declared steps are a line grammar, not prose: the monospace face makes a
+   misaligned bullet visible before the parser has to say so. */
+.mech-steps-text {
+  font-family: Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+/* Prose-vs-block findings, warnings amber (via .mech-warn) and the rest quiet. */
+.mech-lint {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+}
+.mech-lint .mech-hint {
+  opacity: 1;
+}
+/* One disagreement marks the whole group, so an author sees there is something
+   to settle before reading a word of it. */
+.mech-lint.warn {
+  border-left: 2px solid #c8a24a;
+  padding-left: 8px;
 }
 .mech-tools {
   display: flex;

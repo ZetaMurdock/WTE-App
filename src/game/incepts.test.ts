@@ -34,7 +34,8 @@ describe("incept pools", () => {
     // Guards the retirement, not the shape. Asserting a CLOSED key set made this
     // fail the moment Incepts gained Roll Axis grants, which is a legitimate
     // addition — so it now names what may appear and rejects everything else.
-    const allowed = new Set(["name", "weight", "effect", "memory", "grants"]);
+    // `actions` joined the list the same way: an Incept may declare its steps.
+    const allowed = new Set(["name", "weight", "effect", "memory", "grants", "actions"]);
     for (const sp of SPECIES) {
       for (const i of inceptsForSpecies(sp.id)) {
         for (const key of Object.keys(i)) {
@@ -233,5 +234,43 @@ describe("the Wryde Mutation Table", () => {
     expect(light).toBeGreaterThan(0.33); // ~40%
     expect(heavy).toBeLessThan(0.12); // ~6.4%
     expect(heavy).toBeLessThan(light);
+  });
+});
+
+// Phase 1 shipped `## Actions` — declared, machine-readable steps that a page
+// states instead of leaving to prose. `Incept.actions` parses, stores,
+// round-trips and bakes onto the Incept page, and one incept (Stygians · Shadow
+// Fracture) was seeded with a block to demonstrate it. Nothing consumes it.
+//
+// The declared route reaches the table through UsableAbility (sheet) and
+// VttAbility (VTT). No producer builds either from an Incept: `usableGenus`,
+// `usableCiphers` and `usableRacial` exist, `usableIncepts` does not, and
+// `UsableAbility["source"]` lists "incept" with no construction site anywhere.
+// On the sheet an Incept is a Focus-spend row in AbilitiesPanel that renders
+// `grants` chips, plus a prose bullet on the Bio tab; ActionsTable — the roll
+// surface — takes weapons, genus and ciphers and nothing else. In the VTT,
+// CharacterActionSet has four buckets and none of them is Incepts.
+//
+// So a seeded block was a claim the app could not honour: the page showed
+// declared damage and a Ruling that no surface would ever offer. Rather than
+// half-wire it — Incepts also carry no permanent id, so their outcomes would
+// file under a positional key that moves when the pool is reordered, which is
+// the exact problem ids were minted for on ciphers and innates — the block came
+// back out. Wiring Incepts through is a later phase; delete this test when it
+// lands.
+describe("Incept declared steps are a later phase", () => {
+  it("ships no `## Actions` block, because no surface would honour one", () => {
+    const declared = SPECIES.flatMap((s) =>
+      inceptsForSpecies(s.id).filter((i) => i.actions?.trim()).map((i) => `${s.id} · ${i.name}`)
+    );
+    expect(declared).toEqual([]);
+  });
+
+  it("still keeps the field, so the parse path stays proven", () => {
+    // The grammar and the page round-trip are covered by lib/declaredActions
+    // against a synthetic Incept page. Removing the seed must not be read as
+    // removing support — the day the Curator writes a block, it parses.
+    expect(getIncept("stygians", "Shadow Fracture")).toBeDefined();
+    expect(getIncept("stygians", "Shadow Fracture")!.actions).toBeUndefined();
   });
 });

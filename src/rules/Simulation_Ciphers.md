@@ -165,6 +165,13 @@ EFFECT — When activated, the satellite connection allows the user to project t
 
 **RESOLUTION:** the hum is audible and the object traceable — severing, unkeying, or shielding beneath cover breaks the uplink.
 
+#### Actions
+
+- Cost: 76 SS
+- Save: Physical Save — Recovery
+- Damage: 2d8, half on success
+- Ruling: a Standard Action per pulse, against animate subjects within 100 feet; the hum is audible and the object traceable — severing, unkeying, or shielding beneath cover breaks the uplink
+
 ### Overlay
 
 | Field | Value |

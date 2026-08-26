@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { bakedCodexPages } from "../../lib/bakedCodexPages";
 import { KNOWN_KEYS, parseCodexEntry } from "../../lib/codexParse";
 import { DAMAGE_TYPE_WORDS, parseAbilityActions } from "../../game/abilityActions";
+import { parseAbilityEffects } from "../../game/abilityEffects";
 import { ROLL_AXIS_PATHS } from "../../game/rollAxis";
 import {
   DETAIL_SEGMENTS,
@@ -77,6 +78,116 @@ describe("mechanics model round-trip", () => {
     expect(detectMechanicsKind(`${base}\n| Range | 60 ft | approximate |\n\nZap.`)).toBeNull();
     // The canonical shape itself stays claimed.
     expect(detectMechanicsKind(`${base}\n\n## Effect\n\nZap.`)).toBe("genus");
+  });
+
+  it("claims a page that declares its steps, and keeps the block out of the prose", () => {
+    const page = [
+      "# Frost Nail",
+      "",
+      "| Field | Value |",
+      "|---|---|",
+      "| Type | Genus |",
+      "| Domain | Elemental |",
+      "| SS | 6 |",
+      "",
+      "## Effect",
+      "",
+      "A spike of cold pins the target in place.",
+      "",
+      "## Actions",
+      "",
+      "- Cost: 6 SS",
+      "- Save (target): Physical Save — Recovery, DV 18",
+      "- Fail: Damage: 3d10 Cold, half on success",
+      "- Fail: Condition: Slowed, 2 rounds",
+    ].join("\n");
+    expect(detectMechanicsKind(page)).toBe("genus");
+    const model = scanMechanicsPage(page, "genus");
+    expect(model.effect).toBe("A spike of cold pins the target in place.");
+    expect(model.actions).toBe(
+      [
+        "- Cost: 6 SS",
+        "- Save (target): Physical Save — Recovery, DV 18",
+        "- Fail: Damage: 3d10 Cold, half on success",
+        "- Fail: Condition: Slowed, 2 rounds",
+      ].join("\n")
+    );
+    // The grammar survives the trip: four steps out, none unreadable.
+    const effects = parseAbilityEffects(scanMechanicsPage(rebuildMechanicsPage(model), "genus").actions);
+    expect(effects.errors).toEqual([]);
+    expect(effects.steps).toHaveLength(4);
+    // …and the model is the same model, which is what stops a rebuild deleting
+    // the block by folding it into the effect prose.
+    expect(scanMechanicsPage(rebuildMechanicsPage(model), "genus")).toEqual(model);
+  });
+
+  it("re-emits a block written above the prose in the one fixed position", () => {
+    const page = [
+      "# Frost Nail",
+      "",
+      "| Field | Value |",
+      "|---|---|",
+      "| Type | Genus |",
+      "| SS | 6 |",
+      "",
+      "## Actions",
+      "",
+      "- Cost: 6 SS",
+      "",
+      "## Effect",
+      "",
+      "A spike of cold.",
+    ].join("\n");
+    const model = scanMechanicsPage(page, "genus");
+    expect(model.effect).toBe("A spike of cold.");
+    expect(model.actions).toBe("- Cost: 6 SS");
+    const rebuilt = rebuildMechanicsPage(model);
+    expect(rebuilt.indexOf("## Actions")).toBeGreaterThan(rebuilt.indexOf("## Effect"));
+    expect(scanMechanicsPage(rebuilt, "genus")).toEqual(model);
+  });
+
+  it("does not eat a titleless page's block by mistaking its heading for the name", () => {
+    // Wiki fragments and pasted rules arrive without a `# Name` — the page still
+    // parses as an ability, so the editor claims it, and a heading taken as the
+    // title would leave the bullets in the prose for the rebuild to re-emit as
+    // rule text under a page called "Actions".
+    const page = [
+      "| Field | Value |",
+      "|---|---|",
+      "| Type | Genus |",
+      "| SS | 4 |",
+      "",
+      "## Actions",
+      "",
+      "- Cost: 4 SS",
+      "- Fail: Damage: 2d8 Cold",
+    ].join("\n");
+    expect(detectMechanicsKind(page)).toBe("genus");
+    const model = scanMechanicsPage(page, "genus");
+    expect(model.effect).toBe("");
+    expect(model.actions).toBe("- Cost: 4 SS\n- Fail: Damage: 2d8 Cold");
+    expect(parseAbilityEffects(model.actions).steps).toHaveLength(2);
+    // Rebuilding names the page (there is no name to keep) but must carry the
+    // block through, and settle after that one pass.
+    const rebuilt = rebuildMechanicsPage(model);
+    const reread = scanMechanicsPage(rebuilt, "genus");
+    expect(reread.actions).toBe(model.actions);
+    expect(reread.effect).toBe("");
+    expect(rebuildMechanicsPage(reread)).toBe(rebuilt);
+    // The same holds for the prose half of a titleless page.
+    const prosePage = ["| Type | Cipher |", "| SS | 4 |", "", "## Effect", "", "Zap."].join("\n");
+    expect(scanMechanicsPage(prosePage, "cipher").effect).toBe("Zap.");
+    expect(scanMechanicsPage(prosePage, "cipher").title).toBe("");
+  });
+
+  it("leaves the declared block byte-identical when the prose is edited", () => {
+    const model = scanMechanicsPage(
+      "# X\n\n| Field | Value |\n|---|---|\n| Type | Genus |\n\n## Effect\n\nOld words.\n\n## Actions\n\n- Cost: 6 SS\n",
+      "genus"
+    );
+    const edited = rebuildMechanicsPage({ ...model, effect: "New words entirely." });
+    expect(edited).toContain("New words entirely.");
+    expect(scanMechanicsPage(edited, "genus").actions).toBe(model.actions);
   });
 
   it("an SS edit through the model changes exactly that field on re-parse", () => {

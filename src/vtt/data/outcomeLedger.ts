@@ -71,10 +71,14 @@ export interface PendingOutcome {
  * Conditions the corpus actually writes, as a closed alternation.
  *
  * Closed on purpose, exactly like `DAMAGE_TYPE_WORDS`: a scanner that accepts
- * any capitalised word downstream of "is" would tag half the prose. This list
- * moves onto a forkable Conditions page in the next phase — at which point a
- * table can add "Blighted" without touching the parser — but a shipped default
- * has to exist first or the ledger has nothing to apply.
+ * any capitalised word downstream of "is" would tag half the prose.
+ *
+ * It is a SCANNER, not the definition of what conditions exist. That lives on
+ * the Conditions pages (game/conditions.ts + rules/Condition_*.md), where a
+ * table can add "Blighted" — or delete Charmed — without touching this parser.
+ * A page set may therefore be larger than this list; what it must not be is
+ * smaller, or the ledger would tag prose with a condition nothing can resolve.
+ * conditions.test.ts holds that direction.
  */
 export const CONDITION_WORDS = [
   "Incapacitated", "Unconscious", "Paralyzed", "Petrified", "Restrained", "Grappled",
@@ -102,6 +106,12 @@ function conditionsFrom(effect: string): OutcomeConsequence[] {
   CONDITION_RE.lastIndex = 0;
   for (let m = CONDITION_RE.exec(effect); m; m = CONDITION_RE.exec(effect)) {
     const word = m[1];
+    // Conditions are proper nouns in this corpus — "are Stunned", "is Slowed",
+    // "is Restrained" — while the same words appear lowercase as ordinary
+    // description. The Stygian innate Locked in Time says "their Action Priority
+    // is suppressed", which is prose about a stat, not the Suppressed condition,
+    // and a case-blind scanner put a real chip on it.
+    if (word[0] !== word[0].toUpperCase()) continue;
     const key = word.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);

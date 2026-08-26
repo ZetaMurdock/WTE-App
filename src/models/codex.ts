@@ -16,6 +16,12 @@ interface CodexBase {
   name: string;
   keywords?: string[];
   effect?: string;
+  /** The page's `## Actions` block, RAW. What the steps mean is decided by
+   *  game/abilityEffects at the point of use, so the page text stays the single
+   *  source of truth: parsing it here would freeze a second copy of the rule
+   *  into every catalog it passes through. Absent when the page declares
+   *  nothing — which is most of the corpus, and stays first-class. */
+  actions?: string;
   overclock?: Overclock;
   // Codex identity, as a page may declare it. All optional, and none of them
   // change mechanics — they decide which CONCEPT a page is talking about, and

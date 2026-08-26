@@ -184,6 +184,13 @@ Fractures the Null foundation of physical reality in a small area. Within the br
 
 **LIMIT:** Once per long rest
 
+#### Actions
+
+- Cost: 15 SS
+- Save: Mental Save — Perception, DV 17
+- Fail: Condition: Disoriented, 2 rounds
+- Ruling: physics operates inconsistently inside the fracture for 2 rounds (Director determines) and a lingering Null scar stays visible for 24 hours
+
 ### Bastion Creation
 
 | Field | Value |
@@ -254,6 +261,12 @@ Projects a Null force grip that locks the target in absolute physical stasis. Th
 
 **LIMIT:** Once per turn
 
+#### Actions
+
+- Cost: 25 SS
+- Save: Physical Save — Recovery, DV 14 + Neuronal Capacity Modifier
+- Fail: Ruling: the target is completely immobilized for 2 rounds — it cannot move, be moved, or use movement-dependent abilities, and cannot benefit from Physical Save — Evasion
+
 ### Negate
 
 | Field | Value |
@@ -309,3 +322,9 @@ Constructs a simple autonomous Null entity from available base matter. The being
 Places a Null inhibitor on a target's ability to use a specific category of power: Genus abilities, Cipher activations, Incept expressions, or physical attacks. The target must make a Mental Save — Influence (DV 13 + Neuronal Capacity Modifier) or be unable to use the designated category for 2 rounds. On Critical Failure: 3 rounds. Does not prevent passive effects already active — only new activations. One Inhibit active per target at a time.
 
 **LIMIT:** Twice per encounter
+
+#### Actions
+
+- Cost: 5 SS
+- Save: Mental Save — Influence, DV 13 + Neuronal Capacity Modifier
+- Fail: Ruling: the target cannot use the designated category for 2 rounds — 3 rounds on a Critical Failure; passive effects already active continue, only new activations are barred

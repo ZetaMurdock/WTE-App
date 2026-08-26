@@ -44,6 +44,13 @@ Concentrates elemental cutting force — the convergence of pressure, temperatur
 
 **LIMIT:** Once per Synaptic Focus
 
+#### Actions
+
+- Cost: 10 SS
+- Save: Physical Save — Evasion
+- Fail: Damage: 3d8 Elemental
+- Ruling: creatures at the narrow end take full damage and those at the wide end take half; on a Critical Failure one piece of non-magical equipment the target carries is severed or destroyed (Director chooses)
+
 ### Wisperian
 
 | Field | Value |
@@ -198,6 +205,14 @@ Generates a localized storm of ice projectiles falling at high velocity. Each cr
 
 **LIMIT:** Once per encounter
 
+#### Actions
+
+- Cost: 5 SS
+- Save: Physical Save — Evasion
+- Fail: Damage: 2d6 Cold
+- Fail: Condition: Slowed, 1 round
+- Ruling: the area becomes difficult terrain for 2 rounds after, and any creature that starts its turn in the cylinder repeats the Save
+
 ### Metalargy
 
 | Field | Value |
@@ -253,6 +268,13 @@ Removes all impurities, contamination, and corrupting effects from one element t
 Compresses visible and ultraviolet light into a cutting edge and releases it as a line of photonic force. Each creature in the line makes a Physical Save — Evasion or takes 2d8 radiant damage. On hit: one piece of non-energy-resistant material (armor, shields, barriers) has its DHP protection reduced by 2 until repaired. The line of light persists briefly — creatures entering the line on their turn make the same Physical Save — Evasion.
 
 **LIMIT:** Twice per encounter
+
+#### Actions
+
+- Cost: 6 SS
+- Save: Physical Save — Evasion
+- Fail: Damage: 2d8 Radiant
+- Ruling: on hit one piece of non-energy-resistant material has its DHP protection reduced by 2 until repaired; creatures entering the line on their turn make the same Save
 
 ### Tachyeonic
 

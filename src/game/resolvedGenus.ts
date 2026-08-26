@@ -119,6 +119,7 @@ function withOverride(base: GenusAbility | undefined, def: CodexEntity | undefin
       activation: d.activation ?? null,
       classification: d.classification ?? null,
       limit: d.limit ?? null,
+      actions: d.actions ?? null,
     };
   }
   // Only fields the override actually SET replace the official value. A campaign
@@ -134,6 +135,7 @@ function withOverride(base: GenusAbility | undefined, def: CodexEntity | undefin
     activation: pick("activation"),
     limit: pick("limit"),
     classification: pick("classification"),
+    actions: pick("actions"),
   };
 }
 
@@ -238,6 +240,7 @@ export function toUsable(r: ResolvedGenus): UsableAbility {
     domain: (m as { domain?: string } | undefined)?.domain ?? domainOf(r),
     classification: m?.classification ?? undefined,
     ssNote: m?.ssNote ?? undefined,
+    actions: m?.actions ?? undefined,
   };
 }
 

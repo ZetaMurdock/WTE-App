@@ -19,7 +19,8 @@
     "range": "Multi-target / 10-ft rectangle within 30 ft (shapeable)",
     "target": "Creatures, Objects",
     "effect": "Fires scattered bursts of entropic energy in erratic patterns — unpredictable like a bird's flight. Each creature in the rectangle makes a Physical Save — Recovery or takes 1d40 Spirit Damage. The area is laced with residue: the first ability any creature attempts next round must be re-rolled if it fails. Uncontrolled pattern — the user must succeed on a Mental Check — Capacity (DV 12) or catch an edge of their own effect (1d4 damage, no Save).",
-    "limit": "Once per Synaptic Focus"
+    "limit": "Once per Synaptic Focus",
+    "actions": "- Cost: 5 SS\n- Save: Physical Save — Recovery\n- Fail: Damage: 1d40 Spirit\n- Roll: Mental Check — Capacity, DV 12\n- Fail: Damage (self): 1d4\n- Ruling: the area is laced with residue — the first ability any creature attempts next round must be re-rolled if it fails"
    },
    {
     "name": "Varken",
@@ -86,7 +87,8 @@
     "range": "10-ft radius aura (self-centered)",
     "target": "All creatures in radius except self",
     "effect": "Sustains an aura of accelerated entropy. Each creature that starts or ends their turn within range makes a Physical Save — Recovery or takes 1d6 Eldritch damage. Organic material visibly degrades (wilting flora, tarnishing metals). Cannot be active simultaneously with Bane of Enhancement — the two energies destabilize each other.",
-    "limit": "Must be consciously deactivated; drains 2 SS per round maintained"
+    "limit": "Must be consciously deactivated; drains 2 SS per round maintained",
+    "actions": "- Cost: 8 SS\n- Save: Physical Save — Recovery\n- Fail: Damage: 1d6 Eldritch\n- Ruling: each creature that starts or ends its turn within range makes the Save; cannot be active at the same time as Bane of Enhancement"
    },
    {
     "name": "Fyber Mutation",
@@ -108,7 +110,8 @@
     "range": "Self",
     "target": "Self",
     "effect": "Partial Eldritch apotheosis for 1 minute. Gains: immunity to non-supernatural physical damage; −3 to all Eldritch SS costs (minimum 1); all attacks deal additional 1d40 Spirit Damage; terrifying presence (any creature that can see you makes a Mental Save — Influence (DV 16) or is Frightened). Aftermath: mandatory Downtime 1d4 rounds; all SS costs doubled for 1 minute following recovery.",
-    "limit": "Once per long rest. Each use accumulates 1 Wryde charge."
+    "limit": "Once per long rest. Each use accumulates 1 Wryde charge.",
+    "actions": "- Cost: 15 SS\n- Save: Mental Save — Influence, DV 16\n- Fail: Condition: Frightened\n- Ruling: for 1 minute — immunity to non-supernatural physical damage, −3 to all Eldritch SS costs (minimum 1), and all attacks deal an additional 1d40 Spirit Damage; aftermath is mandatory Downtime 1d4 rounds and doubled SS costs for 1 minute"
    },
    {
     "name": "Harlingsine",
@@ -242,7 +245,8 @@
     "range": "Multi-target / 10-ft radius / 50-ft Trapezoid",
     "target": "Creatures",
     "effect": "Concentrates elemental cutting force — the convergence of pressure, temperature differential, and kinetic force — into a razor edge projected across the trapezoid. All creatures in the area make a Physical Save — Evasion or take 3d8 Elemental damage (type matching dominant ambient element). On Critical Failure: one piece of non-magical equipment the target carries is severed or destroyed (Director chooses). Creatures at the narrow end take full damage; those at the wide end take half.",
-    "limit": "Once per Synaptic Focus"
+    "limit": "Once per Synaptic Focus",
+    "actions": "- Cost: 10 SS\n- Save: Physical Save — Evasion\n- Fail: Damage: 3d8 Elemental\n- Ruling: creatures at the narrow end take full damage and those at the wide end take half; on a Critical Failure one piece of non-magical equipment the target carries is severed or destroyed (Director chooses)"
    },
    {
     "name": "Wisperian",
@@ -364,7 +368,8 @@
     "range": "20-ft radius cylinder, 40 ft tall, within 60 ft",
     "target": "Creatures and objects within cylinder",
     "effect": "Generates a localized storm of ice projectiles falling at high velocity. Each creature in the area makes a Physical Save — Evasion or takes 2d6 cold damage and is Slowed (movement halved) for 1 round. The area becomes difficult terrain (ice accumulation) for 2 rounds after. Any creature that starts their turn in the cylinder while Hail Rain is active must repeat the Physical Save — Evasion. Duration: 2 rounds.",
-    "limit": "Once per encounter"
+    "limit": "Once per encounter",
+    "actions": "- Cost: 5 SS\n- Save: Physical Save — Evasion\n- Fail: Damage: 2d6 Cold\n- Fail: Condition: Slowed, 1 round\n- Ruling: the area becomes difficult terrain for 2 rounds after, and any creature that starts its turn in the cylinder repeats the Save"
    },
    {
     "name": "Metalargy",
@@ -408,7 +413,8 @@
     "range": "Line 5 ft wide × 60 ft long",
     "target": "All creatures and objects in line",
     "effect": "Compresses visible and ultraviolet light into a cutting edge and releases it as a line of photonic force. Each creature in the line makes a Physical Save — Evasion or takes 2d8 radiant damage. On hit: one piece of non-energy-resistant material (armor, shields, barriers) has its DHP protection reduced by 2 until repaired. The line of light persists briefly — creatures entering the line on their turn make the same Physical Save — Evasion.",
-    "limit": "Twice per encounter"
+    "limit": "Twice per encounter",
+    "actions": "- Cost: 6 SS\n- Save: Physical Save — Evasion\n- Fail: Damage: 2d8 Radiant\n- Ruling: on hit one piece of non-energy-resistant material has its DHP protection reduced by 2 until repaired; creatures entering the line on their turn make the same Save"
    },
    {
     "name": "Tachyeonic",
@@ -576,7 +582,8 @@
     "range": "Touch / 5 ft",
     "target": "Creature or Object",
     "effect": "Focuses Neutral energy inward into a target to cause internal structural failure without visible external damage. On creatures: deals 2d6 damage ignoring DHP entirely (internal disruption). On objects: causes internal fracturing — the object appears intact but is structurally compromised; next significant force applied destroys it. Requires either physical contact or a Mental Check — Capacity (DV 13) if used at range.",
-    "limit": "Once per encounter"
+    "limit": "Once per encounter",
+    "actions": "- Cost: 5 SS\n- Roll: Mental Check — Capacity, DV 13\n- Damage: 2d6\n- Ruling: the Check is required only at range — physical contact needs none; the damage ignores DHP entirely, and an object instead fractures internally so the next significant force destroys it"
    },
    {
     "name": "Desentralization",
@@ -811,7 +818,8 @@
     "range": "15-ft radius centered on target within 40 ft",
     "target": "Area and everything within it",
     "effect": "Fractures the Null foundation of physical reality in a small area. Within the break: physics operates inconsistently (Director determines; effects may include: gravity inversion, time stuttering, mass fluctuation, energy reversal). All creatures in the area make a Mental Save — Perception (DV 17) or become Disoriented for 2 rounds. The fracture persists for 2 rounds and leaves a lingering Null scar visible for 24 hours.",
-    "limit": "Once per long rest"
+    "limit": "Once per long rest",
+    "actions": "- Cost: 15 SS\n- Save: Mental Save — Perception, DV 17\n- Fail: Condition: Disoriented, 2 rounds\n- Ruling: physics operates inconsistently inside the fracture for 2 rounds (Director determines) and a lingering Null scar stays visible for 24 hours"
    },
    {
     "name": "Bastion Creation",
@@ -866,7 +874,8 @@
     "range": "Single Target within 10 ft",
     "target": "Creature or Object",
     "effect": "Projects a Null force grip that locks the target in absolute physical stasis. The target is completely immobilized — cannot move, be moved, or use movement-dependent abilities. Physical attacks still function, but the target cannot benefit from Physical Save — Evasion while immobilized. Duration: 2 rounds or until the user releases (free action). The target makes a Physical Save — Recovery (DV 14 + Neuronal Capacity Modifier) to resist. Objects are permanently held until the user releases.",
-    "limit": "Once per turn"
+    "limit": "Once per turn",
+    "actions": "- Cost: 25 SS\n- Save: Physical Save — Recovery, DV 14 + Neuronal Capacity Modifier\n- Fail: Ruling: the target is completely immobilized for 2 rounds — it cannot move, be moved, or use movement-dependent abilities, and cannot benefit from Physical Save — Evasion"
    },
    {
     "name": "Negate",
@@ -910,7 +919,8 @@
     "range": "Single Target within 30 ft",
     "target": "Creature",
     "effect": "Places a Null inhibitor on a target's ability to use a specific category of power: Genus abilities, Cipher activations, Incept expressions, or physical attacks. The target must make a Mental Save — Influence (DV 13 + Neuronal Capacity Modifier) or be unable to use the designated category for 2 rounds. On Critical Failure: 3 rounds. Does not prevent passive effects already active — only new activations. One Inhibit active per target at a time.",
-    "limit": "Twice per encounter"
+    "limit": "Twice per encounter",
+    "actions": "- Cost: 5 SS\n- Save: Mental Save — Influence, DV 13 + Neuronal Capacity Modifier\n- Fail: Ruling: the target cannot use the designated category for 2 rounds — 3 rounds on a Critical Failure; passive effects already active continue, only new activations are barred"
    }
   ]
  },
@@ -1106,7 +1116,8 @@
     "range": "15 ft radius around the user",
     "target": "Self",
     "effect": "The inquisitor generates light from deep within and emits it all at once inside of a radius of 15 feet surrounding the user. Any animate within the area of effect who fails a Mental Save — Perception against a d40 Dice Value suffers disadvantage on Mental Saves — Perception and Physical Checks — Density for the next two turns and takes 1d10 Radiant damage times rank modifier.",
-    "limit": "Twice per encounter"
+    "limit": "Twice per encounter",
+    "actions": "- Cost: 5 SS\n- Save: Mental Save — Perception, DV d40\n- Fail: Damage: 1d10 Radiant\n- Fail: Modify (target): Disadvantage on Mental Save — Perception, 2 rounds\n- Fail: Modify (target): Disadvantage on Physical Check — Density, 2 rounds\n- Ruling: the Radiant damage is multiplied by the user's rank modifier"
    },
    {
     "name": "Animate Object",

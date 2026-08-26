@@ -50,6 +50,11 @@ export interface GenusAbilityData {
   effect: string | null;
   limit: string | null;
   classification: string | null;
+  /** The page's `## Actions` block, verbatim. Carried like every other
+   *  mechanic so a campaign override reaches the sheet and the VTT; NOT in
+   *  COMPARED, because an official mirror page that declares steps genus.json
+   *  has not been given yet is an authoring stage, not drift to report. */
+  actions: string | null;
 }
 
 /** Where a concept can be read in full. */
@@ -86,6 +91,7 @@ function abilityData(a: GenusAbility, domain: string): GenusAbilityData {
     effect: clean(a.effect),
     limit: clean(a.limit),
     classification: clean(a.classification),
+    actions: clean(a.actions),
   };
 }
 
@@ -298,6 +304,7 @@ export function buildCampaignGenus(pages: GenusPage[], campaignId: string): {
         effect: p.data?.effect ?? null,
         limit: p.data?.limit ?? null,
         classification: p.data?.classification ?? null,
+        actions: p.data?.actions ?? null,
       },
       scope: "campaign",
       ownerId: campaignId,

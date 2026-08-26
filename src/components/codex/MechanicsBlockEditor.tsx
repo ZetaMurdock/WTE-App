@@ -9,6 +9,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { parseAbilityActions } from "../../game/abilityActions";
 import { DAMAGE_TYPE_WORDS } from "../../game/abilityActions";
+import { effectStepLabel, parseAbilityEffects } from "../../game/abilityEffects";
+import { hasLintWarnings, lintDeclaredAgainstProse } from "../../game/abilityLint";
 import {
   DETAIL_SEGMENTS,
   IDENTITY_KEYS,
@@ -75,6 +77,16 @@ export function MechanicsBlockEditor({ value, onChange, kind }: Props) {
   // What the sheet and VTT will actually derive from the effect text.
   const actions = useMemo(() => parseAbilityActions(model.effect), [model.effect]);
   const hazards = useMemo(() => hazardousEffectLines(model.effect), [model.effect]);
+  // The declared block, read by the same parser the engine uses, and the two
+  // halves of the page checked against each other. Both are empty for a page
+  // that declares nothing, so a prose-only ability gains no new furniture.
+  const declared = useMemo(() => parseAbilityEffects(model.actions), [model.actions]);
+  // A step that is not a bullet is not a step, and the pre-parser lifts a bare
+  // `Target: one creature` out of ANY section into the spec table — so the line
+  // leaves the block, overwrites the mechanic above it, and the page stops
+  // scanning faithfully and drops to the Code editor with nothing said.
+  const stepHazards = useMemo(() => hazardousEffectLines(model.actions), [model.actions]);
+  const findings = useMemo(() => lintDeclaredAgainstProse(model.effect, model.actions), [model.effect, model.actions]);
 
   // Phrase-builder state.
   const [saveStat, setSaveStat] = useState<string>("Endurance");
@@ -266,6 +278,53 @@ export function MechanicsBlockEditor({ value, onChange, kind }: Props) {
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="mech-block mech-effect">
+        <div className="mech-block-head">
+          <span className="mech-block-label">Declared steps</span>
+        </div>
+        <textarea
+          className="mech-effect-text mech-steps-text"
+          rows={5}
+          value={model.actions}
+          placeholder={"- Cost: 6 SS\n- Save (target): Physical Save — Recovery, DV 18\n- Fail: Damage: 3d10 Cold, half on success"}
+          onChange={(e) => commit({ ...model, actions: e.target.value })}
+        />
+        <p className="mech-hint">
+          Optional. One step per line — Cost, Roll, Save, Damage, Heal, Condition, Modify, Ruling —
+          with Fail: or Success: in front of a step that only happens on that outcome. Leave it empty
+          and the ability runs from its prose exactly as it always has; declare part of it and the
+          rest stays prose the table reads.
+        </p>
+        {stepHazards.length > 0 && (
+          <p className="mech-warn">
+            These lines ({stepHazards.join(", ")}) are not bullets, so the game reads them as table
+            fields: they will leave this block on save and overwrite the mechanic of the same name.
+            Start each step with “-”.
+          </p>
+        )}
+        {declared.steps.length > 0 && (
+          <div className="mech-actions" title="Read back from the block by the same parser the engine runs">
+            <span className="mech-block-label">Declared</span>
+            {declared.steps.map((step, index) => (
+              <span key={index} className="mech-action">
+                {effectStepLabel(step)}
+              </span>
+            ))}
+          </div>
+        )}
+        {findings.length > 0 && (
+          // Prose and block are two statements of one rule, and only a human can
+          // say which is right — so this reports and never edits.
+          <div className={hasLintWarnings(findings) ? "mech-lint warn" : "mech-lint"}>
+            {findings.map((finding, index) => (
+              <p key={index} className={finding.severity === "warning" ? "mech-warn" : "mech-hint"}>
+                {finding.message}
+              </p>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="mech-actions" title="Derived live from the effect text by the same parser the sheet uses">

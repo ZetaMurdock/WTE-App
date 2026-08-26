@@ -45,6 +45,13 @@ export interface VttAbility {
   name: string;
   source: AbilitySource;
   effect: string;
+  /** The declaring page's `## Actions` block, verbatim, when it has one.
+   *  Carried rather than parsed here: what the steps mean is game/abilityEffects'
+   *  answer, and a panel holding its own decoded copy is a second rule the page
+   *  can no longer change. Absent for weapon actions and for every ability that
+   *  declares nothing — which is the whole shipped corpus, still resolved from
+   *  `effect` prose exactly as before. */
+  actions?: string | null;
   range?: string | null;
   target?: string | null;
   ss: number;
@@ -73,7 +80,7 @@ function mk(
   source: AbilitySource,
   name: string,
   i: number,
-  opts: { abilityId?: string; effect?: string | null; range?: string | null; target?: string | null; ss?: number; focus?: number; hit?: number; damage?: string | null }
+  opts: { abilityId?: string; effect?: string | null; actions?: string | null; range?: string | null; target?: string | null; ss?: number; focus?: number; hit?: number; damage?: string | null }
 ): VttAbility {
   const effect = opts.effect || "";
   return {
@@ -82,6 +89,7 @@ function mk(
     name,
     source,
     effect,
+    actions: opts.actions,
     range: opts.range,
     target: opts.target,
     focus: opts.focus,
@@ -190,12 +198,12 @@ export function characterActionSet(rec: CharacterRecord, layers?: RuleLayer[]): 
   // mechanics instead of a row of blanks, and a campaign override reaches the
   // VTT exactly as it reaches the sheet.
   const genus = usableGenusResolved(genusNames, codexCtx(rec.campaignId, rec.id), spend.genus, layers).map((a, i) =>
-    mk("genus", a.name, i, { abilityId: a.id, effect: a.effect, range: a.range, target: a.target, ss: a.ss ?? 0, focus: a.focus })
+    mk("genus", a.name, i, { abilityId: a.id, effect: a.effect, actions: a.actions, range: a.range, target: a.target, ss: a.ss ?? 0, focus: a.focus })
   );
 
-  const cipher = usableCiphers(s.paradigmId, s.cipherLoadout ?? []).map((a, i) => mk("cipher", a.name, i, { abilityId: a.id, effect: a.effect, ss: a.ss ?? 0 }));
+  const cipher = usableCiphers(s.paradigmId, s.cipherLoadout ?? []).map((a, i) => mk("cipher", a.name, i, { abilityId: a.id, effect: a.effect, actions: a.actions, ss: a.ss ?? 0 }));
 
-  const racial = usableRacial(s.speciesId, s.variantName, s.variantOption, s.innateChoice).map((a, i) => mk("racial", a.name, i, { abilityId: a.id, effect: a.effect }));
+  const racial = usableRacial(s.speciesId, s.variantName, s.variantOption, s.innateChoice).map((a, i) => mk("racial", a.name, i, { abilityId: a.id, effect: a.effect, actions: a.actions }));
 
   return { actions, genus, cipher, racial };
 }
