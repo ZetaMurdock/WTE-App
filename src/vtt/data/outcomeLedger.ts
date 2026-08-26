@@ -18,6 +18,7 @@
 // Curator's manual edit uses. The Curator stays sovereign.
 import { parseAbilityActions } from "../../game/abilityActions";
 import { effectStepLabel, type EffectStep } from "../../game/abilityEffects";
+import { counterThresholds, stepsAtThreshold } from "../../game/counterTracks";
 import { rollRefLabel } from "../../game/inceptGrants";
 
 /** How a resolution landed. `pending` means the roll has not arrived yet. */
@@ -27,7 +28,25 @@ export type OutcomeVerdict = "pass" | "fail" | "pending";
  *  branch only, so `fail` is the default the deriver assigns. */
 export type ConsequenceTrigger = "fail" | "pass" | "always";
 
-export type ConsequenceKind = "damage" | "heal" | "condition" | "ruling";
+export type ConsequenceKind = "damage" | "heal" | "condition" | "ruling" | "counter";
+
+/**
+ * What a track owes the table at one of its `At N` marks.
+ *
+ * Precomputed and carried ON the counter consequence, for the reason
+ * `VttEffectTick` is flat: the crossing happens when the Curator presses Apply,
+ * and by then the ability's page — and its step list — is long out of scope. The
+ * card is the only thing still holding the declaration, so it has to hold all of
+ * it.
+ *
+ * `consequences` never contains another counter's thresholds. A page that writes
+ * `At 8: Counter: Blight +1` on the Blight track is asking for a loop, and the
+ * deriver refuses to build one rather than recursing until the stack gives out.
+ */
+export interface CounterThreshold {
+  at: number;
+  consequences: OutcomeConsequence[];
+}
 
 export interface OutcomeConsequence {
   /** Stable within its outcome, so the card can track what was already applied. */
@@ -45,6 +64,18 @@ export interface OutcomeConsequence {
   rounds?: number;
   /** Prose says a successful save still takes half — the card offers both. */
   half?: boolean;
+  /** counter — the track this row moves, as the page named it. Open text like a
+   *  condition tag: Blight, Fear Points and Overload Charges are one mechanism
+   *  with many names, and a table inventing its own currency must not need a
+   *  code change to spend it. */
+  counter?: string;
+  /** counter — how far the track moves, signed. */
+  delta?: number;
+  /** counter — the ceiling the page declared for it, when it declared one. */
+  cap?: number;
+  /** counter — what this track owes at each `At N` the page declared. Empty for
+   *  a track that is only a number the table reads. */
+  thresholds?: CounterThreshold[];
   /** The ability's own page declared this step, rather than the prose scanner
    *  recovering it from a sentence. A reader has to be able to tell the two
    *  apart — one is what the author wrote, the other is the engine's best
@@ -87,6 +118,15 @@ export interface OutcomeTarget {
    *  takes a deliberate act — and so one target's applied damage can never
    *  suppress another's. */
   applied: string[];
+  /** Consequence ids the Curator applied and then took back with undo.
+   *
+   *  Auto-apply needs to know the difference between "never committed" and
+   *  "committed and reversed". Without it, undoing an auto-applied hit only
+   *  held until the panel remounted — the row was armed again, the ref that
+   *  fires each consequence once was gone with the unmount, and the damage the
+   *  Curator had just taken off the token landed a second time. A by-hand Apply
+   *  is still offered; only the unattended path is refused. */
+  reversed?: string[];
   /** The token left the scene while the card was still open. Kept on the card
    *  rather than deleted: a Curator who sees a target simply vanish from a
    *  23-row list has no way to tell that from a row they mis-counted. */
@@ -138,6 +178,22 @@ export interface PendingOutcome {
    *  Curator the PROSE named nothing, sending them off to read a page whose
    *  block had already superseded it. */
   fromBlock: boolean;
+  /**
+   * NOTHING WAS ROLLED FOR THIS CARD, and nothing will be.
+   *
+   * Every card until now existed because a die was thrown: a save went out, a
+   * verdict came back, and the consequences hung off it. A track crossing its
+   * threshold is not that. The event already HAPPENED — Blight reached 8 — and
+   * the card exists only to route what the page declared past a human before it
+   * touches a token.
+   *
+   * So an unrolled card's `always` consequences are armed with no verdict at
+   * all (see `armedConsequences`), it is never marked lapsed by a passing round
+   * (there is no answer it is waiting for), and it does not expire on the roll
+   * TTL. Branch-armed rows still need a verdict, and the Curator's declare
+   * buttons still supply one — a page may write `At 8: Fail: …` and mean it.
+   */
+  unrolled?: boolean;
   consequences: OutcomeConsequence[];
   /** One roll for everyone, or one each. Derived from the page and then the
    *  Curator's to change — the card shows which is in force. */
@@ -263,11 +319,24 @@ export function consequencesFor(effect: string | null | undefined): OutcomeConse
  *
  * Steps that resolve rather than land — Cost, Roll, Save — are not consequences
  * and contribute nothing here; the card is about what happens TO the target.
+ *
+ * `atThreshold` says these steps ARE a threshold's payload rather than a page's
+ * top level, which flips two rules. Normally an `At 8:` step is skipped, because
+ * a threshold fires when a track reaches 8 and not when the ability that moves
+ * the track resolves — deriving it here would have made "At 8: Damage: 1d100"
+ * land on the very first point of Blight. Inside a threshold's own payload the
+ * opposite holds: those steps are exactly what is being derived, and they carry
+ * no further thresholds of their own so the recursion is one level deep and
+ * cannot be talked into a loop by a page.
  */
-export function consequencesFromSteps(steps: readonly EffectStep[]): OutcomeConsequence[] {
+export function consequencesFromSteps(
+  steps: readonly EffectStep[],
+  atThreshold = false
+): OutcomeConsequence[] {
   const out: OutcomeConsequence[] = [];
   steps.forEach((step, i) => {
     const on: ConsequenceTrigger = step.branch === "always" ? "always" : step.branch === "success" ? "pass" : "fail";
+    if ((step.cadence === "at-threshold") !== atThreshold) return;
     // Min and tie are resolution nuances no phase executes yet. Treating them as
     // failures would apply damage the page never promised, so they are skipped
     // and stay visible in the ability's own step list.
@@ -318,6 +387,34 @@ export function consequencesFromSteps(steps: readonly EffectStep[]): OutcomeCons
         on,
         condition: `${step.modify === "disadvantage" ? "Disadv" : "Adv"}: ${rollRefLabel(step.ref)}`,
         rounds: step.duration?.kind === "rounds" ? step.duration.count : undefined,
+        declared: true,
+      });
+      return;
+    }
+    if (step.verb === "counter" && step.counter && step.delta) {
+      // The `At N` marks travel WITH the move, because the move is what will
+      // cross them and the card is the last thing still holding the page.
+      const thresholds: CounterThreshold[] = atThreshold
+        ? []
+        : counterThresholds(steps, step.counter)
+            .map((at) => ({
+              at,
+              consequences: consequencesFromSteps(stepsAtThreshold(steps, step.counter as string, at), true),
+            }))
+            // A mark that owes nothing is not a mark. `At 8: Ruling: …` still
+            // counts — a question for the Curator is a consequence — but an
+            // `At 8:` line the deriver could not read must not leave an empty
+            // threshold that fires a card with no rows on it.
+            .filter((threshold) => threshold.consequences.length > 0);
+      out.push({
+        id: `ctr-${i}`,
+        kind: "counter",
+        label: effectStepLabel(step),
+        on,
+        counter: step.counter,
+        delta: step.delta,
+        ...(step.cap != null ? { cap: step.cap } : {}),
+        ...(thresholds.length ? { thresholds } : {}),
         declared: true,
       });
       return;
@@ -551,6 +648,13 @@ export function markTargetPresent(outcome: PendingOutcome, targetId: string): Pe
  * answered, which is exactly the silence this policy exists to prevent.
  */
 export function lapsePendingTargets(outcome: PendingOutcome, round: number): PendingOutcome {
+  // A lapse means "the round moved on and nobody answered". An unrolled card
+  // asked nobody anything, so every round would have marked it lapsed, and the
+  // marks are load-bearing: `autoApplicable` and `batchPlan` both refuse a
+  // lapsed target, so a threshold card would have gone dead one round after the
+  // track crossed — and told the Curator it "never rolled" for a roll that was
+  // never owed.
+  if (outcome.unrolled) return outcome;
   let changed = false;
   const targets = outcome.targets.map((target) => {
     if (target.removed) return target;
@@ -575,7 +679,13 @@ export function setDamageRollMode(outcome: PendingOutcome, mode: DamageRollMode)
 /** The consequences this target's verdict actually triggers. A passed save still
  *  lists a half-damage rider, because that is what the prose promised. */
 export function armedConsequences(outcome: PendingOutcome, target: OutcomeTarget): OutcomeConsequence[] {
-  if (target.verdict === "pending") return [];
+  if (target.verdict === "pending") {
+    // A card with no roll behind it has nothing to wait for, so an unbranched
+    // consequence on it is armed the moment the card opens. Branch-armed rows
+    // are not: `At 8: Fail: …` is asking about a verdict this card does not
+    // have, and arming it would answer a question the page asked of the dice.
+    return outcome.unrolled ? outcome.consequences.filter((consequence) => consequence.on === "always") : [];
+  }
   return outcome.consequences.filter((consequence) => {
     if (consequence.on === "always") return true;
     if (consequence.on === target.verdict) return true;
@@ -598,7 +708,9 @@ export function armedConsequences(outcome: PendingOutcome, target: OutcomeTarget
  *    the engine ruling on the Curator's behalf.
  *
  * Already-applied ids drop out here rather than at the call site, so a caller
- * that re-runs on every render cannot commit the same hit twice.
+ * that re-runs on every render cannot commit the same hit twice. So do ids an
+ * undo took back, which a caller cannot see at all once its own fired-once ref
+ * has gone with an unmount.
  */
 export function autoApplicable(
   outcome: PendingOutcome,
@@ -614,7 +726,11 @@ export function autoApplicable(
     (consequence) =>
       consequence.declared === true &&
       consequence.kind !== "ruling" &&
-      !target.applied.includes(consequence.id)
+      !target.applied.includes(consequence.id) &&
+      // Undo beats opt-in. A consequence the Curator took back is theirs to
+      // re-apply by hand or leave off; committing it again unattended would
+      // make Ctrl+Z last exactly until the panel remounted.
+      !target.reversed?.includes(consequence.id)
   );
 }
 
@@ -661,7 +777,10 @@ export function outcomeTally(outcome: PendingOutcome): OutcomeTally {
     else if (target.verdict === "pass") tally.passed += 1;
     else if (target.rollTotal != null) tally.undecided += 1;
     else if (target.lapsedRound != null) tally.lapsed += 1;
-    else tally.waiting += 1;
+    // "Still to roll" is a count of outstanding answers. An unrolled card is
+    // owed none, and a header reading "1 still to roll" over a threshold that
+    // has already fired would send a Curator hunting for a die nobody threw.
+    else if (!outcome.unrolled) tally.waiting += 1;
   }
   return tally;
 }
@@ -732,8 +851,40 @@ export function markTargetApplied(
   targetId: string,
   consequenceId: string
 ): PendingOutcome {
+  return patchTarget(outcome, targetId, (target) => {
+    if (target.applied.includes(consequenceId)) return target;
+    // Applying again lifts the auto-apply veto an undo left behind: the hit is
+    // on the body once more, so there is nothing for the veto to protect.
+    const reversed = target.reversed?.filter((id) => id !== consequenceId);
+    const next = { ...target, applied: [...target.applied, consequenceId] };
+    if (reversed?.length) next.reversed = reversed;
+    else delete next.reversed;
+    return next;
+  });
+}
+
+/**
+ * Take one consequence back off a target's applied list.
+ *
+ * The applied list is what stands between a committed hit and a second one, so
+ * this is not a general "unapply": it exists for an undo that has ALREADY put
+ * the body back through the authorised writer. Without it, undoing damage left
+ * the row reading "Applied" forever — the HP restored and no way to rule on it
+ * again except by hand-editing the token.
+ */
+export function unmarkTargetApplied(
+  outcome: PendingOutcome,
+  targetId: string,
+  consequenceId: string
+): PendingOutcome {
   return patchTarget(outcome, targetId, (target) =>
-    target.applied.includes(consequenceId) ? target : { ...target, applied: [...target.applied, consequenceId] }
+    target.applied.includes(consequenceId)
+      ? {
+          ...target,
+          applied: target.applied.filter((id) => id !== consequenceId),
+          reversed: [...(target.reversed ?? []), consequenceId],
+        }
+      : target
   );
 }
 
@@ -781,6 +932,11 @@ const NO_OUTCOMES = Object.freeze([]) as unknown as PendingOutcome[];
  *  declare. A DV-less outcome keeps `pending` until they rule on it, and expiry
  *  must not take that decision away from them by clearing the card first. */
 function answered(outcome: PendingOutcome): boolean {
+  // Nothing is outstanding on a card with no roll behind it, so the window that
+  // exists to reap cards whose roll never came has nothing to measure. Expiring
+  // one would delete the only record that a track crossed its threshold — an
+  // event that really happened, with consequences a page declared.
+  if (outcome.unrolled) return true;
   return outcome.targets.some(
     // A lapse holds the card open too. It is the only surviving record that some
     // targets never answered a save the table watched go off, and letting the
@@ -827,6 +983,24 @@ export function markOutcomeApplied(
   const marked = markTargetApplied(found, targetId, consequenceId);
   if (marked === found) return;
   LEDGERS.set(scope, all.map((outcome) => (outcome.id === outcomeId ? marked : outcome)));
+  emit(scope);
+}
+
+/** The stored card's counterpart to `markOutcomeApplied`, for an undo whose
+ *  write already landed. Local like the mark itself: the ledger never rode the
+ *  wire, so there is nothing to tell a peer here. */
+export function unmarkOutcomeApplied(
+  scope: string,
+  outcomeId: string,
+  targetId: string,
+  consequenceId: string
+): void {
+  const all = LEDGERS.get(scope) ?? [];
+  const found = all.find((outcome) => outcome.id === outcomeId);
+  if (!found) return;
+  const cleared = unmarkTargetApplied(found, targetId, consequenceId);
+  if (cleared === found) return;
+  LEDGERS.set(scope, all.map((outcome) => (outcome.id === outcomeId ? cleared : outcome)));
   emit(scope);
 }
 

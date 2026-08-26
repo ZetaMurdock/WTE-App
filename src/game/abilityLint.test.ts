@@ -112,3 +112,24 @@ describe("only real disagreements count", () => {
     expect(warnings(findings).map((f) => f.category)).toEqual(["dv"]);
   });
 });
+
+describe("a custom currency", () => {
+  it("says which part of a track the engine will NOT enforce", () => {
+    // Not a disagreement with the page — the block is perfectly readable. It is
+    // the engine naming the rules it is declining to invent, so the Curator
+    // rules on them at the table instead of mid-fight.
+    const findings = lintDeclaredAgainstProse(
+      null,
+      ["- Counter: Blight +1, cap 8", "- At 8: Damage: 1d100"].join("\n")
+    );
+    const track = findings.filter((finding) => finding.category === "track");
+    expect(track).toHaveLength(1);
+    expect(track[0].severity).toBe("info");
+    expect(track[0].message).toContain("once per crossing");
+    expect(hasLintWarnings(findings)).toBe(false);
+  });
+
+  it("says nothing about a track that watches no mark", () => {
+    expect(lintDeclaredAgainstProse(null, "- Counter: Wryde charges +1")).toEqual([]);
+  });
+});

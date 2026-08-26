@@ -62,6 +62,39 @@ export interface VttTokenMeta {
   flags?: string[];
   /** Raw stat block (creature stats or character attributes), read-only. */
   stats?: Record<string, number>;
+  /** SUMMON — where this body came from, when an ability called it. */
+  summon?: VttSummonOrigin;
+}
+/**
+ * The provenance a summoned body carries for the rest of its life.
+ *
+ * Minion Conjuration puts 100 bodies on the map in one act, and the only thing
+ * that makes those 100 tokens tractable afterwards is that they can be found
+ * again as a GROUP. Dismissing a swarm has to be one act; asking a Curator to
+ * click 100 tokens is the same as not shipping dismissal at all.
+ *
+ * It rides `meta` rather than a top-level token field because meta is already
+ * the per-token blob that survives `cloneToken`, the `token.add` op and the
+ * scene snapshot, and because an older build that has never heard of summons
+ * renders these tokens as ordinary bodies rather than choking on them.
+ */
+export interface VttSummonOrigin {
+  /** Every body from one confirmed `Summon:` step shares this. */
+  batchId: string;
+  /** What the page called it, verbatim — not what the statline it resolved to
+   *  is called. The two differ whenever a table's creature page spells it
+   *  differently, and the page's word is the one the Curator recognises. */
+  name: string;
+  sourceAbilityId?: string;
+  sourceAbilityName: string;
+  casterCharacterId?: string;
+  /** The caster's token at the moment of summoning. A summon is not an aura and
+   *  does NOT ride this token — the corpus's minions "persist until dismissed,
+   *  slain, or separated" and outlive their summoner's square. It is recorded so
+   *  the Curator can see whose swarm this is. */
+  casterTokenId?: string;
+  /** Encounter round the bodies arrived on. */
+  bornRound?: number;
 }
 export interface VttWall {
   id: string;
@@ -250,6 +283,31 @@ export interface VttConditionClock {
    *  means the declared duration is the only measure of strength there is. */
   potency?: number;
 }
+/** One custom currency counted against one body — Blight on a Stygian's victim,
+ *  Overload Charges on a machine.
+ *
+ *  Beside the scene for the same reason the condition clocks are: it persists
+ *  with the map, rides the host's snapshot, and is ignored outright by a build
+ *  that predates it. What differs is the TAG. A clock keeps its countdown out of
+ *  the pip because the round counter every peer already has can derive it; a
+ *  track's value can be derived from nothing, so the pip carries it — see
+ *  `counterTag` in game/counterTracks.ts. The record stays authoritative anyway,
+ *  because a pip is free text a Curator can retype and a mechanic must not be
+ *  one keystroke away from reading 30 Blight.
+ *
+ *  A track lives here only while its owner is a BODY. A character's own currency
+ *  outlives the scene and lives on the sheet instead. */
+export interface VttCounterTrack {
+  tokenId: string;
+  /** The track's name as the page wrote it — the identity, folded for matching
+   *  by `counterKey`, and the text the pip reads. */
+  name: string;
+  /** Always > 0: a track at zero is removed rather than stored, so a pip reading
+   *  "Blight 0/8" cannot outlive the fight that put it there. */
+  value: number;
+  /** The ceiling the last page to move this track declared, when one did. */
+  cap?: number;
+}
 /** Terrain elevation for the 3D view: one normalised height (0..1) per grid
  *  cell (row-major, cols×rows), scaled by maxCells×gridSize in world units.
  *  Sampled from a grayscale heightmap image in the Grid & Map panel. */
@@ -343,6 +401,10 @@ export interface VttSceneData {
    *  applies a condition with a duration, so a scene that never uses one is
    *  byte-identical to a scene saved before clocks existed. */
   conditionClocks?: VttConditionClock[];
+  /** Custom currencies counted against bodies on this map (the `Counter` verb).
+   *  Absent until a table moves one, so a scene that never uses a track is
+   *  byte-identical to a scene saved before tracks existed. */
+  counterTracks?: VttCounterTrack[];
   terrain?: VttTerrain | null;
   atmosphere?: VttAtmosphere | null;
   /** Per-scene ambient music (audio data URL) — plays while the scene is active. */

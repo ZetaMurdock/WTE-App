@@ -19,6 +19,7 @@
 // which half is right is a Curator's judgement, not a parser's.
 import { parseAbilityActions, type AbilityAction } from "./abilityActions";
 import { hasDeclaredEffects, parseAbilityEffects, type EffectStep } from "./abilityEffects";
+import { counterGaps } from "./counterTracks";
 import { rollRefLabel, type InceptRollRef } from "./inceptGrants";
 
 /** `warning` — prose and block state the same thing two ways, so one of them is
@@ -27,8 +28,10 @@ import { rollRefLabel, type InceptRollRef } from "./inceptGrants";
 export type LintSeverity = "warning" | "info";
 
 /** What the finding is about, so a surface can group or filter without reading
- *  the sentence. `unreadable` is a step the block itself could not parse. */
-export type LintCategory = "unreadable" | "dice" | "dv" | "route";
+ *  the sentence. `unreadable` is a step the block itself could not parse.
+ *  `track` is a custom currency whose runtime cannot keep everything the page
+ *  might mean by it — see `counterGaps`. */
+export type LintCategory = "unreadable" | "dice" | "dv" | "route" | "track";
 
 export interface LintFinding {
   severity: LintSeverity;
@@ -244,6 +247,13 @@ export function lintDeclaredAgainstProse(
   diceFindings("damage", proseDice(prose, "damage"), stepDice(declared.steps, "damage"), findings);
   diceFindings("healing", proseDice(prose, "healing"), stepDice(declared.steps, "heal"), findings);
   routeFindings(prose, declared.steps, findings);
+  // A track's gaps are `info`, not `warning`: nothing here disagrees with the
+  // page. It is the engine saying which part of what the page means it is NOT
+  // going to enforce — the decay, the reset, the repeat — so the Curator rules
+  // on those at the table instead of discovering mid-fight that nobody did.
+  for (const gap of counterGaps(declared.steps)) {
+    findings.push({ severity: "info", category: "track", message: gap });
+  }
   return findings;
 }
 

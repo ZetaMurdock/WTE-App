@@ -17,6 +17,7 @@ import {
   lapsePendingTargets,
   markTargetApplied,
   markTargetRemoved,
+  unmarkTargetApplied,
   openOutcome,
   settleTarget,
   type OutcomeTarget,
@@ -198,6 +199,22 @@ describe("what a table may let the app apply on its own", () => {
     expect(auto(after, ON).map((consequence) => consequence.id)).toEqual([first[1].id]);
     const both = mark(after, first[1].id);
     expect(auto(both, ON)).toEqual([]);
+  });
+
+  // Undo has to outlive a remount. The card's fire-once ref dies with the panel,
+  // so without a record on the target itself, re-opening the panel would commit
+  // the very hit the Curator had just taken off the token.
+  it("never re-offers a consequence an undo took back", () => {
+    const outcome = failed({ steps: stepsOf(HAIL_RAIN) });
+    const armed = auto(outcome, ON);
+    const applied = mark(outcome, armed[0].id);
+    const undone = unmarkTargetApplied(applied, applied.targets[0].id, armed[0].id);
+    expect(only(undone).applied).toEqual([]);
+    expect(auto(undone, ON).map((consequence) => consequence.id)).toEqual([armed[1].id]);
+    // Re-applying by hand is still the Curator's to make, and it lifts the veto.
+    const again = mark(undone, armed[0].id);
+    expect(only(again).reversed ?? []).toEqual([]);
+    expect(auto(again, ON).map((consequence) => consequence.id)).toEqual([armed[1].id]);
   });
 });
 

@@ -22,6 +22,7 @@ import {
   listOutcomes,
   markTargetApplied,
   markOutcomeApplied,
+  unmarkOutcomeApplied,
   markTargetRemoved,
   openOutcome,
   outcomeTally,
@@ -784,6 +785,33 @@ describe("the outcome ledger store", () => {
     markOutcomeApplied("table", "a", "tok-kira", "dmg-0");
     const once = listOutcomes("table")[0];
     markOutcomeApplied("table", "a", "tok-kira", "dmg-0");
+    expect(listOutcomes("table")[0]).toBe(once);
+    expect(only(once).applied).toEqual(["dmg-0"]);
+  });
+
+  // Undo restored the body through the authorised writer; the row has to come
+  // back with it, or the Curator is left looking at "Applied" over damage that
+  // is no longer on the token and no way to rule again.
+  it("re-arms a row when an applied consequence is taken back", () => {
+    pushOutcome("table", open({ id: "a" }));
+    markOutcomeApplied("table", "a", "tok-kira", "dmg-0");
+    markOutcomeApplied("table", "a", "tok-kira", "cond-1");
+    unmarkOutcomeApplied("table", "a", "tok-kira", "dmg-0");
+    expect(only(listOutcomes("table")[0]).applied).toEqual(["cond-1"]);
+  });
+
+  it("ignores an unmark for a card, target, or consequence it does not carry", () => {
+    pushOutcome("table", open({ id: "a" }));
+    markOutcomeApplied("table", "a", "tok-kira", "dmg-0");
+    const before = listOutcomes("table");
+    const once = before[0];
+    unmarkOutcomeApplied("table", "ghost", "tok-kira", "dmg-0");
+    unmarkOutcomeApplied("table", "a", "tok-nobody", "dmg-0");
+    unmarkOutcomeApplied("table", "a", "tok-kira", "cond-9");
+    // The LIST reference too, not only the card's: `listOutcomes` is read
+    // through `useSyncExternalStore`, so a fresh array from an unmark that
+    // changed nothing would re-render every open card for no reason.
+    expect(listOutcomes("table")).toBe(before);
     expect(listOutcomes("table")[0]).toBe(once);
     expect(only(once).applied).toEqual(["dmg-0"]);
   });

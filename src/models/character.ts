@@ -1,4 +1,5 @@
 import type { Attributes, Specialties, Background, DerivedKey, EquipmentItem } from "../game/wte";
+import type { CounterTrack } from "../game/counterTracks";
 
 /** DB-row metadata for a character (the `data` column holds the CharacterSheet JSON). */
 export interface Character {
@@ -74,6 +75,15 @@ export interface CharacterSheet {
   hpDamage?: number;
   /** Damage taken to DHP (current DHP = dhpMax − dhpDamage). */
   dhpDamage?: number;
+  /** Custom currencies this CHARACTER owns — Fear Points, Overload Charges, a
+   *  Wryde charge count (the `Counter` verb; see game/counterTracks.ts).
+   *
+   *  On the sheet and not on a token, because these outlive the map. A track on
+   *  a victim belongs to the body and dies with the scene; a track that is YOURS
+   *  survives the scene, the encounter and the session, exactly as the rest of
+   *  this sheet does. Absent until something moves one, so a sheet that never
+   *  uses a track serializes exactly as it did before tracks existed. */
+  counterTracks?: CounterTrack[];
   /** Curator switch: may this character's stats be hand-edited/overridden? */
   allowOverrides?: boolean;
   /** Manual derived-stat overrides (Curator-sanctioned) — replace computed values. */

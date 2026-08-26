@@ -1,6 +1,6 @@
 import type { RuleLayer } from "../game/ruleLayers";
 import { useCodex } from "../game/useCodex";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { CharacterRecord } from "../lib/characters";
 import {
   ATTRIBUTES,
@@ -27,6 +27,17 @@ import { rollAxisChoices, rollAxisPaths, type RollAxis, type RollAxisStats, type
 import { affinityLabel } from "../game/paradigmAffinity";
 import { abilitySaveDv, saveChipDv, saveDvBreakdown, savePlainLabel } from "../game/saveDv";
 import type { NetRollAxisRequest } from "../net/protocol";
+import { parseUsageLimit } from "../game/abilityLimits";
+import {
+  clearUses,
+  listUses,
+  recordUse,
+  subscribeUses,
+  usageLabel,
+  usageStatus,
+  usageTitle,
+  type UsageWindow,
+} from "./data/usageLedger";
 
 /** A target-side check parsed from an ability. The VTT shell supplies the
  * selected target and turns this intent into a targeted network roll request. */
@@ -70,7 +81,16 @@ interface Props {
   /** Numeric rule layers for this campaign, so the SS shown at the table is the
    *  SS the contextual card explains. */
   layers?: RuleLayer[];
+  /** Where uses are counted, and which windows are currently open. Absent means
+   *  the panel shows each ability's authored limit and counts nothing — the
+   *  read-only behaviour every caller had before limits were tracked. */
+  usage?: { scope: string; window: UsageWindow };
 }
+
+// Stable reference for a panel with no usage scope. useSyncExternalStore
+// compares snapshots by identity and would re-render forever against a getter
+// that allocated a fresh array each call.
+const EMPTY_USES = Object.freeze([]) as unknown as ReturnType<typeof listUses>;
 
 /** A short "cone · 15 ft" style tag describing the parsed AoE, when there is one. */
 function aoeTag(a: VttAbility): string | null {
@@ -138,6 +158,7 @@ export function VttAbilitiesPanel({
   lockCharacter = false,
   onClose,
   layers,
+  usage,
 }: Props) {
   // The Codex REVISION is part of this key, not just the character.
   //
@@ -158,9 +179,70 @@ export function VttAbilitiesPanel({
   const axisStats = character ? characterRollAxisStats(character) : null;
   const rollScores = character ? characterEffectiveRollScores(character) : null;
 
+  // The tally, read through the store rather than held in this panel: the
+  // panel unmounts every time the Curator switches tools, and a count that
+  // vanished with it would be worse than no count at all.
+  const usageScope = usage?.scope ?? "";
+  const uses = useSyncExternalStore(
+    useCallback((listener) => (usageScope ? subscribeUses(usageScope, listener) : () => {}), [usageScope]),
+    useCallback(() => (usageScope ? listUses(usageScope) : EMPTY_USES), [usageScope])
+  );
+
+  /** What this character has spent against an ability's authored limit. */
+  function limitOf(a: VttAbility) {
+    const limit = parseUsageLimit(a.limit);
+    if (!limit || !usage || !character) return null;
+    const status = usageStatus(limit, uses, {
+      abilityId: a.abilityId ?? a.id,
+      characterId: character.id,
+      window: usage.window,
+    });
+    return { limit, status };
+  }
+
+  // Which of a row's firing controls have already been armed in the activation
+  // in progress, per ability, and the window key that activation was counted
+  // under.
+  //
+  // Nine of the 98 shipped genus abilities render more than one firing control:
+  // Internal Break arms a Mental Check AND its 2d6, which is ONE use of one
+  // ability. Counting each press put "2 of 1 used" and an amber row on the
+  // first entirely legal use. Arming a control that has already fired is the
+  // player going again, so THAT starts a fresh activation — deduping by ability
+  // instead would have made a limit uncountable past its first use.
+  const armed = useRef(new Map<string, { key: string; controls: Set<string> }>());
+
+  /**
+   * Note a use. Fires alongside every button that spends the ability, and
+   * NEVER gates one: an exhausted limit is a thing the row says, not a thing it
+   * enforces. A Curator overrules a printed limit as a matter of course, and a
+   * disabled button would put this app in front of that decision.
+   *
+   * `control` identifies WHICH of the row's buttons was pressed; see `armed`.
+   */
+  function fire(a: VttAbility, control: string) {
+    if (usage && character && a.limit) {
+      const limit = parseUsageLimit(a.limit);
+      const abilityId = a.abilityId ?? a.id;
+      const ctx = { abilityId, characterId: character.id, window: usage.window };
+      // The window key rides in the activation record so a use armed in one
+      // round and another armed in the next are never folded into one — the
+      // tally they land in is not the same tally.
+      const key = usageStatus(limit, uses, ctx).key ?? "";
+      const open = armed.current.get(abilityId);
+      const sameActivation = !!open && open.key === key && !open.controls.has(control);
+      if (sameActivation) open.controls.add(control);
+      else {
+        armed.current.set(abilityId, { key, controls: new Set([control]) });
+        recordUse(usage.scope, limit, ctx);
+      }
+    }
+    onUseAbility(a);
+  }
+
   function use(a: VttAbility) {
     onArmRoll(a.name, suggestedExpr(a));
-    onUseAbility(a);
+    fire(a, "use");
   }
 
   function Row({ a }: { a: VttAbility }) {
@@ -172,6 +254,11 @@ export function VttAbilitiesPanel({
     // where it is not — one renderer either way, so a declared ability arms the
     // same tray and the same keyed DV as a parsed one.
     const read = a.source === "action" ? null : abilityUnderstanding(a.effect, a.actions);
+    // The authored `| Limit |`, and what is left of it. Shown whether or not
+    // the app can count it: an ability limited "Once per SNR window" must still
+    // say so on the card, because a limit the table cannot see is a limit the
+    // table forgets.
+    const usageOf = limitOf(a);
     const actions = read?.actions ?? [];
     const selfRolls = actions.filter((x) => x.kind === "self");
     const dmgRolls = actions.filter((x) => x.kind === "damage");
@@ -256,6 +343,41 @@ export function VttAbilitiesPanel({
               ))}
             </div>
           )}
+          {usageOf && (
+            <div className="vtt2-abil-limit" title={usageTitle(usageOf.limit, usageOf.status)}>
+              {usageOf.status.tracked ? (
+                <>
+                  <span className={"vtt2-abil-limitchip" + (usageOf.status.exhausted ? " spent" : "")}>
+                    {usageLabel(usageOf.status)}
+                  </span>
+                  {/* The window's edge, in the words that say whose call it is.
+                      The app runs rounds and encounters; it does not run rests,
+                      and a chip that read "per short rest" without saying so
+                      would imply it knew when one ended. */}
+                  <span className="vtt2-abil-limitwhen">
+                    {usageOf.status.boundary === "table" ? "since reset · " : ""}
+                    {usageOf.limit.text}
+                  </span>
+                  {usageOf.status.used > 0 && (
+                    <button
+                      type="button"
+                      className="vtt2-abil-limitreset"
+                      title="Clear this tally — the Curator's word that the window turned over"
+                      onClick={() =>
+                        usage &&
+                        character &&
+                        clearUses(usage.scope, { abilityId: a.abilityId ?? a.id, characterId: character.id })
+                      }
+                    >
+                      ↺
+                    </button>
+                  )}
+                </>
+              ) : (
+                <span className="vtt2-abil-limitchip open">{usageOf.limit.text}</span>
+              )}
+            </div>
+          )}
           {read && read.errors.length > 0 && (
             <div className="vtt2-abil-steps">
               {read.errors.map((err, i) => (
@@ -292,7 +414,7 @@ export function VttAbilitiesPanel({
                 <button
                   key={`s${i}-${optionIndex}`}
                   className="chip"
-                  onClick={() => { onArmRoll(`${a.name} — ${option.label}`, option.expr); onUseAbility(a); }}
+                  onClick={() => { onArmRoll(`${a.name} — ${option.label}`, option.expr); fire(a, `s${i}-${optionIndex}`); }}
                   title={`Arm ${option.expr}`}
                 >
                   {option.buttonLabel}
@@ -303,7 +425,7 @@ export function VttAbilitiesPanel({
               <button
                 key={"d" + i}
                 className="chip"
-                onClick={() => { onArmRoll(`${a.name} — ${d.label}`, d.expr); onUseAbility(a); }}
+                onClick={() => { onArmRoll(`${a.name} — ${d.label}`, d.expr); fire(a, "d" + i); }}
                 title={`Arm ${d.expr}`}
               >
                 {d.label}

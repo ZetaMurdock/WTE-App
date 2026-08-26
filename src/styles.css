@@ -7905,6 +7905,56 @@ body.wte-dot-cursor * {
   color: #d05a44;
 }
 
+/* Usage limits. Deliberately quiet: an exhausted limit is INFORMATION, never a
+   veto — no button downstream is ever disabled by it — so `spent` warms to the
+   same amber the rest of the UI uses for "look at this", and stops short of the
+   red reserved for something that actually went wrong. */
+.vtt2-abil-limit {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.vtt2-abil-limitchip {
+  font-size: 9px;
+  letter-spacing: 0.3px;
+  color: var(--muted);
+  border: 1px solid var(--panel-line);
+  border-radius: 5px;
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+.vtt2-abil-limitchip.spent {
+  border-color: #c9963f;
+  color: #c9963f;
+}
+/* A limit the app is NOT counting — a keyed one, or a window nothing here can
+   see. Dashed, like every other chip that reports rather than asserts. */
+.vtt2-abil-limitchip.open {
+  border-style: dashed;
+  white-space: normal;
+}
+.vtt2-abil-limitwhen {
+  font-size: 9px;
+  color: var(--muted);
+  opacity: 0.75;
+}
+.vtt2-abil-limitreset {
+  background: none;
+  border: 1px solid var(--panel-line);
+  border-radius: 5px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 9px;
+  line-height: 1;
+  padding: 2px 4px;
+}
+.vtt2-abil-limitreset:hover {
+  color: var(--ink);
+  border-color: var(--accent);
+}
+
 /* Resolution cards — the Curator's confirm step between a settled roll and an
    applied consequence. Bottom-centre, but docked ABOVE `.vtt2-actionbar`: the
    action bar is the only tool rail players get, and a confirm step that buries

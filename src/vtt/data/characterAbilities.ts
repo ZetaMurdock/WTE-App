@@ -54,6 +54,12 @@ export interface VttAbility {
   actions?: string | null;
   range?: string | null;
   target?: string | null;
+  /** The authored `| Limit |`, verbatim. Carried, not decoded, for the same
+   *  reason `actions` is: what "Once per SNR window" MEANS is abilityLimits'
+   *  answer, and a panel holding its own reading of it is a second rule the
+   *  page can no longer change. Genus only — ciphers, innates and variants
+   *  state their limits inside effect prose and have no field to read. */
+  limit?: string | null;
   ss: number;
   /** Synaptic Focus invested (genus only) — what a contest is fought with. */
   focus?: number;
@@ -80,7 +86,7 @@ function mk(
   source: AbilitySource,
   name: string,
   i: number,
-  opts: { abilityId?: string; effect?: string | null; actions?: string | null; range?: string | null; target?: string | null; ss?: number; focus?: number; hit?: number; damage?: string | null }
+  opts: { abilityId?: string; effect?: string | null; actions?: string | null; range?: string | null; target?: string | null; limit?: string | null; ss?: number; focus?: number; hit?: number; damage?: string | null }
 ): VttAbility {
   const effect = opts.effect || "";
   return {
@@ -92,6 +98,7 @@ function mk(
     actions: opts.actions,
     range: opts.range,
     target: opts.target,
+    limit: opts.limit,
     focus: opts.focus,
     ss: opts.ss ?? 0,
     hit: opts.hit,
@@ -198,7 +205,7 @@ export function characterActionSet(rec: CharacterRecord, layers?: RuleLayer[]): 
   // mechanics instead of a row of blanks, and a campaign override reaches the
   // VTT exactly as it reaches the sheet.
   const genus = usableGenusResolved(genusNames, codexCtx(rec.campaignId, rec.id), spend.genus, layers).map((a, i) =>
-    mk("genus", a.name, i, { abilityId: a.id, effect: a.effect, actions: a.actions, range: a.range, target: a.target, ss: a.ss ?? 0, focus: a.focus })
+    mk("genus", a.name, i, { abilityId: a.id, effect: a.effect, actions: a.actions, range: a.range, target: a.target, limit: a.limit, ss: a.ss ?? 0, focus: a.focus })
   );
 
   const cipher = usableCiphers(s.paradigmId, s.cipherLoadout ?? []).map((a, i) => mk("cipher", a.name, i, { abilityId: a.id, effect: a.effect, actions: a.actions, ss: a.ss ?? 0 }));

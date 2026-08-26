@@ -62,6 +62,7 @@ function fullSheet(): CharacterSheet {
     folderId: "folder-9",
     tags: ["NPC", "Boss"],
     notesMd: "# markdown notes",
+    counterTracks: [{ name: "Fear Points", value: 3 }, { name: "Overload Charges", value: 2, cap: 4 }],
   };
 }
 

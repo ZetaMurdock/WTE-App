@@ -1114,6 +1114,11 @@ export interface UsableAbility {
    *  came from. Absent for the whole shipped corpus, which keeps running off
    *  `effect` prose exactly as before. */
   actions?: string | null;
+  /** The authored `| Limit |`, verbatim, for the same reason `actions` is here:
+   *  the sheet and the VTT both read UsableAbility, and neither should have to
+   *  know which catalog the string came from. Genus only — ciphers, innates and
+   *  variants state their limits inside effect prose and have no field. */
+  limit?: string | null;
 }
 
 /** Genus a character can actually use. `loadout` is the list of names they know —
@@ -1153,6 +1158,7 @@ export function usableGenus(
       classification: a?.classification,
       ssNote: a?.ssNote,
       actions: a?.actions,
+      limit: a?.limit,
     };
   });
 }

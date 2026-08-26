@@ -38,6 +38,17 @@ import { TimelineSystem } from "./systems/TimelineSystem";
 import { SimulationSystem } from "./systems/SimulationSystem";
 import { EncounterSystem, type RecurringProposalSink } from "./systems/EncounterSystem";
 import { ConditionClockSystem } from "./systems/ConditionClockSystem";
+import {
+  commitTokenCounter,
+  planClearTokenCounter,
+  planTokenCounter,
+  pruneCounterTracks,
+  tracksOfToken,
+  type TokenCounterApplication,
+  type TokenCounterPlan,
+} from "../data/tokenCounters";
+import type { CounterTrack } from "../../game/counterTracks";
+import { dismissibleSummonBodies, duplicateSummonIds } from "../data/summonPlacement";
 import { RecurringEffectSystem } from "./systems/RecurringEffectSystem";
 import { bindAura, dropOrphanAuras, reanchorAuras, unbindAura } from "./systems/AuraSystem";
 import {
@@ -45,6 +56,7 @@ import {
   TOKEN_COLORS,
   type VttAtmosphere,
   type VttBackground,
+  type VttConditionClock,
   type VttFogMode,
   type VttZoneKind,
   type VttEffectData,
@@ -276,6 +288,9 @@ export class PixiVttApp {
     // longer has (deleted while the map was closed, or dropped by the sender's
     // own edit). Left in place they would tick against ids that do not exist.
     this.pruneConditionClocks();
+    // Same hazard for the same reason: a track whose token was deleted while the
+    // map was closed has nothing left to count, and its pip is already gone.
+    this.pruneCounters();
     if (!this.ready) return;
     this.app.stage.visible = true;
     this.camera.set(scene.data.camera);
@@ -633,6 +648,80 @@ export class PixiVttApp {
     this.onChanged();
     this.onOp({ op: "token.add", token: t });
     return t;
+  }
+  /**
+   * Commit a planned summon — a hundred bodies as ONE act.
+   *
+   * `spawnToken` is the wrong tool for a swarm and calling it in a loop is the
+   * bug this method exists to prevent: each call re-serialises the whole scene
+   * for its own budget check and re-scans every token for its own free cell, so
+   * Minion Conjuration's 100 minions would cost 100 growing serialisations and
+   * a quadratic cell search before the first one appeared. Positions and the
+   * wire measurement are `summonPlan`'s job and are already done by the time
+   * this is called; what is left is the commit.
+   *
+   * It still refuses as a whole. A batch that half-lands is a swarm the Curator
+   * cannot count and cannot dismiss, so a duplicate id anywhere — the only way
+   * this can fail with a validated plan — drops the entire batch and returns 0
+   * rather than leaving a partial one on the map.
+   *
+   * One op per body, deliberately. `token.add` is the op every peer already
+   * knows how to apply, and inventing a bulk op would be a second way to add a
+   * token that the permission and validation paths would have to learn.
+   */
+  placeSummonBatch(tokens: readonly VttToken[]): number {
+    if (!this.scene || this.playerView || tokens.length === 0) return 0;
+    if (duplicateSummonIds(this.scene.data.tokens, tokens).length) return 0;
+    for (const token of tokens) this.scene.data.tokens.push(token);
+    this.redraw();
+    this.onChanged();
+    for (const token of tokens) this.onOp({ op: "token.add", token });
+    return tokens.length;
+  }
+  /**
+   * Send a whole summoned batch away again.
+   *
+   * The removal counterpart of the batch placement, and for the same reason: a
+   * swarm that can only be removed one token at a time has not really been
+   * given a way off the map. Auras orphaned by the departure are dropped here
+   * exactly as `deleteSelected` drops them — a field hanging over an empty
+   * square is no more explicable when 100 bodies left at once.
+   *
+   * A body the Curator handed to a player is NOT dismissed, for the reason
+   * `deleteSelected` will not delete one: ordinary Curator input does not remove
+   * another peer's token, and a batch handle that ignored that would be a way to
+   * delete a player's token by having summoned it. Returns how many actually
+   * left, which is what the caller reports — never the batch size.
+   */
+  dismissSummonBatch(batchId: string): number {
+    if (!this.scene || this.playerView || !batchId) return 0;
+    const d = this.scene.data;
+    const { going } = dismissibleSummonBodies(d.tokens, batchId, (token) => this.canControlToken(token.id));
+    if (!going.length) return 0;
+    const ids = new Set(going.map((token) => token.id));
+    d.tokens = d.tokens.filter((token) => !ids.has(token.id));
+    if (this.selection?.kind === "token" && ids.has(this.selection.id)) this.select(null);
+    this.conditions.prune(d);
+    // A hundred bodies leaving take a hundred tracks' worth of scene record with
+    // them. Left behind they are rows keyed to token ids the scene no longer has
+    // — the same staleness `pruneConditionClocks` exists to stop, at a hundred
+    // times the volume.
+    pruneCounterTracks(d);
+    const orphaned = dropOrphanAuras(d);
+    this.redraw();
+    this.onChanged();
+    for (const id of ids) this.onOp({ op: "token.remove", id });
+    for (const effectId of orphaned) this.onOp({ op: "effect.remove", id: effectId });
+    return ids.size;
+  }
+
+  /** How many of a batch are standing on this scene right now, and how many of
+   *  those the Curator may not remove — what the confirmation prompt asks
+   *  before it claims a number. */
+  summonBatchCensus(batchId: string): { total: number; refused: number } {
+    const tokens = this.scene?.data.tokens ?? [];
+    const { going, refused } = dismissibleSummonBodies(tokens, batchId, (token) => this.canControlToken(token.id));
+    return { total: going.length + refused.length, refused: refused.length };
   }
   addWall(x1: number, y1: number, x2: number, y2: number): void {
     if (!this.scene || this.playerView || (x1 === x2 && y1 === y2)) return;
@@ -1191,12 +1280,77 @@ export class PixiVttApp {
     this.onChanged();
     return true;
   }
+  /**
+   * Put the scene's condition countdowns back to a recorded shape — the other
+   * half of undoing an application, since the pip and its clock are stored in
+   * two different places.
+   *
+   * No `onOp`: clocks are host-side bookkeeping that ride the snapshot and were
+   * never on the wire, so a peer learns of the reversal from the `token.update`
+   * carrying the pip — the only part it ever had. Curator-only, like every
+   * other write that decides how long something lasts.
+   */
+  setConditionClocks(clocks: VttConditionClock[]): boolean {
+    if (!this.scene || this.playerView) return false;
+    if (clocks.length) this.scene.data.conditionClocks = clocks;
+    else delete this.scene.data.conditionClocks;
+    this.onChanged();
+    return true;
+  }
   /** Drop clocks whose token or tag is gone. Host-side bookkeeping: a player's
    *  client is told about the removal by the ordinary token.update that carries
    *  the pip, and never keeps a clock of its own. */
   pruneConditionClocks(): boolean {
     if (!this.scene || this.playerView) return false;
     if (!this.conditions.prune(this.scene.data)) return false;
+    this.onChanged();
+    return true;
+  }
+  /**
+   * Move a custom currency counted against a body — Blight, Overload Charges.
+   *
+   * The number goes on the token as a status tag, so it commits through
+   * `adjudicateTokenVitals`, the same authorised write damage and conditions
+   * take, and the scene's record is stored only once that write comes back
+   * authorised. A refused move therefore leaves no record behind for a track
+   * nobody is carrying — and a player-owned token is refused, which is the whole
+   * point of routing through that method rather than `updateToken`.
+   *
+   * Returns the plan when the move landed, so the caller can see what crossed.
+   * Crossings are NOT acted on here: an `At N` step is an ordinary consequence
+   * and belongs on a Resolution Card in front of a human, not inside the writer.
+   */
+  applyTokenCounter(input: TokenCounterApplication): TokenCounterPlan | null {
+    if (!this.scene || this.playerView) return null;
+    const plan = planTokenCounter(this.scene.data, input);
+    if (!plan) return null;
+    if (!this.adjudicateTokenVitals(plan.tokenId, { statuses: plan.statuses })) return null;
+    commitTokenCounter(this.scene.data, plan.sceneTracks);
+    this.onChanged();
+    return plan;
+  }
+  /** Take a body's track off, pip and record together — the Curator's eraser.
+   *  The only removal there is: nothing decays a track on a round or an
+   *  encounter, because no page can declare that it should. */
+  clearTokenCounter(tokenId: string, name: string): boolean {
+    if (!this.scene || this.playerView) return false;
+    const plan = planClearTokenCounter(this.scene.data, tokenId, name);
+    if (!plan) return false;
+    if (!this.adjudicateTokenVitals(plan.tokenId, { statuses: plan.statuses })) return false;
+    commitTokenCounter(this.scene.data, plan.sceneTracks);
+    this.onChanged();
+    return true;
+  }
+  /** Every track one body carries, for the inspector. */
+  tokenCounters(tokenId: string): CounterTrack[] {
+    return this.scene ? tracksOfToken(this.scene.data, tokenId) : [];
+  }
+  /** Drop tracks whose token is gone or whose pip a Curator cleared by hand.
+   *  Host-side bookkeeping, exactly like `pruneConditionClocks`: a player's
+   *  client learns of the removal from the token.update that carries the pip. */
+  pruneCounters(): boolean {
+    if (!this.scene || this.playerView) return false;
+    if (!pruneCounterTracks(this.scene.data)) return false;
     this.onChanged();
     return true;
   }

@@ -46,6 +46,7 @@ import {
   lapseOutcomes,
   listOutcomes,
   markOutcomeApplied,
+  unmarkOutcomeApplied,
   openOutcome,
   pruneOutcomes,
   pushOutcome,
@@ -59,11 +60,14 @@ import {
   type PendingOutcome,
 } from "./data/outcomeLedger";
 import { outcomesFromProposals } from "./data/recurringOutcome";
+import { crossingLine, outcomeFromCrossing } from "./data/counterOutcome";
 import type { RecurringProposal } from "./engine/systems/RecurringEffectSystem";
 import { declaredAuraOwner, declaredPlacement } from "./data/effectTicks";
 import { SfxPlayer } from "./audio/sfxPlayer";
 import { getMasterVolume, subscribeMasterVolume } from "../lib/audioPrefs";
 import { reportSaveFailure, pushToast } from "../lib/appToast";
+import { setUndoScope } from "../lib/undoRedo";
+import { adjudicateUndoableVitals, applyUndoableCondition } from "./undo/vitalsUndo";
 import { VttCinePanel, type CineConfig } from "./VttCinePanel";
 import { VttSceneBrowser } from "./VttSceneBrowser";
 import { VttActorsPanel } from "./VttActorsPanel";
@@ -76,7 +80,17 @@ import { VttDialogueController } from "./VttDialogueController";
 import { VttAbilitiesPanel, type VttTargetRollIntent } from "./VttAbilitiesPanel";
 import { VttRollToast } from "./VttRollToast";
 import { VttAoePrompt, type AoePlacement, type AoeKind } from "./VttAoePrompt";
+import { VttSummonPrompt, type SummonMode, type SummonRow } from "./VttSummonPrompt";
 import { hasAoe } from "./data/effectMeta";
+import {
+  MAX_SUMMON_BATCH,
+  packSummonCells,
+  pageSummons,
+  resolvePageSummons,
+  summonBodySize,
+  summonPlan,
+} from "./data/summonPlacement";
+import type { CodexSummonEntry } from "./data/summonRoster";
 import { tokenInEdge, arrivalPos } from "./data/sceneLinks";
 import type { VttAbility } from "./data/characterAbilities";
 import { requestedRollOptions } from "./data/requestedRoll";
@@ -196,6 +210,11 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
   const [leftPanel, setLeftPanel] = useState<"scenes" | "actors" | "encounter" | "assets" | "abilities" | null>(null);
   const [abilityCharId, setAbilityCharId] = useState<string | null>(null);
   const [pendingAoe, setPendingAoe] = useState<VttAbility | null>(null);
+  // The ability whose declared `Summon:` steps are waiting on the Curator. The
+  // ROWS are not stored beside it: the creature roster is still loading when
+  // this is set, and a snapshot taken at that moment would tell the Curator a
+  // creature with a perfectly good Codex page has no statline.
+  const [pendingSummon, setPendingSummon] = useState<VttAbility | null>(null);
   // A soundboard clip armed for click-to-place as a spatial emitter.
   const [armedSound, setArmedSound] = useState<{ name: string; src: string } | null>(null);
   const [armedAoe, setArmedAoe] = useState<{ kind: AoeKind; cells: number; rounds: number; declared: PlaceAoeOptions } | null>(null);
@@ -2015,6 +2034,15 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
   const engine = engineRef.current;
   const live = engine?.scene ?? scene;
   const tokenCount = live?.data.tokens.length ?? 0;
+  // Undo history follows the SCENE, not only the tab. An inverse for damage on
+  // a map the Curator has since left would write HP back on bodies nobody is
+  // looking at — the same invisible edit the workspace scoping exists to stop.
+  // The key nests under App's `workspace:vtt2`, so a tab switch still clears it.
+  const liveSceneId = live?.id ?? null;
+  useEffect(() => {
+    if (!active || !liveSceneId) return;
+    setUndoScope(`workspace:vtt2:${liveSceneId}`);
+  }, [active, liveSceneId]);
   const fogOn = live?.data.fog.enabled ?? false;
   void tick; // engine mutations bump this to refresh derived values above
 
@@ -2205,7 +2233,23 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
       // Nothing is announced and nothing is marked applied until the op is
       // actually authored. A card claiming damage the engine refused would send
       // the table on with a wrong number and no way to notice.
-      if (!engine.adjudicateTokenVitals(token.id, { hp: next })) {
+      // The row's "applied" mark rides the same undo entry as the HP. Restoring
+      // the body while the card still read "Applied" would leave the Curator
+      // looking at healed damage with no way to rule on it again.
+      const scope = rollScope;
+      // A heal comes through this same path with a negative amount. Labelling
+      // its inverse "damage to Vex" would put a tooltip on the undo button
+      // naming an act that never happened, on the one control whose entire job
+      // is to say what it is about to take back.
+      const act = amount >= 0 ? "damage to" : "healing on";
+      if (!adjudicateUndoableVitals(engine, token.id, { hp: next }, {
+        label: `${act} ${token.name}`,
+        subject: token.name,
+        onRefused: (reason) => pushToast(reason, "error"),
+        restore: scope
+          ? (phase) => (phase === "undo" ? unmarkOutcomeApplied : markOutcomeApplied)(scope, outcome.id, target.id, consequence.id)
+          : undefined,
+      })) {
         pushToast(`${token.name}'s HP was not changed — that token could not be written to.`, "error");
         return;
       }
@@ -2229,13 +2273,75 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
         pushToast(`${target.name} is no longer on this scene.`, "error");
         return;
       }
-      if (!engine.applyTokenCondition({ tokenId: token.id, status, rounds: consequence.rounds })) {
+      const scope = rollScope;
+      if (!applyUndoableCondition(engine, { tokenId: token.id, status, rounds: consequence.rounds }, {
+        label: `${status} on ${token.name}`,
+        subject: token.name,
+        onRefused: (reason) => pushToast(reason, "error"),
+        restore: scope
+          ? (phase) => (phase === "undo" ? unmarkOutcomeApplied : markOutcomeApplied)(scope, outcome.id, target.id, consequence.id)
+          : undefined,
+      })) {
         pushToast(`${status} was not applied — ${token.name} could not be written to.`, "error");
         return;
       }
       if (rollScope) markOutcomeApplied(rollScope, outcome.id, target.id, consequence.id);
       const clock = consequence.rounds ? ` for ${consequence.rounds} round${consequence.rounds === 1 ? "" : "s"}` : "";
       pushToast(`${token.name} is ${status}${clock}.`, "info");
+    },
+    [outcomeToken, rollScope]
+  );
+
+  /**
+   * Move a custom-currency track, and hand any mark it crossed straight back to
+   * the Curator.
+   *
+   * The crossing is the whole reason this is not just another vitals write. `At
+   * 8: Damage: 1d100` is an ordinary consequence that happens to be armed by an
+   * integer, so it opens its own Resolution Card rather than applying itself —
+   * the same rule the recurring ticks follow, for the same reason: an engine
+   * that could commit a 1d100 because a number reached 8 would be adjudicating,
+   * and adjudicating is the Curator's.
+   *
+   * The card is pushed only AFTER the engine reports the move landed. A refused
+   * write (a player-owned token, a body that left the scene) must not leave a
+   * threshold card standing for a track that never moved.
+   */
+  const applyOutcomeCounter = useCallback(
+    (outcome: PendingOutcome, target: OutcomeTarget, consequence: OutcomeConsequence) => {
+      const engine = engineRef.current;
+      const token = outcomeToken(target);
+      const name = consequence.counter?.trim();
+      if (!engine || !token || !name || !consequence.delta) {
+        pushToast(`${target.name} is no longer on this scene.`, "error");
+        return;
+      }
+      const plan = engine.applyTokenCounter({
+        tokenId: token.id,
+        name,
+        delta: consequence.delta,
+        cap: consequence.cap,
+        thresholds: (consequence.thresholds ?? []).map((threshold) => threshold.at),
+      });
+      if (!plan) {
+        pushToast(`${name} was not changed — ${token.name} could not be written to.`, "error");
+        return;
+      }
+      if (rollScope) markOutcomeApplied(rollScope, outcome.id, target.id, consequence.id);
+      pushToast(
+        `${token.name}: ${crossingLine(plan.name, plan.to, plan.cap, plan.crossed)}${plan.capped ? " (at the cap)" : ""}.`,
+        "info"
+      );
+      if (!plan.crossed.length || !rollScope) return;
+      const card = outcomeFromCrossing({
+        outcome,
+        target,
+        consequence,
+        crossed: plan.crossed,
+        value: plan.to,
+        now: Date.now(),
+      });
+      if (card) pushOutcome(rollScope, card);
     },
     [outcomeToken, rollScope]
   );
@@ -2413,6 +2519,146 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
           }
         : {}),
       ...(auraOwner ? { auraTokenId: auraOwner } : {}),
+    };
+  };
+
+  // ── Declared summons ───────────────────────────────────────────────────────
+  // The table's own creature content, in the shape `resolveSummon` matches
+  // names against. Derived through `computeCreature` — the same derivation the
+  // Actors panel spawns a creature with — so a Lesser Stygian called up by an
+  // ability and one dropped by hand cannot end up with different HP.
+  const summonRoster = useMemo(
+    () => ({
+      quick: quickCreatures,
+      codex: creatures.map((c): CodexSummonEntry => {
+        const derived = computeCreature(c);
+        return {
+          name: c.name,
+          cls: c.cls,
+          hp: derived.hp,
+          dr: derived.dr,
+          size: derived.size,
+          flags: derived.flags,
+          stats: c.stats,
+          traits: c.traits,
+          desc: c.lore,
+        };
+      }),
+    }),
+    [quickCreatures, creatures]
+  );
+
+  const summonRows: SummonRow[] = useMemo(
+    () => (pendingSummon ? resolvePageSummons(pendingSummon.actions, summonRoster) : []),
+    [pendingSummon, summonRoster]
+  );
+
+  /** Where a summon packs outward from, for the anchor the Curator picked. */
+  const summonAnchor = (mode: SummonMode): { x: number; y: number } | null => {
+    const eng = engineRef.current;
+    const tokens = eng?.scene?.data.tokens ?? [];
+    if (mode === "self") {
+      const caster = abilityChar ? tokens.find((t) => t.characterId === abilityChar.id) : null;
+      return caster ? { x: caster.x, y: caster.y } : null;
+    }
+    if (mode === "selected") {
+      const picked = sel?.kind === "token" ? tokens.find((t) => t.id === sel.id) : null;
+      return picked ? { x: picked.x, y: picked.y } : null;
+    }
+    return eng ? eng.viewCenterWorld() : null;
+  };
+
+  const casterToken = () => {
+    const tokens = engineRef.current?.scene?.data.tokens ?? [];
+    return abilityChar ? tokens.find((t) => t.characterId === abilityChar.id) ?? null : null;
+  };
+
+  /** How many of a row's bodies the map could actually hold at that anchor —
+   *  asked live as the Curator switches anchors, so the shortfall is visible
+   *  while the placement is still cancellable. */
+  const summonRoomFor = (row: SummonRow, mode: SummonMode): number => {
+    const scene = engineRef.current?.scene;
+    const anchor = summonAnchor(mode);
+    if (!scene || !anchor) return 0;
+    const want = Math.min(row.summon.count, MAX_SUMMON_BATCH);
+    return packSummonCells(scene.data.grid, scene.data.tokens, anchor, summonBodySize(row.resolution), want).length;
+  };
+
+  /**
+   * Commit every declared summon on one page as one act per creature.
+   *
+   * Ids are minted HERE and handed to the planner, which stays pure: a planner
+   * that generated its own ids could not be re-run to preview a placement
+   * without inventing a hundred throwaway token ids each time the Curator moved
+   * the anchor.
+   */
+  const placeSummons = (mode: SummonMode) => {
+    const eng = engineRef.current;
+    const scene = eng?.scene;
+    if (!eng || !scene) return;
+    const anchor = summonAnchor(mode);
+    if (!anchor) {
+      pushToast("There is nowhere to gather them — pick another anchor.", "error");
+      return;
+    }
+    const ability = pendingSummon;
+    if (!ability) return;
+    const caster = casterToken();
+    for (const row of summonRows) {
+      const plan = summonPlan({
+        summon: row.summon,
+        resolution: row.resolution,
+        // Read fresh each time round: the previous row's bodies are already on
+        // the scene and the next row must pack around them, not through them.
+        scene: eng.scene ?? scene,
+        anchor,
+        batchId: newId("sm"),
+        origin: {
+          sourceAbilityId: ability.abilityId,
+          sourceAbilityName: ability.name,
+          casterCharacterId: abilityChar?.id,
+          casterTokenId: caster?.id,
+          bornRound: (eng.scene ?? scene).data.timeline.round,
+        },
+        tokenIds: Array.from({ length: Math.min(row.summon.count, MAX_SUMMON_BATCH) }, () => newId("tk")),
+      });
+      if (!plan.ok) {
+        pushToast(plan.detail, "error", 0);
+        continue;
+      }
+      const placed = eng.placeSummonBatch(plan.tokens);
+      if (placed === 0) {
+        pushToast(`${row.summon.name} could not be placed.`, "error");
+        continue;
+      }
+      const shortfall = plan.shortfall > 0 ? ` — ${plan.shortfall} had nowhere to stand` : "";
+      const unstatted = plan.unstatted
+        ? ` They carry no profile: nothing in this campaign is named “${row.summon.name}”.`
+        : "";
+      pushToast(`Placed ${placed} × ${row.summon.name}${shortfall}.${unstatted}`, "info", plan.unstatted ? 0 : undefined);
+    }
+    setPendingSummon(null);
+  };
+
+  /** Dismissal for the selected body's whole batch — Curator only, and only
+   *  when the selected token actually came from a summon. */
+  const dismissSummonOf = (selection: VttSelection): (() => void) | undefined => {
+    if (asPlayer || selection?.kind !== "token") return undefined;
+    const token = live?.data.tokens.find((t) => t.id === selection.id);
+    const origin = token?.meta?.summon;
+    if (!origin) return undefined;
+    return () => {
+      const eng = engineRef.current;
+      if (!eng) return;
+      // A body handed to a player is not the Curator's to remove, and the count
+      // in the prompt has to be the count that will actually go — a dialog that
+      // said 100 and dismissed 98 would leave two minions standing with no
+      // explanation on screen for why.
+      const { total, refused } = eng.summonBatchCensus(origin.batchId);
+      const held = refused ? ` (${refused} assigned to a player will stay)` : "";
+      if (!confirm(`Dismiss ${total - refused} × ${origin.name} summoned by ${origin.sourceAbilityName}?${held}`)) return;
+      const gone = eng.dismissSummonBatch(origin.batchId);
+      if (gone) pushToast(`Dismissed ${gone} × ${origin.name}.${held}`, "info");
     };
   };
 
@@ -2659,7 +2905,15 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
           // The tracker's HP column is adjudication too, and it had the same
           // hole: on a player's token the write was refused while the row kept
           // the new number, so the tracker and the token disagreed.
-          onTokenHp={(tokenId, hp) => engine?.adjudicateTokenVitals(tokenId, { hp })}
+          onTokenHp={(tokenId, hp) => {
+            if (!engine) return;
+            const name = engine.scene?.data.tokens.find((token) => token.id === tokenId)?.name ?? "that token";
+            adjudicateUndoableVitals(engine, tokenId, { hp }, {
+              label: `HP on ${name}`,
+              subject: name,
+              onRefused: (reason) => pushToast(reason, "error"),
+            });
+          }}
           onFocusToken={(tokenId) => engine?.select({ kind: "token", id: tokenId })}
           onClose={() => setLeftPanel(null)}
         />
@@ -2688,12 +2942,41 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
           lockCharacter={isNetPlayer}
           onArmRoll={armRoll}
           onRequestTargetRoll={!asPlayer && sel?.kind === "token" ? requestTargetRoll : undefined}
+          // Which windows are open right now. An unlinked encounter or a
+          // stopped timeline leaves the field absent rather than zeroed: a
+          // per-encounter limit with no encounter running has nothing to count
+          // against, and a zero would have counted it against a window the
+          // table was never in.
+          usage={
+            rollScope
+              ? {
+                  scope: rollScope,
+                  window: {
+                    sceneId: live?.id ?? null,
+                    encounterId: live?.data.encounterId ?? null,
+                    round: live?.data.timeline.round || null,
+                    turnId: live?.data.timeline.turn ? String(live.data.timeline.turn) : null,
+                  },
+                }
+              : undefined
+          }
           onContestTarget={contestDefender && !asPlayer ? contestSelectedToken : undefined}
           contestTargetName={contestDefender?.name}
           onUseAbility={(ability) => {
             // The roll already fired; if the ability implies an area, prompt to
             // place an editable hitbox.
             if (!asPlayer && hasAoe(ability.meta)) setPendingAoe(ability);
+            // A declared summon is its own proposal and rides beside the area
+            // prompt rather than inside it: an ability may place a field AND
+            // call bodies into it, and folding the two into one dialog would
+            // make the Curator aim a template to confirm a creature.
+            if (!asPlayer && pageSummons(ability.actions).length > 0) {
+              setPendingSummon(ability);
+              // The roster is only loaded when the Actors panel opens, and a
+              // summon needs it now — without this every creature with a Codex
+              // page resolves as unstatted the first time it is called.
+              void loadCreatures();
+            }
           }}
           onClose={() => setLeftPanel(null)}
         />
@@ -2705,6 +2988,7 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
           onRoll={rollConsequence}
           onApplyDamage={applyOutcomeDamage}
           onApplyCondition={applyOutcomeCondition}
+          onApplyCounter={applyOutcomeCounter}
           onDeclare={declareOutcome}
           onSetDamageRoll={chooseDamageRoll}
           onDismiss={dropOutcome}
@@ -2724,6 +3008,19 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
             else placeAoe(p, declared);
             setPendingAoe(null);
           }}
+        />
+      )}
+      {pendingSummon && summonRows.length > 0 && (
+        <VttSummonPrompt
+          abilityName={pendingSummon.name}
+          rows={summonRows}
+          casterName={abilityChar?.name ?? null}
+          hasCasterToken={!!casterToken()}
+          hasSelectedToken={sel?.kind === "token"}
+          loading={creaturesLoading}
+          roomFor={summonRoomFor}
+          onPlace={placeSummons}
+          onCancel={() => setPendingSummon(null)}
         />
       )}
       {armedAoe && (
@@ -2868,6 +3165,7 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
           onEffect={(patch) => engine.updateEffect(sel.id, patch)}
           onEffectKind={(kind) => engine.setEffectKind(sel.id, kind)}
           onDelete={() => engine.deleteSelected()}
+          onDismissSummon={dismissSummonOf(sel)}
           onClose={() => engine.select(null)}
           peers={net.status === "connected" ? net.peers.map((p) => ({ id: p.id, name: p.name })) : []}
           selfId={net.selfId}

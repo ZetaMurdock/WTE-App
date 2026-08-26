@@ -11,6 +11,7 @@ import {
   type VttToken,
   type VttWall,
 } from "./types/scene";
+import { summonBatchTokens } from "./data/summonPlacement";
 
 interface Props {
   sel: NonNullable<VttSelection>;
@@ -24,6 +25,9 @@ interface Props {
   onEffect: (patch: Partial<VttEffectData>) => void;
   onEffectKind: (kind: VttEffectKind) => void;
   onDelete: () => void;
+  /** Send the selected token's whole summoned batch away. Absent when the
+   *  viewer is not the Curator, or the token was not summoned. */
+  onDismissSummon?: () => void;
   onClose: () => void;
   /** Connected peers for token-ownership assignment (empty when solo). */
   peers?: { id: string; name: string }[];
@@ -35,7 +39,7 @@ interface Props {
 const LIGHT_COLORS = ["#a08a4f", "#689a96", "#837aae", "#a1584a", "#a7aebd"];
 const EFFECT_COLORS = ["#837aae", "#a1584a", "#a08a4f", "#689a96", "#6f9a68"];
 
-export function VttInspector({ sel, scene, onToken, onTokenImage, onRecoverTokenOwner, onWall, onLight, onEmitter, onEffect, onEffectKind, onDelete, onClose, peers = [], selfId, curator = true }: Props) {
+export function VttInspector({ sel, scene, onToken, onTokenImage, onRecoverTokenOwner, onWall, onLight, onEmitter, onEffect, onEffectKind, onDelete, onDismissSummon, onClose, peers = [], selfId, curator = true }: Props) {
   const token = sel.kind === "token" ? scene.data.tokens.find((t) => t.id === sel.id) : null;
   const wall = sel.kind === "wall" ? scene.data.walls.find((w) => w.id === sel.id) : null;
   const light = sel.kind === "light" ? scene.data.lights.find((l) => l.id === sel.id) : null;
@@ -62,6 +66,24 @@ export function VttInspector({ sel, scene, onToken, onTokenImage, onRecoverToken
 
       {token && (
         <>
+          {token.meta?.summon && (
+            // A summoned body reads as an ordinary creature token, which is
+            // exactly what it is — and leaves the Curator with no way to tell a
+            // conjured minion from a wandering one, or to find its other 99.
+            // Provenance and one-act dismissal both live here for that reason.
+            <div className="vtt2-linked" title={`Summoned by ${token.meta.summon.sourceAbilityName}`}>
+              <span className="vtt2-linked-tag">Summoned</span>
+              <span className="vtt2-linked-meta">{token.meta.summon.sourceAbilityName}</span>
+              <span className="vtt2-linked-meta">
+                {summonBatchTokens(scene.data.tokens, token.meta.summon.batchId).length} in this batch
+              </span>
+              {onDismissSummon && (
+                <button className="ghost-btn" onClick={onDismissSummon} title="Remove every body summoned by this act">
+                  Dismiss swarm
+                </button>
+              )}
+            </div>
+          )}
           {token.actorKind && (
             <div className="vtt2-linked" title={token.actorKind === "character" ? "Linked to a vault character" : "Linked to a Codex creature"}>
               <span className="vtt2-linked-tag">Linked {token.actorKind === "character" ? "Character" : "Creature"}</span>

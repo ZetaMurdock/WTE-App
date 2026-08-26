@@ -15,6 +15,7 @@ import type { CharacterSheet } from "../models/character";
 import { zeroAttributes, zeroSpecialties } from "../game/wte";
 import { migrateLoadout, parseSpend } from "../game/synapticFocus";
 import { parseBioFields } from "./bioFields";
+import { MAX_COUNTER_TRACKS, validCounterTrack, type CounterTrack } from "../game/counterTracks";
 
 /** Every field a stored sheet may carry. Exhaustive by construction — see the
  *  compile-time checks below. */
@@ -55,6 +56,7 @@ export const SHEET_KEYS = [
   "folderId",
   "tags",
   "notesMd",
+  "counterTracks",
 ] as const;
 
 export type SheetKey = (typeof SHEET_KEYS)[number];
@@ -73,6 +75,23 @@ export type _NoSheetKeyExtra = MustBeNever<Exclude<SheetKey, keyof CharacterShee
 /** A brand-new sheet. */
 export function emptySheet(): CharacterSheet {
   return { attributes: zeroAttributes(), specialties: zeroSpecialties(), rank: 0, notes: "" };
+}
+
+/**
+ * A character's own custom currencies, read back off the stored sheet.
+ *
+ * Every entry is re-validated rather than trusted: this JSON can have been
+ * hand-edited, written by a build that spelled the record differently, or
+ * imported from another table's campaign package. A malformed track that made it
+ * through would become a number on the sheet that no `Counter` step can ever
+ * move back down.
+ *
+ * Absent when there is nothing to keep, so `prune` removes the key entirely.
+ */
+function parseCounterTracks(value: unknown): CounterTrack[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const kept = value.filter(validCounterTrack).slice(0, MAX_COUNTER_TRACKS);
+  return kept.length ? kept.map(({ name, value: n, cap }) => (cap != null ? { name, value: n, cap } : { name, value: n })) : undefined;
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -174,6 +193,9 @@ export function sheetFromJson(raw: unknown): CharacterSheet {
     folderId: p.folderId === null ? null : str(p.folderId),
     tags: strArr(p.tags) ?? [],
     notesMd: str(p.notesMd) ?? "",
+    // Absent stays absent — `prune` drops the undefined — so a sheet that never
+    // moved a track serializes byte-for-byte as it did before tracks existed.
+    counterTracks: parseCounterTracks(p.counterTracks),
   });
 }
 

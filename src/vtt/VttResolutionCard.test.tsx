@@ -148,6 +148,7 @@ async function mount(outcomes: PendingOutcome[], overrides: Partial<VttResolutio
     onRoll: vi.fn(() => 27),
     onApplyDamage: vi.fn(),
     onApplyCondition: vi.fn(),
+    onApplyCounter: vi.fn(),
     onDeclare: vi.fn(),
     onSetDamageRoll: vi.fn(),
     onDismiss: vi.fn(),
@@ -725,5 +726,63 @@ describe("VttResolutionCard with many targets on one card", () => {
     // answered by a button press.
     expect(props.onApplyDamage).toHaveBeenCalledTimes(2);
     expect(props.onApplyCondition).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("a custom currency", () => {
+  // A written block, not corpus prose: the `Counter` verb is newer than every
+  // shipped page, and the file's corpus rule is about the PROSE deriver — this
+  // card has no prose at all, only what a table declared.
+  const BLIGHT = ["- Counter: Blight +1, cap 8", "- At 8: Damage: 1d100"].join("\n");
+
+  function trackCard(): PendingOutcome {
+    return openOutcome({
+      id: "out-track",
+      sourceAbilityId: "ability-blight",
+      sourceAbilityName: "Blight Touch",
+      targets: [{ tokenId: "token-Kira", name: "Kira" }],
+      dc: 18,
+      rollLabel: "Physical Save — Recovery",
+      steps: parseAbilityEffects(BLIGHT).steps,
+      now: 1_000,
+    });
+  }
+
+  it("offers one click that moves the track, and no dice", () => {
+    // A counter has no `expr`. If the row fell through to the damage path it
+    // would show a Roll button for dice that do not exist.
+    const card = settleOne(trackCard(), 4);
+    return mount([card]).then((props) => {
+      expect(button("Roll Blight +1 / 8")).toBeUndefined();
+      button("Apply Blight +1")?.click();
+      expect(props.onApplyCounter).toHaveBeenCalledTimes(1);
+      expect(props.onApplyDamage).not.toHaveBeenCalled();
+    });
+  });
+
+  it("does not offer the mark until the track reaches it", () => {
+    // The 1d100 belongs to `At 8`, and this card is the move — not the arrival.
+    return mount([settleOne(trackCard(), 4)]).then(() => {
+      expect(host.textContent).not.toContain("1d100");
+    });
+  });
+
+  it("shows an unrolled crossing card without claiming it is waiting on a roll", () => {
+    const crossed: PendingOutcome = {
+      ...trackCard(),
+      id: "out-crossed",
+      dc: undefined,
+      unrolled: true,
+      rollLabel: "Blight reached 8",
+      consequences: [
+        { id: "t8-dmg-0", kind: "damage", label: "At 8 · 1d100", on: "always", expr: "1d100", declared: true },
+      ],
+    };
+    return mount([crossed]).then(() => {
+      expect(host.textContent).toContain("Blight reached 8");
+      expect(host.textContent).not.toContain("waiting on the roll");
+      expect(host.textContent).not.toContain("Waiting on the roll");
+      expect(button("Roll At 8 · 1d100")).toBeTruthy();
+    });
   });
 });

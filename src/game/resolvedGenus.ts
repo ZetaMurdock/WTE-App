@@ -241,6 +241,7 @@ export function toUsable(r: ResolvedGenus): UsableAbility {
     classification: m?.classification ?? undefined,
     ssNote: m?.ssNote ?? undefined,
     actions: m?.actions ?? undefined,
+    limit: m?.limit ?? undefined,
   };
 }
 

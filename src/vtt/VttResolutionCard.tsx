@@ -33,6 +33,10 @@ export interface VttResolutionCardProps {
   ) => void;
   /** Apply the condition tag to one target's token statuses. */
   onApplyCondition: (outcome: PendingOutcome, target: OutcomeTarget, consequence: OutcomeConsequence) => void;
+  /** Move one target's custom-currency track. The applier decides where the
+   *  track lives and opens a fresh card for whatever mark it crossed; this
+   *  component only ever asks. */
+  onApplyCounter: (outcome: PendingOutcome, target: OutcomeTarget, consequence: OutcomeConsequence) => void;
   /** Curator declares one target's verdict by hand — for rulings, for a target
    *  they rule immune, and to override a roll. */
   onDeclare: (outcome: PendingOutcome, target: OutcomeTarget, verdict: "pass" | "fail") => void;
@@ -94,6 +98,10 @@ function SourceChip({ consequence }: { consequence: OutcomeConsequence }) {
  *  one line, so the card never makes the table reconstruct why it is offering
  *  what it is offering. */
 function resolutionLine(outcome: PendingOutcome, target: OutcomeTarget): string {
+  // A card with no roll behind it reports the EVENT and stops. Saying "waiting
+  // on the roll" under a threshold that has already fired would send a Curator
+  // hunting for a die nobody owes them.
+  if (outcome.unrolled && target.verdict === "pending") return outcome.rollLabel;
   const verdict =
     target.verdict === "pass"
       ? "passed"
@@ -154,6 +162,7 @@ interface RowProps {
   onRoll: () => void;
   onApplyDamage: (amount: number) => void;
   onApplyCondition: () => void;
+  onApplyCounter: () => void;
 }
 
 // Row and Card are module-level, not nested in the card body: a component
@@ -168,6 +177,7 @@ function ConsequenceRow({
   onRoll,
   onApplyDamage,
   onApplyCondition,
+  onApplyCounter,
 }: RowProps) {
   const applied = target.applied.includes(consequence.id);
 
@@ -181,6 +191,38 @@ function ConsequenceRow({
             ? "Curator adjudicates — the page asked for a ruling, not a number."
             : "Curator adjudicates — the prose names no number to apply."}
         </div>
+      </li>
+    );
+  }
+
+  // A track move is neither dice nor a tag: there is nothing to roll and nothing
+  // to name, only a number to nudge. It gets the same one-click Apply the
+  // condition row has, and — like every other row — the ledger's `applied` list
+  // is what stops a second click sending a second point of Blight.
+  if (consequence.kind === "counter") {
+    const move = `${consequence.counter} ${(consequence.delta ?? 0) > 0 ? "+" : ""}${consequence.delta ?? 0}`;
+    return (
+      <li className="vtt2-res-row">
+        <span className="vtt2-res-label">{consequence.label}</span>
+        <SourceChip consequence={consequence} />
+        {applied ? (
+          <span className="vtt2-res-applied">Applied {move}</span>
+        ) : (
+          <button
+            type="button"
+            className="vtt2-res-btn"
+            onClick={onApplyCounter}
+            title={
+              consequence.thresholds?.length
+                ? `Move ${target.name}'s ${consequence.counter} by ${consequence.delta} — reaching ${consequence.thresholds
+                    .map((threshold) => threshold.at)
+                    .join(" or ")} opens its own card`
+                : `Move ${target.name}'s ${consequence.counter} by ${consequence.delta}`
+            }
+          >
+            Apply {move}
+          </button>
+        )}
       </li>
     );
   }
@@ -286,6 +328,7 @@ interface TargetBlockProps {
     amount: number
   ) => void;
   onApplyCondition: (outcome: PendingOutcome, target: OutcomeTarget, consequence: OutcomeConsequence) => void;
+  onApplyCounter: (outcome: PendingOutcome, target: OutcomeTarget, consequence: OutcomeConsequence) => void;
   onDeclare: (outcome: PendingOutcome, target: OutcomeTarget, verdict: "pass" | "fail") => void;
 }
 
@@ -298,6 +341,7 @@ function TargetBlock({
   onRollRow,
   onApplyDamage,
   onApplyCondition,
+  onApplyCounter,
   onDeclare,
 }: TargetBlockProps) {
   const armed = armedConsequences(outcome, target);
@@ -312,11 +356,13 @@ function TargetBlock({
         <p className="list-empty vtt2-res-note">
           {target.name} is no longer on this scene — nothing here can be applied to them.
         </p>
-      ) : target.verdict === "pending" ? (
+      ) : target.verdict === "pending" && !(outcome.unrolled && armed.length > 0) ? (
         <p className="list-empty vtt2-res-note">
-          {target.lapsedRound != null
-            ? `The round moved on without an answer. Nothing was applied — roll late, or declare it below.`
-            : "Waiting on the roll — or declare it below."}
+          {outcome.unrolled
+            ? "Nothing to apply — the marks this track crossed declare nothing the card can offer."
+            : target.lapsedRound != null
+              ? `The round moved on without an answer. Nothing was applied — roll late, or declare it below.`
+              : "Waiting on the roll — or declare it below."}
         </p>
       ) : armed.length === 0 ? (
         <p className="list-empty vtt2-res-note">
@@ -339,6 +385,7 @@ function TargetBlock({
               onRoll={() => onRollRow(outcome, target, consequence)}
               onApplyDamage={(amount) => onApplyDamage(outcome, target, consequence, amount)}
               onApplyCondition={() => onApplyCondition(outcome, target, consequence)}
+              onApplyCounter={() => onApplyCounter(outcome, target, consequence)}
             />
           ))}
         </ul>
@@ -387,6 +434,7 @@ function OutcomeCard({
   onRollRow,
   onApplyDamage,
   onApplyCondition,
+  onApplyCounter,
   onDeclare,
   onSetDamageRoll,
   onApplyBatch,
@@ -520,6 +568,7 @@ function OutcomeCard({
             onRollRow={onRollRow}
             onApplyDamage={onApplyDamage}
             onApplyCondition={onApplyCondition}
+            onApplyCounter={onApplyCounter}
             onDeclare={onDeclare}
           />
         ))}
@@ -541,6 +590,7 @@ export function VttResolutionCard({
   onRoll,
   onApplyDamage,
   onApplyCondition,
+  onApplyCounter,
   onDeclare,
   onSetDamageRoll,
   onDismiss,
@@ -577,6 +627,14 @@ export function VttResolutionCard({
           autoFired.current.add(key);
           if (consequence.kind === "condition") {
             onApplyCondition(outcome, target, consequence);
+            continue;
+          }
+          // A track has no dice. Falling through to `rollRow` would hand a
+          // counter row to the damage path, which reads `expr`, finds nothing,
+          // and quietly drops the move — the ability's declared currency simply
+          // never accruing for any table that opted into auto-apply.
+          if (consequence.kind === "counter") {
+            onApplyCounter(outcome, target, consequence);
             continue;
           }
           const total = rollRow(outcome, target, consequence, pass);
@@ -657,6 +715,12 @@ export function VttResolutionCard({
           onApplyCondition(outcome, step.target, consequence);
           continue;
         }
+        // Same reason as the auto-apply pass above: a counter carries no dice,
+        // and the one-click act must not send it down the damage path.
+        if (consequence.kind === "counter") {
+          onApplyCounter(outcome, step.target, consequence);
+          continue;
+        }
         const total = rollRow(outcome, step.target, consequence, pass);
         // Dice nothing could read leave that target's row armed with its own
         // Roll button rather than taking a number the card made up.
@@ -686,6 +750,7 @@ export function VttResolutionCard({
           onRollRow={rollRow}
           onApplyDamage={applyRow}
           onApplyCondition={onApplyCondition}
+          onApplyCounter={onApplyCounter}
           onDeclare={onDeclare}
           onSetDamageRoll={onSetDamageRoll}
           onApplyBatch={applyBatch}

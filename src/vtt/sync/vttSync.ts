@@ -14,6 +14,8 @@ import { validateMoveAuthority } from "./moveAuthority";
 import { pushToast } from "../../lib/appToast";
 import { MAX_VTT_SNAPSHOT_CHARS, vttSnapshotChars, vttSnapshotFits } from "./wireBudget";
 import { MAX_CONDITION_CLOCKS } from "../engine/systems/ConditionClockSystem";
+import { MAX_SCENE_COUNTER_TRACKS } from "../data/tokenCounters";
+import { MAX_COUNTER_NAME, MAX_COUNTER_VALUE } from "../../game/counterTracks";
 
 type PatchMsg = Extract<NetMessage, { t: "vtt-patch" }>;
 type SnapMsg = Extract<NetMessage, { t: "snapshot" }>;
@@ -63,6 +65,17 @@ const validSnapshotConditionClock = (value: unknown): boolean =>
   Number.isSafeInteger(value.rounds) && Number(value.rounds) >= 1 && Number(value.rounds) <= 100_000 &&
   (value.potency === undefined || finiteNumber(value.potency));
 
+/** A track is a name and a positive integer against a body. Zero is rejected
+ *  rather than tolerated: a zeroed track is DROPPED by the applier, so a peer
+ *  sending one is either malformed or trying to plant a pip that never comes
+ *  off. */
+const validSnapshotCounterTrack = (value: unknown): boolean =>
+  isRecord(value) && shortId(value.tokenId) &&
+  boundedString(value.name, MAX_COUNTER_NAME) && (value.name as string).trim().length > 0 &&
+  Number.isSafeInteger(value.value) && Number(value.value) > 0 && Number(value.value) <= MAX_COUNTER_VALUE &&
+  (value.cap === undefined ||
+    (Number.isSafeInteger(value.cap) && Number(value.cap) >= 0 && Number(value.cap) <= MAX_COUNTER_VALUE));
+
 /** Reject malformed snapshots before they reach persistence or the renderer. */
 export function isVttSceneSnapshot(value: unknown): value is VttScene {
   if (!isRecord(value) || !shortId(value.id) || !shortId(value.campaignId) || typeof value.name !== "string" || value.name.length > 512) return false;
@@ -100,6 +113,7 @@ export function isVttSceneSnapshot(value: unknown): value is VttScene {
   if (data.links !== undefined && (!boundedArray(data.links, 10_000) || !data.links.every(validSnapshotLink))) return false;
   if (data.drawings !== undefined && (!boundedArray(data.drawings, 500) || !data.drawings.every(validSnapshotDrawing))) return false;
   if (data.conditionClocks !== undefined && (!boundedArray(data.conditionClocks, MAX_CONDITION_CLOCKS) || !data.conditionClocks.every(validSnapshotConditionClock))) return false;
+  if (data.counterTracks !== undefined && (!boundedArray(data.counterTracks, MAX_SCENE_COUNTER_TRACKS) || !data.counterTracks.every(validSnapshotCounterTrack))) return false;
   if (data.terrain !== undefined && data.terrain !== null) {
     if (!isRecord(data.terrain) || !boundedArray(data.terrain.heights, Number(grid.cols) * Number(grid.rows))) return false;
     if (!data.terrain.heights.every(finiteNumber) || !finiteNumber(data.terrain.maxCells)) return false;
