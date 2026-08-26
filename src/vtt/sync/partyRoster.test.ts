@@ -2,7 +2,7 @@
 // The roster's whole reason to exist is outliving the live room, so these tests
 // drive it against a fake campaign_kv table and then throw the in-memory state
 // away to prove the durability claim rather than restating the writes.
-import { peerDeviceKey } from "./partyRoster";
+import { peerDeviceKey, ownerMatches, needsOwnerKey } from "./partyRoster";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 interface Row {
@@ -319,5 +319,40 @@ describe("recognising a returning player", () => {
     });
     expect(credit).toMatchObject({ ownerKey: "device", ownerName: "Mara" });
     expect(credit!.ownerKey).toBe(peerDeviceKey("device-aaaaaa"));
+  });
+});
+
+describe("the key that recognises a returning player", () => {
+  it("stores the device key, so a reclaim has something to match", async () => {
+    // It was dropped by the writer when it was introduced: every entry saved
+    // without one, so the reclaim could never fire and a returning player was
+    // refused their own character. Three of one table's sheets were denied on
+    // sight in v0.8.86.
+    __resetPartyRoster();
+    await rememberPartyMember("c1", {
+      charId: "ch1",
+      name: "Mara",
+      ownerId: "device-aaaaaa",
+      ownerKey: "device",
+      ownerName: "Mara's player",
+    });
+    expect(getPartyRoster()[0].ownerKey).toBe("device");
+  });
+
+  it("keeps the key when a later sighting does not carry one", async () => {
+    __resetPartyRoster();
+    const base = { charId: "ch1", name: "Mara", ownerId: "device-aaaaaa", ownerName: "P" };
+    await rememberPartyMember("c1", { ...base, ownerKey: "device" });
+    await rememberPartyMember("c1", base);
+    expect(getPartyRoster()[0].ownerKey).toBe("device");
+  });
+
+  it("adopts an entry that predates the field, then matches exactly", () => {
+    // Trust-on-first-use, bounded: only an entry with no key at all.
+    expect(ownerMatches({}, "device-aaaaaa")).toBe(true);
+    expect(needsOwnerKey({})).toBe(true);
+    expect(ownerMatches({ ownerKey: "device" }, "device-zzzzzz")).toBe(true);
+    expect(ownerMatches({ ownerKey: "device" }, "other-zzzzzz")).toBe(false);
+    expect(needsOwnerKey({ ownerKey: "device" })).toBe(false);
   });
 });

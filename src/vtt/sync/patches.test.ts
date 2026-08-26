@@ -253,15 +253,24 @@ describe("sanitizeTokenVitalsPatch", () => {
   // Adjudication is the one write allowed onto a token its author does not own,
   // so what it may carry has to stay this narrow: what a ruling costs a body,
   // never anything about whose body it is.
-  it("keeps hp and statuses and drops everything else", () => {
+  it("keeps hp, statuses and vision, and drops everything else", () => {
     expect(sanitizeTokenVitalsPatch({ hp: 7, statuses: ["Slowed (1)"] })).toEqual({ hp: 7, statuses: ["Slowed (1)"] });
     expect(sanitizeTokenVitalsPatch({ hp: 7, name: "Stolen", owner: "peer-b", size: 4, img: null, hpMax: 99 })).toEqual({ hp: 7 });
+    // A Curator declaring how far a body sees — blinded, dazzled, handed a lamp.
+    expect(sanitizeTokenVitalsPatch({ vision: 0 })).toEqual({ vision: 0 });
   });
 
   it("still enforces the ordinary value rules", () => {
     expect(sanitizeTokenVitalsPatch({ hp: Number.NaN })).toEqual({});
     expect(sanitizeTokenVitalsPatch({ statuses: [42] })).toEqual({});
+    expect(sanitizeTokenVitalsPatch({ vision: -1 })).toEqual({});
     expect(sanitizeTokenVitalsPatch(null)).toEqual({});
+  });
+
+  it("does not let a PLAYER reach vision through the ordinary patch path", () => {
+    // Widening what the Curator may adjudicate must not widen what a player may
+    // send: this is the patch a peer's own token.update is cut down to.
+    expect(sanitizePlayerTokenUpdatePatch({ vision: 30, hp: 4 })).toEqual({ hp: 4 });
   });
 });
 

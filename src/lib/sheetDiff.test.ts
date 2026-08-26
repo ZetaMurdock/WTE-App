@@ -103,6 +103,27 @@ describe("diffSheetRecords", () => {
     expect(diffSheetRecords(before, rec({}))).toEqual(["Blight track removed"]);
   });
 
+  it("says nothing about money, because money is not on the sheet", () => {
+    // A W.T.E purse is Shrives held in the player's own table link, granted over
+    // the wire (net/NetContext `purse/grant`) and announced back by their device.
+    // A stale `purse` key left on a record by the withdrawn sheet field must not
+    // produce a change notice about a currency this app no longer has.
+    const withStale = (amount: number) =>
+      rec({ ...({ purse: [{ name: "Gold", amount }] } as object) } as Partial<CharacterSheet>);
+    expect(diffSheetRecords(withStale(50), withStale(15))).toEqual([]);
+  });
+
+  it("names a handout so the player knows what to look for", () => {
+    const given = rec({ handouts: [{ id: "h1", title: "Torn ledger page", text: "…paid in Scrap.", by: "The Curator", at: 5 }] });
+    expect(diffSheetRecords(rec({}), given)).toEqual(["Handed to you: “Torn ledger page” — it is in your Notes"]);
+    expect(diffSheetRecords(given, rec({}))).toEqual(["“Torn ledger page” was taken back"]);
+  });
+
+  it("says nothing about handouts that were merely re-saved", () => {
+    const h = { id: "h1", title: "A", text: "a", by: "The Curator", at: 5 };
+    expect(diffSheetRecords(rec({ handouts: [h] }), rec({ handouts: [{ ...h }] }))).toEqual([]);
+  });
+
   it("resolves ids to the names on the sheet", () => {
     expect(diffSheetRecords(rec({}), rec({ speciesId: "hyomen" }))).toEqual(["Species set to Hyomen"]);
     expect(diffSheetRecords(rec({ speciesId: "hyomen" }), rec({}))).toEqual(["Species cleared (was Hyomen)"]);

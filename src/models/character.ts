@@ -1,5 +1,6 @@
 import type { Attributes, Specialties, Background, DerivedKey, EquipmentItem } from "../game/wte";
 import type { CounterTrack } from "../game/counterTracks";
+import type { Handout } from "../game/handouts";
 
 /** DB-row metadata for a character (the `data` column holds the CharacterSheet JSON). */
 export interface Character {
@@ -84,6 +85,16 @@ export interface CharacterSheet {
    *  this sheet does. Absent until something moves one, so a sheet that never
    *  uses a track serializes exactly as it did before tracks existed. */
   counterTracks?: CounterTrack[];
+  /** NO `purse` FIELD, deliberately. W.T.E's money is Palladium/Credits/Shrives
+   *  (game/money.ts), and a character's purse is held in their table link on
+   *  their OWN device (net/activeTable) — the Curator's database keeps no copy.
+   *  A second purse on the sheet shipped once, in its own denominations, and two
+   *  currencies in one app is exactly the drift this model exists to prevent.
+   *  A record saved by that build still loads: sheetCodec passes unknown keys
+   *  through untouched rather than failing on them. */
+  /** Information handed to this character — see game/handouts.ts on why this is
+   *  its own append-only list and not an append to `notesMd`. */
+  handouts?: Handout[];
   /** Curator switch: may this character's stats be hand-edited/overridden? */
   allowOverrides?: boolean;
   /** Manual derived-stat overrides (Curator-sanctioned) — replace computed values. */

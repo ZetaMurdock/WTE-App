@@ -85,6 +85,46 @@ describe("adjudicateUndoableVitals", () => {
     expect(engine.token("t0").hp).toBe(3);
   });
 
+  it("takes back a vision radius the Curator changed", async () => {
+    // The Curator's ruling on how far a body sees is adjudication like any other,
+    // and it lands on tokens `updateToken` refuses — a player's own.
+    const engine = fakeEngine([{ vision: 6, owner: "peer-a" }]);
+    expect(adjudicateUndoableVitals(engine, "t0", { vision: 0 }, opts("blinding Vex"))).toBe(true);
+    expect(engine.token("t0").vision).toBe(0);
+    expect(await undoOnce()).toBe(true);
+    expect(engine.token("t0").vision).toBe(6);
+    expect(await redoOnce()).toBe(true);
+    expect(engine.token("t0").vision).toBe(0);
+  });
+
+  it("refuses to reverse a vision change made after it", async () => {
+    const engine = fakeEngine([{ vision: 6 }]);
+    adjudicateUndoableVitals(engine, "t0", { vision: 2 }, opts("dimming Vex"));
+    engine.adjudicateTokenVitals("t0", { vision: 9 }); // an unregistered write
+    expect(await undoOnce()).toBe(false);
+    expect(engine.token("t0").vision).toBe(9);
+    expect(refusals.join(" ")).toContain("has changed");
+  });
+
+  it("leaves the FIRST vision a token is ever given outside the trail", async () => {
+    // `{ vision: undefined }` reaches peers as `{}`, so an inverse back to unset
+    // would work on the Curator's screen and nowhere else. Registering it would
+    // ship an undo that desyncs the table.
+    const engine = fakeEngine([{ hp: 10 }]);
+    expect(adjudicateUndoableVitals(engine, "t0", { vision: 4 }, opts("lantern"))).toBe(true);
+    expect(engine.token("t0").vision).toBe(4);
+    expect(undoRedoState().canUndo).toBe(false);
+  });
+
+  it("puts no entry in the trail for a vision that was already that number", async () => {
+    // The write is authorised and lands; there is simply nothing to take back.
+    // A phantom entry would spend the Curator's next Undo press on nothing.
+    const engine = fakeEngine([{ vision: 6 }]);
+    expect(adjudicateUndoableVitals(engine, "t0", { vision: 6 }, opts("re-declaring Vex's sight"))).toBe(true);
+    expect(engine.token("t0").vision).toBe(6);
+    expect(undoRedoState().canUndo).toBe(false);
+  });
+
   it("undoes one adjudication per press, newest first", async () => {
     const engine = fakeEngine([{ hp: 30 }]);
     adjudicateUndoableVitals(engine, "t0", { hp: 20 }, opts("first"));

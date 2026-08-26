@@ -176,7 +176,7 @@ export function CampaignCodexSync({ campaign, curator }: { campaign: Campaign | 
       window.dispatchEvent(new Event("wte-pages-changed"));
       pushToast(`Campaign Codex synced · ${snapshot.pages.length} pages`, "info", 5000);
     }
-  }), [hostId, role, subscribe, tableCampaignId]);
+  }), [hostId, publish, role, subscribe, tableCampaignId]);
 
   useEffect(() => subscribe("codex-error", (raw, from) => {
     if (role !== "player" || !hostId || from !== hostId) return;

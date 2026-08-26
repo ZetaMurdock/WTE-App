@@ -146,3 +146,65 @@ describe("VttRollFeed touch controls", () => {
     }));
   });
 });
+
+describe("the dice tray as the roll prompt's fallback", () => {
+  it("refuses a request the host has already timed out, instead of rolling into the void", async () => {
+    const publish = vi.fn<(message: RollMessage) => void>();
+    const onClearLock = vi.fn();
+    await act(async () => {
+      root?.render(
+        <VttRollFeed
+          campaignId={null}
+          publishRoll={publish}
+          lock={{
+            label: "Reflex — Evasion",
+            expr: "1d20+2",
+            requestId: "request-dead",
+            requestedBy: "Curator",
+            expiresAt: Date.now() - 1_000,
+          }}
+          onClearLock={onClearLock}
+          onClose={() => {}}
+        />
+      );
+    });
+
+    // The host deleted its pending slot at the deadline and drops this result
+    // without a word, so a roll thrown here would appear in the roller's own
+    // feed and log and nowhere else. Say so rather than publishing it.
+    expect(host!.querySelector(".vtt2-roll-lock-name")!.textContent).toContain("expired");
+    expect(host!.querySelector(".vtt2-roll-lock-dead")!.textContent).toContain("timed out");
+
+    const go = host!.querySelector<HTMLButtonElement>(".vtt2-roll-go")!;
+    await act(async () => go.click());
+    expect(publish).not.toHaveBeenCalled();
+
+    // Refusing is not answering: the lock stays until the player clears it, so
+    // the request does not silently vanish out from under the prompt.
+    expect(onClearLock).not.toHaveBeenCalled();
+  });
+
+  it("still rolls a request that is inside its deadline", async () => {
+    const publish = vi.fn<(message: RollMessage) => void>();
+    await act(async () => {
+      root?.render(
+        <VttRollFeed
+          campaignId={null}
+          publishRoll={publish}
+          lock={{
+            label: "Reflex — Evasion",
+            expr: "1d20+2",
+            requestId: "request-live",
+            expiresAt: Date.now() + 60_000,
+          }}
+          onClearLock={() => {}}
+          onClose={() => {}}
+        />
+      );
+    });
+
+    expect(host!.querySelector(".vtt2-roll-lock-dead")).toBeNull();
+    await act(async () => host!.querySelector<HTMLButtonElement>(".vtt2-roll-go")!.click());
+    expect(publish.mock.calls[0][0].requestId).toBe("request-live");
+  });
+});

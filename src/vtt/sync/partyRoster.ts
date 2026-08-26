@@ -50,6 +50,32 @@ export interface RosterMember {
  * machine apart. Reunion has to key on the base — the full id changes every
  * session, and a display name is typed by whoever joins.
  */
+/**
+ * Can this peer be recognised as the owner of a roster entry?
+ *
+ * An entry written before `ownerKey` existed has none, and the strict answer —
+ * "no key, no reclaim" — locked real players out of their own characters: the
+ * Curator opening a sheet rebinds it to the host, and the reclaim that hands it
+ * back needs a credential the entry never stored. That shipped in v0.8.86 and
+ * denied three of one table's characters on sight.
+ *
+ * So a keyless entry is adopted by the first peer to claim it, and the key is
+ * written on the spot. It is trust-on-first-use, and it is bounded: it happens
+ * once per entry, only for entries that predate the field, and only for a peer
+ * the room already accepted. Every entry written since carries a key and is
+ * matched exactly — a name is never a credential again.
+ */
+export function ownerMatches(member: { ownerKey?: string } | null | undefined, peerId: string): boolean {
+  const key = member?.ownerKey?.trim();
+  if (!key) return true; // legacy entry: unclaimed, adopt on first sight
+  return !!peerId && peerDeviceKey(peerId) === key;
+}
+
+/** Does this entry still need a device key written to it? */
+export function needsOwnerKey(member: { ownerKey?: string } | null | undefined): boolean {
+  return !member?.ownerKey?.trim();
+}
+
 export function peerDeviceKey(peerId: string | null | undefined): string {
   const id = String(peerId ?? "").trim();
   if (!id) return "";
@@ -147,6 +173,9 @@ export interface RosterSighting {
   charId: string;
   name: string;
   ownerId: string;
+  /** The sharer's device key. Written on the first sighting, and backfilled the
+   *  first time a legacy entry is claimed. */
+  ownerKey?: string;
   ownerName: string;
   /** Defaults to now; injectable so tests are not clock-dependent. */
   at?: number;
@@ -160,7 +189,21 @@ export async function rememberPartyMember(campaignId: string, m: RosterSighting)
   await ensureLoaded(campaignId);
   const at = m.at ?? Date.now();
   const next = snapshot.filter((e) => e.charId !== m.charId);
-  next.push({ charId: m.charId, name: m.name, ownerId: m.ownerId, ownerName: m.ownerName, lastSeen: at });
+  // The key is written explicitly rather than spread, so a field added to the
+  // sighting can never reach the stored roster unnoticed. It was DROPPED here
+  // when it was introduced, which meant no entry ever carried one — and the
+  // reclaim that hands a returning player their sheet back needs it, so every
+  // player whose sheet the Curator had opened was refused on sight.
+  const held = snapshot.find((e) => e.charId === m.charId);
+  const ownerKey = m.ownerKey?.trim() || held?.ownerKey?.trim();
+  next.push({
+    charId: m.charId,
+    name: m.name,
+    ownerId: m.ownerId,
+    ...(ownerKey ? { ownerKey } : {}),
+    ownerName: m.ownerName,
+    lastSeen: at,
+  });
   snapshot = order(next);
   notify();
   await persist(campaignId, snapshot);

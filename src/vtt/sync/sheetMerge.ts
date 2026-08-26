@@ -173,6 +173,7 @@ const LABELS: Partial<Record<SheetField, string>> = {
   tags: "tags",
   notesMd: "written notes",
   counterTracks: "counters",
+  handouts: "handed-over information",
 };
 
 function labelOf(key: SheetField): string {

@@ -16,6 +16,7 @@ interface Props {
 // headings/lists/tables/links + raw-HTML passthrough).
 export function CharacterNotes({ character, editable = true, onClose, onSaved }: Props) {
   const [md, setMd] = useState(character.sheet.notesMd ?? "");
+  const handouts = character.sheet.handouts ?? [];
   const [tab, setTab] = useState<"write" | "preview">(editable ? "write" : "preview");
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -51,6 +52,30 @@ export function CharacterNotes({ character, editable = true, onClose, onSaved }:
             <button className="cdx-tab-x" onClick={onClose} title="Close">×</button>
           </div>
         </div>
+
+        {/* WHAT THE CURATOR HANDED YOU, above your own writing and never mixed
+            into it. A handout is someone else's words with someone else's name
+            on them; folding it into `notesMd` would make it indistinguishable
+            from something you wrote and forgot — and would put the Curator's
+            paragraph and yours in one field for sheetMerge to have to choose
+            between. Read-only here on purpose: taking one back is the Curator's
+            act, from the party synopsis. */}
+        {handouts.length > 0 && (
+          <div className="char-handouts">
+            <div className="panel-title">Handed to you</div>
+            {handouts.map((h) => (
+              <div className="char-handout" key={h.id}>
+                <div className="char-handout-head">
+                  <b>{h.title}</b>
+                  <span>{h.by} · {new Date(h.at).toLocaleDateString()}</span>
+                </div>
+                {h.text.trim() && (
+                  <div className="cdx-content" dangerouslySetInnerHTML={{ __html: renderCodexHtml(h.text) }} />
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
         {tab === "write" && editable ? (
           <textarea

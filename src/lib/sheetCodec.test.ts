@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CharacterSheet } from "../models/character";
 import { zeroAttributes, zeroSpecialties } from "../game/wte";
 import { SHEET_KEYS, SHEET_VERSION, emptySheet, parseSheetSafe, serializeSheet, sheetFromJson } from "./sheetCodec";
+import { MAX_HANDOUTS } from "../game/handouts";
 
 // Built from the zero-builders so that adding an attribute or specialty key cannot
 // leave the fixture partially populated — every key gets a distinct non-zero value.
@@ -63,6 +64,7 @@ function fullSheet(): CharacterSheet {
     tags: ["NPC", "Boss"],
     notesMd: "# markdown notes",
     counterTracks: [{ name: "Fear Points", value: 3 }, { name: "Overload Charges", value: 2, cap: 4 }],
+    handouts: [{ id: "ho-1", title: "Torn ledger page", text: "…paid in Scrap.", by: "The Curator", at: 1700 }],
   };
 }
 
@@ -145,6 +147,114 @@ describe("malformed and hostile records do not destroy data", () => {
   it("keeps a null folderId distinct from an absent one", () => {
     expect(sheetFromJson({ folderId: null }).folderId).toBeNull();
     expect(sheetFromJson({}).folderId).toBeUndefined();
+  });
+
+  it("reads a sheet saved by an OLDER build, which has no handouts", () => {
+    // The realistic shape: a record written before the field existed. It must
+    // parse, must not sprout an empty array (that would rewrite every stored row
+    // on first open), and must be byte-identical after a round trip.
+    const legacy = '{"_v":1,"rank":2,"notes":"before the synopsis shipped"}';
+    const s = parseSheetSafe(legacy).sheet;
+    expect(s.handouts).toBeUndefined();
+    const round = JSON.parse(serializeSheet(s)) as Record<string, unknown>;
+    expect("handouts" in round).toBe(false);
+  });
+
+  it("drops a list that has been emptied back to nothing", () => {
+    // Reachable, not hypothetical: retracting a character's last handout writes
+    // `handouts: []`. Left as an empty array it would persist on every row that
+    // was ever handed anything, so the field never returns to absent and the
+    // round trip above stops being byte-identical for those characters.
+    const s = sheetFromJson({ handouts: [] });
+    expect(s.handouts).toBeUndefined();
+    const round = JSON.parse(serializeSheet(s)) as Record<string, unknown>;
+    expect("handouts" in round).toBe(false);
+  });
+
+  describe("a sheet saved with the withdrawn `purse` field", () => {
+    // A build in this repo's own history wrote a second currency onto the sheet
+    // (`purse: [{ name, amount }]`) before W.T.E's real money — Palladium,
+    // Credits and Shrives, held on the player's device — was wired to the
+    // Curator's console. The field is gone from the model, and every record
+    // written by that build is still on disk. Dropping the key would be
+    // acceptable; refusing to read the record, or replacing it with a blank
+    // sheet, would destroy a character.
+    const SAVED = '{"_v":1,"rank":3,"notes":"kept","purse":[{"name":"Gold","amount":120}]}';
+
+    it("loads without corrupting the record", () => {
+      const parsed = parseSheetSafe(SAVED);
+      expect(parsed.corrupt).toBe(false);
+      expect(parsed.sheet.rank).toBe(3);
+      expect(parsed.sheet.notes).toBe("kept");
+    });
+
+    it("does not throw on a malformed one either", () => {
+      // The old parser validated these entries. Nothing does now, so a hand-edited
+      // or half-written array must simply pass by rather than reaching any code
+      // that expects the old shape.
+      for (const raw of ['{"purse":"not a list"}', '{"purse":[7,null,{"name":""}]}', '{"purse":[]}']) {
+        expect(() => sheetFromJson(JSON.parse(raw))).not.toThrow();
+        expect(sheetFromJson(JSON.parse(raw)).rank).toBe(0);
+      }
+    });
+
+    it("is no longer a field of the sheet", () => {
+      expect([...SHEET_KEYS] as string[]).not.toContain("purse");
+    });
+
+    it("SURVIVES THE NEXT SAVE, rather than merely surviving the read", () => {
+      // Tolerating the key on load is not enough. Every save re-serializes the
+      // object the parser returned — the bug this whole module was written for —
+      // so a parser that dropped `purse` would delete it from disk the first
+      // time the Curator touched an untouched field. `sheetFromJson` lays the
+      // coerced fields over the RAW object and `serializeSheet` spreads the whole
+      // sheet, so the withdrawn key rides through untouched and a record written
+      // by the old build stays recoverable indefinitely.
+      const once = serializeSheet(parseSheetSafe(SAVED).sheet);
+      expect(JSON.parse(once).purse).toEqual([{ name: "Gold", amount: 120 }]);
+      // Twice round, because a key that survives one trip and not the next is
+      // still a key that gets deleted.
+      const twice = serializeSheet(parseSheetSafe(once).sheet);
+      expect(JSON.parse(twice).purse).toEqual([{ name: "Gold", amount: 120 }]);
+      expect(JSON.parse(twice).notes).toBe("kept");
+    });
+  });
+
+  it("keeps a handout id unique, so taking one back cannot retract two", () => {
+    const s = sheetFromJson({
+      handouts: [
+        { id: "h1", title: "First", text: "", by: "The Curator", at: 1 },
+        { id: "h1", title: "Impostor", text: "", by: "The Curator", at: 2 },
+      ],
+    });
+    expect(s.handouts).toEqual([{ id: "h1", title: "First", text: "", by: "The Curator", at: 1 }]);
+  });
+
+  it("drops the OLDEST handouts when a stored record carries more than the cap", () => {
+    // Same rule as giveHandout: the newest is the one the player was just told
+    // about, so an overflowing record must not be trimmed from the wrong end.
+    const many = Array.from({ length: MAX_HANDOUTS + 3 }, (_, i) => ({
+      id: `h${i}`,
+      title: `note ${i}`,
+      text: "",
+      by: "The Curator",
+      at: i,
+    }));
+    const kept = sheetFromJson({ handouts: many }).handouts!;
+    expect(kept).toHaveLength(MAX_HANDOUTS);
+    expect(kept[0].id).toBe("h3");
+    expect(kept[kept.length - 1].id).toBe(`h${MAX_HANDOUTS + 2}`);
+  });
+
+  it("drops malformed handouts rather than crashing the surface that shows them", () => {
+    const s = sheetFromJson({
+      handouts: [
+        { id: "h1", title: "Kept", text: "body", by: "The Curator", at: 5 },
+        { id: "h2", title: "no timestamp", text: "", by: "The Curator" },
+        "a bare string",
+      ],
+    });
+    expect(s.handouts).toEqual([{ id: "h1", title: "Kept", text: "body", by: "The Curator", at: 5 }]);
   });
 
   it("rejects a non-finite number rather than storing NaN or Infinity", () => {

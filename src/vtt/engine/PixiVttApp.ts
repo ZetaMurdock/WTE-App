@@ -1316,8 +1316,9 @@ export class PixiVttApp {
    * the whole table watched is the opposite case. It is adjudication, it is the
    * Curator's to declare, and the alternative is a resolution card that reports
    * 27 damage while the op is dropped on the floor — a lie the table cannot see
-   * through. So the ownership gate is spent here, and nowhere else, on the two
-   * fields a ruling is allowed to touch.
+   * through. So the ownership gate is spent here, and nowhere else, on the narrow
+   * slice of fields a ruling is allowed to touch — `TOKEN_VITALS_KEYS` in
+   * sync/patches.ts is the list, and the reasoning for what is in it.
    *
    * Returns whether the write was authorized, so a caller never announces HP it
    * did not commit. An authorized write that changed nothing still returns true

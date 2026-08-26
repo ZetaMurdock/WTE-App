@@ -540,8 +540,27 @@ function parseRuleLayers(
 /** Fail-closed validation for a document received from the room. Curator-only
  * pages are rejected rather than merely hidden: their content must never enter a
  * player's process. */
-export function parseCampaignCodexSnapshot(raw: unknown, expectedCampaignId?: string): CampaignCodexSnapshot | null {
-  if (!raw || typeof raw !== "object") return null;
+/**
+ * Why a snapshot was refused, for a human.
+ *
+ * The validator fails closed on a long list of conditions, and for most of its
+ * life the only report was silence — which is survivable until a real table is
+ * stuck on a join and the reason is one of thirty possibilities. The reporter is
+ * optional and changes no answer: a caller that passes nothing gets exactly the
+ * behaviour it always had.
+ */
+export type SnapshotReject = (reason: string) => void;
+
+export function parseCampaignCodexSnapshot(
+  raw: unknown,
+  expectedCampaignId?: string,
+  reject?: SnapshotReject
+): CampaignCodexSnapshot | null {
+  const no = (why: string): null => {
+    reject?.(why);
+    return null;
+  };
+  if (!raw || typeof raw !== "object") return no("the document was not an object");
   const value = raw as Partial<CampaignCodexSnapshot>;
   if (
     value.schema !== CAMPAIGN_CODEX_SCHEMA || typeof value.campaignId !== "string" || !value.campaignId ||
@@ -551,18 +570,31 @@ export function parseCampaignCodexSnapshot(raw: unknown, expectedCampaignId?: st
     typeof value.revision !== "string" || !value.revision || value.revision.length > 120 ||
     typeof value.generatedAt !== "number" || !Number.isFinite(value.generatedAt) || !Array.isArray(value.pages) ||
     value.pages.length > MAX_CAMPAIGN_CODEX_PAGES
-  ) return null;
+  ) {
+    return no(
+      value.schema !== CAMPAIGN_CODEX_SCHEMA
+        ? `the document is schema ${String(value.schema)}, this build reads ${CAMPAIGN_CODEX_SCHEMA} — one side is a different version`
+        : expectedCampaignId && value.campaignId !== expectedCampaignId
+          ? `it is for campaign "${String(value.campaignId)}", not the one this table joined`
+          : !Array.isArray(value.pages)
+            ? "it carries no page list"
+            : Array.isArray(value.pages) && value.pages.length > MAX_CAMPAIGN_CODEX_PAGES
+              ? `it carries ${value.pages.length} pages; the limit is ${MAX_CAMPAIGN_CODEX_PAGES}`
+              : "its header fields are malformed"
+    );
+  }
   const rules = parseSnapshotRules(value.rules);
-  if (!rules) return null;
+  if (!rules) return no("the table rules did not validate — a rule value is out of range or not a number");
   const ruleLayers = parseRuleLayers(value.ruleLayers, value.campaignId);
-  if (!ruleLayers) return null;
+  if (!ruleLayers) return no("the campaign's rule layers did not validate");
 
   let chars = 0;
   const pages: CampaignCodexPage[] = [];
   const pageIds = new Set<string>();
   for (const rawPage of value.pages) {
-    if (!rawPage || typeof rawPage !== "object") return null;
+    if (!rawPage || typeof rawPage !== "object") return no("one of the pages was not an object");
     const p = rawPage as Partial<CampaignCodexPage>;
+    const named = `page "${String(p.title || p.stem || p.id || "(unnamed)")}"`;
     if (
       typeof p.id !== "string" || !p.id || p.id.length > MAX_CAMPAIGN_CODEX_ID_CHARS ||
       typeof p.stem !== "string" || !p.stem || p.stem.length > MAX_CAMPAIGN_CODEX_ID_CHARS || cleanStem(p.stem) !== p.stem ||
@@ -575,11 +607,23 @@ export function parseCampaignCodexSnapshot(raw: unknown, expectedCampaignId?: st
       (p.ownerId !== undefined && (typeof p.ownerId !== "string" || p.ownerId.length > MAX_CAMPAIGN_CODEX_ID_CHARS)) ||
       (p.overrides !== undefined && (typeof p.overrides !== "string" || p.overrides.length > MAX_CAMPAIGN_CODEX_ID_CHARS)) ||
       pageIds.has(p.id)
-    ) return null;
-    if (!pageIdentityMatchesSource(p as CampaignCodexPage, value.campaignId)) return null;
+    ) {
+      return no(
+        p.visibility !== "player"
+          ? `${named} is not marked player-visible, so it cannot ride a player's copy`
+          : pageIds.has(String(p.id))
+            ? `${named} repeats an id already in the document`
+            : typeof p.content === "string" && p.content.length > MAX_CAMPAIGN_CODEX_PAGE_CHARS
+              ? `${named} is larger than a single page may be`
+              : `${named} has malformed fields`
+      );
+    }
+    if (!pageIdentityMatchesSource(p as CampaignCodexPage, value.campaignId)) {
+      return no(`${named} has an id (${String(p.id)}) that does not match its source or this campaign`);
+    }
     pageIds.add(p.id);
     chars += p.content.length;
-    if (chars > MAX_CAMPAIGN_CODEX_CHARS) return null;
+    if (chars > MAX_CAMPAIGN_CODEX_CHARS) return no("the Codex is larger in total than a snapshot may carry");
     pages.push({
       id: p.id,
       stem: p.stem,

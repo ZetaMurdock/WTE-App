@@ -175,6 +175,10 @@ export function NetProvider({ children }: { children: ReactNode }) {
   roomRef.current = room;
   const roleRef = useRef(role);
   roleRef.current = role;
+  // Who the room's host is, for subscribers that must refuse a message any peer
+  // could have sent. Kept as a ref because the purse subscriber is mounted once
+  // and must not be torn down and rebuilt every time the peer list moves.
+  const hostPeerRef = useRef<string | null>(null);
   const nextSessionRef = useRef(nextSession);
   nextSessionRef.current = nextSession;
   const setLocked = useCallback((v: boolean) => {
@@ -235,6 +239,12 @@ export function NetProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (m.op === "grant" && m.peerId === selfId) {
+        // Only the Curator pays. This checked the PAYEE and never the sender, so
+        // any peer could publish a grant and mint money into any purse at the
+        // table — including their own. The send side is host-only, but a send
+        // guard is a courtesy to honest clients; the receiver is where it counts.
+        const host = hostPeerRef.current;
+        if (!host || from !== host) return;
         // The Curator paid me. Apply it to MY purse and announce the new total,
         // so the grant round-trips instead of the Curator guessing at my balance.
         const room = roomRef.current;
@@ -531,6 +541,7 @@ export function NetProvider({ children }: { children: ReactNode }) {
   // window.parent.wteNet to ride the P2P room for map/token sync.
   const liveRef = useRef({ status, role, room, selfId });
   liveRef.current = { status, role, room, selfId };
+  hostPeerRef.current = role === "host" ? selfId : peers.find((peer) => peer.role === "host")?.id ?? null;
 
   // When a peer joins, the host resyncs the shared Base Pressure to the room so
   // late joiners land on the current value instead of the default.

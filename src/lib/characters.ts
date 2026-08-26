@@ -240,17 +240,47 @@ export async function deleteCharacter(id: string): Promise<void> {
   await db.execute("DELETE FROM characters WHERE id = $1", [id]);
 }
 
-/** Merge a partial sheet change into a character (folder move, tags, notes) —
- *  loads, patches, and persists the whole sheet. Returns false if not found. */
-export async function patchCharacterSheet(id: string, patch: Partial<CharacterSheet>): Promise<boolean> {
+export type SheetEditOutcome = "written" | "unchanged" | "missing";
+
+/**
+ * Read-modify-write one character's sheet, with the change COMPUTED FROM THE
+ * STORED SHEET rather than from whatever the caller was last shown.
+ *
+ * This exists because a whole-field patch built from a stale copy silently
+ * reverts everything else in that field. The Curator's synopsis retracts a
+ * handout by writing the whole `handouts` array; retracting two of them in
+ * quick succession, each array computed from the same pre-write snapshot, put
+ * the first note back on the player's sheet while removing the second. Any
+ * list-valued field — `handouts`, `equipment`, `tags` — has the same
+ * shape of failure.
+ *
+ * `build` runs with no `await` between the load and the store, so two edits
+ * issued a click apart cannot interleave. Returning null means the fresh sheet
+ * needs no change, which is NOT the same answer as a missing record — the two
+ * have different things to say to the person who asked.
+ */
+export async function editCharacterSheet(
+  id: string,
+  build: (sheet: CharacterSheet) => Partial<CharacterSheet> | null
+): Promise<SheetEditOutcome> {
   const rec = await getCharacter(id);
-  if (!rec) return false;
+  if (!rec) return "missing";
   // Spreading a corrupt record's placeholder sheet would write a blank character
   // with the patched field applied — this is the path the vault's move-folder and
   // add/remove-tag actions take, so it must refuse too.
   if (rec.corrupt) throw new CorruptRecordError(id);
+  const patch = build(rec.sheet);
+  if (!patch) return "unchanged";
   await updateCharacter(id, { sheet: { ...rec.sheet, ...patch } });
-  return true;
+  return "written";
+}
+
+/** Merge a partial sheet change into a character (folder move, tags, notes) —
+ *  loads, patches, and persists the whole sheet. Returns false if not found.
+ *  Prefer `editCharacterSheet` when the patch depends on the sheet's current
+ *  contents; see the note there on stale list-valued writes. */
+export async function patchCharacterSheet(id: string, patch: Partial<CharacterSheet>): Promise<boolean> {
+  return (await editCharacterSheet(id, () => patch)) !== "missing";
 }
 
 /** Insert-or-replace a full record by id — used to apply a character pushed over

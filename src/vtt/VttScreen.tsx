@@ -17,6 +17,8 @@ import { newId, newScene, type VttScene, type VttToken, type VttZoneKind } from 
 import type { VttTool } from "./types/tool";
 import { VttToolbar } from "./VttToolbar";
 import { VttActionBar } from "./VttActionBar";
+import { VttPartyHud } from "./VttPartyHud";
+import { buildPartyHud } from "./data/partyHud";
 import { VttGridPanel } from "./VttGridPanel";
 import { VttSceneWheel } from "./VttSceneWheel";
 import { VttRadialMenu } from "./VttRadialMenu";
@@ -36,10 +38,10 @@ import {
 } from "../net/protocol";
 import { addSessionRoll, clearSessionRolls, rollSessionScope } from "./sync/rollSession";
 import { contestTokens } from "./data/genusContest";
-import { enqueueRollLock } from "./sync/rollLocks";
+import { dequeueRollLock, enqueueRollLock } from "./sync/rollLocks";
 import { canonicalRollExpr, createRollId, logRoll, validateCompletedRoll } from "../lib/rolls";
 import { VttResolutionCard } from "./VttResolutionCard";
-import { rollDiceExpr, type RollResult } from "../game/wte";
+import { rollDiceExpr, type RollMode, type RollResult } from "../game/wte";
 import {
   clearOutcomes,
   declareOutcomeVerdict,
@@ -78,6 +80,8 @@ import { VttSceneBrowser } from "./VttSceneBrowser";
 import { VttActorsPanel } from "./VttActorsPanel";
 import { VttEncounterPanel } from "./VttEncounterPanel";
 import { VttRollFeed, type RollLock } from "./VttRollFeed";
+import { VttRollPrompt, type RollPromptSource } from "./VttRollPrompt";
+import { commitRoll, prepareRoll, rollLockExpired, rollLockLabel, type RollCommitDeps } from "./rollCommit";
 import { VttAssetPanel } from "./VttAssetPanel";
 import { VttSoundboard } from "./VttSoundboard";
 import { VttDialogue } from "./VttDialogue";
@@ -106,7 +110,12 @@ import { tokenInEdge, arrivalPos } from "./data/sceneLinks";
 import type { VttAbility } from "./data/characterAbilities";
 import { requestedRollOptions } from "./data/requestedRoll";
 import { CharacterSheet } from "../components/characters/CharacterSheet";
-import { listCharacters, getCharacter, upsertCharacter, type CharacterRecord } from "../lib/characters";
+import { listCharacters, getCharacter, editCharacterSheet, upsertCharacter, type CharacterRecord, type SheetEditOutcome } from "../lib/characters";
+import { VttSynopsis } from "./VttSynopsis";
+import { buildSynopsis, giveHandoutPatch, giveItemPatch, payablePeer } from "./data/synopsis";
+import { removeHandout } from "../game/handouts";
+// The sheet MODEL, aliased: `CharacterSheet` in this file is the sheet COMPONENT.
+import type { CharacterSheet as CharacterSheetData } from "../models/character";
 import {
   agreedSheetBase,
   applyRemoteSheet,
@@ -118,6 +127,7 @@ import {
   shouldBroadcastSheet,
   subscribePartySheets,
 } from "./sync/partySheets";
+import { tokenOwnerId } from "./sync/tokenPermissions";
 import { describeSheetConflict, type SheetFingerprint } from "./sync/sheetMerge";
 import { isEditingWithin } from "./sync/sheetEditing";
 import {
@@ -128,6 +138,8 @@ import {
   rememberPartyMember,
   subscribePartyRoster,
   peerDeviceKey,
+  ownerMatches,
+  needsOwnerKey,
 } from "./sync/partyRoster";
 import { characterToTokenSpec, creatureToTokenSpec, parseSpawnPayload } from "./data/actorSpawn";
 import { listCreatures, computeCreature } from "../lib/codex";
@@ -289,6 +301,9 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
   const [sheetSyncTick, setSheetSyncTick] = useState(0);
   const sheetCharIdRef = useRef<string | null>(null);
   sheetCharIdRef.current = sheetCharId;
+  // Declared up here beside the sheet's ref because the incoming-record handler
+  // below closes over it; its value is stamped where the synopsis state lives.
+  const synopsisCharIdRef = useRef<string | null>(null);
   // Live registry of sheets other players have shared into the room.
   const partySheets = useSyncExternalStore(subscribePartySheets, getPartySheets);
   // Durable record of who has ever shared into this campaign. partySheets is
@@ -744,7 +759,11 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
       return;
     }
     setRollLocks((current) => enqueueRollLock(current, lock));
-    setRollsOpen(true);
+    // An ability the player armed themselves belongs in the tray, and forcing it
+    // open is how they roll it. A REQUEST must not: it now announces itself with
+    // its own prompt, and throwing a dock panel over the map to deliver a
+    // question is exactly the behaviour the prompt replaces.
+    if (!lock.requestId) setRollsOpen(true);
   }, [roomCodexReady]);
   const armRoll = useCallback((label: string, expr?: string) => {
     queueRollLock({ label, expr });
@@ -782,6 +801,7 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
           requestId: request.requestId,
           requestedBy: peersRef.current.find((peer) => peer.id === from)?.name || "Curator",
           dc: request.dc,
+          expiresAt: request.expiresAt,
         });
       });
     });
@@ -925,9 +945,16 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
   // their machine, which an impostor has no way to present.
   const recognisedOwner = (charId: string, from: string): boolean => {
     if (net.role !== "host") return false;
-    const known = getPartyRoster().find((m) => m.charId === charId)?.ownerKey?.trim();
+    const member = getPartyRoster().find((m) => m.charId === charId);
+    if (!member) return false;
     const peer = peersRef.current.find((p) => p.id === from);
-    return !!known && peer?.role === "player" && peerDeviceKey(from) === known;
+    if (peer?.role !== "player" || !ownerMatches(member, from)) return false;
+    // Write the key the moment an entry is claimed, so the trust-on-first-use
+    // window closes behind this peer rather than staying open for the next one.
+    if (campaign && needsOwnerKey(member)) {
+      void rememberPartyMember(campaign.id, { ...member, ownerKey: peerDeviceKey(from) });
+    }
+    return true;
   };
 
   const noteRosterSighting = (rec: CharacterRecord, from: string) => {
@@ -1091,6 +1118,10 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
       // Only reload the open overlay when THIS character changed, so an unrelated
       // party member's edit never interrupts the sheet you are looking at.
       if (outcome.record.id === sheetCharIdRef.current) setSheetSyncTick((t) => t + 1);
+      // And the synopsis, for the same reason: it reads a copy of the record,
+      // and a gift built on a stale copy would carry a stale handouts/equipment
+      // array back over whatever the player just changed themselves.
+      if (outcome.record.id === synopsisCharIdRef.current) setSynopsisTick((t) => t + 1);
     }
     // Our copy carries an edit the sender has never seen — the Curator's Tuesday
     // adjustment, reaching the player who only came back on Friday.
@@ -2354,6 +2385,173 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
   const fogOn = live?.data.fog.enabled ?? false;
   void tick; // engine mutations bump this to refresh derived values above
 
+  // ── The party HUD strip ───────────────────────────────────────────────────
+  // `tick` is a real dependency, not decoration: the engine mutates its scene
+  // IN PLACE, so `live.data.tokens` keeps the same array identity when someone
+  // takes damage or moves a square. Without the tick in this list the HUD would
+  // freeze on whatever the party looked like when the scene loaded.
+  //
+  // The roster only ever has entries on the Curator's machine — `loadPartyRoster`
+  // is called with an empty id in player view, and `sync/partySheets` refuses
+  // another player's record on a player's device by design. So a player's HUD is
+  // built purely from the shared token list: they see everyone with a body on
+  // this scene, and never an off-scene row. That asymmetry is deliberate, not a
+  // gap to paper over by shipping the roster to players.
+  const partyHud = useMemo(
+    () =>
+      buildPartyHud({
+        tokens: live?.data.tokens ?? [],
+        roster: asPlayer ? [] : partyRoster,
+        peers: net.peers,
+        selfId: net.selfId,
+        hostId: net.role === "host" ? net.selfId : net.peers.find((p) => p.role === "host")?.id ?? null,
+        selectedTokenId: sel?.kind === "token" ? sel.id : null,
+        cellPx: live?.data.grid.size ?? 0,
+      }),
+    [live, tick, asPlayer, partyRoster, net.peers, net.selfId, net.role, sel]
+  );
+
+  // ── The Curator's character synopsis ────────────────────────────────────────
+  //
+  // Opened from a party-HUD card. It is a short read of one member plus the four
+  // things a Curator does to a person mid-scene: hand over information, an item
+  // or money, and rule on what their body is doing.
+  //
+  // TWO WRITE PATHS, and they are not interchangeable. Gifts are SHEET fields,
+  // so they go through `editCharacterSheet` and are broadcast — which is what
+  // queues the player a change notice, now if they are connected and on their
+  // next reconnection if they are not. Conditions and vision are TOKEN fields
+  // and go through the adjudicated, undoable write; `engine.updateToken` refuses
+  // a player-owned token on purpose and would have dropped the Curator's ruling
+  // on exactly the bodies it was aimed at.
+  const [synopsisCharId, setSynopsisCharId] = useState<string | null>(null);
+  const [synopsisRec, setSynopsisRec] = useState<CharacterRecord | null>(null);
+  const [synopsisTick, setSynopsisTick] = useState(0);
+  synopsisCharIdRef.current = synopsisCharId;
+  useEffect(() => {
+    if (!synopsisCharId) {
+      setSynopsisRec(null);
+      return;
+    }
+    let current = true;
+    void (async () => {
+      const rec = await getCharacter(synopsisCharId).catch(() => undefined);
+      // A record that arrived while a newer open was in flight must not land on
+      // top of it — this panel opens straight off a carousel the Curator can
+      // click through fast.
+      if (!current) return;
+      // A card whose sheet this machine has never been given would otherwise be
+      // a click that does nothing at all. The Curator is told what to do about
+      // it instead: "Request sheets" is the pull that fixes exactly this.
+      if (!rec) {
+        pushToast("That character's sheet has not been shared with this table yet — use Request sheets in the Actors panel.", "error");
+        setSynopsisCharId(null);
+        return;
+      }
+      if (rec.corrupt) {
+        pushToast(`${rec.name || "That character"}'s record could not be read, so nothing may be given to it. Open the sheet to recover it.`, "error", 0);
+        setSynopsisCharId(null);
+        return;
+      }
+      setSynopsisRec(rec);
+    })();
+    return () => {
+      current = false;
+    };
+  }, [synopsisCharId, synopsisTick, sheetSyncTick]);
+
+  // The HUD already knows who is playing this character and which body is
+  // theirs; re-deriving it here would let the card and the panel disagree about
+  // the same person.
+  const synopsisMember = synopsisCharId ? partyHud.members.find((m) => m.charId === synopsisCharId) ?? null : null;
+  const synopsisToken = synopsisMember?.tokenId
+    ? live?.data.tokens.find((t) => t.id === synopsisMember.tokenId) ?? null
+    : null;
+  // Which device this character is being played on right now — money is the one
+  // gift that needs a live peer rather than a character id, because the purse is
+  // applied by the player's own client. The RULE for picking it (and for
+  // refusing a stale id out of the scene file) is `payablePeer`, kept pure and
+  // tested next to the money policy it serves; this only gathers its inputs.
+  const synopsisPeerId = useMemo(() => {
+    if (!synopsisCharId) return null;
+    const living = new Set(net.peers.map((p) => p.id));
+    return payablePeer({
+      homePeer: sheetHomePeer(synopsisCharId, net.selfId, living),
+      tokenOwner: synopsisToken ? tokenOwnerId(synopsisToken) : null,
+      selfId: net.selfId,
+      livingPeerIds: living,
+    });
+    // `partySheets` is a dependency because `sheetHomePeer` reads the module
+    // store that it mirrors: without it, a player sharing their sheet mid-scene
+    // would not re-enable the money form until something else re-rendered.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [synopsisCharId, synopsisToken, net.peers, net.selfId, partySheets]);
+  const synopsis = buildSynopsis({
+    role: asPlayer ? "player" : "host",
+    record: synopsisRec,
+    token: synopsisToken,
+    ownerName: synopsisMember?.ownerName ?? "no player assigned",
+    peerId: synopsisPeerId,
+    purseShrives: synopsisPeerId ? net.purses[synopsisPeerId]?.shrives ?? null : null,
+  });
+
+  const applyGift = useCallback(
+    async (build: (sheet: CharacterSheetData) => Partial<CharacterSheetData> | null, said: string) => {
+      const charId = synopsisCharId;
+      if (!charId) return;
+      let outcome: SheetEditOutcome;
+      try {
+        // Built from the STORED sheet, never from `synopsisRec` — that copy is
+        // only refreshed by an async reload, so two retractions a click apart
+        // both computed their `handouts` array from the pre-write state and the
+        // second put the first note back on the player's sheet.
+        outcome = await editCharacterSheet(charId, build);
+      } catch {
+        pushToast("That character's record could not be read, so nothing was written to it.", "error");
+        return;
+      }
+      if (outcome === "missing") {
+        pushToast("That character is no longer in this vault.", "error");
+        return;
+      }
+      if (outcome === "unchanged") {
+        // The builders return null when nothing would move. Announcing a gift
+        // that was not made is the failure this whole path exists to avoid.
+        pushToast("Nothing to give — fill the field in first.", "error");
+        return;
+      }
+      setSynopsisTick((t) => t + 1);
+      void loadCharacters();
+      // Offline is not a failure: the agreement ledger carries the edit to the
+      // player the next time they connect, notice and all.
+      void broadcastSheet(charId);
+      pushToast(said, "info");
+    },
+    [synopsisCharId, broadcastSheet]
+  );
+
+  /** A ruling on the body: the adjudicated, undoable write. Not a memo — it is
+   *  called only from this panel's handlers and must always see the token the
+   *  panel is currently showing. */
+  function synopsisVitals(patch: Partial<VttToken>, label: string, said: string): void {
+    const engine = engineRef.current;
+    const who = synopsis?.name ?? "That token";
+    const tokenId = synopsis?.tokenId;
+    if (!engine || !tokenId) {
+      pushToast("That character has no body on this scene.", "error");
+      return;
+    }
+    if (!adjudicateUndoableVitals(engine, tokenId, patch, {
+      label,
+      subject: who,
+      onRefused: (reason) => pushToast(reason, "error"),
+    })) {
+      pushToast(`${who} could not be written to.`, "error");
+      return;
+    }
+    pushToast(said, "info");
+  }
+
   // Show the live scene's current token count in the browser's active row.
   const browserScenes = live ? scenes.map((s) => (s.id === live.id ? { ...s, data: live.data } : s)) : scenes;
   // Abilities panel binds to the selected token's linked character, else a chosen
@@ -2718,6 +2916,54 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
         (token) => token.characterId === abilityChar.id && (!isNetPlayer || token.owner === net.selfId)
       ) ?? null
     : null;
+
+  // ONE description of who is rolling and where the result goes, handed to both
+  // the dice tray and the roll prompt. Two copies of this object is how the
+  // prompt would drift into publishing under a different actor than the tray —
+  // and the host validates the requested roll's actor, so that drift would look
+  // like requested rolls the Curator silently never receives.
+  const rollTrayActor = useMemo(
+    () => ({ characterId: abilityChar?.id, tokenId: rollActorToken?.id, name: abilityChar?.name }),
+    [abilityChar?.id, abilityChar?.name, rollActorToken?.id]
+  );
+  const rollCommitDeps = useMemo<RollCommitDeps>(
+    () => ({
+      campaignId: campaign?.id ?? null,
+      feedKey: rollScope ?? campaign?.id ?? null,
+      selfId: net.selfId,
+      actor: rollTrayActor,
+      publishRoll: publishVttRoll,
+      broadcast: net.status === "connected" ? net.publish : null,
+    }),
+    [campaign?.id, net.publish, net.selfId, net.status, publishVttRoll, rollScope, rollTrayActor]
+  );
+
+  const rollPromptRequests = useMemo(() => rollLocks.filter((lock) => !!lock.requestId), [rollLocks]);
+
+  const answerRollPrompt = useCallback(
+    async (lock: RollLock, source: RollPromptSource | null, mode: RollMode) => {
+      // The host drops its correlation slot at the deadline, so anything thrown
+      // after it is a number nobody will ever read. The prompt shows the expiry
+      // rather than rolling; this is the guard behind that copy.
+      if (rollLockExpired(lock)) return;
+      const expr = source?.expr ?? lock.expr;
+      if (!expr) return;
+      const label = rollLockLabel(lock, source?.label);
+      // The lock's own actor first, for the same reason `commitRoll` files under
+      // it: a Curator rolling the Warden's save with Advantage must be asked
+      // about the WARDEN, not about the caster whose ability opened the card.
+      const who = lock.actor?.name ?? rollTrayActor.name;
+      if (mode !== "normal" && !(await net.authorizeRollMode(mode, label, who))) return;
+      const prepared = prepareRoll(label, expr, mode);
+      if (!prepared) {
+        pushToast("That request's dice could not be read — roll it from the dice tray.", "error");
+        return;
+      }
+      commitRoll(prepared.roll, prepared.baseExpr, lock, rollCommitDeps);
+      setRollLocks((current) => dequeueRollLock(current, lock));
+    },
+    [net, rollCommitDeps, rollTrayActor.name]
+  );
 
   const requestTargetRoll = (intent: VttTargetRollIntent) => {
     if (asPlayer || sel?.kind !== "token") return;
@@ -3322,6 +3568,24 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
           />
         )}
       </div>
+      {/* Docked on the action bar's own visibility gate: play mode and cine mode
+          take a player's tool rail away on purpose, and a party readout floating
+          over a cinematic with nothing under it would be the one bit of chrome
+          left on screen. */}
+      {!playHidden && (
+        <VttPartyHud
+          hud={partyHud}
+          onFocusToken={(id) => {
+            const t = engine?.scene?.data.tokens.find((candidate) => candidate.id === id);
+            if (t) engine?.centerOn(t.x, t.y);
+          }}
+          // Passing this ONLY in the Curator's branch is half of what stops a
+          // player's click reaching another player's console; `buildSynopsis`
+          // refusing a player outright is the other half, so a caller that
+          // forgets the branch still gets nothing to render.
+          onOpenSynopsis={!asPlayer ? (characterId) => setSynopsisCharId(characterId) : undefined}
+        />
+      )}
       {!playHidden && (
         <VttActionBar
           tool={tool}
@@ -3678,6 +3942,18 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
       {campaign && dialogueOpen && net.role === "host" && (
         <VttDialogueController campaignId={campaign.id} onClose={() => setDialogueOpen(false)} />
       )}
+      {/* Rendered before the roll toasts so a fading result never covers a
+          question that is still waiting to be answered. */}
+      <VttRollPrompt
+        requests={rollPromptRequests}
+        onRoll={(lock, source, mode) => void answerRollPrompt(lock, source, mode)}
+        // Closing the card is NOT answering it: the lock stays queued, and the
+        // player is told where it went rather than being left to wonder whether
+        // they just refused the Curator.
+        onDismiss={(lock) => pushToast(`${lock.label} is still waiting in the dice tray.`, "info")}
+        onDrop={(lock) => setRollLocks((current) => dequeueRollLock(current, lock))}
+        onOpenTray={() => setRollsOpen(true)}
+      />
       {rollScope && <VttRollToast campaignId={rollScope} />}
       {campaign && atlasOpen && (
         <AtlasWindow
@@ -3709,7 +3985,7 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
         <VttRollFeed
           campaignId={campaign.id}
           sessionKey={rollScope ?? campaign.id}
-          actor={{ characterId: abilityChar?.id, tokenId: rollActorToken?.id, name: abilityChar?.name }}
+          actor={rollTrayActor}
           publishRoll={publishVttRoll}
           authorizeMode={(mode, label) => net.authorizeRollMode(mode, label, abilityChar?.name)}
           lock={rollLock}
@@ -3726,6 +4002,79 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
             setArmedSound(s);
             setSoundboardOpen(false);
           }}
+        />
+      )}
+      {synopsis && synopsisRec && (
+        <VttSynopsis
+          view={synopsis}
+          onClose={() => setSynopsisCharId(null)}
+          onOpenSheet={() => {
+            setSheetCharId(synopsis.charId);
+            setSynopsisCharId(null);
+          }}
+          onGiveHandout={(title, text) =>
+            void applyGift(
+              (sheet) => giveHandoutPatch(sheet, { title, text }),
+              `${synopsis.name} was handed ${title.trim() || "a note"}.`
+            )
+          }
+          onTakeBackHandout={(id) => {
+            const title = synopsis.handouts.find((h) => h.id === id)?.title ?? "that note";
+            void applyGift((sheet) => {
+              const handouts = removeHandout(sheet.handouts, id);
+              return handouts ? { handouts } : null;
+            }, `${title} was taken back from ${synopsis.name}.`);
+          }}
+          onGiveItem={(gift) =>
+            void applyGift(
+              (sheet) => giveItemPatch(sheet, gift),
+              `${synopsis.name} received ${gift.name.trim()}${(gift.qty ?? 1) > 1 ? ` x${gift.qty}` : ""}.`
+            )
+          }
+          onGiveMoney={(gift) => {
+            // NOT a sheet patch. A purse lives on the player's device (see
+            // net/activeTable), so the Curator SENDS money and the player's own
+            // client applies it and announces the new total back. There is
+            // nothing to write here, and nothing to write when they are away —
+            // which is why a refused gift is a toast and not a silent no-op.
+            if (!gift.ok) {
+              pushToast(gift.reason, "error");
+              return;
+            }
+            net.grantPurse(gift.peerId, gift.shrives);
+            pushToast(gift.said, "info");
+          }}
+          onAddStatus={(status) => {
+            const engine = engineRef.current;
+            const tokenId = synopsis.tokenId;
+            if (!engine || !tokenId) return;
+            // The condition path, not a raw statuses write: it is the one that
+            // consults the Stacking rule and starts a clock when a page declares
+            // one, exactly as a resolution card's condition does.
+            if (!applyUndoableCondition(engine, { tokenId, status }, {
+              label: `${status} on ${synopsis.name}`,
+              subject: synopsis.name,
+              onRefused: (reason) => pushToast(reason, "error"),
+            })) {
+              pushToast(`${status} was not applied — ${synopsis.name} could not be written to.`, "error");
+              return;
+            }
+            pushToast(`${synopsis.name} is ${status}.`, "info");
+          }}
+          onRemoveStatus={(status) =>
+            synopsisVitals(
+              { statuses: synopsis.statuses.filter((s) => s !== status) },
+              `clearing ${status} from ${synopsis.name}`,
+              `${status} cleared from ${synopsis.name}.`
+            )
+          }
+          onVision={(cells) =>
+            synopsisVitals(
+              { vision: cells },
+              `${synopsis.name}'s vision`,
+              `${synopsis.name} now sees ${cells} cell${cells === 1 ? "" : "s"}.`
+            )
+          }
         />
       )}
       {campaign && sheetCharId && (

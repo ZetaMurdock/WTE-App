@@ -11,6 +11,7 @@ import {
   formatMoneyLong,
   fromShrives,
   parseMoney,
+  parseMoneyDelta,
   spendShrives,
   toShrives,
 } from "./money";
@@ -156,5 +157,27 @@ describe("spending", () => {
     // 1 Pd, pay 1 Sh -> 999,999 Cr and 9,999 Sh
     const after = spendShrives(toShrives({ palladium: 1 }), 1)!;
     expect(fromShrives(after)).toEqual({ palladium: 0, credits: 999_999, shrives: 9_999 });
+  });
+});
+
+describe("a signed delta — what the Curator hands over or takes back", () => {
+  it("reads a leading minus as taking it back", () => {
+    // parseMoney clamps at zero, which is right for a balance and wrong for a
+    // change to one: "-2cr" read as 0 and the Curator's confiscation moved
+    // nothing at all.
+    expect(parseMoneyDelta("-2cr")).toBe(-2 * SHRIVES_PER_CREDIT);
+    expect(parseMoneyDelta("−5,000 sh")).toBe(-5_000);
+    expect(parseMoneyDelta("2 Credits")).toBe(2 * SHRIVES_PER_CREDIT);
+  });
+
+  it("still tells rubbish from a deliberate zero", () => {
+    expect(parseMoneyDelta("")).toBeNull();
+    expect(parseMoneyDelta("hello")).toBeNull();
+    expect(parseMoneyDelta("-")).toBeNull();
+    expect(parseMoneyDelta("0")).toBe(0);
+  });
+
+  it("clamps the magnitude the way a purse is clamped", () => {
+    expect(parseMoneyDelta("-999999999 pd")).toBe(-MAX_SHRIVES);
   });
 });

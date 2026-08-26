@@ -1,35 +1,16 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { canonicalRollExpr, createRollId, recentRolls, logRoll } from "../lib/rolls";
+import { canonicalRollExpr, recentRolls } from "../lib/rolls";
 import { rollDiceExpr, type RollMode, type RollResult } from "../game/wte";
 import { useNet } from "../net/NetContext";
-import { addSessionRoll, getSessionRolls, hydrateSessionRolls, subscribeSessionRolls, type SessionRoll } from "./sync/rollSession";
+import { getSessionRolls, hydrateSessionRolls, subscribeSessionRolls, type SessionRoll } from "./sync/rollSession";
+import { commitRoll, rollLockExpired, rollLockLabel, type RollLock, type VttRollActor } from "./rollCommit";
 import type { RollMessage } from "../net/protocol";
 
 const DICE = [4, 6, 8, 10, 12, 20, 40, 100];
 // Stable reference for the "no campaign" snapshot (useSyncExternalStore needs it).
 const EMPTY_ROWS: readonly SessionRoll[] = [];
 
-export interface RollLock {
-  label: string;
-  expr?: string;
-  /** Roll Axis requests preserve the normal attribute-vs-specialty choice. */
-  choices?: { label: string; expr: string; detail?: string }[];
-  /** Correlates a player-made roll with the Curator request that armed it. */
-  requestId?: string;
-  requestedBy?: string;
-  dc?: number;
-  /** Who ANSWERS this roll, when that is not the tray's own actor. A Curator
-   *  rolling a target's save on their own machine files it under the TARGET;
-   *  attributing it to the caster would put the defender's save in the feed,
-   *  and in the campaign's roll history, under the wrong character. */
-  actor?: VttRollActor;
-}
-
-export interface VttRollActor {
-  characterId?: string | null;
-  tokenId?: string;
-  name?: string;
-}
+export type { RollLock, VttRollActor } from "./rollCommit";
 
 interface Props {
   campaignId: string | null;
@@ -60,6 +41,7 @@ export function VttRollFeed({ campaignId, sessionKey, actor, publishRoll, author
   const [expr, setExpr] = useState("1d20");
   const [exprBad, setExprBad] = useState(false);
   const [choiceLabel, setChoiceLabel] = useState<string | null>(null);
+  const [lockDead, setLockDead] = useState(false);
   const requested = !!lock?.requestId;
 
   // A newly-armed lock always takes over the expression box. Clearing it when
@@ -69,6 +51,7 @@ export function VttRollFeed({ campaignId, sessionKey, actor, publishRoll, author
     if (lock) setExpr(lock.choices?.length ? "" : lock.expr ?? "");
     setChoiceLabel(null);
     setExprBad(false);
+    setLockDead(false);
   }, [lock]);
 
   // Seed the session store from SQLite history the first time this campaign opens.
@@ -100,57 +83,14 @@ export function VttRollFeed({ campaignId, sessionKey, actor, publishRoll, author
 
   const commit = useCallback(
     (roll: RollResult, baseExpr: string, context: RollLock | null = lock) => {
-      const id = createRollId();
-      const at = Date.now();
-      const mode = roll.detail.mode ?? "normal";
-      const who = context?.actor ?? actor;
-      const message: RollMessage = {
-        t: "roll",
-        id,
-        label: roll.detail.label,
-        formula: roll.formula,
-        baseExpr,
-        result: roll.result,
-        detail: roll.detail,
-        mode,
-        at,
-        requestId: context?.requestId,
-        actor: {
-          peerId: net.selfId,
-          characterId: who?.characterId ?? undefined,
-          tokenId: who?.tokenId,
-          name: who?.name,
-        },
-      };
-      if (feedKey) {
-        addSessionRoll(feedKey, {
-          id,
-          who: who?.name || "You",
-          label: message.label,
-          formula: message.formula,
-          result: message.result,
-          at,
-          characterId: who?.characterId,
-          tokenId: who?.tokenId,
-          requestId: message.requestId,
-          baseExpr,
-          mode,
-          detail: roll.detail,
-        });
-      }
-      if (campaignId) {
-        void logRoll(campaignId, who?.characterId ?? null, roll, {
-          id,
-          at,
-          baseExpr,
-          actorName: who?.name || "You",
-          tokenId: who?.tokenId,
-          requestId: context?.requestId,
-          mode,
-        });
-      }
-      if (publishRoll) publishRoll(message);
-      else if (net.status === "connected") net.publish(message);
+      commitRoll(roll, baseExpr, context, {
+        campaignId,
+        feedKey,
+        selfId: net.selfId,
+        actor,
+        publishRoll,
+        broadcast: net.status === "connected" ? net.publish : null,
+      });
       if (context) onClearLock();
     },
     [actor, campaignId, feedKey, lock, net, onClearLock, publishRoll]
@@ -159,12 +99,23 @@ export function VttRollFeed({ campaignId, sessionKey, actor, publishRoll, author
   // Mouse/keyboard shortcuts remain, while the visible DIS / ADV buttons make
   // every posture available to touch-only players too.
   async function rollNow(mode: RollMode = "normal") {
+    // The host deletes its `pendingRollRequests` slot at the deadline, so a
+    // `roll-result` that arrives afterwards finds no pending entry and is
+    // dropped without a word. Rolling here anyway would still write the row to
+    // THIS player's session feed and campaign log, so the table would see
+    // nothing while the roller saw a perfectly normal result — the exact
+    // "requested rolls that quietly do nothing" failure. The prompt refuses an
+    // expired request; the tray is its documented fallback and must too.
+    if (lock && rollLockExpired(lock)) {
+      setLockDead(true);
+      return;
+    }
     const baseExpr = canonicalRollExpr(expr);
     if (!baseExpr) {
       setExprBad(true);
       return;
     }
-    const label = lock ? `${lock.label}${choiceLabel ? ` · ${choiceLabel}` : ""}` : expr;
+    const label = lock ? rollLockLabel(lock, choiceLabel) : expr;
     if (mode !== "normal" && authorizeMode && !(await authorizeMode(mode, label))) return;
     const roll = rollDiceExpr(label, baseExpr, mode);
     if (!roll) return; // canonicalRollExpr and rollDiceExpr share the same parser.
@@ -174,6 +125,11 @@ export function VttRollFeed({ campaignId, sessionKey, actor, publishRoll, author
   function rollClick(e: React.MouseEvent) {
     void rollNow(e.shiftKey ? "adv" : e.ctrlKey || e.altKey ? "dis" : "normal");
   }
+
+  // Re-read every render rather than stored: the deadline passes on wall-clock
+  // time, not on a state change. `lockDead` only forces the render that a press
+  // against an already-dead request needs in order to say so.
+  const lockExpired = !!lock && (lockDead || rollLockExpired(lock));
 
   function reroll(baseExpr: string, label: string, mode: RollMode = "normal") {
     const canonical = canonicalRollExpr(baseExpr);
@@ -208,11 +164,18 @@ export function VttRollFeed({ campaignId, sessionKey, actor, publishRoll, author
             {lock.label}
             {lock.dc != null ? ` (DC ${lock.dc})` : ""}
             {lock.requestedBy ? ` · ${lock.requestedBy}` : ""}
+            {lockExpired ? " · expired" : ""}
           </span>
           <button className="cdx-tab-x" onClick={onClearLock} title="Unlock — back to freeform rolling">
             ×
           </button>
         </div>
+      )}
+      {lockExpired && (
+        <p className="equip-warn vtt2-roll-lock-dead">
+          This request timed out, so the Curator's table would never receive it. Clear it with × and roll freely, or ask
+          them to send it again.
+        </p>
       )}
 
       {!!lock?.choices?.length && (

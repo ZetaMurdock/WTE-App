@@ -6100,6 +6100,219 @@ body.wte-dot-cursor * {
   border-color: var(--accent);
   background: rgba(126, 207, 202, 0.14);
 }
+/* ── Party HUD carousel ───────────────────────────────────────────────────────
+   The party at a glance, docked in the band between the action bar and the
+   resolution cards. The vertical budget is exact and load-bearing, and it is why
+   `.vtt2-resolutions` was moved up when this strip landed. Measured, not
+   guessed: the action bar's top edge is 56px off the bottom, so this sits at
+   64px, stands 46px tall, and the confirm cards start at 118px. Every one of
+   those numbers shifts under `any-pointer: coarse`, where the tool rail grows
+   to a finger — see the overrides at the foot of this file. Add a third line to
+   a card and it either eats the tool rail or slides under a card the Curator is
+   trying to read.
+
+   Same glass as `.vtt2-radial-btn` and `.vtt2-ring-btn` — one on-map surface
+   language, deliberately, not a second one. */
+.vtt2-hud {
+  position: absolute;
+  left: 50%;
+  bottom: 64px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  max-width: calc(100% - 32px);
+  padding: 3px 4px;
+  background: rgba(10, 17, 34, 0.82);
+  backdrop-filter: blur(4px);
+  border: 1px solid var(--panel-line);
+  border-radius: 10px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+  /* UNDER every interactive on-map surface on purpose — the token radial (6),
+     the ability ring (7), the action bar (8) and the resolution cards (12). This
+     is a readout; a body standing near the bottom of the map must never have its
+     ring buttons covered by a strip you cannot click through. */
+  z-index: 5;
+}
+.vtt2-hud-anchor {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  max-width: 96px;
+  padding: 0 7px 0 5px;
+  border-right: 1px solid var(--panel-line);
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vtt2-hud-anchor b {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: normal;
+}
+.vtt2-hud-page {
+  flex: 0 0 auto;
+  width: 18px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.vtt2-hud-page:hover {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.05);
+}
+.vtt2-hud-page:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+/* The rail itself. Scroll-snap so an arrow press always lands on a card edge
+   rather than halfway through a name. */
+.vtt2-hud-strip {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+  touch-action: pan-x;
+}
+.vtt2-hud-strip::-webkit-scrollbar {
+  display: none;
+}
+.vtt2-hud-card {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  width: 116px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 4px 7px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid transparent;
+  border-radius: 7px;
+  text-align: left;
+  font-family: Georgia, serif;
+  cursor: pointer;
+}
+button.vtt2-hud-card:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(126, 207, 202, 0.4);
+}
+.vtt2-hud-card:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+/* The body every distance is measured from, marked so the anchor is never a
+   thing you have to work out from the caption alone. */
+.vtt2-hud-card.anchor {
+  border-color: rgba(126, 207, 202, 0.55);
+  background: rgba(126, 207, 202, 0.08);
+}
+.vtt2-hud-card.self .vtt2-hud-name {
+  color: var(--accent);
+}
+.vtt2-hud-card.off {
+  opacity: 0.55;
+}
+.vtt2-hud-card.inert {
+  cursor: default;
+}
+.vtt2-hud-top,
+.vtt2-hud-bottom {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.vtt2-hud-name {
+  flex: 1;
+  min-width: 0;
+  color: var(--ink, #d5dbe6);
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vtt2-hud-dist {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-family: Consolas, monospace;
+  font-size: 9.5px;
+}
+.vtt2-hud-card.anchor .vtt2-hud-dist {
+  color: var(--accent);
+  font-size: 11px;
+}
+/* Condition pips are DELIBERATELY uncoloured and unlabelled. W.T.E has no
+   authored conditions glossary yet, so a per-condition colour or icon would be
+   this app inventing setting content; the count is the glance and the tooltip
+   carries the Curator's own words. */
+.vtt2-hud-pips {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.vtt2-hud-pip {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #d8b25a;
+  box-shadow: 0 0 3px rgba(216, 178, 90, 0.6);
+}
+.vtt2-hud-pipmore {
+  color: #d8b25a;
+  font-family: Consolas, monospace;
+  font-size: 8.5px;
+  font-style: normal;
+}
+.vtt2-hud-bar {
+  flex: 1 1 auto;
+  min-width: 20px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.09);
+  overflow: hidden;
+}
+.vtt2-hud-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  transition: width 0.18s;
+}
+.vtt2-hud-bar.hurt i {
+  background: #c9a94e;
+}
+.vtt2-hud-bar.bloodied i {
+  background: #b2542f;
+}
+.vtt2-hud-bar.down i {
+  background: #6b2020;
+}
+.vtt2-hud-dmg {
+  flex: 0 0 auto;
+  color: #d98a6a;
+  font-family: Consolas, monospace;
+  font-size: 9.5px;
+}
+.vtt2-hud-noverit {
+  flex: 1;
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.3px;
+}
+
 /* Radial quick-action menu around the selected token (Owlbear-style glass) */
 .vtt2-radial {
   position: absolute;
@@ -6292,6 +6505,16 @@ body.wte-dot-cursor * {
   .vtt2-action {
     min-height: 44px;
     padding: 9px 13px;
+  }
+  /* Finger-sized tools make the bar ~66px tall from the bottom edge, so the HUD
+     has to move up with it or the two overlap. Its own cards stay small — this
+     is a readout, not a target, and its only tap targets are the two arrows. */
+  .vtt2-hud {
+    bottom: 74px;
+    max-width: calc(100% - 16px);
+  }
+  .vtt2-hud-page {
+    width: 30px;
   }
   .vtt2-radial-btn {
     width: 46px;
@@ -6770,6 +6993,197 @@ body.wte-dot-cursor * {
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
   overflow: hidden;
 }
+/* ── Handouts in the character's notes ───────────────────────────────────────
+   The player-facing end of the Curator's synopsis. It uses the sheet's own
+   furniture (`panel-title`, `bg-select`, `ghost-btn`) rather than importing the
+   VTT's glass, because it is read at the sheet's desk, not over a map. */
+.char-handouts {
+  margin-bottom: 12px;
+}
+.char-handout {
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--panel-line);
+  border-left: 2px solid var(--accent);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.char-handout-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.char-handout-head b {
+  color: var(--ink, #d5dbe6);
+  font-size: 12px;
+}
+.char-handout-head span {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+/* ── Character synopsis ───────────────────────────────────────────────────────
+   The Curator's console for one party member, opened from a party-HUD card. It
+   shares the sheet overlay's scrim on purpose — this is the same kind of act as
+   opening a sheet, and a second backdrop treatment would read as a second app.
+
+   It is NARROW (380px against the sheet's 960) because the width is the promise:
+   this is a card you read in one glance and hand something through, not a sheet.
+   Anything that needs the sheet's width belongs behind "Open full sheet".
+   Controls are the app's own — `.bg-select`, `.chip`, `.ghost-btn` — so nothing
+   here is a second design system. */
+.vtt2-synopsis {
+  width: min(380px, 94vw);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  margin: auto;
+  padding: 14px 16px 16px;
+  background: var(--panel, #0d1220);
+  border: 1px solid var(--panel-line, #21304a);
+  border-radius: 12px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+}
+.vtt2-syn-who {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.vtt2-syn-sub {
+  color: var(--muted);
+  font-size: 9.5px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vtt2-syn-vitals {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.vtt2-syn-hp {
+  flex: 0 0 auto;
+  color: var(--ink, #d5dbe6);
+  font-family: Consolas, monospace;
+  font-size: 11px;
+}
+.vtt2-syn-noverit {
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 10px;
+  font-style: italic;
+}
+.vtt2-syn-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.vtt2-syn-label {
+  flex: 0 0 58px;
+  padding-top: 3px;
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+.vtt2-syn-tags {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+.vtt2-syn-none {
+  color: var(--muted);
+  font-size: 10px;
+  font-style: italic;
+}
+.vtt2-syn-tag,
+.vtt2-syn-carry,
+.vtt2-syn-coin {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border: 1px solid var(--panel-line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--ink, #d5dbe6);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+/* Condition pips stay uncoloured here for the same reason they are uncoloured on
+   the HUD: W.T.E has no authored conditions glossary, so a colour per condition
+   would be this app inventing setting content. */
+.vtt2-syn-tag {
+  cursor: pointer;
+}
+.vtt2-syn-tag:hover:not(:disabled) {
+  border-color: #a1584a;
+  color: #c47a68;
+}
+.vtt2-syn-tag:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.vtt2-syn-carry em,
+.vtt2-syn-coin b {
+  color: var(--accent);
+  font-family: Consolas, monospace;
+  font-size: 9.5px;
+  font-style: normal;
+  font-weight: normal;
+}
+/* Where a carried thing lives on the sheet, said in one bar of colour rather
+   than a word: catalog weapons and gear are chosen on the sheet, loose items are
+   the ones a Curator can hand over from here. */
+.vtt2-syn-carry.weapon {
+  border-left: 2px solid #a1584a;
+}
+.vtt2-syn-carry.gear {
+  border-left: 2px solid #689a96;
+}
+.vtt2-syn-carry.item {
+  border-left: 2px solid #a08a4f;
+}
+.vtt2-syn-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.vtt2-syn-qty,
+.vtt2-syn-vision {
+  flex: 0 0 68px;
+}
+.vtt2-syn-give {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--panel-line);
+}
+.vtt2-syn-text {
+  min-height: 68px;
+  margin-top: 6px;
+  resize: vertical;
+  font-family: Georgia, serif;
+  font-size: 11.5px;
+}
+.vtt2-syn-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+}
+
 .vtt2-scene-menu {
   position: fixed;
   right: 54px;
@@ -7635,9 +8049,112 @@ body.wte-dot-cursor * {
 }
 /* Roll feed (bottom-right) */
 /* Active roll toasts — pop up centre-top on any roll, then fade out. */
-.vtt2-roll-toasts {
+/* "You are being asked to roll" — the demand, in the roll toasts' lane but
+   above them: a fading result must never sit on top of a live question. */
+.vtt2-rollprompts {
   position: absolute;
   top: 58px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(336px, calc(100% - 24px));
+  max-height: calc(100% - 150px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  z-index: 41;
+}
+.vtt2-rollprompt-count {
+  align-self: center;
+  font-family: Georgia, serif;
+  font-size: 11px;
+  color: var(--accent);
+  background: rgba(10, 15, 28, 0.94);
+  border: 1px solid rgba(126, 207, 202, 0.35);
+  border-radius: 20px;
+  padding: 2px 12px;
+}
+.vtt2-rollprompt {
+  background: rgba(10, 15, 28, 0.97);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  padding: 10px 12px 11px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  animation: roll-prompt-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.vtt2-rollprompt.expired {
+  border-color: var(--panel-line);
+  opacity: 0.9;
+}
+.vtt2-rollprompt-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.vtt2-rollprompt-from {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vtt2-rollprompt-label {
+  font-family: Georgia, serif;
+  font-size: 14px;
+  color: var(--bone, #e7e0d0);
+  margin-top: 1px;
+}
+.vtt2-rollprompt-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.vtt2-rollprompt-dv {
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  color: var(--accent);
+  border: 1px solid rgba(126, 207, 202, 0.35);
+  border-radius: 5px;
+  padding: 1px 6px;
+}
+.vtt2-rollprompt-clock {
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  color: var(--muted);
+  padding: 1px 2px;
+}
+.vtt2-rollprompt-clock.out {
+  color: #e88;
+}
+.vtt2-rollprompt-choices {
+  margin-top: 9px;
+}
+.vtt2-rollprompt-go {
+  width: 100%;
+  margin-top: 9px;
+}
+.vtt2-rollprompt-dead {
+  margin: 8px 0 0;
+}
+.vtt2-rollprompt-tray {
+  align-self: center;
+}
+@keyframes roll-prompt-in {
+  0% { opacity: 0; transform: translateY(-10px) scale(0.97); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.vtt2-roll-toasts {
+  position: absolute;
+  /* Below the prompt lane, not under it. Both used to sit at 58px centred, and
+     the prompt's ground is opaque — so while any roll was being asked, EVERY
+     result at the table was invisible, including the one for the roll just
+     answered. A question and its answer need to be readable at the same time. */
+  top: calc(58px + var(--roll-prompt-lane, 0px));
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -7838,6 +8355,11 @@ body.wte-dot-cursor * {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* A lock the host has already timed out. Same warning voice the roll prompt's
+   expired card uses, so the two surfaces agree about a dead request. */
+.vtt2-roll-lock-dead {
+  margin: -2px 0 7px;
 }
 .vtt2-requested-axis-choices {
   margin: 7px 0 9px;
@@ -8273,11 +8795,14 @@ body.wte-dot-cursor * {
 /* Resolution cards — the Curator's confirm step between a settled roll and an
    applied consequence. Bottom-centre, but docked ABOVE `.vtt2-actionbar`: the
    action bar is the only tool rail players get, and a confirm step that buries
-   it takes the table's tools away in order to ask them a question. */
+   it takes the table's tools away in order to ask them a question.
+
+   ...and above the party HUD, for the same reason — see the budget note on
+   `.vtt2-hud`, which is what this offset is measured against. */
 .vtt2-resolutions {
   position: absolute;
   left: 50%;
-  bottom: 104px;
+  bottom: 118px;
   transform: translateX(-50%);
   width: min(330px, calc(100% - 24px));
   max-height: 52vh;
@@ -8286,6 +8811,15 @@ body.wte-dot-cursor * {
   flex-direction: column;
   gap: 8px;
   z-index: 12;
+}
+/* Must live HERE and not with the other coarse-pointer overrides earlier in the
+   file: a media query adds no specificity, so a rule written before the base
+   `.vtt2-resolutions` block simply loses to it and the cards sit 10px into the
+   HUD on every touchscreen. */
+@media (any-pointer: coarse) {
+  .vtt2-resolutions {
+    bottom: 128px;
+  }
 }
 .vtt2-res-card {
   background: rgba(12, 18, 32, 0.97);

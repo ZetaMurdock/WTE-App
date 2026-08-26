@@ -16,6 +16,7 @@ import { zeroAttributes, zeroSpecialties } from "../game/wte";
 import { migrateLoadout, parseSpend } from "../game/synapticFocus";
 import { parseBioFields } from "./bioFields";
 import { MAX_COUNTER_TRACKS, validCounterTrack, type CounterTrack } from "../game/counterTracks";
+import { MAX_HANDOUTS, MAX_HANDOUT_TEXT, MAX_HANDOUT_TITLE, validHandout, type Handout } from "../game/handouts";
 
 /** Every field a stored sheet may carry. Exhaustive by construction — see the
  *  compile-time checks below. */
@@ -57,6 +58,7 @@ export const SHEET_KEYS = [
   "tags",
   "notesMd",
   "counterTracks",
+  "handouts",
 ] as const;
 
 export type SheetKey = (typeof SHEET_KEYS)[number];
@@ -92,6 +94,27 @@ function parseCounterTracks(value: unknown): CounterTrack[] | undefined {
   if (!Array.isArray(value)) return undefined;
   const kept = value.filter(validCounterTrack).slice(0, MAX_COUNTER_TRACKS);
   return kept.length ? kept.map(({ name, value: n, cap }) => (cap != null ? { name, value: n, cap } : { name, value: n })) : undefined;
+}
+
+/** Information handed to this character. Every entry re-validated, text
+ *  re-bounded, and absent stays absent.
+ *
+ *  Ids are forced unique because `removeHandout` and the Curator's take-back
+ *  button address an entry BY ID, so a record
+ *  carrying the id twice would have one click retract two notes. The first
+ *  occurrence stands. Overflow drops the OLDEST, matching `giveHandout`: what
+ *  was handed over most recently is what the player is being told about. */
+function parseHandouts(value: unknown): Handout[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const seen = new Set<string>();
+  const kept: Handout[] = [];
+  for (const { id, title, text, by, at } of value.filter(validHandout)) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    kept.push({ id, title: title.slice(0, MAX_HANDOUT_TITLE), text: text.slice(0, MAX_HANDOUT_TEXT), by, at });
+  }
+  const bounded = kept.slice(-MAX_HANDOUTS);
+  return bounded.length ? bounded : undefined;
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -196,6 +219,7 @@ export function sheetFromJson(raw: unknown): CharacterSheet {
     // Absent stays absent — `prune` drops the undefined — so a sheet that never
     // moved a track serializes byte-for-byte as it did before tracks existed.
     counterTracks: parseCounterTracks(p.counterTracks),
+    handouts: parseHandouts(p.handouts),
   });
 }
 

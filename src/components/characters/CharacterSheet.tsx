@@ -883,6 +883,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
             )}
 
             {tab === "inventory" && (
+              <>
               <InventoryBody
                 speciesId={sheet.speciesId}
                 sizeId={sheet.sizeId}
@@ -896,6 +897,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                 onEquipment={setEquipment}
                 onGear={setGear}
               />
+              </>
             )}
 
             {tab === "loadout" && (

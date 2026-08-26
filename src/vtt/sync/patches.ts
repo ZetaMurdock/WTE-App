@@ -68,8 +68,18 @@ const PLAYER_TOKEN_UPDATE_KEYS = new Set<keyof VttToken>([
 
 /** The narrow slice a Curator's adjudication touches: what a resolution costs a
  *  body, and nothing about whose body it is. Ownership, identity, art and size
- *  stay outside so an adjudicated hit can never reshape a player's token. */
-const TOKEN_VITALS_KEYS = new Set<keyof VttToken>(["hp", "statuses"]);
+ *  stay outside so an adjudicated hit can never reshape a player's token.
+ *
+ *  `vision` is in this slice and not outside it because it is a STATE of the
+ *  body, in the same sense HP and a condition tag are: blinded, dazzled, handed
+ *  a lantern, sunk into a dark. The Curator declaring how far someone sees is
+ *  the same act as the Curator declaring what a hit cost them, and `updateToken`
+ *  cannot carry it — that path refuses a player's token on purpose, so the
+ *  Curator's ruling silently did nothing on exactly the bodies it was aimed at.
+ *  It widens what the CURATOR may adjudicate and nothing else: a player's
+ *  patches are gated by PLAYER_TOKEN_UPDATE_KEYS, which does not list vision,
+ *  and `adjudicateTokenVitals` refuses to run at all in player view. */
+const TOKEN_VITALS_KEYS = new Set<keyof VttToken>(["hp", "statuses", "vision"]);
 
 function tokenUpdateValueAllowed(field: keyof VttToken, value: unknown): boolean {
   if (value === undefined) return true;

@@ -38,7 +38,7 @@ export interface VitalsUndoEngine {
   setConditionClocks(clocks: VttConditionClock[]): boolean;
 }
 
-export type VitalsField = "hp" | "statuses";
+export type VitalsField = "hp" | "statuses" | "vision";
 
 export interface UndoableVitalsOptions {
   /** Undo-button label, e.g. `damage to Vex`. */
@@ -59,6 +59,9 @@ interface VitalsSnapshot {
   hp?: number;
   /** Always materialised: see `readVitals` on why `undefined` is not kept. */
   statuses?: string[];
+  /** Vision radius in cells. Absent means the token never carried one — which is
+   *  NOT the same as zero, and cannot be restored; see `register`. */
+  vision?: number;
 }
 
 const STATUS_ONLY: readonly VitalsField[] = ["statuses"];
@@ -89,6 +92,7 @@ function readVitals(token: VttToken, fields: readonly VitalsField[]): VitalsSnap
   const snapshot: VitalsSnapshot = {};
   for (const field of fields) {
     if (field === "hp") snapshot.hp = token.hp;
+    else if (field === "vision") snapshot.vision = token.vision;
     else snapshot.statuses = [...(token.statuses ?? [])];
   }
   return snapshot;
@@ -102,6 +106,7 @@ function sameStatuses(a: readonly string[], b: readonly string[]): boolean {
 function stillHolds(token: VttToken, snapshot: VitalsSnapshot, fields: readonly VitalsField[]): boolean {
   for (const field of fields) {
     if (field === "hp" && token.hp !== snapshot.hp) return false;
+    if (field === "vision" && token.vision !== snapshot.vision) return false;
     if (field === "statuses" && !sameStatuses(token.statuses ?? [], snapshot.statuses ?? [])) return false;
   }
   return true;
@@ -111,6 +116,7 @@ function patchOf(snapshot: VitalsSnapshot, fields: readonly VitalsField[]): Part
   const patch: Partial<VttToken> = {};
   for (const field of fields) {
     if (field === "hp") patch.hp = snapshot.hp;
+    else if (field === "vision") patch.vision = snapshot.vision;
     // A fresh array per write: the snapshot is the undo entry's own record and
     // must not become the live token's array, or the next application would
     // edit the thing undo intends to restore.
@@ -151,7 +157,11 @@ function invert(
 /** Nothing to put back when the write moved nothing. */
 function unchanged(before: VitalsSnapshot, after: VitalsSnapshot, fields: readonly VitalsField[]): boolean {
   return fields.every((field) =>
-    field === "hp" ? before.hp === after.hp : sameStatuses(before.statuses ?? [], after.statuses ?? [])
+    field === "hp"
+      ? before.hp === after.hp
+      : field === "vision"
+        ? before.vision === after.vision
+        : sameStatuses(before.statuses ?? [], after.statuses ?? [])
   );
 }
 
@@ -179,6 +189,11 @@ function register(
   // Rather than ship an inverse that only works on the Curator's screen, this
   // write stays outside the trail.
   if (fields.includes("hp") && before.hp === undefined) return;
+  // Same rule, same reason, for a body that carried no vision radius at all:
+  // `{ vision: undefined }` reaches peers as `{}`, so an inverse back to "unset"
+  // would work on the Curator's screen and nowhere else. The first vision a
+  // token is ever given therefore stands; every later change is undoable.
+  if (fields.includes("vision") && before.vision === undefined) return;
   if (!alsoMoved && unchanged(before, after, fields)) return;
   pushUndo({
     label: opts.label,

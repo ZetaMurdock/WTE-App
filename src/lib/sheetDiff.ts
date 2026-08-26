@@ -204,6 +204,18 @@ const REPORTERS: Record<Exclude<SheetKey, SilentKey>, Reporter> = {
     return out;
   },
 
+  // The TITLE is quoted and the body is not: a handout can run to paragraphs, and
+  // a notice is a "go and look", not a reader. Titles are what the player scans
+  // their notes for, so the notice must use the same words the entry does.
+  handouts: (a, b) => {
+    const before = new Map((a.handouts ?? []).map((h) => [h.id, h]));
+    const after = new Map((b.handouts ?? []).map((h) => [h.id, h]));
+    const out: string[] = [];
+    for (const [id, h] of after) if (!before.has(id)) out.push(`Handed to you: “${h.title}” — it is in your Notes`);
+    for (const [id, h] of before) if (!after.has(id)) out.push(`“${h.title}” was taken back`);
+    return out;
+  },
+
   speciesId: (a, b) => named("Species", getSpecies(a.speciesId)?.name ?? a.speciesId, getSpecies(b.speciesId)?.name ?? b.speciesId),
   variantName: (a, b) => named("Lineage", a.variantName, b.variantName),
   variantOption: (a, b) => named("Lineage option", a.variantOption, b.variantOption),

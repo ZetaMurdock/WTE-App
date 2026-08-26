@@ -100,6 +100,28 @@ export function parseMoney(text: string): number | null {
   return found ? clampShrives(total) : null;
 }
 
+/**
+ * Read a typed amount as a SIGNED delta — what a Curator hands over, or takes
+ * back with a leading minus.
+ *
+ * `parseMoney` clamps at zero, because a purse never holds a negative amount.
+ * That is right for a balance and wrong for a change to one: "-2 Credits" went
+ * through `parseMoney` as 0, which a caller reads as "they typed zero" and
+ * silently declines to move any money at all. The sign is therefore taken off
+ * the front of the string before parsing and re-applied after.
+ *
+ * Null still means "nothing numeric in there", so a caller can tell rubbish from
+ * a deliberate zero.
+ */
+export function parseMoneyDelta(text: string): number | null {
+  const s = String(text ?? "").trim();
+  // U+2212 too: a minus pasted out of a document is not a hyphen.
+  const negative = /^[-−]/.test(s);
+  const magnitude = parseMoney(negative ? s.slice(1) : s);
+  if (magnitude === null) return null;
+  return negative ? -magnitude : magnitude;
+}
+
 /** Add (or subtract, with a negative delta) and clamp. */
 export function addShrives(total: number, delta: number): number {
   return clampShrives(clampShrives(total) + (Number(delta) || 0));
