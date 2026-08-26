@@ -7417,6 +7417,15 @@ body.wte-dot-cursor * {
 .vtt2-actor-row:hover {
   background: rgba(255, 255, 255, 0.04);
 }
+/* A party member who is not in the room. Still fully openable and editable — the
+   dimming says "they will not see this until they reconnect", not "disabled". */
+.vtt2-actor-row.offline .vtt2-actor-label {
+  opacity: 0.62;
+}
+.vtt2-actor-row.offline {
+  border-left: 2px solid var(--muted);
+  padding-left: 4px;
+}
 .vtt2-actor-label {
   flex: 1;
   min-width: 0;
@@ -10467,4 +10476,73 @@ body.wte-dot-cursor * {
   top: 0;
   background: var(--panel);
   z-index: 1;
+}
+
+/* ── "Someone else changed your sheet" notice ──
+   Built on the .points-banner vocabulary the sheet already uses for its budget
+   lines, so it reads as part of the sheet rather than a system popup. Accent-
+   edged on the leading side only: enough to catch the eye on open, never enough
+   to compete with the character banner above it. */
+.sheet-notice {
+  margin: 0 0 10px;
+  padding: 7px 12px;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-left: 2px solid var(--accent);
+  border-radius: 4px;
+}
+.sheet-notice-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+.sheet-notice-lede {
+  color: var(--ink);
+}
+.sheet-notice-sum {
+  color: var(--muted);
+  font-size: 12px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.sheet-notice-toggle {
+  white-space: nowrap;
+}
+.sheet-notice-list {
+  list-style: none;
+  margin: 8px 0 2px;
+  padding: 0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.sheet-notice-entry + .sheet-notice-entry {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--panel-line);
+}
+.sheet-notice-by {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  color: var(--muted);
+}
+.sheet-notice-drop {
+  margin-left: auto;
+}
+.sheet-notice-changes {
+  list-style: none;
+  margin: 3px 0 0;
+  padding: 0;
+}
+.sheet-notice-changes li {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink);
+  padding-left: 10px;
+  border-left: 1px solid var(--panel-line);
 }

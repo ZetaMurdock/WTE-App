@@ -5,7 +5,8 @@ import { loadAtlas } from "./atlas/atlasRepo";
 import { atlasForRole, MAX_ATLAS_WIRE_CHARS } from "./atlas/atlasModel";
 import { bridgeEmit, bridgeListen, focusAtlasWindow, openAtlasWindow } from "./atlas/atlasBridge";
 import { listRuleLayers } from "../lib/ruleLayerRepo";
-import { loadRules } from "../lib/campaignRules";
+import { derivedRules, loadRules } from "../lib/campaignRules";
+import { recordRemoteSheetEdit } from "../lib/sheetNotices";
 import type { RuleLayer } from "../game/ruleLayers";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { Campaign } from "../models/campaign";
@@ -107,12 +108,27 @@ import { requestedRollOptions } from "./data/requestedRoll";
 import { CharacterSheet } from "../components/characters/CharacterSheet";
 import { listCharacters, getCharacter, upsertCharacter, type CharacterRecord } from "../lib/characters";
 import {
+  agreedSheetBase,
   applyRemoteSheet,
   getPartySheets,
+  isForeignSheet,
   pruneOwners,
+  ownSharedSheetIds,
+  sheetHomePeer,
   shouldBroadcastSheet,
   subscribePartySheets,
 } from "./sync/partySheets";
+import { describeSheetConflict, type SheetFingerprint } from "./sync/sheetMerge";
+import { isEditingWithin } from "./sync/sheetEditing";
+import {
+  creditSighting,
+  forgetPartyMember,
+  getPartyRoster,
+  loadPartyRoster,
+  rememberPartyMember,
+  subscribePartyRoster,
+  peerDeviceKey,
+} from "./sync/partyRoster";
 import { characterToTokenSpec, creatureToTokenSpec, parseSpawnPayload } from "./data/actorSpawn";
 import { listCreatures, computeCreature } from "../lib/codex";
 import type { Creature } from "../models/codex";
@@ -275,6 +291,10 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
   sheetCharIdRef.current = sheetCharId;
   // Live registry of sheets other players have shared into the room.
   const partySheets = useSyncExternalStore(subscribePartySheets, getPartySheets);
+  // Durable record of who has ever shared into this campaign. partySheets is
+  // emptied when a peer disconnects; this is what keeps the Curator able to reach
+  // an offline player's sheet, which is already sitting in the local DB.
+  const partyRoster = useSyncExternalStore(subscribePartyRoster, getPartyRoster);
   // Scene-wheel right-click actions: the file pickers target a specific scene id,
   // and every setting is written to THAT scene only (nothing transfers).
   const sceneBgRef = useRef<HTMLInputElement>(null);
@@ -884,45 +904,286 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
   // campaign) can only be updated by the host — so a forged "first share" can
   // never overwrite the Curator's own characters.
   const hostIdOf = () => (net.role === "host" ? net.selfId : peersRef.current.find((p) => p.role === "host")?.id ?? null);
+
+  // Write an accepted sheet into the Curator's durable roster. Only the host keeps
+  // one — a player must never accumulate a list of the table's other characters.
+  // Who the sheet is credited to is decided by creditSighting, where it can be
+  // tested; everything left here is the wiring that reads the live stores.
+  // Is this sender the character's own player, coming back under a fresh peer id?
+  //
+  // The live ownership binding dies when a peer disconnects and peer ids are
+  // regenerated every session, so a returning player is indistinguishable from a
+  // peer forging someone else's character id — and treating "this sheet has been
+  // shared before" as the answer let anyone in the room rewrite the sheet of
+  // anyone who had gone to sleep. The roster is the only durable record of WHOSE
+  // a character is, and only the Curator keeps one, so only the Curator can
+  // answer this; everywhere else it is no.
+  // A returning player reclaims their own sheet by DEVICE, never by name. Peer
+  // names come verbatim from the joiner's own hello (`net/session.ts`), so a
+  // name comparison here meant anyone who typed "Mara" inherited Mara's
+  // character and could rewrite it. The device key is a random id minted on
+  // their machine, which an impostor has no way to present.
+  const recognisedOwner = (charId: string, from: string): boolean => {
+    if (net.role !== "host") return false;
+    const known = getPartyRoster().find((m) => m.charId === charId)?.ownerKey?.trim();
+    const peer = peersRef.current.find((p) => p.id === from);
+    return !!known && peer?.role === "player" && peerDeviceKey(from) === known;
+  };
+
+  const noteRosterSighting = (rec: CharacterRecord, from: string) => {
+    if (!campaign || net.role !== "host") return;
+    if (rec.campaignId && rec.campaignId !== campaign.id) return;
+    const credit = creditSighting({
+      from,
+      selfId: net.selfId,
+      boundOwnerId: getPartySheets().find((e) => e.record.id === rec.id)?.ownerId,
+      peers: peersRef.current,
+      knownName: getPartyRoster().find((entry) => entry.charId === rec.id)?.ownerName,
+    });
+    if (!credit) return; // the Curator's own vault is not a roster entry
+    void rememberPartyMember(campaign.id, { charId: rec.id, name: rec.name, ...credit });
+  };
+
+  // The roster is per campaign and read from the database, so it is populated
+  // before anyone connects — that is the point: the Curator opens the table alone
+  // and the party is already listed.
+  useEffect(() => {
+    if (!campaign || asPlayer) {
+      void loadPartyRoster("");
+      return;
+    }
+    void loadPartyRoster(campaign.id);
+  }, [campaign, asPlayer]);
+
+  // The Curator's list of player sheets: everyone live in the room right now,
+  // followed by everyone the roster remembers who is not. An offline row opens the
+  // same way a live one does — the record is in the local vault either way — so
+  // the Curator is never locked out of a sheet by the player being asleep.
+  const rosterChars = useMemo(() => {
+    if (asPlayer) return []; // only the Curator gets control over other players' sheets
+    const live = partySheets
+      .filter((e) => e.ownerId !== net.selfId)
+      .map((e) => ({
+        id: e.record.id,
+        name: e.record.name,
+        owner: net.peers.find((p) => p.id === e.ownerId)?.name || "player",
+        offline: false,
+      }));
+    const onlineIds = new Set(live.map((c) => c.id));
+    const offline = partyRoster
+      .filter((m) => !onlineIds.has(m.charId))
+      .map((m) => ({ id: m.charId, name: m.name, owner: m.ownerName, offline: true, lastSeen: m.lastSeen }));
+    return [...live, ...offline];
+  }, [asPlayer, partySheets, partyRoster, net.peers, net.selfId]);
+
+  // A record that arrives for a sheet its reader is typing into is HELD rather
+  // than applied — see sync/sheetEditing for what a remount does to a half-typed
+  // note. The agreement is captured on ARRIVAL: the typist's own autosave moves
+  // the agreement forward, and reconciling a held record against the moved one
+  // would read their draft as the agreed baseline and hand every field they had
+  // just edited straight back to the sender.
+  const heldSheets = useRef(new Map<string, { rec: CharacterRecord; from: string; base: SheetFingerprint | null }>());
+  /** sender+character pairs already reported as "not yours". A peer that retries
+   *  must not be able to turn one refusal into a wall of toasts. */
+  const deniedSheetWarned = useRef(new Set<string>());
+  const holdTimer = useRef<number | undefined>(undefined);
+  const applyIncomingRef = useRef<(rec: CharacterRecord, from: string, base?: SheetFingerprint | null) => Promise<void>>(
+    async () => {}
+  );
+  const drainHeldRef = useRef<() => void>(() => {});
+  // Long enough for the sheet's own 400ms autosave debounce to have landed, so the
+  // row a held record is reconciled against is the draft the player just finished
+  // rather than the one they started from.
+  const HELD_SHEET_DELAY = 800;
+
+  const scheduleHeldDrain = () => {
+    if (holdTimer.current !== undefined) return;
+    holdTimer.current = window.setTimeout(() => drainHeldRef.current(), HELD_SHEET_DELAY);
+  };
+  drainHeldRef.current = () => {
+    holdTimer.current = undefined;
+    if (heldSheets.current.size === 0) return;
+    if (isEditingWithin(document.activeElement, ".vtt2-sheet-overlay")) {
+      scheduleHeldDrain(); // still typing — a held edit waits as long as it has to
+      return;
+    }
+    const pending = [...heldSheets.current.values()];
+    heldSheets.current.clear();
+    for (const h of pending) void applyIncomingRef.current(h.rec, h.from, h.base);
+  };
+  useEffect(() => () => window.clearTimeout(holdTimer.current), []);
+
+  // Reconcile one received record against what this vault holds. Nothing here
+  // picks a winner: applyRemoteSheet merges field by field against the last
+  // agreement and hands back what to write, what to send back, and what genuinely
+  // disagrees.
+  applyIncomingRef.current = async (rec, from, base) => {
+    if (!campaign) return;
+    if (rec.id === sheetCharIdRef.current && isEditingWithin(document.activeElement, ".vtt2-sheet-overlay")) {
+      // Keep the EARLIEST base when a second record arrives for a sheet still
+      // being typed into. Re-reading the ledger here would read the typist's own
+      // autosave — which has moved the agreement since the first record landed —
+      // as the agreed baseline, and every field they had just typed would be
+      // handed straight back to the sender as "only they moved it".
+      const held = heldSheets.current.get(rec.id);
+      heldSheets.current.set(rec.id, {
+        rec,
+        from,
+        base: held ? held.base : base !== undefined ? base : agreedSheetBase(rec.id),
+      });
+      scheduleHeldDrain();
+      return;
+    }
+    const hostId = hostIdOf();
+    // Read ONCE, and hand the same row to the merge and to the change notice: it
+    // is both what the incoming record is reconciled against and the last chance
+    // to see what this sheet WAS before the write replaces it.
+    const local = (await getCharacter(rec.id).catch(() => undefined)) ?? null;
+    const outcome = applyRemoteSheet(rec, from, {
+      selfId: net.selfId,
+      hostId,
+      local,
+      base,
+      ownerClaim: recognisedOwner(rec.id, from),
+    });
+    if (outcome.kind === "denied") {
+      // A refusal is normally the system working and is not worth a word. This
+      // one is different: it is also what a returning player looks like when the
+      // roster has forgotten their table name, and dropping their sheet in
+      // silence would leave both sides editing copies that never speak again.
+      // Only the Curator is told, because only the Curator can put it right, and
+      // only once per sender+character so a peer in a retry loop cannot bury the
+      // room in toasts.
+      if (outcome.reason === "not-owner" && net.role === "host") {
+        const seen = `${from}:${rec.id}`;
+        if (!deniedSheetWarned.current.has(seen)) {
+          deniedSheetWarned.current.add(seen);
+          const who = peersRef.current.find((p) => p.id === from)?.name || "Someone at the table";
+          pushToast(
+            `${who} sent a copy of ${rec.name || "a character"}, which the table does not list as theirs. It was ignored. ` +
+              `If that is their character, have them share it from their own Characters list to re-link it.`,
+            "error",
+            0
+          );
+        }
+      }
+      return;
+    }
+    if (outcome.record) {
+      await reportSaveFailure(upsertCharacter(outcome.record), "this character");
+      noteRosterSighting(outcome.record, from);
+      // INVARIANT: `after` must be whatever actually lands in the vault above.
+      // Diffing against a record that was not written would describe changes the
+      // player cannot find on their sheet — and after a merge, what lands is
+      // neither side's record but the reconciliation of both.
+      // Only HOST-origin edits are announced. A player saving their own sheet is
+      // ordinary traffic — announcing it would tell the Curator about keystrokes
+      // they are already watching, and tell a player about their own edit.
+      if (local && !local.corrupt && hostId != null && from === hostId && from !== net.selfId) {
+        recordRemoteSheetEdit({
+          before: local,
+          after: outcome.record,
+          by: { id: from, name: peersRef.current.find((p) => p.id === from)?.name || "The Curator" },
+          selfId: net.selfId,
+          ...derivedRules(local.campaignId),
+        });
+      }
+      // Only reload the open overlay when THIS character changed, so an unrelated
+      // party member's edit never interrupts the sheet you are looking at.
+      if (outcome.record.id === sheetCharIdRef.current) setSheetSyncTick((t) => t + 1);
+    }
+    // Our copy carries an edit the sender has never seen — the Curator's Tuesday
+    // adjustment, reaching the player who only came back on Friday.
+    if (outcome.reply && net.status === "connected") {
+      net.publish({ t: "sheet-patch", charId: rec.id, patch: outcome.reply, rev: Date.now() }, from);
+    }
+    if (outcome.kind === "conflict" && outcome.conflicts?.length) {
+      // Sticky (no timeout): this is a decision for a person, not a status line.
+      pushToast(describeSheetConflict(local?.name || rec.name, outcome.conflicts), "error", 0);
+    }
+  };
+
   useEffect(() => {
     if (!campaign) return;
     return net.subscribe("sheet-patch", (m, from) => {
-      void (async () => {
-        const pm = m as Extract<NetMessage, { t: "sheet-patch" }>;
-        const rec = pm.patch as CharacterRecord | undefined;
-        if (!rec || !rec.id || !rec.sheet) return;
-        const hostId = hostIdOf();
-        const privileged = from === net.selfId || (hostId != null && from === hostId);
-        if (!privileged) {
-          const tracked = getPartySheets().find((e) => e.record.id === rec.id);
-          if (!tracked) {
-            // Unseen record — reject if it collides with a character in OUR vault.
-            const existing = await getCharacter(rec.id).catch(() => undefined);
-            if (existing && existing.campaignId === campaign.id) return;
-          }
-        }
-        if (!applyRemoteSheet(rec, from, { selfId: net.selfId, hostId })) return;
-        void upsertCharacter(rec);
-        // Only reload the open overlay when THIS character changed, so an unrelated
-        // party member's edit never interrupts the sheet you are looking at.
-        if (rec.id === sheetCharIdRef.current) setSheetSyncTick((t) => t + 1);
-      })();
+      const pm = m as Extract<NetMessage, { t: "sheet-patch" }>;
+      const rec = pm.patch as CharacterRecord | undefined;
+      if (!rec || !rec.id || !rec.sheet) return;
+      void applyIncomingRef.current(rec, from);
     });
-  }, [campaign, net.subscribe, net.selfId, net.role]);
+  }, [campaign, net.subscribe]);
+
+  // A player announces the sheets it has shared before, once per connection.
+  //
+  // This is what delivers a Curator edit made while the player was offline. That
+  // edit is a row in the Curator's database and nothing else — there is no queue
+  // of pending patches to drain, and there could not usefully be one: peer ids are
+  // regenerated every session, so a queue addressed to "that player" could not
+  // find them again, and a queued patch would be stale the moment the Curator
+  // edited the sheet once more. The database row IS the pending change. So the
+  // returning player says what it has, and the Curator's side answers with
+  // whatever its own copy holds that the player's does not.
+  const announcedTo = useRef<string | null>(null);
+  useEffect(() => {
+    if (net.status !== "connected" || !campaign || net.role !== "player") {
+      announcedTo.current = null;
+      return;
+    }
+    const hostId = net.peers.find((p) => p.role === "host")?.id;
+    if (!hostId) return; // the host peer can appear a moment after the connection
+    const key = `${net.room}:${hostId}`;
+    if (announcedTo.current === key) return;
+    announcedTo.current = key;
+    void (async () => {
+      for (const id of ownSharedSheetIds()) {
+        const rec = await getCharacter(id).catch(() => undefined);
+        if (!rec || rec.corrupt) continue;
+        if (rec.campaignId && rec.campaignId !== campaign.id) continue;
+        // The return value is deliberately ignored: an unchanged sheet still has to
+        // be announced, because the Curator may have moved THEIR copy while this
+        // one sat still, and only an announcement asks them.
+        shouldBroadcastSheet(rec, net.selfId);
+        net.publish({ t: "sheet-patch", charId: id, patch: rec, rev: Date.now() }, hostId);
+      }
+    })();
+  }, [campaign, net.status, net.role, net.peers, net.room, net.selfId, net.publish]);
 
   // Forget a peer's shared sheets when they leave the room.
   useEffect(() => {
     pruneOwners(new Set(net.peers.map((p) => p.id)), net.selfId);
   }, [net.peers, net.selfId]);
 
-  // Broadcast a locally-saved sheet to the room, skipping echoes of what we just
-  // sent/received (content-hash guarded in the store).
+  // Send a locally-saved sheet to the one machine entitled to it, skipping echoes
+  // of what we just sent/received (content-hash guarded in the store).
   const broadcastSheet = useCallback(
     async (charId: string) => {
       if (net.status !== "connected") return;
+      // A sheet the table shared with US is never ours to push. Our copy can only
+      // be staler than its owner's, and the host answers it with a refusal the
+      // Curator reads as an intruder.
+      if (net.role !== "host" && isForeignSheet(charId)) return;
       const rec = await getCharacter(charId).catch(() => undefined);
-      if (rec && shouldBroadcastSheet(rec, net.selfId)) {
-        net.publish({ t: "sheet-patch", charId, patch: rec, rev: Date.now() });
+      // A record whose stored data could not be read is a blank sheet wearing the
+      // right name. Sending one would replace a good copy on every other machine
+      // in the room with that blank — the destructive half of the corrupt-record
+      // bug, committed over the wire instead of over the row.
+      if (!rec || rec.corrupt) return;
+      // A player's transport has one channel and it goes to the host. The HOST's
+      // does not: an untargeted publish from here reaches every player, and every
+      // player accepts whatever the host sends — so opening a player's sheet used
+      // to plant that player's character in everyone else's vault. Whisper it to
+      // the machine the sheet lives on, and to nobody else.
+      const to =
+        net.role === "host"
+          ? sheetHomePeer(charId, net.selfId, new Set(net.peers.map((p) => p.id))) ?? undefined
+          : undefined;
+      // No home in the room: the owner is asleep, or the character is one of ours.
+      // Deliberately do NOT touch the store — a send that never happened must not
+      // record an agreement, or the Curator's Tuesday edit would stop reading as a
+      // divergence when the player finally reconnects on Friday.
+      if (net.role === "host" && !to) return;
+      if (shouldBroadcastSheet(rec, net.selfId)) {
+        net.publish({ t: "sheet-patch", charId, patch: rec, rev: Date.now() }, to);
       }
     },
     [net]
@@ -949,7 +1210,19 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
       if (from !== hostId) return; // only the Curator may ask
       void (async () => {
         const mine = await listCharacters(campaign.id).catch(() => [] as CharacterRecord[]);
-        for (const rec of mine) net.publish({ t: "sheet-patch", charId: rec.id, patch: rec, rev: Date.now() });
+        for (const rec of mine) {
+          if (rec.corrupt) continue; // never answer a pull with a blank placeholder
+          // Answer with OUR characters only. A vault can hold a sheet the table
+          // shared with us, and pushing that back means offering the Curator a
+          // stale copy of another player's character — which the host correctly
+          // refuses, once per sheet, as a sticky "that is not theirs" toast.
+          if (isForeignSheet(rec.id)) continue;
+          // Force-send, but still record the agreement: a sheet that reached the
+          // table this way and no other must still be announced on the next
+          // connection, or the Curator's edits to it would have no way home.
+          shouldBroadcastSheet(rec, net.selfId);
+          net.publish({ t: "sheet-patch", charId: rec.id, patch: rec, rev: Date.now() });
+        }
       })();
     });
   }, [campaign, net.subscribe, net.role]);
@@ -3166,12 +3439,16 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
           onSaveQuick={(qc) => setQuickCreatures(saveQuickCreature(qcCampaign, qc))}
           onDeleteQuick={(id) => setQuickCreatures(deleteQuickCreature(qcCampaign, id))}
           onSpawnQuick={spawnQuick}
-          remoteChars={
-            asPlayer
-              ? [] // only the Curator gets live control over other players' sheets
-              : partySheets
-                  .filter((e) => e.ownerId !== net.selfId)
-                  .map((e) => ({ id: e.record.id, name: e.record.name, owner: net.peers.find((p) => p.id === e.ownerId)?.name || "player" }))
+          remoteChars={rosterChars}
+          onForgetRemote={
+            asPlayer || !campaign
+              ? undefined
+              : (id) => {
+                  // Roster-only: the player's character record is deliberately left
+                  // in the vault, so dismissing someone who left the campaign can
+                  // never be the gesture that destroys their sheet.
+                  void forgetPartyMember(campaign.id, id);
+                }
           }
           roomPlayers={
             !asPlayer && net.status === "connected"

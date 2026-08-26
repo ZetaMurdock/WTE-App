@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { CharacterRecord } from "../lib/characters";
 import type { Creature } from "../models/codex";
 import type { QuickCreature } from "./data/quickCreatures";
+import { lastSeenLabel } from "./sync/partyRoster";
 
 /** The stat keys the quick form offers — the common creature block. */
 const QUICK_STAT_KEYS = ["OFF", "DEF", "SPD", "WIL", "PHY", "INT"] as const;
@@ -20,8 +21,13 @@ interface Props {
   onSaveQuick: (qc: QuickCreature) => void;
   onDeleteQuick: (id: string) => void;
   onSpawnQuick: (qc: QuickCreature) => void;
-  /** Characters other players have shared live into the room (netplay). */
-  remoteChars: { id: string; name: string; owner: string }[];
+  /** Characters other players have shared into this table. `offline` members are
+   *  not in the room right now; their record is still in the local vault, so the
+   *  Curator opens and edits them exactly as a live one. */
+  remoteChars: { id: string; name: string; owner: string; offline?: boolean; lastSeen?: number }[];
+  /** Curator: drop an offline member from the roster. Does NOT delete their
+   *  character — omitted for players, who have no roster. */
+  onForgetRemote?: (id: string) => void;
   /** Connected players in the room (Curator side) + whether they've shared yet. */
   roomPlayers?: { id: string; name: string; shared: boolean }[];
   /** Curator: ask every player to push their sheets so you can open + edit them. */
@@ -54,6 +60,7 @@ export function VttActorsPanel({
   onDeleteQuick,
   onSpawnQuick,
   remoteChars,
+  onForgetRemote,
   roomPlayers = [],
   onRequestSheets,
   onSpawn,
@@ -67,6 +74,9 @@ export function VttActorsPanel({
   const [filter, setFilter] = useState("");
   // The quick-creature form: null = closed, a draft = open (existing id = editing).
   const [draft, setDraft] = useState<QuickCreature | null>(null);
+  // Removal is one click away from a row the Curator opens all session; arm it
+  // first so a mis-click on "Remove" cannot silently drop a player from the table.
+  const [confirmForget, setConfirmForget] = useState<string | null>(null);
   const q = filter.trim().toLowerCase();
   const shownCreatures = q ? creatures.filter((c) => c.name.toLowerCase().includes(q)) : creatures;
   const shownQuick = q ? quickCreatures.filter((c) => c.name.toLowerCase().includes(q)) : quickCreatures;
@@ -146,17 +156,46 @@ export function VttActorsPanel({
           )}
           {remoteChars.length > 0 && (
             <>
-              <div className="vtt2-actor-group">Players (live)</div>
+              <div className="vtt2-actor-group">Party</div>
               <ul className="vtt2-actor-list">
                 {remoteChars.map((c) => (
-                  <li key={c.id} className="vtt2-actor-row">
+                  <li key={c.id} className={"vtt2-actor-row" + (c.offline ? " offline" : "")}>
                     <span className="vtt2-actor-label">
                       {c.name}
-                      <span className="vtt2-actor-sub">shared by {c.owner}</span>
+                      <span className="vtt2-actor-sub">
+                        {c.offline
+                          ? `${c.owner} — offline, ${lastSeenLabel(c.lastSeen ?? 0)}`
+                          : `shared by ${c.owner}`}
+                      </span>
                     </span>
-                    <button className="chip" onClick={() => onOpenSheetId(c.id)} title="Open this player's sheet — edits sync live to them">
-                      Open
-                    </button>
+                    <span style={{ display: "flex", gap: 4 }}>
+                      <button
+                        className="chip"
+                        onClick={() => onOpenSheetId(c.id)}
+                        title={
+                          c.offline
+                            ? "Open this player's sheet from the vault — your edits are waiting for them next time they connect"
+                            : "Open this player's sheet — edits sync live to them"
+                        }
+                      >
+                        Open
+                      </button>
+                      {c.offline && onForgetRemote && (
+                        <button
+                          className="chip"
+                          onClick={() => {
+                            if (confirmForget !== c.id) setConfirmForget(c.id);
+                            else {
+                              onForgetRemote(c.id);
+                              setConfirmForget(null); // never leave a re-added member pre-armed
+                            }
+                          }}
+                          title="Remove from this campaign's party list. Their character is NOT deleted."
+                        >
+                          {confirmForget === c.id ? "Sure?" : "Remove"}
+                        </button>
+                      )}
+                    </span>
                   </li>
                 ))}
               </ul>

@@ -8,6 +8,16 @@ describe("roll protocol", () => {
     expect(RELAYED.has("roll")).toBe(false);
   });
 
+  it("keeps character sheets off the player-to-player relay", () => {
+    // Relaying this handed every player a copy of every other player's character
+    // record, and gave one player a channel to send another player's machine a
+    // record stamped with a character id they do not own. A sheet's only
+    // legitimate audiences are its owner and the Curator, and the host reaches
+    // both without the relay.
+    expect(RELAYED.has("sheet-patch")).toBe(false);
+    expect(RELAYED.has("sheet-request")).toBe(false);
+  });
+
   it("carries target identity on requests and stable correlation on results", () => {
     const request: RollRequestMessage = {
       t: "roll-request",

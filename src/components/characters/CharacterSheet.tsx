@@ -89,6 +89,7 @@ import { RollAxisPanel } from "./RollAxisPanel";
 import type { RollAxisStats } from "../../game/rollAxis";
 import { GenusContestPanel } from "./GenusContestPanel";
 import { CorruptSheetNotice } from "./CorruptSheetNotice";
+import { SheetChangeNotice } from "./SheetChangeNotice";
 import { registerSaver } from "../../lib/saveQueue";
 import { pushUndo } from "../../lib/undoRedo";
 import { BioFields } from "./BioFields";
@@ -531,6 +532,11 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
           </button>
         </div>
       </div>
+
+      {/* What someone else changed on this sheet while its owner was not looking.
+          Sits under the banner and above the stats: high enough to be seen on
+          open, low enough that it never displaces the character's identity. */}
+      <SheetChangeNotice characterId={rec.id} />
 
       <div className="rank-bar">
         <div className="rank-item">

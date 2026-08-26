@@ -245,8 +245,15 @@ export const RELAYED: ReadonlySet<NetMessageType> = new Set<NetMessageType>([
   "presence",
   "chat",
   "party",
-  "sheet-patch",
   "vtt-ping",
+  // "sheet-patch" is deliberately NOT here. Relaying it handed every player a
+  // copy of every other player's character record — their vault silently
+  // accumulated sheets they may not read, and it gave one player a channel to
+  // send another player's machine a record stamped with a character id they do
+  // not own. A sheet's only legitimate audiences are its owner and the Curator,
+  // and both are reachable by a targeted publish; nothing player-facing reads
+  // another player's shared sheet (every consumer of the party-sheet store is
+  // behind a host check).
   // Shared table state. These were missing, which meant a value changed by a
   // PLAYER only ever reached the host — the other players never converged, even
   // though bp and unit-note are documented as shared across the room. Anything
