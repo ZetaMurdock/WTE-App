@@ -29,7 +29,16 @@ import type { AbilityAction } from "./abilityActions";
 
 /** The verbs a page may write. Closed on purpose: an unknown verb is an
  *  authoring error the page reports, never a step quietly dropped. */
-export type EffectVerb = "cost" | "roll" | "save" | "damage" | "heal" | "condition" | "modify" | "ruling";
+export type EffectVerb = "cost" | "roll" | "save" | "damage" | "heal" | "condition" | "modify" | "ruling" | "zone";
+
+/** The shapes the VTT can actually place. Named for the table, mapped to the
+ *  engine's own kinds by the caller — a page says "circle", not "VttEffectKind". */
+export type EffectShape = "circle" | "cone" | "line" | "ring" | "cross" | "square";
+
+/** WHEN a step happens, which is orthogonal to which BRANCH arms it. A step can
+ *  be both ("Each round: Fail: Damage: 3d10") — the zone ticks every round, and
+ *  the damage still only lands on a failure. */
+export type EffectCadence = "once" | "each-round" | "in-zone";
 
 /** Who a step lands on. Defaults per verb — a Check is made by the acting
  *  character, a Save by the target — mirroring the inference the prose parser
@@ -81,6 +90,16 @@ export interface EffectStep {
   half?: boolean;
   /** ruling — what the Curator is being asked to decide. */
   prompt?: string;
+  /** When this step fires. `once` is the default. */
+  cadence: EffectCadence;
+  /** zone — the template the ability places. */
+  shape?: EffectShape;
+  /** zone — size as the page writes it, in FEET. Cells are the engine's unit,
+   *  not the table's; the corpus says "15-ft radius" and so does the block. */
+  sizeFt?: number;
+  /** zone — what the template is anchored to. `self` is an aura that travels
+   *  with its caster; `point` is placed and stays put. */
+  attach?: "self" | "target" | "point";
 }
 
 export interface AbilityEffects {
@@ -101,6 +120,28 @@ const VERBS: Readonly<Record<string, EffectVerb>> = {
   condition: "condition",
   modify: "modify",
   ruling: "ruling",
+  zone: "zone",
+  area: "zone",
+};
+
+const SHAPES: Readonly<Record<string, EffectShape>> = {
+  circle: "circle",
+  radius: "circle",
+  sphere: "circle",
+  cone: "cone",
+  line: "line",
+  ring: "ring",
+  cross: "cross",
+  square: "square",
+  cube: "square",
+  box: "square",
+};
+
+const CADENCES: Readonly<Record<string, EffectCadence>> = {
+  "each round": "each-round",
+  "every round": "each-round",
+  "in zone": "in-zone",
+  "in area": "in-zone",
 };
 
 const BRANCHES: Readonly<Record<string, EffectBranch>> = {
@@ -130,6 +171,7 @@ const DEFAULT_SELECTOR: Readonly<Record<EffectVerb, EffectSelector>> = {
   condition: "target",
   modify: "self",
   ruling: "target",
+  zone: "target",
 };
 
 /** Dice or a flat amount, matching the Grants validator. Anything else is an
@@ -201,6 +243,17 @@ function parseStep(body: string, errors: string[], line: string): EffectStep | n
   // outcome. Without one the step simply happens.
   let branch: EffectBranch = "always";
   let rest = body;
+  // `Each round:` and `In zone:` say WHEN, not on which branch, so they are
+  // stripped first and a branch prefix may still follow them.
+  let cadence: EffectCadence = "once";
+  const cadencePrefix = /^([A-Za-z]+\s+[A-Za-z]+)\s*:\s*(.+)$/.exec(rest);
+  if (cadencePrefix) {
+    const found = own(CADENCES, cadencePrefix[1]);
+    if (found) {
+      cadence = found;
+      rest = cadencePrefix[2];
+    }
+  }
   const prefix = /^([A-Za-z]+)\s*:\s*(.+)$/.exec(rest);
   if (prefix) {
     const found = own(BRANCHES, prefix[1]);
@@ -230,7 +283,39 @@ function parseStep(body: string, errors: string[], line: string): EffectStep | n
     who = selector;
   }
   const value = head[3].trim();
-  const step: EffectStep = { verb, branch, who };
+  const step: EffectStep = { verb, branch, who, cadence };
+
+  if (verb === "zone") {
+    const parts = value.split(",");
+    const m = /^([A-Za-z]+)\s+(\d{1,4})\s*-?\s*(?:ft|feet)\b/i.exec(parts[0].trim());
+    if (!m) {
+      errors.push(`Zone needs a shape and a size in feet: ${line.trim()}`);
+      return null;
+    }
+    const shape = own(SHAPES, m[1]);
+    if (!shape) {
+      errors.push(`Unknown shape "${m[1]}": ${line.trim()}`);
+      return null;
+    }
+    step.shape = shape;
+    step.sizeFt = parseInt(m[2], 10);
+    for (const raw of parts.slice(1)) {
+      const tail = raw.trim();
+      if (!tail) continue;
+      const attach = /^attach\s+(self|target|point)$/i.exec(tail);
+      if (attach) {
+        step.attach = attach[1].toLowerCase() as "self" | "target" | "point";
+        continue;
+      }
+      const duration = parseDuration(tail);
+      if (!duration) {
+        errors.push(`Unreadable zone detail "${tail}": ${line.trim()}`);
+        return null;
+      }
+      step.duration = duration;
+    }
+    return step;
+  }
 
   if (verb === "ruling") {
     if (!value) {
@@ -373,7 +458,8 @@ export function effectLine(step: EffectStep): string {
   const branch = step.branch === "always" ? "" : `${step.branch[0].toUpperCase()}${step.branch.slice(1)}: `;
   const verbWord = step.verb[0].toUpperCase() + step.verb.slice(1);
   const selector = step.who === DEFAULT_SELECTOR[step.verb] ? "" : ` (${step.who})`;
-  const head = `- ${branch}${verbWord}${selector}: `;
+  const cadence = step.cadence === "each-round" ? "Each round: " : step.cadence === "in-zone" ? "In zone: " : "";
+  const head = `- ${cadence}${branch}${verbWord}${selector}: `;
   switch (step.verb) {
     case "ruling":
       return head + (step.prompt ?? "");
@@ -392,6 +478,13 @@ export function effectLine(step: EffectStep): string {
       return head + `${step.expr}${step.damageType ? ` ${step.damageType}` : ""}` + (step.half ? ", half on success" : "");
     case "heal":
       return head + `${step.expr}${step.resource && step.resource !== "health" ? ` ${step.resource.toUpperCase()}` : ""}`;
+    case "zone":
+      return (
+        head +
+        `${step.shape} ${step.sizeFt} ft` +
+        (step.attach ? `, attach ${step.attach}` : "") +
+        (step.duration ? `, ${durationText(step.duration)}` : "")
+      );
   }
 }
 
@@ -415,6 +508,8 @@ export function effectStepLabel(step: EffectStep): string {
     case "cost": return `${step.expr} ${(step.resource ?? "ss").toUpperCase()}${step.perRound ? "/round" : ""}${who}`;
     case "damage": return `${branch}${step.expr}${step.damageType ? ` ${step.damageType}` : ""}${who}`;
     case "heal": return `${branch}Heal ${step.expr}${who}`;
+    case "zone":
+      return `${step.attach === "self" ? "Aura" : "Zone"} · ${step.shape} ${step.sizeFt} ft${step.duration ? ` · ${durationText(step.duration)}` : ""}`;
   }
 }
 

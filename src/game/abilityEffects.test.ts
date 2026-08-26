@@ -1,0 +1,104 @@
+import { describe, it, expect } from "vitest";
+import { effectLine, effectStepLabel, effectStepsToActions, parseAbilityEffects } from "./abilityEffects";
+
+/** Every block here round-trips: what the parser reads, the emitter writes back
+ *  byte-for-byte. The Mechanics editor rebuilds pages from the model, so a step
+ *  it could not re-emit is a step it silently deleted. */
+const roundTrips = (block: string) => {
+  const { steps, errors } = parseAbilityEffects(block);
+  expect(errors).toEqual([]);
+  expect(steps.map(effectLine).join("\n")).toBe(block);
+  return steps;
+};
+
+describe("reading a declared block", () => {
+  it("binds a consequence to the branch that arms it", () => {
+    const steps = roundTrips(
+      [
+        "- Cost: 6 SS",
+        "- Save: Physical Save — Recovery, DV 18",
+        "- Fail: Damage: 3d10 Cold, half on success",
+        "- Fail: Condition: Slowed, 2 rounds",
+      ].join("\n")
+    );
+    expect(steps.map((s) => `${s.verb}/${s.branch}`)).toEqual([
+      "cost/always",
+      "save/always",
+      "damage/fail",
+      "condition/fail",
+    ]);
+    expect(steps[2]).toMatchObject({ expr: "3d10", damageType: "Cold", half: true });
+  });
+
+  it("writes back the canonical form, dropping a selector that only restates the default", () => {
+    const { steps } = parseAbilityEffects("- Save (target): Physical Save — Evasion");
+    expect(effectLine(steps[0])).toBe("- Save: Physical Save — Evasion");
+  });
+
+  it("defaults the selector per verb — a Check is the caster's, a Save the target's", () => {
+    const { steps } = parseAbilityEffects("- Roll: Mental Check — Capacity\n- Save: Physical Save — Evasion");
+    expect(steps.map((s) => s.who)).toEqual(["self", "target"]);
+  });
+
+  it("refuses a route the system does not have", () => {
+    // Evasion is a save and has no check; accepting it would put an ability on a
+    // roll that can never happen.
+    const { steps, errors } = parseAbilityEffects("- Roll: Physical Check — Evasion");
+    expect(steps).toEqual([]);
+    expect(errors).toHaveLength(1);
+  });
+
+  it("reports an unknown verb rather than dropping the line", () => {
+    const { steps, errors } = parseAbilityEffects("- Teleport: 30 ft");
+    expect(steps).toEqual([]);
+    expect(errors[0]).toContain("Teleport");
+  });
+
+  it("takes any condition name, because the Conditions page defines it and not this parser", () => {
+    const { steps, errors } = parseAbilityEffects("- Condition: Blighted, 3 rounds");
+    expect(errors).toEqual([]);
+    expect(steps[0]).toMatchObject({ condition: "Blighted", duration: { kind: "rounds", count: 3 } });
+  });
+});
+
+describe("zones and cadence", () => {
+  it("reads a placed zone and an aura that travels with its caster", () => {
+    const steps = roundTrips(
+      ["- Zone: circle 30 ft, attach point, 2 rounds", "- Zone: circle 15 ft, attach self, scene"].join("\n")
+    );
+    expect(steps[0]).toMatchObject({ shape: "circle", sizeFt: 30, attach: "point" });
+    expect(steps[1]).toMatchObject({ attach: "self", duration: { kind: "scene" } });
+    expect(effectStepLabel(steps[1])).toContain("Aura");
+  });
+
+  it("keeps cadence orthogonal to branch — a zone ticks every round, the damage still needs a failure", () => {
+    const steps = roundTrips(
+      ["- Each round: Save: Physical Save — Recovery, DV 18", "- Each round: Fail: Damage: 3d10 Cold"].join("\n")
+    );
+    expect(steps.map((s) => `${s.cadence}/${s.branch}`)).toEqual(["each-round/always", "each-round/fail"]);
+  });
+
+  it("refuses a shape it cannot place, and a size with no unit", () => {
+    const { steps, errors } = parseAbilityEffects("- Zone: trapezoid 20 ft\n- Zone: circle 30");
+    expect(steps).toEqual([]);
+    expect(errors).toHaveLength(2);
+  });
+});
+
+describe("declared steps as the actions the UI already renders", () => {
+  it("hands rolls, saves and damage to the existing chip renderer", () => {
+    const { steps } = parseAbilityEffects(
+      ["- Cost: 6 SS", "- Save: Physical Save — Recovery, DV 18", "- Fail: Damage: 2d8 Cold", "- Ruling: adjudicate"].join("\n")
+    );
+    const actions = effectStepsToActions(steps);
+    // Cost and Ruling have no rollable face; they are shown from the steps.
+    expect(actions.map((a) => a.kind)).toEqual(["save", "damage"]);
+    expect(actions[0]).toMatchObject({ rollAxis: { axis: "physical", direction: "save", path: "recovery" }, dc: 18 });
+    expect(actions[1]).toMatchObject({ expr: "2d8", damageType: "Cold" });
+  });
+
+  it("marks a caster's own price so no consumer charges it to the target", () => {
+    const { steps } = parseAbilityEffects("- Damage (self): 1d4 Psychic");
+    expect(effectStepsToActions(steps)[0]).toMatchObject({ self: true });
+  });
+});
