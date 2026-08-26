@@ -9,6 +9,7 @@ import { newScene, type VttScene, type VttToken } from "../types/scene";
 const netState = vi.hoisted(() => ({ current: null as unknown }));
 vi.mock("../../net/NetContext", () => ({ useNet: () => netState.current }));
 
+import { MAX_CONDITION_CLOCKS } from "../engine/systems/ConditionClockSystem";
 import { isVttSceneSnapshot, useVttSync, type VttSyncApi } from "./vttSync";
 
 type Handler = (message: NetMessage, from: string) => void;
@@ -315,5 +316,35 @@ describe("snapshot runtime boundary", () => {
       ...valid,
       data: { ...valid.data, links: [{ id: "bad-link", targetSceneId: "scene-2", edge: "diagonal" }] },
     })).toBe(false);
+  });
+
+  it("accepts well-formed condition clocks and rejects unusable countdowns", () => {
+    const valid = sceneWith();
+    const clock = { tokenId: "token-1", status: "Slowed (2)", bornRound: 3, rounds: 2 };
+    expect(isVttSceneSnapshot({ ...valid, data: { ...valid.data, conditionClocks: [clock] } })).toBe(true);
+    expect(isVttSceneSnapshot({ ...valid, data: { ...valid.data, conditionClocks: [{ ...clock, potency: 4 }] } })).toBe(true);
+
+    // A countdown that cannot be counted: bornRound + rounds has to mean a round.
+    for (const bad of [
+      { ...clock, bornRound: Number.NaN },
+      { ...clock, bornRound: -1 },
+      { ...clock, rounds: 0 },
+      { ...clock, rounds: 1.5 },
+      { ...clock, rounds: 1_000_000 },
+      { ...clock, status: "" },
+      { ...clock, status: "x".repeat(81) },
+      { ...clock, tokenId: 7 },
+      { ...clock, potency: Number.POSITIVE_INFINITY },
+      "not a clock",
+    ]) {
+      expect(isVttSceneSnapshot({ ...valid, data: { ...valid.data, conditionClocks: [bad] } })).toBe(false);
+    }
+
+    // The per-entry rules do not bound the field: a peer handing over a million
+    // well-formed clocks would fit the wire and then be walked once per token,
+    // every round, forever.
+    const clocks = (n: number) => Array.from({ length: n }, () => ({ ...clock }));
+    expect(isVttSceneSnapshot({ ...valid, data: { ...valid.data, conditionClocks: clocks(MAX_CONDITION_CLOCKS) } })).toBe(true);
+    expect(isVttSceneSnapshot({ ...valid, data: { ...valid.data, conditionClocks: clocks(MAX_CONDITION_CLOCKS + 1) } })).toBe(false);
   });
 });

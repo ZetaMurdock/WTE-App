@@ -14,6 +14,7 @@
 // block is understood exactly as it always was, which is every ability shipped
 // today.
 import { parseAbilityActions, type AbilityAction } from "./abilityActions";
+import { declaredCosts, type AbilityCost } from "./abilityCost";
 import {
   effectStepLabel,
   effectStepsToActions,
@@ -43,6 +44,18 @@ export interface AbilityUnderstanding {
    *  declared ability arms the same tray a prose-parsed one does. */
   actions: AbilityAction[];
   chips: AbilityChip[];
+  /** The prices the block declared, typed so a row can spend them rather than
+   *  only print them. Empty for an undeclared ability, whose price still lives
+   *  on its `SS Cost` header — parsing the block a second time somewhere else to
+   *  recover these is exactly the drift this module exists to prevent. */
+  costs: AbilityCost[];
+  /** The steps exactly as the block declared them, for the consumers that need
+   *  the branch a step hangs on rather than a button to draw. Empty for an
+   *  undeclared ability, which is the signal every such consumer wants: nothing
+   *  was declared, so nothing supersedes the prose. Handed out from here for the
+   *  same reason `actions` is — a caller that re-parsed the block to recover
+   *  them would be the second reader this module exists to prevent. */
+  steps: EffectStep[];
   /** Lines the block could not read. Surfaced rather than swallowed: an ability
    *  that quietly does less than its page claims is worse than one that says it
    *  cannot read a line. */
@@ -103,15 +116,17 @@ export function abilityUnderstanding(
     // Includes the case of a block that was written but read as nothing: its
     // errors still travel, because the author needs to see them, but the
     // ability keeps behaving exactly as its prose always made it behave.
-    return { declared: false, actions: parseAbilityActions(effect), chips: [], errors: effects.errors };
+    return { declared: false, actions: parseAbilityActions(effect), chips: [], costs: [], steps: [], errors: effects.errors };
   }
   return {
     declared: true,
     actions: effectStepsToActions(effects.steps),
+    costs: declaredCosts(effects.steps),
     chips: effects.steps
       .map((step, i) => ({ step, i }))
       .filter(({ step }) => !isRollable(step))
       .map(({ step, i }) => ({ key: `${step.verb}${i}`, label: effectStepLabel(step), title: chipTitle(step) })),
+    steps: effects.steps,
     errors: effects.errors,
   };
 }

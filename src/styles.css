@@ -628,6 +628,16 @@ body.wte-dot-cursor * {
   color: var(--ink);
   border-color: var(--accent);
 }
+/* A busy or blocked action still reads as an action — Export, Import, Scan and
+   Join all go inert mid-flight, and one that lost its border entirely would
+   leave a table wondering where the button went. */
+.ghost-btn:disabled,
+.ghost-btn:disabled:hover {
+  border-color: var(--panel-line);
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.45;
+}
 
 /* ── Campaign picker (no active campaign) ── */
 .picker {
@@ -7977,6 +7987,19 @@ body.wte-dot-cursor * {
   border: 1px solid rgba(111, 154, 104, 0.45);
   border-radius: 4px;
   padding: 1px 5px;
+}
+/* Provenance, not decoration: a dashed outline matching `.vtt2-abil-stepchip`,
+   because both mark the same thing — a declared step, as opposed to one the
+   prose scanner recovered. Quiet enough to read past when it does not matter. */
+.vtt2-res-src {
+  font-size: 8.5px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px dashed var(--panel-line);
+  border-radius: 4px;
+  padding: 0 4px;
+  white-space: nowrap;
 }
 .vtt2-res-ruling {
   flex: 1 1 100%;

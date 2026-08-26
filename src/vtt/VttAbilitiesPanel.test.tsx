@@ -127,6 +127,10 @@ describe("target roll chips", () => {
       effect: "Living creatures make Endurance Saves (DC 18).",
       label: "Endurance save · DV 26",
       stat: "Endurance",
+      // "Endurance Saves" is the pre-Roll-Axis dialect for a Physical Save —
+      // Recovery, so the route travels with the request and the target answers
+      // on a real path instead of a bare d20.
+      rollAxis: { path: "recovery", direction: "save" },
       dc: 26,
     });
   });
@@ -221,16 +225,32 @@ describe("an ability that declares its steps", () => {
     expect(arm).toHaveBeenCalledWith("Cryo Lock — On fail · 3d10 Cold", "3d10");
   });
 
-  it("keys the target save off the declared DV, not the printed one", async () => {
+  it("sends the DV the page declared, not the one keyed to the caster", async () => {
     const request = vi.fn();
     await mount(request);
     const chip = row().querySelector<HTMLButtonElement>(".vtt2-abil-savechip")!;
+    expect(chip.textContent).toBe("vs Physical Save — Recovery · DV 18");
     await act(async () => chip.click());
-    // The attacker-keyed DV still wins over the page's number, exactly as it
-    // does for a prose-parsed save — one keying path, not two.
+    // 18 is declared; 15 is what the prose printed; 26 is what the keyed formula
+    // would compute for this caster. An author who wrote a number in the block
+    // chose it, and the engine does not overrule an author — the grammar has
+    // `DV keyed` for pages that would rather be keyed, and the whole undeclared
+    // corpus still is.
     expect(request).toHaveBeenCalledWith(
-      expect.objectContaining({ abilityId: "cipher-1", rollAxis: { path: "recovery", direction: "save" }, dc: 26 })
+      expect.objectContaining({ abilityId: "cipher-1", rollAxis: { path: "recovery", direction: "save" }, dc: 18 })
     );
+  });
+
+  it("carries the declared steps so the resolution card reads the page, not the prose", async () => {
+    const request = vi.fn();
+    await mount(request);
+    await act(async () => row().querySelector<HTMLButtonElement>(".vtt2-abil-savechip")!.click());
+    const intent = request.mock.calls[0][0];
+    // The block's own consequences, in the order it wrote them. The prose beside
+    // them says 2d8 and no condition at all.
+    expect(intent.steps?.filter((step: { verb: string }) => step.verb !== "cost").map((step: { verb: string }) => step.verb))
+      .toEqual(["save", "damage", "condition", "ruling"]);
+    expect(intent.effect).toContain("2d8 Cold");
   });
 
   it("shows the cost, the condition and the ruling it declared", async () => {

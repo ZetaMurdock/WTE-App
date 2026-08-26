@@ -44,8 +44,9 @@ beforeEach(() => {
 });
 
 /** Render one genus ability and open its row — everything the understanding
- *  layer draws lives behind the expander. */
-async function openRow(a: UsableAbility) {
+ *  layer draws lives behind the expander. `ssLeft` defaults high enough that a
+ *  test which is not about affordability never trips the refusal. */
+async function openRow(a: UsableAbility, over: { ssLeft?: number; onSpend?: (cost: number) => void } = {}) {
   await act(async () =>
     root.render(
       // RollButton reads the table session to know whether advantage dice are
@@ -59,7 +60,8 @@ async function openRow(a: UsableAbility) {
           phyMod={0}
           dexMod={0}
           onRoll={vi.fn()}
-          onSpend={vi.fn()}
+          onSpend={over.onSpend ?? vi.fn()}
+          ssLeft={over.ssLeft ?? 99}
           onManage={vi.fn()}
         />
       </NetProvider>
@@ -68,6 +70,14 @@ async function openRow(a: UsableAbility) {
   const row = host.querySelector<HTMLButtonElement>("button.act-row");
   if (!row) throw new Error("The Actions table never rendered the ability row.");
   await act(async () => row.click());
+}
+
+/** The Use button, by the text it prints rather than by position — the row's
+ *  other ghost buttons (Contest…) sit in the same strip. */
+function useButton(): HTMLButtonElement | undefined {
+  return [...host.querySelectorAll<HTMLButtonElement>(".act-actions button.ghost-btn")].find((b) =>
+    /^Use −/.test(b.textContent ?? "")
+  );
 }
 
 const texts = (selector: string) =>
@@ -107,5 +117,79 @@ describe("an ability whose page declares its steps", () => {
   it("says so when a line cannot be read rather than doing less in silence", async () => {
     await openRow(ability("- Cost: 6 SS\n- Save: Physical Save — Power"));
     expect(texts(".act-step-chip.bad")).toEqual(["Unreadable step"]);
+  });
+});
+
+describe("spending what an ability costs", () => {
+  it("takes nothing from the pool merely for opening the row", async () => {
+    // A cost that deducted on render — or on a click that only means "let me
+    // read this" — would charge a player for looking at their own sheet.
+    const onSpend = vi.fn();
+    await openRow(ability(BLOCK), { onSpend });
+    expect(onSpend).not.toHaveBeenCalled();
+  });
+
+  it("spends the declared price, not the header field beside it", async () => {
+    const onSpend = vi.fn();
+    // The page says 6 SS in its header and 9 SS in its block. Before the plan
+    // existed the button deducted the header and the block was decoration.
+    await openRow({ ...ability(BLOCK.replace("- Cost: 6 SS", "- Cost: 9 SS")) }, { onSpend });
+    expect(useButton()?.textContent).toBe("Use −9 SS");
+    await act(async () => useButton()!.click());
+    expect(onSpend).toHaveBeenCalledWith(9);
+  });
+
+  it("still spends the header field when a partial block names no price", async () => {
+    // A partial block declares what it declares and deletes nothing else.
+    const onSpend = vi.fn();
+    await openRow(ability("- Fail: Damage: 3d10 Cold"), { onSpend });
+    expect(useButton()?.textContent).toBe("Use −6 SS");
+    await act(async () => useButton()!.click());
+    expect(onSpend).toHaveBeenCalledWith(6);
+  });
+
+  it("spends the header field for an ability with no block at all", async () => {
+    const onSpend = vi.fn();
+    await openRow(ability(), { onSpend });
+    expect(useButton()?.textContent).toBe("Use −6 SS");
+    await act(async () => useButton()!.click());
+    expect(onSpend).toHaveBeenCalledWith(6);
+  });
+
+  it("warns about a price bigger than the pool without taking the click away", async () => {
+    // The engine proposes; the character decides. Overspending paints the
+    // reservoir red — `.ss-fill.neg` exists for exactly this — and no page in
+    // the corpus writes a rule against reaching past it, so a disabled button
+    // would be this build ruling on a table it does not sit at.
+    const onSpend = vi.fn();
+    await openRow(ability(BLOCK), { onSpend, ssLeft: 5 });
+    expect(useButton()?.disabled).toBe(false);
+    expect(texts(".act-step-chip.bad")).toEqual(["Overspends — needs 6, 5 left"]);
+    await act(async () => useButton()!.click());
+    expect(onSpend).toHaveBeenCalledWith(6);
+  });
+
+  it("says nothing extra for an undeclared ability the pool covers", async () => {
+    // The governing invariant, at the surface a player looks at: an ability with
+    // no block draws the same one button and no chip beside it.
+    await openRow(ability(), { ssLeft: 99 });
+    expect(useButton()?.textContent).toBe("Use −6 SS");
+    expect(useButton()?.disabled).toBe(false);
+    expect(texts(".act-step-chip.bad")).toEqual([]);
+  });
+
+  it("spends a price the pool exactly covers", async () => {
+    const onSpend = vi.fn();
+    await openRow(ability(BLOCK), { onSpend, ssLeft: 6 });
+    expect(useButton()?.disabled).toBe(false);
+    await act(async () => useButton()!.click());
+    expect(onSpend).toHaveBeenCalledWith(6);
+  });
+
+  it("marks a cost in another pool unspent rather than taking it out of SS", async () => {
+    const onSpend = vi.fn();
+    await openRow(ability("- Cost: 4 health"), { onSpend });
+    expect(useButton()).toBeUndefined();
+    expect(texts(".act-step-chip.bad")).toEqual(["4 HEALTH · not spent"]);
   });
 });

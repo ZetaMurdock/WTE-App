@@ -26,6 +26,12 @@ export interface CampaignRules {
    *  default — it is a published rule, not a house rule; the toggle exists for
    *  tables that want the flatter pre-Affinity math. */
   paradigmAffinity: boolean;
+  /** Commit a resolution card's DECLARED damage and conditions without asking.
+   *  Off by default: confirm-each is what every table does today, and moving a
+   *  token's HP on its own is a thing a table opts into, never a thing the app
+   *  decides for it. Rulings and prose-derived consequences stay manual under
+   *  either setting — see `autoApplicable`. */
+  autoApplyDeclared: boolean;
 }
 
 /** Seven d20s average 73.5 — the default budget sits just under an average roll. */
@@ -42,6 +48,7 @@ export const DEFAULT_RULES: CampaignRules = {
   specTotal: SPEC_TOTAL,
   poolCompensation: false,
   paradigmAffinity: true,
+  autoApplyDeclared: false,
 };
 
 const key = (campaignId: string) => `wte-campaign-rules:${campaignId}`;
@@ -74,6 +81,9 @@ export function parseRules(raw: unknown): CampaignRules {
     poolCompensation: o.poolCompensation === true,
     // Published rule: absent (older blobs, older peers) means ON.
     paradigmAffinity: o.paradigmAffinity !== false,
+    // House rule: absent means OFF, which is the confirm-each flow every build
+    // before it shipped already had.
+    autoApplyDeclared: o.autoApplyDeclared === true,
   };
 }
 

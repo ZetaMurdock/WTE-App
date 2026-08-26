@@ -171,6 +171,28 @@ export interface VttTimelineState {
   round: number;
   turn: number;
 }
+/** One condition's countdown on one token — the clock a wire status cannot carry.
+ *
+ *  A status is a plain string and stays one: encoding an expiry into the tag
+ *  ("Slowed@7") would make every older build render engine bookkeeping as a pip,
+ *  with no migration for text a peer never learns to read. So the countdown sits
+ *  beside the scene instead, where it persists with the map, rides the host's
+ *  snapshot, and is ignored outright by a build that predates it.
+ *
+ *  `status` is matched against `VttToken.statuses` VERBATIM — one clock per
+ *  occurrence, which is how a `stack` condition keeps its instances apart. */
+export interface VttConditionClock {
+  tokenId: string;
+  /** The exact `statuses` entry this clock governs, tag text and all. */
+  status: string;
+  /** Encounter round the application landed on. */
+  bornRound: number;
+  /** Rounds it lasts from `bornRound`; expiry is bornRound + rounds. */
+  rounds: number;
+  /** How strong the application was, for the `highest` stacking rule. Absent
+   *  means the declared duration is the only measure of strength there is. */
+  potency?: number;
+}
 /** Terrain elevation for the 3D view: one normalised height (0..1) per grid
  *  cell (row-major, cols×rows), scaled by maxCells×gridSize in world units.
  *  Sampled from a grayscale heightmap image in the Grid & Map panel. */
@@ -260,6 +282,10 @@ export interface VttSceneData {
   fog: VttFogState;
   layers: VttLayerState;
   timeline: VttTimelineState;
+  /** Live condition countdowns (ConditionClockSystem). Absent until a table
+   *  applies a condition with a duration, so a scene that never uses one is
+   *  byte-identical to a scene saved before clocks existed. */
+  conditionClocks?: VttConditionClock[];
   terrain?: VttTerrain | null;
   atmosphere?: VttAtmosphere | null;
   /** Per-scene ambient music (audio data URL) — plays while the scene is active. */

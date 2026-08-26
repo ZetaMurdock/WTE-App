@@ -124,6 +124,31 @@ export function TableRules({ campaignId, onClose }: Props) {
 
         <div className="rule-block">
           <label className="rule-toggle">
+            <input
+              type="checkbox"
+              checked={rules.autoApplyDeclared}
+              onChange={(e) => patch({ autoApplyDeclared: e.target.checked })}
+            />
+            <span>Apply declared consequences without confirming</span>
+          </label>
+          <p className="rule-note">
+            A resolution card normally asks twice — roll the damage, then apply
+            it. Switched on, a card commits the consequences the ability's own
+            page DECLARED: it rolls the declared dice, moves the target's HP and
+            hangs the declared condition tag, and says so in the roll feed.
+          </p>
+          <p className="rule-note">
+            Only what an author wrote in an <code>## Actions</code> block. Anything
+            the app recovered from prose still waits for a click, because a
+            reading of a sentence is a guess and a guess should not move a
+            token's HP on its own — and a Curator ruling always waits, since a
+            ruling is the page asking a human a question. Off by default: giving
+            the app the keys is the table's decision, not the app's.
+          </p>
+        </div>
+
+        <div className="rule-block">
+          <label className="rule-toggle">
             <input type="checkbox" checked={rules.poolCompensation} onChange={(e) => patch({ poolCompensation: e.target.checked })} />
             <span>Proportional compensation on the core pools</span>
           </label>

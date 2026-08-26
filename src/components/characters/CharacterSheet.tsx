@@ -818,6 +818,7 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                 paradigmId={sheet.paradigmId}
                 onRoll={doRoll}
                 onSpend={spendSS}
+                ssLeft={currentSS}
                 onManage={() => setTab("loadout")}
                 // Contests are the Curator's move: they hold the opposing
                 // numbers, and the VTT resolves them automatically from records.

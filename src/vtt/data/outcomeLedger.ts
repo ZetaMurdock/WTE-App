@@ -17,6 +17,8 @@
 // computes and proposes; VttScreen applies through the same validated ops a
 // Curator's manual edit uses. The Curator stays sovereign.
 import { parseAbilityActions } from "../../game/abilityActions";
+import { effectStepLabel, type EffectStep } from "../../game/abilityEffects";
+import { rollRefLabel } from "../../game/inceptGrants";
 
 /** How a resolution landed. `pending` means the roll has not arrived yet. */
 export type OutcomeVerdict = "pass" | "fail" | "pending";
@@ -43,6 +45,12 @@ export interface OutcomeConsequence {
   rounds?: number;
   /** Prose says a successful save still takes half — the card offers both. */
   half?: boolean;
+  /** The ability's own page declared this step, rather than the prose scanner
+   *  recovering it from a sentence. A reader has to be able to tell the two
+   *  apart — one is what the author wrote, the other is the engine's best
+   *  reading of what they meant — and only the first is ever safe to apply
+   *  without a Curator's click. */
+  declared?: boolean;
 }
 
 export interface PendingOutcome {
@@ -60,6 +68,13 @@ export interface PendingOutcome {
   rollLabel: string;
   rollTotal?: number;
   verdict: OutcomeVerdict;
+  /** The card was read off the page's `## Actions` block rather than off its
+   *  prose. Recorded here rather than re-derived from `consequences`, because a
+   *  block that declares only a Cost and a Save produces no consequences at all
+   *  — and a card that inferred its source from an empty list would tell the
+   *  Curator the PROSE named nothing, sending them off to read a page whose
+   *  block had already superseded it. */
+  fromBlock: boolean;
   consequences: OutcomeConsequence[];
   /** Consequence ids already committed, so re-applying takes a deliberate act. */
   applied: string[];
@@ -170,6 +185,83 @@ export function consequencesFor(effect: string | null | undefined): OutcomeConse
   return [...damage, ...conditionsFrom(prose)];
 }
 
+/**
+ * What a DECLARED ability costs its target.
+ *
+ * The prose deriver above guesses from sentences; this reads what the page
+ * actually said, so the branch a consequence hangs on is authored rather than
+ * assumed — the whole reason the `## Actions` block exists. A `Ruling` finally
+ * has a real source too: the deriver never invents one, but an author may write
+ * one, and the card quotes it for the Curator to decide.
+ *
+ * Steps that resolve rather than land — Cost, Roll, Save — are not consequences
+ * and contribute nothing here; the card is about what happens TO the target.
+ */
+export function consequencesFromSteps(steps: readonly EffectStep[]): OutcomeConsequence[] {
+  const out: OutcomeConsequence[] = [];
+  steps.forEach((step, i) => {
+    const on: ConsequenceTrigger = step.branch === "always" ? "always" : step.branch === "success" ? "pass" : "fail";
+    // Min and tie are resolution nuances no phase executes yet. Treating them as
+    // failures would apply damage the page never promised, so they are skipped
+    // and stay visible in the ability's own step list.
+    if (step.branch === "min" || step.branch === "tie") return;
+    // The card speaks for the TARGET, so the caster's own price is not on it.
+    // PSYCHIC SCREAM declares `Damage (self): 1d4 Psychic` — the Inquisitor's
+    // backlash — one bullet below the 2d8 it deals, and a card bound to Kira
+    // that offered both would charge her for being screamed at. `consequencesFor`
+    // has dropped the caster's dice from prose since P0; the declared path has
+    // to agree, or declaring a block would reintroduce the bug it replaced.
+    if (step.who === "self") return;
+    if (step.verb === "damage") {
+      out.push({
+        id: `dmg-${i}`,
+        kind: "damage",
+        label: effectStepLabel(step),
+        on,
+        expr: step.expr,
+        damageType: step.damageType,
+        half: step.half,
+        declared: true,
+      });
+      return;
+    }
+    if (step.verb === "heal") {
+      out.push({ id: `heal-${i}`, kind: "heal", label: effectStepLabel(step), on, expr: step.expr, declared: true });
+      return;
+    }
+    if (step.verb === "condition" && step.condition) {
+      out.push({
+        id: `cond-${i}`,
+        kind: "condition",
+        label: effectStepLabel(step),
+        on,
+        condition: step.condition,
+        rounds: step.duration?.kind === "rounds" ? step.duration.count : undefined,
+        declared: true,
+      });
+      return;
+    }
+    if (step.verb === "modify" && step.ref) {
+      // A roll penalty IS a condition as far as a table is concerned: it wants a
+      // visible pip saying which route is hobbled and for how long.
+      out.push({
+        id: `mod-${i}`,
+        kind: "condition",
+        label: effectStepLabel(step),
+        on,
+        condition: `${step.modify === "disadvantage" ? "Disadv" : "Adv"}: ${rollRefLabel(step.ref)}`,
+        rounds: step.duration?.kind === "rounds" ? step.duration.count : undefined,
+        declared: true,
+      });
+      return;
+    }
+    if (step.verb === "ruling" && step.prompt) {
+      out.push({ id: `rule-${i}`, kind: "ruling", label: step.prompt, on, declared: true });
+    }
+  });
+  return out;
+}
+
 export interface OpenOutcomeInput {
   id: string;
   requestId?: string;
@@ -182,6 +274,10 @@ export interface OpenOutcomeInput {
   dc?: number;
   rollLabel: string;
   now: number;
+  /** The ability's declared `## Actions` steps. When present these SUPERSEDE the
+   *  prose deriver: an author who wrote the block said what happens, and guessing
+   *  alongside them would put two answers on one card. */
+  steps?: readonly EffectStep[] | null;
   /** How long an unsettled outcome stays on the card. Matches the roll-request
    *  window, so a card cannot outlive the request that would settle it. */
   ttlMs?: number;
@@ -199,7 +295,8 @@ export function openOutcome(input: OpenOutcomeInput): PendingOutcome {
     dc: input.dc,
     rollLabel: input.rollLabel,
     verdict: "pending",
-    consequences: consequencesFor(input.effect),
+    fromBlock: !!input.steps?.length,
+    consequences: input.steps?.length ? consequencesFromSteps(input.steps) : consequencesFor(input.effect),
     applied: [],
     createdAt: input.now,
     expiresAt: input.now + (input.ttlMs ?? 5 * 60_000),
@@ -232,6 +329,36 @@ export function armedConsequences(outcome: PendingOutcome): OutcomeConsequence[]
     if (consequence.on === outcome.verdict) return true;
     return outcome.verdict === "pass" && consequence.on === "fail" && consequence.half === true;
   });
+}
+
+/**
+ * The armed consequences a table has said may commit without a click.
+ *
+ * Three gates, and all three have to hold:
+ *
+ *  - the table opted in. Confirm-each is the published behaviour and the
+ *    default; nothing here happens to a table that never asked for it.
+ *  - the consequence was DECLARED. The prose deriver reads sentences and is
+ *    right most of the time, which is exactly the wrong standard for a write
+ *    that lands on a token unattended. A guess still gets a button.
+ *  - it is not a `ruling`. A ruling has no number by definition — it is the
+ *    page asking a human a question, and answering it automatically would be
+ *    the engine ruling on the Curator's behalf.
+ *
+ * Already-applied ids drop out here rather than at the call site, so a caller
+ * that re-runs on every render cannot commit the same hit twice.
+ */
+export function autoApplicable(
+  outcome: PendingOutcome,
+  rules: { autoApplyDeclared: boolean }
+): OutcomeConsequence[] {
+  if (!rules.autoApplyDeclared) return [];
+  return armedConsequences(outcome).filter(
+    (consequence) =>
+      consequence.declared === true &&
+      consequence.kind !== "ruling" &&
+      !outcome.applied.includes(consequence.id)
+  );
 }
 
 /** Half rounds DOWN — a rule the table can see rather than a float in a tooltip. */
@@ -319,6 +446,28 @@ export function pushOutcome(scope: string, outcome: PendingOutcome): void {
   const all = LEDGERS.get(scope) ?? [];
   // Newest first: the card the Curator is waiting on is the one they just caused.
   LEDGERS.set(scope, [outcome, ...all.filter((prior) => prior.id !== outcome.id)].slice(0, MAX_OPEN));
+  emit(scope);
+}
+
+/**
+ * Mark a consequence committed against the ledger's CURRENT card.
+ *
+ * `markApplied` folds an id into whatever snapshot it is handed, which is fine
+ * where the caller re-reads between writes — a Curator clicking Apply twice
+ * re-renders in between and holds a fresh card each time. Auto-apply does not:
+ * it commits every applicable consequence of one card in a single pass, holding
+ * one snapshot for all of them, so a second `replaceOutcome(markApplied(that
+ * snapshot, …))` would put back a card that had forgotten the first. Hail Rain
+ * declares damage AND a condition; the damage mark vanished, its row came back
+ * armed with the roll still on screen, and one click sent the hit twice.
+ */
+export function markOutcomeApplied(scope: string, outcomeId: string, consequenceId: string): void {
+  const all = LEDGERS.get(scope) ?? [];
+  const found = all.find((outcome) => outcome.id === outcomeId);
+  if (!found) return;
+  const marked = markApplied(found, consequenceId);
+  if (marked === found) return;
+  LEDGERS.set(scope, all.map((outcome) => (outcome.id === outcomeId ? marked : outcome)));
   emit(scope);
 }
 

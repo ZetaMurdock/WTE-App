@@ -2,6 +2,7 @@ import { useState } from "react";
 import { rollToHit, rollGeneric, rollDiceExpr, signedMod, type UsableAbility, type RollResult } from "../../game/wte";
 import { averageDamage, summarizeDamage } from "../../game/abilityDamage";
 import { abilityUnderstanding } from "../../game/abilityUnderstanding";
+import { abilityCostPlan } from "../../game/abilityCost";
 import { rollAxisChoices, rollAxisPaths, rollAxisRoll, type RollAxisStats } from "../../game/rollAxis";
 import { abilitySaveDv, saveDvBreakdown, savePlainLabel } from "../../game/saveDv";
 import { affinityLabel } from "../../game/paradigmAffinity";
@@ -24,6 +25,10 @@ interface Props {
   paradigmId?: string;
   onRoll: (roll: RollResult) => void;
   onSpend: (cost: number) => void;
+  /** Unspent SS, so a price bigger than the pool can be flagged before the
+   *  click. Flagged, not blocked — overspending paints the reservoir red and
+   *  has always been the character's own call to make. */
+  ssLeft: number;
   /** When supplied, ability rows resolve their effect text through the Roll
    *  Axis pipeline — the same routes and Codex formulas the Roll Axis panel
    *  uses — instead of offering one flat d20. */
@@ -41,7 +46,7 @@ const FILTERS: { id: "all" | Cat; label: string }[] = [
 ];
 
 // The unified combat surface: equipped weapons + genus + ciphers as one filterable table.
-export function ActionsTable({ weapons, genus, ciphers, atk, phyMod, dexMod, paradigmId, onRoll, onSpend, onManage, onContest, rollAxisStats }: Props) {
+export function ActionsTable({ weapons, genus, ciphers, atk, phyMod, dexMod, paradigmId, onRoll, onSpend, ssLeft, onManage, onContest, rollAxisStats }: Props) {
   const [filter, setFilter] = useState<"all" | Cat>("all");
   const [open, setOpen] = useState<string | null>(null);
   const [ocOpen, setOcOpen] = useState(false);
@@ -120,6 +125,10 @@ export function ActionsTable({ weapons, genus, ciphers, atk, phyMod, dexMod, par
     const selfPlain = actions.filter((x) => x.kind === "self" && (!x.rollAxis || !rollAxisStats));
     const dmgActs = actions.filter((x) => x.kind === "damage" && x.expr);
     const saves = actions.filter((x) => x.kind === "save");
+    // What the Use button spends. A page can name a price twice — `- Cost: 5 SS`
+    // in its block and a different number in its `SS Cost` header — and a button
+    // that read the header itself would charge the price nobody looked at.
+    const cost = read ? abilityCostPlan(read.costs, a.ss, ssLeft) : null;
     return (
       <div className={"act-row-wrap" + (expanded ? " open" : "")} key={key}>
         <button className="act-row" onClick={() => toggle(key)}>
@@ -186,7 +195,28 @@ export function ActionsTable({ weapons, genus, ciphers, atk, phyMod, dexMod, par
               </div>
             )}
             <div className="act-actions">
-              {a.ss > 0 ? <button className="ghost-btn" onClick={() => onSpend(a.ss)}>Use −{a.ss} SS</button> : null}
+              {cost && cost.ss > 0 ? (
+                <button
+                  className="ghost-btn"
+                  title={
+                    cost.shortfall ??
+                    (cost.source === "declared" ? "Declared on this ability's Actions block" : "This ability's SS Cost")
+                  }
+                  onClick={() => onSpend(cost.ss)}
+                >
+                  Use −{cost.ss} SS
+                </button>
+              ) : null}
+              {/* A shortfall is said, not enforced. Refusing the click would make
+                  this engine the arbiter of whether a character may reach past
+                  their reservoir — a call no page in the corpus gives it, and one
+                  the red `.ss-fill.neg` bar was built to let a table make. */}
+              {cost?.shortfall ? <span className="act-step-chip bad">{cost.shortfall}</span> : null}
+              {/* A price the sheet will not take says so where the spend would
+                  have happened. Silence here would read as "free". */}
+              {cost?.unhandled.map((u) => (
+                <span className="act-step-chip bad" key={u.key} title={u.note}>{u.label} · not spent</span>
+              ))}
               {cat === "genus" && onContest && (
                 <button className="ghost-btn" onClick={() => onContest(a)} title="Resolve this against another genus">
                   Contest…

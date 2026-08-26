@@ -4,6 +4,33 @@ import { GENUS_DOMAIN_NAMES, getGenusDomain } from "./wte";
 import { parseAbilityActions } from "./abilityActions";
 import { CIPHER_DATA_BY_ID, GENUS_DATA_BY_ID, SPECIES, inceptsForSpecies, speciesInnate } from "./wte";
 
+/** Shipped species abilities whose legacy prose now resolves through a Roll
+ *  Axis path. Every other ability in the pool is untouched by the dictionary. */
+const LEGACY_ROUTED_ABILITIES = [
+  "Chemical Assimilation",
+  "Damage Negation",
+  "Dilation",
+  "Dyn Formn",
+  "EMP",
+  "Eldritch Horror",
+  "Eldritch Mind",
+  "Forsaken Touch",
+  "Indomitable Will",
+  "Locked in Time",
+  "Mental Singularity",
+  "Mutagenic Absorption",
+  "Parasitic Synthesis",
+  "Pressuring Advance",
+  "Psionic Mold",
+  "Quantum Reflection",
+  "Sanction",
+  "Shadow Fracture",
+  "Shadowing Aura",
+  "Siphon",
+  "Space Modulation",
+  "Unstable Blightness",
+];
+
 describe("ability action parser", () => {
   it("pulls damage dice with their type", () => {
     const acts = parseAbilityActions("Upon reaching 8 stacks the blight ruptures: 3d10 Entropy and Incapacitated 1 round.");
@@ -259,5 +286,128 @@ describe("who the dice land on, and which way the pool moves", () => {
     // such pattern would take out every ability row in the app, not one clause.
     const source = readFileSync(new URL("./abilityActions.ts", import.meta.url), "utf8");
     expect(source).not.toMatch(/\(\?<[=!]/);
+  });
+});
+
+describe("the legacy dialect the Incepts are written in", () => {
+  it("routes a legacy stat word through the Roll Axis path that carries it", () => {
+    // The Incepts were authored before Roll Axis and say "Dexterity Saving
+    // Throws" where a Genus page says "Physical Save — Evasion". Same roll:
+    // without the route the legacy sentence reached a bare d20 with no derived
+    // modifier and no attacker-keyed DV, and the modern one got all three.
+    const save = parseAbilityActions("The target gains Disadvantage on Dexterity Saving Throws.");
+    expect(save[0]).toMatchObject({
+      stat: "Dexterity",
+      rollAxis: { axis: "physical", direction: "save", path: "evasion" },
+    });
+    const check = parseAbilityActions("Roll an Intelligence Check (DC 10) to latch on.");
+    expect(check[0]).toMatchObject({
+      kind: "self",
+      stat: "Intelligence",
+      rollAxis: { axis: "mental", direction: "check", path: "perception" },
+    });
+  });
+
+  it("reads the direction off the page's own word, not off who rolls", () => {
+    // Evasion has no check and Capacity has no save. A self-rolled Saving Throw
+    // that took its direction from `kind: "self"` would ask Evasion for a check
+    // it does not have and silently come back with no route at all.
+    const [selfSave] = parseAbilityActions("you gain +1 to Dexterity Saving Throws.");
+    expect(selfSave).toMatchObject({ kind: "self", rollAxis: { direction: "save", path: "evasion" } });
+    const [targetCheck] = parseAbilityActions("The target makes an Intelligence Check (DC 11).");
+    expect(targetCheck).toMatchObject({ kind: "save", rollAxis: { direction: "check", path: "perception" } });
+  });
+
+  it("names every chip after the direction it actually arms", () => {
+    // A button reading "Dexterity check" that arms Physical Save — Evasion
+    // shows the table the wrong modifier under the wrong word, and the page it
+    // came from said Saving Throws.
+    expect(parseAbilityActions("you gain +1 to Dexterity Saving Throws.")[0].label).toBe("Dexterity save");
+    expect(parseAbilityActions("The target makes an Intelligence Check (DC 11).")[0].label).toBe(
+      "Intelligence check · DC 11"
+    );
+    for (const action of parseAbilityActions(
+      "Gain Advantage on Mental Fortitude Checks; the target makes an Endurance Save (DC 12)."
+    )) {
+      if (!action.rollAxis || action.kind === "damage") continue;
+      expect(action.label.toLowerCase(), action.label).toContain(action.rollAxis.direction);
+    }
+  });
+
+  it("refuses rather than routes a legacy word to a neighbouring path", () => {
+    // Wisdom sits on Capacity, which is check-only. Sliding the sentence onto
+    // Evasion or Recovery — the saves that DO exist — would roll a different
+    // statistic than the page names. No route is the honest answer, and the
+    // action stays exactly what it was before the dictionary existed.
+    const wisdom = parseAbilityActions("The target rolls a Wisdom Saving Throw (DC 13).");
+    expect(wisdom[0]).toMatchObject({ kind: "save", stat: "Wisdom", dc: 13 });
+    expect(wisdom[0].rollAxis).toBeUndefined();
+    // Inspiration is a real specialty that no path pairs at all.
+    expect(parseAbilityActions("Resolution: opposed Inspiration + Influence Check.")[0].rollAxis).toBeUndefined();
+  });
+
+  it("arms the hybrid form, which neither half of the parser used to see", () => {
+    // "Perception Save - Intelligence": a Roll Axis head with a legacy stat
+    // where the path name belongs. The axis scanner will not touch it and the
+    // stat scanners read only its head, so the sentence armed nothing.
+    const [save] = parseAbilityActions("the Kadexiln can force a Perception Save - Intelligence upon the enemy.");
+    expect(save).toMatchObject({
+      kind: "save",
+      label: "Mental Save — Perception",
+      rollAxis: { axis: "mental", direction: "save", path: "perception" },
+    });
+    // Halves that disagree are a question for the author, not a coin toss.
+    expect(parseAbilityActions("the target makes a Physical Check - Wisdom.")).toEqual([]);
+  });
+
+  it("keeps a standing penalty out of the tray, in either vocabulary", () => {
+    // "Disadvantage on X Saves" is a condition someone carries, not dice on the
+    // table — and it stays that way when the tail is written as a statistic.
+    expect(parseAbilityActions("Creatures inside suffer Disadvantage on Physical Saves — Evasion.")).toEqual([]);
+    expect(parseAbilityActions("Creatures inside suffer Disadvantage on Physical Saves - Dexterity.")).toEqual([]);
+  });
+
+  it("does not re-roll a path the ability already parsed in full", () => {
+    // Rapture's real rolls are its Resolution pair; the sentence after names
+    // the same Perception path only to say the target has Disadvantage on it.
+    const acts = parseAbilityActions(
+      "Resolution: Mental Check — Influence vs Mental Save — Perception. " +
+        "The target has Disadvantage on the first Perception Check it makes each round."
+    );
+    expect(acts.map((action) => action.label)).toEqual(["Mental Check — Influence", "Mental Save — Perception"]);
+  });
+
+  it("still lets one stat word's two readings meet, path name or not", () => {
+    // "Perception" names a path as well as a statistic, and the sentence below
+    // reaches the parser twice — once for who rolls, once for the DC. Treating
+    // the second pass as a back-reference to the first would drop the DC on the
+    // floor for every save named after a path.
+    const acts = parseAbilityActions("The target makes a Perception Save (DC 14) or is blinded.");
+    expect(acts).toEqual([
+      expect.objectContaining({ kind: "save", stat: "Perception", dc: 14, rollAxis: { axis: "mental", direction: "save", path: "perception" } }),
+    ]);
+  });
+
+  it("pins which shipped abilities the legacy dictionary gives a route", () => {
+    // The dictionary changes what a table rolls, so its reach is pinned rather
+    // than described: every ability below rolled a bare d20 before it and now
+    // resolves through a path. A wider or narrower list has to be deliberate.
+    const corpus = [
+      ...SPECIES.flatMap((s) => speciesInnate(s.id).map((a) => ({ name: a.name, effect: a.effect }))),
+      ...SPECIES.flatMap((s) => inceptsForSpecies(s.id).map((a) => ({ name: a.name, effect: a.effect }))),
+      ...SPECIES.flatMap((s) => s.variants.flatMap((v) => v.abilities.map((a) => ({ name: a.name, effect: a.effect })))),
+    ];
+    const routed = corpus
+      .filter((a) => parseAbilityActions(a.effect).some((x) => x.stat && x.rollAxis))
+      .map((a) => a.name);
+    expect([...new Set(routed)].sort()).toEqual(LEGACY_ROUTED_ABILITIES);
+
+    // The one shipped ability written in the hybrid form, which carries a route
+    // without a stat word and so cannot appear in the list above.
+    const kadexiln = SPECIES.flatMap((s) => s.variants).flatMap((v) => v.abilities).find((a) => a.name === "Solvudomn");
+    expect(parseAbilityActions(kadexiln!.effect).map((action) => action.label)).toEqual([
+      "Mental Save — Perception",
+      "Mental Check — Capacity",
+    ]);
   });
 });

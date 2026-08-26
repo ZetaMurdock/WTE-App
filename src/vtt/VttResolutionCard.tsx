@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   armedConsequences,
+  autoApplicable,
   conditionTag,
   damageAfterVerdict,
   type OutcomeConsequence,
@@ -9,6 +10,10 @@ import {
 
 export interface VttResolutionCardProps {
   outcomes: PendingOutcome[];
+  /** The table opted into committing DECLARED damage and conditions without a
+   *  click. Everything the engine had to guess, and every Curator ruling, still
+   *  waits for one — see `autoApplicable`. */
+  autoApplyDeclared?: boolean;
   /** Roll this consequence's dice. Returns the rolled total, or null if it could not roll. */
   onRoll: (outcome: PendingOutcome, consequence: OutcomeConsequence) => number | null;
   /** Apply HP change to the target token. `amount` is positive for damage, negative for healing. */
@@ -33,6 +38,24 @@ type CommittedTotals = Record<string, number>;
 
 function rowKey(outcome: PendingOutcome, consequence: OutcomeConsequence): string {
   return `${outcome.id}|${consequence.id}`;
+}
+
+/** Where this row came from.
+ *
+ *  A card offering "3d10 Cold" looks identical whether an author declared it in
+ *  an `## Actions` block or the prose scanner recovered it from a sentence, and
+ *  the two carry very different weight: the first is the page's own word, the
+ *  second is a reading of it that a Curator may want to check. It is also the
+ *  line auto-apply is drawn along, so a table that switched auto-apply on can
+ *  see at a glance which rows it covers. Only the declared side is marked —
+ *  labelling every prose row would put a badge on the entire shipped corpus. */
+function SourceChip({ consequence }: { consequence: OutcomeConsequence }) {
+  if (!consequence.declared) return null;
+  return (
+    <span className="vtt2-res-src" title="Declared in this ability's ## Actions block, not read out of its prose">
+      declared
+    </span>
+  );
 }
 
 /** "Physical Save — Recovery · 14 vs DV 18 — failed" — the whole resolution in
@@ -84,7 +107,12 @@ function ConsequenceRow({
     return (
       <li className="vtt2-res-row">
         <div className="vtt2-res-ruling">“{consequence.label}”</div>
-        <div className="vtt2-res-note">Curator adjudicates — the prose names no number to apply.</div>
+        <SourceChip consequence={consequence} />
+        <div className="vtt2-res-note">
+          {consequence.declared
+            ? "Curator adjudicates — the page asked for a ruling, not a number."
+            : "Curator adjudicates — the prose names no number to apply."}
+        </div>
       </li>
     );
   }
@@ -94,6 +122,7 @@ function ConsequenceRow({
     return (
       <li className="vtt2-res-row">
         <span className="vtt2-res-label">{consequence.label}</span>
+        <SourceChip consequence={consequence} />
         {applied ? (
           <span className="vtt2-res-applied">Applied {tag}</span>
         ) : (
@@ -119,6 +148,7 @@ function ConsequenceRow({
     return (
       <li className="vtt2-res-row">
         <span className="vtt2-res-label">{consequence.label}</span>
+        <SourceChip consequence={consequence} />
         <span className="vtt2-res-applied">
           {committed == null ? "Applied" : `Applied ${hpLabel(consequence.kind, committed)}`}
         </span>
@@ -134,6 +164,7 @@ function ConsequenceRow({
   return (
     <li className="vtt2-res-row">
       <span className="vtt2-res-label">{consequence.label}</span>
+      <SourceChip consequence={consequence} />
       {total === null && <span className="equip-warn">Could not roll {consequence.expr ?? consequence.label}.</span>}
       {magnitude == null ? (
         <button
@@ -164,7 +195,7 @@ function ConsequenceRow({
   );
 }
 
-interface CardProps extends Omit<VttResolutionCardProps, "outcomes" | "onRoll"> {
+interface CardProps extends Omit<VttResolutionCardProps, "outcomes" | "onRoll" | "autoApplyDeclared"> {
   outcome: PendingOutcome;
   rolled: RolledTotals;
   committed: CommittedTotals;
@@ -209,7 +240,9 @@ function OutcomeCard({
         <p className="list-empty vtt2-res-note">
           {outcome.verdict === "pass"
             ? "Nothing to apply — the save held."
-            : "Nothing to apply — this ability's prose names no consequence."}
+            : outcome.fromBlock
+              ? "Nothing to apply — this ability's page declares nothing for a failure."
+              : "Nothing to apply — this ability's prose names no consequence."}
         </p>
       ) : (
         <ul className="vtt2-res-list">
@@ -260,6 +293,7 @@ function OutcomeCard({
 // writes to a token, and nothing fires without a click.
 export function VttResolutionCard({
   outcomes,
+  autoApplyDeclared = false,
   onRoll,
   onApplyDamage,
   onApplyCondition,
@@ -269,6 +303,41 @@ export function VttResolutionCard({
   const [rolled, setRolled] = useState<RolledTotals>({});
   const [committed, setCommitted] = useState<CommittedTotals>({});
 
+  // Rows this component already committed without a click.
+  //
+  // The ledger's `applied` list is the authority on what landed, and
+  // `autoApplicable` filters against it — but it only fills in once the engine
+  // AUTHORISES the op. A write the engine refuses (the token left the scene, it
+  // is player-owned and `updateToken` will not have it) never marks anything
+  // applied, so a guard that trusted `applied` alone would re-roll and re-send
+  // that same consequence on every render for as long as the card was open.
+  const autoFired = useRef<Set<string>>(new Set());
+
+  // No dependency list on purpose. A verdict can arrive from the wire, from the
+  // Curator's own Declare buttons, or from a local roll settling the request,
+  // and each reaches this component as a fresh ledger snapshot rather than as a
+  // value worth listing. The guard above — not the dependency array — is what
+  // makes a consequence fire exactly once.
+  useEffect(() => {
+    for (const outcome of outcomes) {
+      for (const consequence of autoApplicable(outcome, { autoApplyDeclared })) {
+        const key = rowKey(outcome, consequence);
+        if (autoFired.current.has(key)) continue;
+        autoFired.current.add(key);
+        if (consequence.kind === "condition") {
+          onApplyCondition(outcome, consequence);
+          continue;
+        }
+        const total = rollRow(outcome, consequence);
+        // Dice nothing could read leave the row exactly as a Curator would find
+        // it — armed, with its Roll button, and no number invented in its place.
+        if (total == null) continue;
+        const magnitude = damageAfterVerdict(outcome, consequence, total);
+        applyRow(outcome, consequence, consequence.kind === "heal" ? -magnitude : magnitude);
+      }
+    }
+  });
+
   if (outcomes.length === 0) return null;
 
   // Sorted here rather than trusted from the caller: the ledger keeps newest
@@ -276,9 +345,10 @@ export function VttResolutionCard({
   // the Curator just caused appearing below a stale one reads as a bug.
   const ordered = [...outcomes].sort((a, b) => b.createdAt - a.createdAt);
 
-  function rollRow(outcome: PendingOutcome, consequence: OutcomeConsequence) {
+  function rollRow(outcome: PendingOutcome, consequence: OutcomeConsequence): number | null {
     const total = onRoll(outcome, consequence);
     setRolled((prior) => ({ ...prior, [rowKey(outcome, consequence)]: total }));
+    return total;
   }
 
   function applyRow(outcome: PendingOutcome, consequence: OutcomeConsequence, amount: number) {

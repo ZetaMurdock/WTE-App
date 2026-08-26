@@ -14,6 +14,7 @@ import {
 } from "../game/wte";
 import type { AbilityAction } from "../game/abilityActions";
 import { abilityUnderstanding } from "../game/abilityUnderstanding";
+import type { EffectStep } from "../game/abilityEffects";
 import {
   characterActionSet,
   characterEffectiveRollScores,
@@ -24,7 +25,7 @@ import {
 import { hasAoe, suggestedTemplate } from "./data/effectMeta";
 import { rollAxisChoices, rollAxisPaths, type RollAxis, type RollAxisStats, type RollDirection, type RollAxisPath } from "../game/rollAxis";
 import { affinityLabel } from "../game/paradigmAffinity";
-import { abilitySaveDv, saveDvBreakdown, savePlainLabel } from "../game/saveDv";
+import { abilitySaveDv, saveChipDv, saveDvBreakdown, savePlainLabel } from "../game/saveDv";
 import type { NetRollAxisRequest } from "../net/protocol";
 
 /** A target-side check parsed from an ability. The VTT shell supplies the
@@ -40,6 +41,12 @@ export interface VttTargetRollIntent {
   /** The ability's own prose, so the shell can read what a failed save costs
    *  without resolving the ability a second time. */
   effect?: string;
+  /** The page's DECLARED steps, when it has an `## Actions` block. They ride
+   *  beside the prose rather than instead of it: the shell hands both to the
+   *  ledger, which prefers these, so a declared ability's card says what the
+   *  PAGE said instead of what the prose scanner made of it. Empty/absent for
+   *  the whole undeclared corpus, which keeps the prose path byte for byte. */
+  steps?: readonly EffectStep[];
 }
 
 interface Props {
@@ -188,10 +195,15 @@ export function VttAbilitiesPanel({
           {saves.length > 0 && (
             <div className="vtt2-abil-saves">
               {saves.map((s, i) => {
-                // Attacker-keyed DV (21 + this character's paired check mod)
-                // replaces the page's printed number — it rides the request so
-                // the target's roll prompt shows the DV that actually applies.
+                // Attacker-keyed DV (21 + this character's paired check mod),
+                // which replaces a PRINTED number the prose carries — it rides
+                // the request so the target's roll prompt shows the DV that
+                // actually applies.
                 const keyed = axisStats ? abilitySaveDv(s, actions, axisStats) : null;
+                // A page that wrote its own DV in a block meant it; everything
+                // else keys. An undeclared ability has no declared DV to prefer,
+                // so it reads exactly as it did before declared DVs existed.
+                const { dv, fromPage } = saveChipDv(s, keyed, read?.declared === true);
                 return (
                   <button
                     key={i}
@@ -205,21 +217,30 @@ export function VttAbilitiesPanel({
                         abilityId: a.abilityId ?? a.id,
                         abilityName: a.name,
                         effect: a.effect,
+                        // Omitted, not sent empty. An ability with no block has
+                        // to reach the ledger as the identical request it always
+                        // did — an extra `steps: []` riding along is a second
+                        // way for the undeclared corpus to behave differently.
+                        ...(read?.steps.length ? { steps: read.steps } : {}),
                         sourceCharacterId: character?.id,
-                        label: keyed ? `${savePlainLabel(s)} · DV ${keyed.dv}` : s.label,
+                        label: dv != null ? `${savePlainLabel(s)} · DV ${dv}` : s.label,
                         stat: s.stat,
                         ...(s.rollAxis ? { rollAxis: { path: s.rollAxis.path, direction: s.rollAxis.direction } } : {}),
-                        dc: keyed?.dv ?? s.dc,
+                        dc: dv ?? s.dc,
                       })
                     }
                     title={
                       (onRequestTargetRoll
                         ? "Resolve this roll against the selected target"
                         : "Select a target token to resolve this roll") +
-                      (keyed ? ` · ${saveDvBreakdown(keyed)}` : "")
+                      (fromPage
+                        ? ` · DV ${dv} declared on this ability's page`
+                        : keyed
+                          ? ` · ${saveDvBreakdown(keyed)}`
+                          : "")
                     }
                   >
-                    vs {keyed ? `${savePlainLabel(s)} · DV ${keyed.dv}` : s.label}
+                    vs {dv != null ? `${savePlainLabel(s)} · DV ${dv}` : s.label}
                   </button>
                 );
               })}

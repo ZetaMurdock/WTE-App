@@ -5,6 +5,7 @@ import { loadAtlas } from "./atlas/atlasRepo";
 import { atlasForRole, MAX_ATLAS_WIRE_CHARS } from "./atlas/atlasModel";
 import { bridgeEmit, bridgeListen, focusAtlasWindow, openAtlasWindow } from "./atlas/atlasBridge";
 import { listRuleLayers } from "../lib/ruleLayerRepo";
+import { loadRules } from "../lib/campaignRules";
 import type { RuleLayer } from "../game/ruleLayers";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { Campaign } from "../models/campaign";
@@ -39,12 +40,11 @@ import { VttResolutionCard } from "./VttResolutionCard";
 import { rollDiceExpr, type RollResult } from "../game/wte";
 import {
   clearOutcomes,
-  conditionTag,
   declareVerdict,
   dismissOutcome,
   hpAfterConsequence,
   listOutcomes,
-  markApplied,
+  markOutcomeApplied,
   openOutcome,
   pruneOutcomes,
   pushOutcome,
@@ -2089,6 +2089,19 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
     useCallback(() => (rollScope ? listOutcomes(rollScope) : NO_OUTCOMES), [rollScope])
   );
 
+  // The table's confirm policy, re-read on the same signal `saveRules` fires.
+  // Read only at mount, it would strand a Curator who switched auto-apply on
+  // mid-session: the cards already on screen would keep asking for two clicks
+  // until something unrelated happened to re-render the map.
+  const [autoApplyDeclared, setAutoApplyDeclared] = useState(false);
+  useEffect(() => {
+    const id = campaign?.id;
+    const read = () => setAutoApplyDeclared(id ? loadRules(id).autoApplyDeclared : false);
+    read();
+    window.addEventListener("wte-pages-changed", read);
+    return () => window.removeEventListener("wte-pages-changed", read);
+  }, [campaign?.id]);
+
   // The ledger's expiry is only a promise until something enforces it. A card
   // whose roll never came would otherwise sit over the map for the rest of the
   // session, and a scope the table has left would keep its dead cards forever.
@@ -2145,7 +2158,7 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
         pushToast(`${token.name}'s HP was not changed — that token could not be written to.`, "error");
         return;
       }
-      if (rollScope) replaceOutcome(rollScope, markApplied(outcome, consequence.id));
+      if (rollScope) markOutcomeApplied(rollScope, outcome.id, consequence.id);
       const verb = amount >= 0 ? "took" : "healed";
       pushToast(`${token.name} ${verb} ${Math.abs(amount)} — ${before} → ${next} HP.`, "info");
     },
@@ -2156,24 +2169,22 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
     (outcome: PendingOutcome, consequence: OutcomeConsequence) => {
       const engine = engineRef.current;
       const token = outcomeToken(outcome);
-      const tag = conditionTag(consequence);
-      if (!engine || !token || !tag) {
+      // The BARE name, not the formatted tag: the countdown lives in the scene's
+      // condition clocks, so a pip reading "Slowed (2)" would make a second
+      // application of "Slowed (3)" look like a different condition and defeat
+      // the Stacking rule its page declares.
+      const status = consequence.condition?.trim();
+      if (!engine || !token || !status) {
         pushToast(`${outcome.targetName} is no longer on this scene.`, "error");
         return;
       }
-      if ((token.statuses ?? []).includes(tag)) {
-        // The tag is already true of this token, so the row has nothing left to
-        // offer; leaving it armed would invite a click that can only no-op.
-        if (rollScope) replaceOutcome(rollScope, markApplied(outcome, consequence.id));
-        pushToast(`${token.name} already carries ${tag}.`, "info");
+      if (!engine.applyTokenCondition({ tokenId: token.id, status, rounds: consequence.rounds })) {
+        pushToast(`${status} was not applied — ${token.name} could not be written to.`, "error");
         return;
       }
-      if (!engine.adjudicateTokenVitals(token.id, { statuses: [...(token.statuses ?? []), tag] })) {
-        pushToast(`${tag} was not applied — ${token.name} could not be written to.`, "error");
-        return;
-      }
-      if (rollScope) replaceOutcome(rollScope, markApplied(outcome, consequence.id));
-      pushToast(`${token.name} is ${tag}.`, "info");
+      if (rollScope) markOutcomeApplied(rollScope, outcome.id, consequence.id);
+      const clock = consequence.rounds ? ` for ${consequence.rounds} round${consequence.rounds === 1 ? "" : "s"}` : "";
+      pushToast(`${token.name} is ${status}${clock}.`, "info");
     },
     [outcomeToken, rollScope]
   );
@@ -2227,6 +2238,10 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
           sourceAbilityId: intent.abilityId,
           sourceAbilityName: intent.abilityName,
           effect: intent.effect,
+          // Both travel; the ledger decides. Declared steps supersede the prose
+          // deriver there, in one place, so this call site cannot become a
+          // second opinion about which source wins.
+          steps: intent.steps,
           casterCharacterId: intent.sourceCharacterId,
           targetTokenId: target.id,
           targetName: target.name,
@@ -2581,6 +2596,7 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
       {!asPlayer && outcomes.length > 0 && (
         <VttResolutionCard
           outcomes={outcomes}
+          autoApplyDeclared={autoApplyDeclared}
           onRoll={rollConsequence}
           onApplyDamage={applyOutcomeDamage}
           onApplyCondition={applyOutcomeCondition}

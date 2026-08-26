@@ -5,11 +5,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import cipherData from "../game/data/ciphers.json";
 import genusData from "../game/data/genus.json";
 import { VttResolutionCard, type VttResolutionCardProps } from "./VttResolutionCard";
-import { markApplied, openOutcome, settleOutcome, type PendingOutcome } from "./data/outcomeLedger";
+import { parseAbilityEffects, type EffectStep } from "../game/abilityEffects";
+import {
+  markApplied,
+  openOutcome,
+  settleOutcome,
+  type PendingOutcome,
+} from "./data/outcomeLedger";
 
 interface CorpusAbility {
   name: string;
   effect?: string | null;
+  /** The `## Actions` block, for the pages that declare one. */
+  actions?: string | null;
 }
 
 // Prose comes out of the shipped corpus, never out of this file. The card's
@@ -41,8 +49,30 @@ const HAIL_RAIN = genusAbility("Elemental", "Hail Rain");
 const PASSIVE_DEATH = genusAbility("Eldritch", "Passive Death");
 // "Target is Restrained" — a condition the prose never puts a clock on.
 const LOCK_MOVE = genusAbility("Photonic", "Lock Move");
+const ECHO_CHAIN = cipherAbility("remnant", "ECHO CHAIN");
+// A DV-gated Check whose payload is a transformation no parser can type, so the
+// prose deriver honestly proposes nothing at all.
+const INVERSE_REVERSE = genusAbility("Eldritch", "Inverse Reverse");
 
-function outcome(ability: CorpusAbility, overrides: Partial<PendingOutcome> = {}): PendingOutcome {
+/** The same corpus read through its DECLARED block instead of its prose. The
+ *  block has to come off the shipped page too: a card proven against a block
+ *  written in this file would prove the parser and nothing about the pages. */
+function declaredOutcome(ability: CorpusAbility, overrides: Partial<PendingOutcome> = {}): PendingOutcome {
+  if (!ability.actions) throw new Error(`${ability.name} no longer declares an ## Actions block`);
+  const read = parseAbilityEffects(ability.actions);
+  expect(read.errors).toEqual([]);
+  return outcome(ability, overrides, read.steps);
+}
+
+// Steps go in through `openOutcome` rather than being pasted over its answer:
+// which source wins, and what the card is then told it was reading, is the
+// ledger's decision, and a test that overwrote `consequences` by hand would
+// prove the card against a card the app can never open.
+function outcome(
+  ability: CorpusAbility,
+  overrides: Partial<PendingOutcome> = {},
+  steps?: readonly EffectStep[]
+): PendingOutcome {
   return {
     ...openOutcome({
       id: "out-1",
@@ -53,6 +83,7 @@ function outcome(ability: CorpusAbility, overrides: Partial<PendingOutcome> = {}
       dc: 18,
       rollLabel: "Mental Save — Influence",
       effect: ability.effect,
+      steps,
       now: 1_000,
     }),
     ...overrides,
@@ -221,6 +252,49 @@ describe("VttResolutionCard", () => {
     expect(button("Kira failed")).toBe(declare);
   });
 
+  // Which reader answered has to be visible. "2d6 Cold" looks identical whether
+  // an author wrote it in a block or the scanner read it out of a sentence, and
+  // a Curator deciding whether to trust a row needs to know which.
+  it("marks a page-declared row and leaves a prose-derived one unmarked", async () => {
+    await mount([settleOutcome(declaredOutcome(HAIL_RAIN), 14)]);
+    const marks = [...host.querySelectorAll(".vtt2-res-src")].map((el) => el.textContent);
+    expect(marks).toEqual(["declared", "declared", "declared"]);
+
+    await mount([settleOutcome(outcome(HAIL_RAIN), 14)]);
+    expect(host.querySelector(".vtt2-res-src")).toBeNull();
+  });
+
+  it("names the source that came up empty when a failure costs nothing", async () => {
+    // Not a shipped page — a table's own fork, which is a first-class thing to
+    // be: this one declares what a SUCCESS costs and says nothing about a miss.
+    // "This ability's prose names no consequence" would be a lie on a card built
+    // from a block, so the sentence names the source a Curator can go and fix.
+    const read = parseAbilityEffects(
+      ["- Save: Physical Save — Recovery, DV 18", "- Success: Damage: 1d6"].join("\n")
+    );
+    expect(read.errors).toEqual([]);
+    const forked = outcome(ECHO_CHAIN, {}, read.steps);
+    await mount([settleOutcome(forked, 9)]);
+    expect(host.textContent).toContain("this ability's page declares nothing for a failure");
+
+    // The prose card keeps its own wording, because its source really is prose.
+    await mount([settleOutcome(outcome(INVERSE_REVERSE), 9)]);
+    expect(host.textContent).toContain("this ability's prose names no consequence");
+
+    // The hard case: a block that spends and rolls but never lands anything, so
+    // it yields NO consequences at all. There is nothing declared left on the
+    // card to recognise it by, and the prose sentence would send a Curator to
+    // read a page this block had already superseded.
+    const priceOnly = parseAbilityEffects(
+      ["- Cost: 2 SS", "- Save: Physical Save — Recovery, DV 18"].join("\n")
+    );
+    expect(priceOnly.errors).toEqual([]);
+    const silent = outcome(ECHO_CHAIN, {}, priceOnly.steps);
+    expect(silent.consequences).toEqual([]);
+    await mount([settleOutcome(silent, 9)]);
+    expect(host.textContent).toContain("this ability's page declares nothing for a failure");
+  });
+
   it("dismisses by outcome id", async () => {
     const props = await mount([settleOutcome(outcome(HAIL_RAIN), 14)]);
     await act(async () => host.querySelector<HTMLButtonElement>(".cdx-tab-x")!.click());
@@ -233,5 +307,110 @@ describe("VttResolutionCard", () => {
     await mount([older, newer]);
     const targets = [...host.querySelectorAll(".vtt2-res-title")].map((item) => item.textContent);
     expect(targets).toEqual(["PSYCHIC SCREAM → Kira", "PSYCHIC SCREAM → Voss"]);
+  });
+});
+
+// The table-rules half of P2. Two clicks per consequence is the published flow
+// and stays the default; a table may hand the unambiguous ones to the app, and
+// what counts as unambiguous is `autoApplicable`'s answer, not this card's.
+describe("VttResolutionCard under a table's auto-apply rule", () => {
+  it("still asks for both clicks under the published default", async () => {
+    const props = await mount([settleOutcome(declaredOutcome(HAIL_RAIN), 14)]);
+    expect(props.onRoll).not.toHaveBeenCalled();
+    expect(props.onApplyDamage).not.toHaveBeenCalled();
+    expect(props.onApplyCondition).not.toHaveBeenCalled();
+    // The card is fully armed — it is the rule that is off, not the card that
+    // is empty.
+    expect(button("Roll On fail · 2d6 Cold")).toBeDefined();
+  });
+
+  it("rolls and commits a declared hit, and hangs a declared condition", async () => {
+    const props = await mount([settleOutcome(declaredOutcome(HAIL_RAIN), 14)], {
+      autoApplyDeclared: true,
+    });
+    expect(props.onRoll).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "out-1" }),
+      expect.objectContaining({ expr: "2d6", damageType: "Cold" })
+    );
+    expect(props.onApplyDamage).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "out-1" }),
+      expect.objectContaining({ expr: "2d6" }),
+      27
+    );
+    expect(props.onApplyCondition).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "out-1" }),
+      expect.objectContaining({ condition: "Slowed", rounds: 1 })
+    );
+  });
+
+  // The whole shipped corpus is prose. Switching the rule on must not reach one
+  // card of it: a sentence the scanner read is a reading, and a reading does not
+  // get to move a token's HP with nobody watching.
+  it("does not touch a prose-derived card, however the table set the rule", async () => {
+    const props = await mount([settleOutcome(outcome(HAIL_RAIN), 14)], { autoApplyDeclared: true });
+    expect(props.onRoll).not.toHaveBeenCalled();
+    expect(props.onApplyDamage).not.toHaveBeenCalled();
+    expect(props.onApplyCondition).not.toHaveBeenCalled();
+    expect(button("Roll 2d6 Cold")).toBeDefined();
+  });
+
+  it("leaves a declared Ruling for the Curator", async () => {
+    const props = await mount([settleOutcome(declaredOutcome(ECHO_CHAIN), 9)], {
+      autoApplyDeclared: true,
+    });
+    expect(host.textContent).toContain("Curator adjudicates");
+    expect(props.onApplyDamage).not.toHaveBeenCalled();
+    expect(props.onApplyCondition).not.toHaveBeenCalled();
+  });
+
+  it("waits for a verdict rather than pre-committing a pending card", async () => {
+    const props = await mount([declaredOutcome(HAIL_RAIN)], { autoApplyDeclared: true });
+    expect(props.onRoll).not.toHaveBeenCalled();
+    expect(props.onApplyDamage).not.toHaveBeenCalled();
+  });
+
+  // The card re-renders on every ledger emit — a toast, a second outcome, the
+  // Curator moving the map. A hit that fired once per render would empty a token.
+  it("commits a consequence exactly once across re-renders", async () => {
+    const settled = settleOutcome(declaredOutcome(HAIL_RAIN), 14);
+    const props = await mount([settled], { autoApplyDeclared: true });
+    expect(props.onApplyDamage).toHaveBeenCalledTimes(1);
+
+    // Re-rendered with the ledger's own answer: the row is marked applied now.
+    await act(async () => {
+      root.render(
+        <VttResolutionCard {...props} outcomes={[markApplied(settled, "dmg-0")]} autoApplyDeclared />
+      );
+    });
+    expect(props.onApplyDamage).toHaveBeenCalledTimes(1);
+
+    // And re-rendered with the UNCHANGED card, which is what a refused write
+    // leaves behind: nothing was marked applied, and it still must not fire again.
+    await act(async () => {
+      root.render(<VttResolutionCard {...props} outcomes={[settled]} autoApplyDeclared />);
+    });
+    expect(props.onApplyDamage).toHaveBeenCalledTimes(1);
+  });
+
+  // A pass keeps a declared "half on success" rider, and half is what lands.
+  it("halves a declared rider on a passed save before committing it", async () => {
+    const props = await mount([settleOutcome(declaredOutcome(PSYCHIC_SCREAM), 20)], {
+      autoApplyDeclared: true,
+    });
+    expect(props.onApplyDamage).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "out-1" }),
+      expect.objectContaining({ expr: "2d8", half: true }),
+      13
+    );
+  });
+
+  it("leaves the row manual when the dice could not be rolled", async () => {
+    const props = await mount([settleOutcome(declaredOutcome(HAIL_RAIN), 14)], {
+      autoApplyDeclared: true,
+      onRoll: vi.fn(() => null),
+    });
+    expect(props.onRoll).toHaveBeenCalled();
+    expect(props.onApplyDamage).not.toHaveBeenCalled();
+    expect(host.textContent).toContain("Could not roll 2d6");
   });
 });

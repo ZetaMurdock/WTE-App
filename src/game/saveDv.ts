@@ -86,6 +86,40 @@ export function abilitySaveDv(
   };
 }
 
+/**
+ * The DV a save chip shows, and sends with the request.
+ *
+ * Three sources can name one, and they do not carry equal weight. A page that
+ * DECLARED a fixed DV in its `## Actions` block chose that number deliberately,
+ * and the keyed formula has no business overruling an author. A block that
+ * wrote `DV keyed`, or named no DV at all, is asking for the keyed DV by name —
+ * in both of those the declared action carries no `dc`, so it falls through
+ * here exactly as an undeclared ability does. Prose is the third source, and
+ * its printed numbers predate the Roll Axis pipeline entirely; `abilitySaveDv`
+ * already keeps them as provenance and never as `dv`.
+ *
+ * `declared` is whether the block superseded the prose parse for this ability
+ * at all. Without it every printed DV the prose parser recovers would be
+ * indistinguishable from an authored one and would start beating the keyed DV,
+ * un-keying the whole undeclared corpus — which is all of it but the pages that
+ * carry a block.
+ *
+ * A declared DV the engine cannot fully honour is not honoured half-way. Three
+ * shipped blocks write `DV 14 + Neuronal Capacity Modifier` and its like, and
+ * `dcBonus` carries a modifier name no layer here resolves; sending the bare 14
+ * would be a number the author never asked for, printed under a tooltip
+ * claiming their page said it. Those key, exactly as `DV keyed` does, because
+ * base-plus-the-caster's-modifier is the shape that clause was reaching for.
+ */
+export function saveChipDv(
+  save: AbilityAction,
+  keyed: SaveDv | null,
+  declared: boolean
+): { dv?: number; fromPage: boolean } {
+  if (declared && save.dc != null && !save.dcBonus) return { dv: save.dc, fromPage: true };
+  return { dv: keyed?.dv, fromPage: false };
+}
+
 /** A save action's label with any printed "· DV 13"/"· DC 18" tail removed, so
  * the computed DV can stand in its place without showing two numbers. */
 export function savePlainLabel(save: AbilityAction): string {

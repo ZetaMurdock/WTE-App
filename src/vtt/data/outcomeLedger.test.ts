@@ -2,10 +2,12 @@ import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it } from "vitest";
 import cipherData from "../../game/data/ciphers.json";
 import genusData from "../../game/data/genus.json";
+import { parseAbilityEffects, type EffectStep } from "../../game/abilityEffects";
 import {
   armedConsequences,
   clearOutcomes,
   conditionTag,
+  consequencesFromSteps,
   hpAfterConsequence,
   consequencesFor,
   damageAfterVerdict,
@@ -13,6 +15,7 @@ import {
   dismissOutcome,
   listOutcomes,
   markApplied,
+  markOutcomeApplied,
   openOutcome,
   pruneOutcomes,
   pushOutcome,
@@ -28,6 +31,8 @@ import {
 interface CorpusAbility {
   name: string;
   effect?: string | null;
+  /** The `## Actions` block, for the pages that declare one. */
+  actions?: string | null;
 }
 
 // Prose comes out of the SHIPPED corpus, never out of this file. A deriver
@@ -47,6 +52,31 @@ function cipherEffect(paradigm: string, name: string): string {
   const hit = paradigms[paradigm]?.find((ability) => ability.name === name);
   if (!hit?.effect) throw new Error(`ciphers.json no longer ships ${paradigm} / ${name}`);
   return hit.effect;
+}
+
+/** The declared block a shipped page carries, from the same data the app reads.
+ *  A block invented in this file would prove the parser, never the corpus. */
+function genusBlock(domain: string, name: string): string {
+  const domains = genusData as unknown as Record<string, { abilities: CorpusAbility[] } | undefined>;
+  const hit = domains[domain]?.abilities.find((ability) => ability.name === name);
+  if (!hit?.actions) throw new Error(`genus.json no longer declares ${domain} / ${name}`);
+  return hit.actions;
+}
+
+function cipherBlock(paradigm: string, name: string): string {
+  const paradigms = cipherData as unknown as Record<string, CorpusAbility[] | undefined>;
+  const hit = paradigms[paradigm]?.find((ability) => ability.name === name);
+  if (!hit?.actions) throw new Error(`ciphers.json no longer declares ${paradigm} / ${name}`);
+  return hit.actions;
+}
+
+/** Parse a block the way every surface does, refusing to test against one the
+ *  grammar could not read: a step dropped as an authoring error would look
+ *  exactly like a step this bridge chose to skip. */
+function stepsOf(block: string): EffectStep[] {
+  const read = parseAbilityEffects(block);
+  expect(read.errors).toEqual([]);
+  return read.steps;
 }
 
 // "...or take 2d8 psychic damage and are Stunned for 1 round. On success: half
@@ -193,6 +223,233 @@ describe("what an ability costs its target", () => {
     expect(consequencesFor(null)).toEqual([]);
     expect(consequencesFor(undefined)).toEqual([]);
   });
+
+  it("never invents a Curator ruling out of any sentence in the corpus", () => {
+    // The `ruling` kind is the one consequence that means "the engine has no
+    // answer". Deriving one from prose would be the engine claiming authority
+    // it does not have, on the exact card where authority matters most — and it
+    // would do it silently, across 414 abilities at once. A sweep rather than a
+    // sample: the guard has to hold for prose nobody thought to try.
+    let scanned = 0;
+    const sweep = (prose: string | null | undefined) => {
+      if (!prose) return;
+      scanned += 1;
+      expect(consequencesFor(prose).some((c) => c.kind === "ruling")).toBe(false);
+    };
+    for (const entry of Object.values(genusData as unknown as Record<string, { abilities: CorpusAbility[] }>)) {
+      for (const ability of entry.abilities) sweep(ability.effect);
+    }
+    for (const list of Object.values(cipherData as unknown as Record<string, CorpusAbility[]>)) {
+      for (const ability of list) sweep(ability.effect);
+    }
+    expect(scanned).toBeGreaterThan(100);
+  });
+});
+
+// ── The declared bridge ────────────────────────────────────────────────────
+// `consequencesFromSteps` is the edge between a block an author wrote and the
+// card a Curator clicks. Everything above it guesses; this reads. What it must
+// never do is read MORE than the page said — a branch the author did not write,
+// a ruling nobody declared, or the caster's own price landing on the target.
+
+// "- Cost: 5 SS / - Save: Physical Save — Evasion / - Fail: Damage: 2d6 Cold /
+//  - Fail: Condition: Slowed, 1 round / - Ruling: …" — a whole ability in five
+// bullets, and the shape most declared pages are in.
+const HAIL_RAIN_BLOCK = genusBlock("Elemental", "Hail Rain");
+// Declares its damage on no branch at all, half on success, and the caster's
+// own 1d4 backlash as a separate `Damage (self)` step.
+const PSYCHIC_SCREAM_BLOCK = cipherBlock("cognition", "PSYCHIC SCREAM");
+// Two `Modify (target)` steps with durations — the roll penalties.
+const BLINDING_RADIANCE_BLOCK = genusBlock("Photonic", "Blinding Radiance");
+// A ruling bound to the failure branch, with no dice anywhere in the block.
+const DECISIVE_GRASP_BLOCK = genusBlock("Null", "Decisive Grasp");
+
+describe("what a declared ability costs its target", () => {
+  it("reads a shipped page's block from the markdown through to the card", () => {
+    // The round trip the whole format rests on: the bullets a Curator can see
+    // on the Codex page are the bullets genus.json ships, and those bullets are
+    // what the card offers. A build step that reformatted the block on its way
+    // into the data would break the first link and nothing else would notice.
+    const page = readFileSync(new URL("../../rules/Elemental_Genus.md", import.meta.url), "utf8").replace(
+      /\r\n/g,
+      "\n"
+    );
+    const at = page.indexOf("\n### Hail Rain\n");
+    if (at < 0) throw new Error("Elemental_Genus.md no longer carries ### Hail Rain");
+    const next = page.indexOf("\n### ", at + 1);
+    const section = page.slice(at, next < 0 ? undefined : next);
+    const marker = section.indexOf("#### Actions");
+    if (marker < 0) throw new Error("Hail Rain no longer declares an #### Actions block");
+
+    const fromPage = section.slice(marker + "#### Actions".length);
+    expect(stepsOf(fromPage)).toEqual(stepsOf(HAIL_RAIN_BLOCK));
+
+    const derived = consequencesFromSteps(stepsOf(fromPage));
+    expect(derived.map((c) => ({ id: c.id, kind: c.kind, on: c.on, label: c.label }))).toEqual([
+      { id: "dmg-2", kind: "damage", on: "fail", label: "On fail · 2d6 Cold" },
+      { id: "cond-3", kind: "condition", on: "fail", label: "On fail · Slowed · 1 round" },
+      {
+        id: "rule-4",
+        kind: "ruling",
+        on: "always",
+        label:
+          "the area becomes difficult terrain for 2 rounds after, and any creature that starts its turn in the cylinder repeats the Save",
+      },
+    ]);
+    expect(derived[0]).toMatchObject({ expr: "2d6", damageType: "Cold" });
+    expect(derived[1]).toMatchObject({ condition: "Slowed", rounds: 1 });
+  });
+
+  it("hangs each consequence on the branch the page wrote", () => {
+    // The edge prose could never recover: which verdict arms which step.
+    const derived = consequencesFromSteps(
+      stepsOf(
+        [
+          "- Fail: Damage: 3d10 Cold",
+          "- Success: Heal: 1d6",
+          "- Condition: Burning, 2 rounds",
+        ].join("\n")
+      )
+    );
+    expect(derived.map((c) => c.on)).toEqual(["fail", "pass", "always"]);
+  });
+
+  it("skips the branches no phase resolves rather than treating them as failures", () => {
+    // Min and tie are real in the corpus's vocabulary and unreal in the
+    // resolution pipeline. Folding them into `fail` would apply damage on a
+    // verdict the page never promised it on — and it would look correct.
+    const block = [
+      "- Fail: Damage: 3d10 Cold",
+      "- Min: Damage: 1d10 Cold",
+      "- Tie: Condition: Slowed, 1 round",
+    ].join("\n");
+    expect(stepsOf(block).map((s) => s.branch)).toEqual(["fail", "min", "tie"]);
+    expect(consequencesFromSteps(stepsOf(block)).map((c) => c.id)).toEqual(["dmg-0"]);
+  });
+
+  it("carries the half-on-success rider the page declared", () => {
+    const derived = consequencesFromSteps(stepsOf(PSYCHIC_SCREAM_BLOCK));
+    const damage = derived.find((c) => c.kind === "damage")!;
+    expect(damage).toMatchObject({ expr: "2d8", damageType: "Psychic", half: true, on: "always" });
+  });
+
+  it("leaves damage whole when the page promises nothing on a success", () => {
+    // `half: undefined`, not `false` — the grammar only sets the flag when the
+    // author writes ", half on success", and inventing `false` here would be a
+    // second place that decides what silence means.
+    expect(consequencesFromSteps(stepsOf(HAIL_RAIN_BLOCK))[0].half).toBeUndefined();
+  });
+
+  it("reads a declared heal as healing rather than as damage", () => {
+    const derived = consequencesFromSteps(stepsOf("- Heal: 2d8"));
+    expect(derived).toHaveLength(1);
+    expect(derived[0]).toMatchObject({ id: "heal-0", kind: "heal", expr: "2d8", on: "always", label: "Heal 2d8" });
+    expect(derived[0].damageType).toBeUndefined();
+  });
+
+  it("keeps the rounds a declared condition names", () => {
+    expect(consequencesFromSteps(stepsOf("- Fail: Condition: Slowed, 2 rounds"))[0]).toMatchObject({
+      kind: "condition",
+      condition: "Slowed",
+      rounds: 2,
+    });
+  });
+
+  it("leaves a condition undated when the page gives it no rounds", () => {
+    // Antheosis declares `Fail: Condition: Frightened` with no clock on it. A
+    // duration invented here would print a countdown the page never wrote.
+    const derived = consequencesFromSteps(stepsOf(genusBlock("Eldritch", "Antheosis")));
+    expect(derived.find((c) => c.kind === "condition")).toMatchObject({
+      condition: "Frightened",
+      rounds: undefined,
+      label: "On fail · Frightened",
+    });
+  });
+
+  it("leaves a non-round duration off the pip rather than mislabelling it", () => {
+    // A scene is a real duration and not a number of rounds. `rounds` is what
+    // the tag prints, so filling it from a scene would put "(1)" on a pip that
+    // lasts all encounter.
+    const derived = consequencesFromSteps(stepsOf("- Fail: Condition: Blinded, scene"));
+    expect(derived[0].rounds).toBeUndefined();
+    expect(derived[0].label).toBe("On fail · Blinded · scene");
+  });
+
+  it("does not read a duration in minutes as that many rounds", () => {
+    // The dangerous half of the same rule: `minutes` carries a `count` exactly
+    // as `rounds` does, so a guard that read the count instead of the KIND would
+    // pass every scene-duration test and still print "Blinded (10)" for ten
+    // minutes — a countdown ten times shorter than the page wrote.
+    const derived = consequencesFromSteps(stepsOf("- Fail: Condition: Blinded, 10 minutes"));
+    expect(derived[0].rounds).toBeUndefined();
+    expect(conditionTag(derived[0])).toBe("Blinded");
+    expect(derived[0].label).toBe("On fail · Blinded · 10 min");
+  });
+
+  it("does not read a Modify in minutes as that many rounds either", () => {
+    // Same guard, second copy of it — the Modify branch computes `rounds` on its
+    // own line, so proving the Condition branch proves nothing about this one.
+    const derived = consequencesFromSteps(
+      stepsOf("- Fail: Modify (target): Disadvantage on Physical Check — Density, 10 minutes")
+    );
+    expect(derived[0].rounds).toBeUndefined();
+    expect(conditionTag(derived[0])).toBe("Disadv: Physical Check — Density");
+  });
+
+  it("turns a declared roll penalty into a tag a table can see", () => {
+    // A Modify is a condition as far as the token is concerned: the table wants
+    // a pip saying which route is hobbled and for how long.
+    const derived = consequencesFromSteps(stepsOf(BLINDING_RADIANCE_BLOCK));
+    expect(derived.filter((c) => c.kind === "condition").map((c) => ({ id: c.id, condition: c.condition, rounds: c.rounds }))).toEqual([
+      { id: "mod-3", condition: "Disadv: Mental Save — Perception", rounds: 2 },
+      { id: "mod-4", condition: "Disadv: Physical Check — Density", rounds: 2 },
+    ]);
+    expect(conditionTag(derived.find((c) => c.id === "mod-3")!)).toBe("Disadv: Mental Save — Perception (2)");
+  });
+
+  it("names the direction a Modify moves the roll", () => {
+    expect(consequencesFromSteps(stepsOf("- Modify (target): Advantage on Physical Check — Density"))[0]).toMatchObject({
+      condition: "Adv: Physical Check — Density",
+      rounds: undefined,
+    });
+  });
+
+  it("emits a ruling because the page declared one, on the branch it declared it", () => {
+    // The deriver never invents a ruling; an author may write one, and Decisive
+    // Grasp writes its whole payload as one — bound to the failure branch.
+    const derived = consequencesFromSteps(stepsOf(DECISIVE_GRASP_BLOCK));
+    expect(derived).toHaveLength(1);
+    expect(derived[0]).toMatchObject({ id: "rule-2", kind: "ruling", on: "fail" });
+    expect(derived[0].label).toMatch(/^the target is completely immobilized for 2 rounds/);
+    expect(derived[0].expr).toBeUndefined();
+  });
+
+  it("contributes nothing for the steps that resolve rather than land", () => {
+    // Cost is the caster's price, and Roll and Save are the resolution the card
+    // is waiting on — a card that offered them as consequences would ask the
+    // Curator to apply the question rather than the answer.
+    const block = [
+      "- Cost: 5 SS",
+      "- Roll: Mental Check — Capacity, DV 12",
+      "- Save: Physical Save — Evasion, DV 18",
+    ].join("\n");
+    expect(stepsOf(block).map((s) => s.verb)).toEqual(["cost", "roll", "save"]);
+    expect(consequencesFromSteps(stepsOf(block))).toEqual([]);
+  });
+
+  it("keeps the caster's own price off the target's card", () => {
+    // PSYCHIC SCREAM declares `Damage (self): 1d4 Psychic` one bullet below the
+    // 2d8 it deals. Both landing on a card bound to the target would charge them
+    // for being screamed at — the same rule the prose deriver has always held.
+    expect(PSYCHIC_SCREAM_BLOCK).toMatch(/Damage \(self\): 1d4/);
+    const derived = consequencesFromSteps(stepsOf(PSYCHIC_SCREAM_BLOCK));
+    expect(derived.some((c) => c.expr === "1d4")).toBe(false);
+    expect(derived.map((c) => c.id)).toEqual(["dmg-2", "cond-3", "rule-5"]);
+  });
+
+  it("proposes nothing for a block with no steps at all", () => {
+    expect(consequencesFromSteps([])).toEqual([]);
+  });
 });
 
 function open(over: Partial<PendingOutcome> = {}): PendingOutcome {
@@ -236,6 +493,80 @@ describe("opening an outcome", () => {
         ttlMs: 250,
       }).expiresAt
     ).toBe(1_250);
+  });
+});
+
+describe("a declared block supersedes the prose deriver", () => {
+  /** The same outcome, opened with and without the ability's declared steps. */
+  function opened(steps?: readonly EffectStep[] | null) {
+    return openOutcome({
+      id: "o-precedence",
+      sourceAbilityId: "wte.cipher.psychic-scream",
+      sourceAbilityName: "PSYCHIC SCREAM",
+      effect: PSYCHIC_SCREAM,
+      targetName: "Kira",
+      rollLabel: "Mental Save — Influence",
+      now: 1_000,
+      steps,
+    });
+  }
+
+  it("reads the block and does not also read the prose beside it", () => {
+    // PSYCHIC SCREAM's prose and its block describe the SAME 2d8 and the SAME
+    // Stunned. Letting both answer puts two damage buttons on one card, and a
+    // table applies 4d8 to a target the page charged 2d8.
+    const declared = opened(stepsOf(PSYCHIC_SCREAM_BLOCK));
+    expect(declared.consequences).toEqual(consequencesFromSteps(stepsOf(PSYCHIC_SCREAM_BLOCK)));
+    expect(declared.consequences.filter((c) => c.kind === "damage")).toHaveLength(1);
+    // The prose deriver has no ruling to give; the block does, so its presence
+    // is proof of which reader answered.
+    expect(declared.consequences.some((c) => c.kind === "ruling")).toBe(true);
+    expect(consequencesFor(PSYCHIC_SCREAM).some((c) => c.kind === "ruling")).toBe(false);
+  });
+
+  it("takes the branch from the block even where the prose disagrees", () => {
+    // The prose says "or takes 2d8", which the deriver can only read as a
+    // failure. The block declares that damage on no branch at all — it happens,
+    // half on a success. Superseding is the difference between those readings.
+    expect(consequencesFor(PSYCHIC_SCREAM)[0].on).toBe("fail");
+    expect(opened(stepsOf(PSYCHIC_SCREAM_BLOCK)).consequences[0].on).toBe("always");
+  });
+
+  it("reads the prose exactly as before when the page declares nothing", () => {
+    // The invariant the whole arc rests on: an ability with no block behaves
+    // byte for byte as it did before the bridge existed. Absent, null and empty
+    // are all the same silence — an empty array is what a page with an
+    // unreadable block hands over, and it must not blank the card.
+    const prose = consequencesFor(PSYCHIC_SCREAM);
+    for (const steps of [undefined, null, [] as EffectStep[]]) {
+      expect(opened(steps).consequences).toEqual(prose);
+    }
+  });
+
+  it("changes nothing else about the outcome it opened", () => {
+    // Superseding is about the consequences and nothing more: the same card,
+    // the same window, the same pending verdict either way.
+    //
+    // `fromBlock` is the one exception, and it is not an exception at all: it
+    // records WHICH of the two sides opened this card, so the surfaces that
+    // must tell them apart can. Comparing it here would only assert that the
+    // flag does not work.
+    const declared = opened(stepsOf(PSYCHIC_SCREAM_BLOCK));
+    const derived = opened();
+    expect(declared.fromBlock).toBe(true);
+    expect(derived.fromBlock).toBe(false);
+    const shape = (outcome: PendingOutcome) => ({ ...outcome, consequences: [], fromBlock: false });
+    expect(shape(declared)).toEqual(shape(derived));
+  });
+
+  it("still supersedes with a block that declares no consequences at all", () => {
+    // A block of nothing but Cost and Save yields an empty card, and that is
+    // the honest answer: the author said what happens, and none of it lands on
+    // the target. Falling back to the prose here would let the deriver overrule
+    // a page that had already spoken.
+    const steps = stepsOf("- Cost: 50 SS\n- Save: Mental Save — Influence, DV 14");
+    expect(steps).toHaveLength(2);
+    expect(opened(steps).consequences).toEqual([]);
   });
 });
 
@@ -366,6 +697,30 @@ describe("the outcome ledger store", () => {
     replaceOutcome("table", markApplied(open({ id: "a" }), "dmg-0"));
     expect(listOutcomes("table").map((o) => o.id)).toEqual(["b", "a"]);
     expect(listOutcomes("table")[1].applied).toEqual(["dmg-0"]);
+  });
+
+  // Two consequences committed from ONE snapshot — which is what auto-apply
+  // does, and what a Curator clicking twice never does, because a re-render puts
+  // a fresh card in their hands between the clicks. Folding the second id into
+  // the stale snapshot would put back a card that had forgotten the first, and
+  // the forgotten row comes back armed with its roll still on screen.
+  it("accumulates applied marks even when the caller holds a stale card", () => {
+    const stale = open({ id: "a" });
+    pushOutcome("table", stale);
+    markOutcomeApplied("table", "a", "dmg-0");
+    markOutcomeApplied("table", "a", "cond-1");
+    expect(stale.applied).toEqual([]);
+    expect(listOutcomes("table")[0].applied).toEqual(["dmg-0", "cond-1"]);
+  });
+
+  it("ignores a mark for a card that is already gone, and one already made", () => {
+    pushOutcome("table", open({ id: "a" }));
+    markOutcomeApplied("table", "ghost", "dmg-0");
+    markOutcomeApplied("table", "a", "dmg-0");
+    const once = listOutcomes("table")[0];
+    markOutcomeApplied("table", "a", "dmg-0");
+    expect(listOutcomes("table")[0]).toBe(once);
+    expect(once.applied).toEqual(["dmg-0"]);
   });
 
   it("ignores a replace for a card that is already gone", () => {

@@ -84,6 +84,18 @@ describe("campaign rules", () => {
     expect(validateSheet(walls, zeroS, sheetCaps(loadRules("c1"))).errors.join(" ")).toContain("140/70");
   });
 
+  it("leaves auto-apply off until a table asks for it, whatever the blob says", () => {
+    // Confirm-each is the published behaviour, so absence means OFF and only a
+    // literal `true` turns it on — an older blob, a hand-edited one, and a
+    // truthy-but-not-true value all have to land on the same answer.
+    expect(loadRules("c1").autoApplyDeclared).toBe(false);
+    expect(parseRules({}).autoApplyDeclared).toBe(false);
+    expect(parseRules({ autoApplyDeclared: "yes" } as never).autoApplyDeclared).toBe(false);
+    saveRules("c1", { ...loadRules("c1"), autoApplyDeclared: true });
+    expect(loadRules("c1").autoApplyDeclared).toBe(true);
+    expect(loadRules("c2").autoApplyDeclared).toBe(false);
+  });
+
   it("reports the budget state the creator shows", () => {
     const on = { ...DEFAULT_RULES, attrBudget: true, attrBudgetPoints: 70 };
     expect(attrBudgetState(64, on)).toMatchObject({ enforced: true, remaining: 6, over: false });

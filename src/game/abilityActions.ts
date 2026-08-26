@@ -9,6 +9,7 @@
 //   • save   — a resolution the TARGET makes, with its DC (shown, not armed)
 
 import { isRestorativeAt } from "./abilityDamage";
+import { scanLegacyHybrids, translateLegacyStat } from "./legacyVocabulary";
 
 export type AbilityActionKind = "self" | "damage" | "save";
 
@@ -112,6 +113,54 @@ function isSelfCost(before: string): boolean {
   return !!m && !m[1];
 }
 
+/**
+ * The Roll Axis route behind a bare stat word, when one exists.
+ *
+ * The Incept pool and parts of the species pages were authored before Roll Axis
+ * and name their rolls the old way — "Dexterity Saving Throws", "roll Wisdom",
+ * "Mental Fortitude Checks". Those matched `stat` and nothing else, so an
+ * Incept's roll reached a d20 with no path, no derived modifier and no DV
+ * keying, while a Genus page saying the same thing in today's words got all
+ * three. Asking the dictionary here closes that gap for the prose as authored.
+ *
+ * `undefined` is the honest answer for a word with no route — the legacy
+ * vocabulary refuses "Wisdom Saving Throw" because Capacity has no save. The
+ * action keeps its bare stat and its d20 rather than being slid onto whichever
+ * neighbouring path does happen to have that direction.
+ */
+function legacyAxis(stat: string, direction: AbilityRollDirection): AbilityRollAxisRef | undefined {
+  const translation = translateLegacyStat(stat, direction);
+  return translation?.ok ? translation.route.ref : undefined;
+}
+
+/**
+ * Who the sentence says is rolling, read from the clause in front of a
+ * resolution phrase — `null` when it names nobody.
+ *
+ * Shared by the two scanners that read a path phrase, because they must agree:
+ * a `Physical Save — Evasion` and a `Physical Save - Dexterity` are the same
+ * sentence in two vocabularies, and a subject rule that lived in only one of
+ * them let the other arm dice for prose that rolls nothing.
+ */
+function rollingSubject(text: string, index: number): "target" | "self" | null {
+  const clauseStart = Math.max(
+    text.lastIndexOf(".", index - 1),
+    text.lastIndexOf(";", index - 1),
+    text.lastIndexOf("·", index - 1)
+  );
+  const before = text.slice(Math.max(clauseStart + 1, index - 100), index);
+  if (/\b(?:the\s+target|target|they|the\s+creature|creatures|opponent|unwilling\s+creatures?)\b[^.;·]{0,75}\b(?:rolls?|makes?|with|using|repeat(?:s)?)\s+(?:an?\s+)?$/i.test(before)) return "target";
+  if (/\b(?:you|your\s+character|the\s+inquisitor)\b[^.;·]{0,75}\b(?:rolls?|makes?)\s+(?:an?\s+)?$/i.test(before)) return "self";
+  return null;
+}
+
+/** Which side a path roll belongs to. Absent a named subject the pages' own
+ *  convention decides: a Check is the acting character's, a Save is asked of
+ *  whoever the ability is aimed at. */
+function axisKind(subject: "target" | "self" | null, direction: AbilityRollDirection): AbilityActionKind {
+  return subject === "target" ? "save" : subject === "self" ? "self" : direction === "check" ? "self" : "save";
+}
+
 /** Chip-sized names for the modifier terms DV expressions actually use. */
 function shortStat(term: string): string {
   return term
@@ -151,7 +200,12 @@ function parseAbilityActionsUncached(text: string): AbilityAction[] {
     // A stat word that IS a Roll Axis path name, arriving after that path was
     // already parsed in full, is a back-reference ("If the Perception Save
     // fails…"), not a second roll.
-    if (!a.rollAxis && stat && out.some((prior) => prior.rollAxis && prior.rollAxis.path === stat)) return;
+    //
+    // "Parsed in full" means an axis PHRASE — `Mental Save — Perception`, which
+    // carries a route and no stat word. Two readings of one bare stat word are
+    // the opposite case: "the target makes a Perception Save (DC 14)" reaches
+    // here twice, and dropping the second loses the DC it came back with.
+    if (stat && out.some((prior) => prior.rollAxis && !prior.stat && prior.rollAxis.path === stat)) return;
     const k = a.kind === "damage"
       ? `${a.kind}|${a.expr ?? a.label}|${a.damageType ?? ""}`
       : a.rollAxis
@@ -224,19 +278,12 @@ function parseAbilityActionsUncached(text: string): AbilityAction[] {
     // Explicit subject wording wins. Without one, Checks are made by the
     // acting character and Saves by the target, which is how Resolution pairs
     // such as "Mental Check — Capacity vs Physical Save — Evasion" are written.
-    const clauseStart = Math.max(
-      text.lastIndexOf(".", ar.index - 1),
-      text.lastIndexOf(";", ar.index - 1),
-      text.lastIndexOf("·", ar.index - 1)
-    );
-    const before = text.slice(Math.max(clauseStart + 1, ar.index - 100), ar.index);
-    const targetSubject = /\b(?:the\s+target|target|they|the\s+creature|creatures|opponent|unwilling\s+creatures?)\b[^.;·]{0,75}\b(?:rolls?|makes?|with|using|repeat(?:s)?)\s+(?:an?\s+)?$/i.test(before);
-    const selfSubject = /\b(?:you|your\s+character|the\s+inquisitor)\b[^.;·]{0,75}\b(?:rolls?|makes?)\s+(?:an?\s+)?$/i.test(before);
+    const subject = rollingSubject(text, ar.index);
     // A plural mention with no rolling subject is penalty/reference prose
     // ("disadvantage on Physical Saves — Evasion") — recorded in axisRanges so
     // the broad scanners skip it, but it is not itself a roll anyone makes.
-    if (plural && !targetSubject && !selfSubject) continue;
-    const kind: AbilityActionKind = targetSubject ? "save" : selfSubject ? "self" : direction === "check" ? "self" : "save";
+    if (plural && !subject) continue;
+    const kind: AbilityActionKind = axisKind(subject, direction);
     // The updated pages write DVs three ways: fixed ("DV 13"), fixed plus a
     // named modifier ("DV 13 + Neuronal Capacity Modifier"), and rolled
     // ("each against a d40 Dice Value"). The window spans "and a Mental Save
@@ -261,6 +308,53 @@ function parseAbilityActionsUncached(text: string): AbilityAction[] {
     const label = `${ar[1]} ${word} — ${ar[3]}${dvText ? ` · ${dvText}` : ""}`;
     push({ kind, label, rollAxis: { axis, direction, path }, dc, dcBonus, dcDie });
   }
+  // ── The hybrid form: `Perception Save - Intelligence` ──
+  // A Roll Axis head with a legacy statistic where the path name belongs. The
+  // scanner above will not touch it (Intelligence is not a path) and the broad
+  // stat scanners below read only its head, so until now these sentences armed
+  // nothing. The dictionary checks the two halves against each other and
+  // refuses the contradictions, which is why nothing here needs to pick a
+  // winner between them.
+  //
+  // A modern `Mental Check — Capacity` is itself a hybrid whose tail happens to
+  // be a path name, so the scanner above sees every one of them too. Where it
+  // did, that reading stands and this one is skipped — one span, one chip.
+  //
+  // Everything the scanner above weighs applies here unchanged, because the two
+  // are the same sentence in two vocabularies: "Disadvantage on Physical Saves
+  // - Dexterity" is penalty prose for exactly the reason "Physical Saves —
+  // Evasion" is, and reading it as a roll put a save chip on an ability nobody
+  // rolls a save for.
+  const modernSpans = axisRanges.slice();
+  for (const hybrid of scanLegacyHybrids(text)) {
+    if (modernSpans.some((range) => hybrid.index < range.end && hybrid.end > range.start)) continue;
+    if (!hybrid.translation.ok) {
+      // A hybrid whose halves contradict each other is claimed anyway, so the
+      // broad scanners below cannot read its head alone: "Physical Check -
+      // Wisdom" would arm a bare Physical roll, which is precisely the half of
+      // the author's sentence this refuses to choose. Every other refusal
+      // leaves the span alone — there the head is a phrase in its own right and
+      // only the qualifier is unresolved.
+      if (hybrid.translation.refusal.code === "contradictory-hybrid") {
+        axisRanges.push({ start: hybrid.index, end: hybrid.end });
+      }
+      continue;
+    }
+    // Claimed before the penalty test, exactly as the axis scanner claims its
+    // own: a span nobody rolls is still a span nobody may re-read as a bare
+    // "Physical save" a moment later.
+    axisRanges.push({ start: hybrid.index, end: hybrid.end });
+    const subject = rollingSubject(text, hybrid.index);
+    if (hybrid.plural && !subject) continue;
+    const route = hybrid.translation.route;
+    push({
+      kind: axisKind(subject, hybrid.direction),
+      label: route.label,
+      ...(hybrid.direction === "check" ? { expr: "1d20" } : {}),
+      rollAxis: route.ref,
+    });
+  }
+
   const overlapsAxisPhrase = (index: number, length: number) =>
     axisRanges.some((range) => index < range.end && index + length > range.start);
 
@@ -268,7 +362,7 @@ function parseAbilityActionsUncached(text: string): AbilityAction[] {
   // "opposed Inspiration + Influence Check" → the character rolls Inspiration.
   const opposed = new RegExp(`opposed\\s+(${STAT_WORDS})(?:\\s*\\+\\s*(${STAT_WORDS}))?\\s+(?:Skill\\s+)?Check`, "i").exec(text);
   if (opposed) {
-    push({ kind: "self", label: `${opposed[1]} check`, expr: "1d20", stat: opposed[1] });
+    push({ kind: "self", label: `${opposed[1]} check`, expr: "1d20", stat: opposed[1], rollAxis: legacyAxis(opposed[1], "check") });
   }
   // "roll a d20 + Ode Level", "d20 + Code Level" → a flat level-scaled d20.
   if (/\bd20\s*\+\s*(?:ode|code|rank)\b/i.test(text)) {
@@ -284,36 +378,53 @@ function parseAbilityActionsUncached(text: string): AbilityAction[] {
   let sr: RegExpExecArray | null;
   while ((sr = selfRollRe.exec(text))) {
     if (overlapsAxisPhrase(sr.index, sr[0].length)) continue;
-    push({ kind: "self", label: `${sr[1]} check`, expr: "1d20", stat: sr[1] });
+    push({ kind: "self", label: `${sr[1]} check`, expr: "1d20", stat: sr[1], rollAxis: legacyAxis(sr[1], "check") });
   }
   const targetRollRe = new RegExp(
-    `\\b(?:the\\s+target|target|they|the\\s+creature|opponent)\\b[^.;]{0,45}?\\b(?:roll|rolls|make|makes)\\s+(?:an?\\s+)?(${STAT_WORDS})(?:\\s+(?:roll|check|save))?`,
+    `\\b(?:the\\s+target|target|they|the\\s+creature|opponent)\\b[^.;]{0,45}?\\b(?:roll|rolls|make|makes)\\s+(?:an?\\s+)?(${STAT_WORDS})(?:\\s+(roll|check|save))?`,
     "gi"
   );
   let tr: RegExpExecArray | null;
   while ((tr = targetRollRe.exec(text))) {
     if (overlapsAxisPhrase(tr.index, tr[0].length)) continue;
-    push({ kind: "save", label: `${tr[1]} save`, stat: tr[1] });
+    // The sentence's own word decides the direction: a target may be made to
+    // roll a CHECK ("the target makes an Intelligence Check") as easily as a
+    // save, and the two land on different paths. Absent a word, a resolution
+    // forced on someone else is a save.
+    const direction: AbilityRollDirection = /^check$/i.test(tr[2] || "") ? "check" : "save";
+    push({ kind: "save", label: `${tr[1]} ${direction}`, stat: tr[1], rollAxis: legacyAxis(tr[1], direction) });
   }
   const forcedRollRe = new RegExp(`\\bforced\\s+(${STAT_WORDS})\\s+Roll`, "gi");
   let fr: RegExpExecArray | null;
   while ((fr = forcedRollRe.exec(text))) {
-    push({ kind: "save", label: `${fr[1]} save`, stat: fr[1] });
+    push({ kind: "save", label: `${fr[1]} save`, stat: fr[1], rollAxis: legacyAxis(fr[1], "save") });
   }
 
   // ── Target saves / checks with a DC: "Endurance Save (DC 18)", "Wisdom Save DC 16" ──
-  const saveRe = new RegExp(`(${STAT_WORDS})\\s+(?:Saving Throw|Save|Check)(?:[^.]*?DC\\s*(\\d+))?`, "gi");
+  const saveRe = new RegExp(`(${STAT_WORDS})\\s+(Saving Throw|Save|Check)(?:[^.]*?DC\\s*(\\d+))?`, "gi");
   let sv: RegExpExecArray | null;
   while ((sv = saveRe.exec(text))) {
     if (overlapsAxisPhrase(sv.index, sv[0].length)) continue;
     const stat = sv[1];
-    const dc = sv[2] ? parseInt(sv[2], 10) : undefined;
+    const dc = sv[3] ? parseInt(sv[3], 10) : undefined;
     const pre = text.slice(Math.max(0, sv.index - 40), sv.index).toLowerCase();
     if (/\bopposed\b/.test(pre)) continue; // part of an opposed pair, already handled
+    // WHO rolls and WHICH WAY are separate questions here. The surrounding
+    // sentence names the roller; the word "Check" or "Save" names the
+    // direction, and a character may well roll a Check on themselves against a
+    // DC. Reading direction off the kind instead would send every self-rolled
+    // "Dexterity Saving Throw" down a check path Evasion does not have.
+    //
+    // The chip is named after the direction for the same reason. A button that
+    // reads "Dexterity check" while it arms Physical Save — Evasion tells the
+    // table the wrong statistic AND the wrong modifier, and the page it came
+    // from said "Saving Throws" all along.
+    const direction: AbilityRollDirection = /^check$/i.test(sv[2]) ? "check" : "save";
+    const rollAxis = legacyAxis(stat, direction);
     if (/\b(you|your|roll a?|make an?|the inquisitor)\b/.test(pre)) {
-      push({ kind: "self", label: `${stat} check`, expr: "1d20", stat });
+      push({ kind: "self", label: `${stat} ${direction}`, expr: "1d20", stat, rollAxis });
     } else {
-      push({ kind: "save", label: dc != null ? `${stat} save · DC ${dc}` : `${stat} save`, stat, dc });
+      push({ kind: "save", label: dc != null ? `${stat} ${direction} · DC ${dc}` : `${stat} ${direction}`, stat, dc, rollAxis });
     }
   }
 

@@ -99,6 +99,40 @@ describe("campaign Codex wire validation", () => {
     expect(parseCampaignCodexSnapshot(tampered, CAMPAIGN_ID)).toBeNull();
   });
 
+  it("keeps a new rule at its published default out of the revision", () => {
+    // A mixed-version table is the whole point. A build that has never heard of
+    // autoApplyDeclared hashes rules without it; this build hashes the same
+    // table's rules WITH it, and if the field counted at its default the two
+    // would compute different revisions for identical content and each would
+    // reject the other's snapshot.
+    const pages = [page()];
+    const older = { ...DEFAULT_RULES } as Partial<CampaignRules>;
+    delete older.autoApplyDeclared;
+    expect(campaignCodexRevision(pages, older as CampaignRules)).toBe(
+      campaignCodexRevision(pages, DEFAULT_RULES)
+    );
+
+    // Switched ON it must move — an older build cannot represent that state, and
+    // a table running it is genuinely playing a different game.
+    expect(campaignCodexRevision(pages, { ...DEFAULT_RULES, autoApplyDeclared: true })).not.toBe(
+      campaignCodexRevision(pages, DEFAULT_RULES)
+    );
+  });
+
+  it("accepts a snapshot from a host too old to name the rule, and one that switched it on", () => {
+    const older = structuredClone(snapshot());
+    const olderRules: Partial<CampaignRules> = older.rules;
+    delete olderRules.autoApplyDeclared;
+    // Parsed back as OFF, which is what that host is actually running.
+    expect(parseCampaignCodexSnapshot(older, CAMPAIGN_ID)?.rules.autoApplyDeclared).toBe(false);
+
+    const on = snapshot({ rules: { ...DEFAULT_RULES, autoApplyDeclared: true } });
+    expect(parseCampaignCodexSnapshot(on, CAMPAIGN_ID)?.rules.autoApplyDeclared).toBe(true);
+
+    const junk = { ...snapshot(), rules: { ...DEFAULT_RULES, autoApplyDeclared: "sure" } };
+    expect(parseCampaignCodexSnapshot(junk, CAMPAIGN_ID)).toBeNull();
+  });
+
   it("rejects curator-only content even when the sender recomputes its revision", () => {
     const curatorPage = page({ visibility: "curator", content: "# Curator Notes\n\nSecret." });
     const raw = snapshot({ pages: [curatorPage] });

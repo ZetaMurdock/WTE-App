@@ -306,6 +306,10 @@ export function campaignCodexRevision(
     // represent that state, and refusing it is correct).
     const hashed: Record<string, unknown> = { ...parseRules(rules) };
     if (hashed.paradigmAffinity === true) delete hashed.paradigmAffinity;
+    // Same treatment, opposite default: autoApplyDeclared publishes OFF, so a
+    // table that never touched it must hash identically to a build that has
+    // never heard of it.
+    if (hashed.autoApplyDeclared === false) delete hashed.autoApplyDeclared;
     chunks.push(JSON.stringify(hashed));
   }
   chunks.push(JSON.stringify([...ruleLayers].sort((a, b) => a.id.localeCompare(b.id))));
@@ -473,7 +477,9 @@ function parseSnapshotRules(raw: unknown): CampaignRules | null {
     typeof value.specTotal !== "number" || !Number.isFinite(value.specTotal) ||
     typeof value.poolCompensation !== "boolean" ||
     // Optional on the wire: an older host's snapshot omits it (defaults ON).
-    (value.paradigmAffinity !== undefined && typeof value.paradigmAffinity !== "boolean")
+    (value.paradigmAffinity !== undefined && typeof value.paradigmAffinity !== "boolean") ||
+    // Likewise optional, defaulting OFF — an older host cannot express it.
+    (value.autoApplyDeclared !== undefined && typeof value.autoApplyDeclared !== "boolean")
   ) return null;
   const parsed = parseRules(value);
   // parseRules deliberately clamps damaged local storage. A network document is

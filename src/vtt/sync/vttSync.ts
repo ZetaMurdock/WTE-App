@@ -13,6 +13,7 @@ import { canAcceptSnapshot } from "./tokenPermissions";
 import { validateMoveAuthority } from "./moveAuthority";
 import { pushToast } from "../../lib/appToast";
 import { MAX_VTT_SNAPSHOT_CHARS, vttSnapshotChars, vttSnapshotFits } from "./wireBudget";
+import { MAX_CONDITION_CLOCKS } from "../engine/systems/ConditionClockSystem";
 
 type PatchMsg = Extract<NetMessage, { t: "vtt-patch" }>;
 type SnapMsg = Extract<NetMessage, { t: "snapshot" }>;
@@ -50,6 +51,18 @@ const validSnapshotDrawing = (value: unknown): boolean => {
     boundedString(value.color, 32) && finiteNumber(value.width) && value.width >= 0.25 && value.width <= 100;
 };
 
+/** Condition clocks are a peer-supplied countdown against a peer-supplied tag.
+ *  A bornRound of NaN or a negative duration would make `bornRound + rounds`
+ *  meaningless and the clock either immortal or already expired, so a malformed
+ *  entry costs the whole snapshot rather than poisoning the scene it lands in.
+ *  `status` shares the 80-char ceiling the token status sanitizer enforces —
+ *  a clock can only ever match a tag a token is allowed to carry. */
+const validSnapshotConditionClock = (value: unknown): boolean =>
+  isRecord(value) && shortId(value.tokenId) && boundedString(value.status, 80) && (value.status as string).length > 0 &&
+  Number.isSafeInteger(value.bornRound) && Number(value.bornRound) >= 0 &&
+  Number.isSafeInteger(value.rounds) && Number(value.rounds) >= 1 && Number(value.rounds) <= 100_000 &&
+  (value.potency === undefined || finiteNumber(value.potency));
+
 /** Reject malformed snapshots before they reach persistence or the renderer. */
 export function isVttSceneSnapshot(value: unknown): value is VttScene {
   if (!isRecord(value) || !shortId(value.id) || !shortId(value.campaignId) || typeof value.name !== "string" || value.name.length > 512) return false;
@@ -86,6 +99,7 @@ export function isVttSceneSnapshot(value: unknown): value is VttScene {
   if (data.emitters !== undefined && (!boundedArray(data.emitters, 2_000) || !data.emitters.every(validSnapshotEmitter))) return false;
   if (data.links !== undefined && (!boundedArray(data.links, 10_000) || !data.links.every(validSnapshotLink))) return false;
   if (data.drawings !== undefined && (!boundedArray(data.drawings, 500) || !data.drawings.every(validSnapshotDrawing))) return false;
+  if (data.conditionClocks !== undefined && (!boundedArray(data.conditionClocks, MAX_CONDITION_CLOCKS) || !data.conditionClocks.every(validSnapshotConditionClock))) return false;
   if (data.terrain !== undefined && data.terrain !== null) {
     if (!isRecord(data.terrain) || !boundedArray(data.terrain.heights, Number(grid.cols) * Number(grid.rows))) return false;
     if (!data.terrain.heights.every(finiteNumber) || !finiteNumber(data.terrain.maxCells)) return false;

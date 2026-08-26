@@ -37,6 +37,7 @@ import { EffectSystem } from "./systems/EffectSystem";
 import { TimelineSystem } from "./systems/TimelineSystem";
 import { SimulationSystem } from "./systems/SimulationSystem";
 import { EncounterSystem } from "./systems/EncounterSystem";
+import { ConditionClockSystem } from "./systems/ConditionClockSystem";
 import {
   newId,
   TOKEN_COLORS,
@@ -96,7 +97,8 @@ export class PixiVttApp {
   readonly effectSystem = new EffectSystem();
   readonly timeline = new TimelineSystem();
   readonly sim = new SimulationSystem();
-  readonly encounterSystem = new EncounterSystem(this.timeline, this.sim);
+  readonly conditions = new ConditionClockSystem();
+  readonly encounterSystem = new EncounterSystem(this.timeline, this.sim, this.conditions);
 
   scene: VttScene | null = null;
   tool: VttTool = "select";
@@ -236,6 +238,10 @@ export class PixiVttApp {
 
   setScene(scene: VttScene): void {
     this.scene = scene;
+    // A scene arriving from disk or a peer may carry clocks for tokens it no
+    // longer has (deleted while the map was closed, or dropped by the sender's
+    // own edit). Left in place they would tick against ids that do not exist.
+    this.pruneConditionClocks();
     if (!this.ready) return;
     this.app.stage.visible = true;
     this.camera.set(scene.data.camera);
@@ -757,6 +763,7 @@ export class PixiVttApp {
     if (kind === "emitter") d.emitters = (d.emitters ?? []).filter((x) => x.id !== id);
     if (kind === "effect") d.effects = d.effects.filter((x) => x.id !== id);
     this.select(null);
+    if (kind === "token") this.conditions.prune(d);
     this.onChanged();
     if (kind === "token") this.onOp({ op: "token.remove", id });
     else if (kind === "wall") this.onOp({ op: "wall.remove", id });
@@ -1054,6 +1061,37 @@ export class PixiVttApp {
     this.onOp({ op: "token.update", id, patch: safe });
     return true;
   }
+  /**
+   * A condition landing on a body, with the clock the ability declared.
+   *
+   * The tag itself goes through `adjudicateTokenVitals` — the same authorised
+   * write damage takes — and the clock is stored only once that write comes back
+   * authorised. A refused application therefore leaves no countdown behind for a
+   * condition nobody is carrying.
+   *
+   * A second application of a condition already present is not this method's
+   * decision: `ConditionClockSystem.plan` reads the Stacking rule off the
+   * condition's own Codex page. Returns whether the application landed.
+   */
+  applyTokenCondition(input: { tokenId: string; status: string; rounds?: number; potency?: number }): boolean {
+    if (!this.scene || this.playerView) return false;
+    const plan = this.conditions.plan(this.scene.data, { ...input, round: this.scene.data.timeline.round });
+    if (!plan) return false;
+    if (!this.adjudicateTokenVitals(input.tokenId, { statuses: plan.statuses })) return false;
+    if (plan.clocks.length) this.scene.data.conditionClocks = plan.clocks;
+    else delete this.scene.data.conditionClocks;
+    this.onChanged();
+    return true;
+  }
+  /** Drop clocks whose token or tag is gone. Host-side bookkeeping: a player's
+   *  client is told about the removal by the ordinary token.update that carries
+   *  the pip, and never keeps a clock of its own. */
+  pruneConditionClocks(): boolean {
+    if (!this.scene || this.playerView) return false;
+    if (!this.conditions.prune(this.scene.data)) return false;
+    this.onChanged();
+    return true;
+  }
   /** Explicit Curator recovery path for a mistaken/stale ownership binding.
    * Ordinary Curator input still cannot move, edit, or remove another player's
    * token; only this separately-confirmed identity operation bypasses it. */
@@ -1087,8 +1125,17 @@ export class PixiVttApp {
     if (!this.scene || this.playerView) return;
     const prevRound = this.scene.data.timeline.round;
     this.scene.data.timeline = { round, turn };
+    // Round 0 is the encounter ending. The next one counts from 1 again, so a
+    // clock still holding an absolute expiry from this fight has to be re-anchored
+    // here or it rides into the next fight with rounds it already spent.
+    if (round === 0 && prevRound > 0) this.conditions.restart(this.scene.data, prevRound);
     if (round !== prevRound && round > 0) {
-      const changed = this.encounterSystem.onRound(this.scene.data, round, this.scene.data.grid.size);
+      const changed = this.encounterSystem.onRound(
+        this.scene.data,
+        round,
+        this.scene.data.grid.size,
+        (tokenId, statuses) => this.adjudicateTokenVitals(tokenId, { statuses })
+      );
       if (changed) this.redraw();
     }
     this.onChanged();
@@ -1110,6 +1157,7 @@ export class PixiVttApp {
     }
     const changed = applyOp(this.scene.data, op);
     if (!changed) return false;
+    if (op.op === "token.remove") this.conditions.prune(this.scene.data);
     // If the selected entity was removed remotely, drop the stale selection.
     if (op.op.endsWith(".remove") && this.selection && "id" in op && this.selection.id === op.id) {
       this.select(null);
