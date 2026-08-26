@@ -10,6 +10,7 @@ import { SimulationSystem } from "./SimulationSystem";
 import { ConditionClockSystem, type ConditionVitalsWriter } from "./ConditionClockSystem";
 import { RecurringEffectSystem, type RecurringProposal } from "./RecurringEffectSystem";
 import { dropOrphanAuras, reanchorAuras } from "./AuraSystem";
+import { resumeSuspended } from "./effectSuspension";
 
 /** Hands the round's recurring proposals to whoever opens Resolution Cards.
  *  Nothing in this system applies one — see RecurringEffectSystem's header. */
@@ -34,6 +35,11 @@ export class EncounterSystem {
     write: ConditionVitalsWriter,
     propose?: RecurringProposalSink
   ): boolean {
+    // Waking comes before all of it. The recurring pass, expiry and the zone
+    // pass each ask whether an effect is suspended, and a field that woke
+    // halfway through would get two answers in one round — most damagingly from
+    // expiry, which would remove the very effect this round handed back.
+    const woke = resumeSuspended(data, round);
     // Auras first, and orphans before that. Everything below asks WHERE an
     // effect is; a 15-ft aura still sitting on the square its caster left two
     // rounds ago would enumerate the wrong tokens for the tick, the zone status
@@ -59,6 +65,7 @@ export class EncounterSystem {
     // as a change: it guards a repeat of a round that proposed nothing, so a
     // redraw and a scene write would be spent on a number no reader can see.
     return (
+      woke.length > 0 ||
       orphaned.length > 0 ||
       moved.length > 0 ||
       proposals.length > 0 ||

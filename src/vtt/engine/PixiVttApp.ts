@@ -69,6 +69,8 @@ import {
   type VttScene,
   type VttToken,
   type VttWall,
+  type VttCounterTrack,
+  type VttEffect,
 } from "../types/scene";
 import { applyOp, sanitizePlayerTokenUpdatePatch, sanitizeTokenUpdatePatch, sanitizeTokenVitalsPatch, type VttOp } from "../sync/patches";
 import { canControlToken as tokenControlAllowed } from "../sync/tokenPermissions";
@@ -857,6 +859,76 @@ export class PixiVttApp {
     this.onChanged();
     this.onOp({ op: "effect.remove", id: effectId });
     this.onOp({ op: "effect.add", effect });
+    return true;
+  }
+  /**
+   * Take placed effects off the scene — the `Tamper: end` half of the verb.
+   *
+   * Not `deleteSelected`: that removes whatever is SELECTED, one thing at a
+   * time, and a tamper acts on an effect the Curator picked off a list without
+   * ever selecting it. Returns how many actually went, so a caller never
+   * announces a field it did not remove.
+   */
+  removeEffects(ids: readonly string[]): number {
+    if (!this.scene || this.playerView || !ids.length) return 0;
+    const wanted = new Set(ids);
+    const data = this.scene.data;
+    const before = data.effects.length;
+    const gone: string[] = [];
+    data.effects = data.effects.filter((effect) => {
+      if (!wanted.has(effect.id)) return true;
+      gone.push(effect.id);
+      return false;
+    });
+    if (data.effects.length === before) return 0;
+    if (this.selection?.kind === "effect" && wanted.has(this.selection.id)) this.select(null);
+    this.redraw();
+    this.onChanged();
+    for (const id of gone) this.onOp({ op: "effect.remove", id });
+    return gone.length;
+  }
+  /**
+   * Put effects on the scene exactly as given, replacing any that share an id.
+   *
+   * Synced as a remove + re-add per effect, the way `unbindAuraFrom` and
+   * `setEffectKind` sync and for the same reason: `effect.update` merges its
+   * patch with Object.assign over `data` alone, so it can carry neither a new
+   * `x`/`y` nor the DELETION of a key — an op is JSON, and JSON drops a field
+   * holding undefined on the way out. A peer handed `{ suspendedUntil:
+   * undefined }` receives `{}`, applies nothing, and goes on treating a woken
+   * field as asleep.
+   */
+  putEffects(effects: readonly VttEffect[]): boolean {
+    if (!this.scene || this.playerView || !effects.length) return false;
+    const data = this.scene.data;
+    for (const effect of effects) {
+      const at = data.effects.findIndex((candidate) => candidate.id === effect.id);
+      // Replaced IN PLACE rather than appended: effect order is paint order, and
+      // a reflected field jumping to the top of the stack would redraw the map
+      // differently for a change that was only ever about position.
+      if (at >= 0) data.effects[at] = effect;
+      else data.effects.push(effect);
+      this.onOp({ op: "effect.remove", id: effect.id });
+      this.onOp({ op: "effect.add", effect });
+    }
+    this.redraw();
+    this.onChanged();
+    return true;
+  }
+  /**
+   * Put the scene's counter-track record back to a recorded shape — the other
+   * half of undoing a track that a tamper wiped, since the pip and the record
+   * live in two different places.
+   *
+   * No `onOp`, exactly like `setConditionClocks`: tracks are host-side
+   * bookkeeping that ride the snapshot and were never on the wire. A peer learns
+   * of the change from the `token.update` carrying the pip, which is the only
+   * part it ever had.
+   */
+  setCounterTracks(tracks: VttCounterTrack[]): boolean {
+    if (!this.scene || this.playerView) return false;
+    commitTokenCounter(this.scene.data, tracks);
+    this.onChanged();
     return true;
   }
   updateEffect(id: string, patch: Partial<VttEffectData>): void {

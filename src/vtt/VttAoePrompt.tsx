@@ -1,8 +1,13 @@
 import { useState } from "react";
 import type { VttAbility } from "./data/characterAbilities";
 import { suggestedTemplate } from "./data/effectMeta";
+import type { OriginPlan } from "./data/originAnchor";
 
-export type AoeMode = "self" | "selected" | "center" | "click";
+/** `origin` — the ability declared where it fires FROM, and that place is on
+ *  the map. It is a mode beside the others rather than a replacement for them:
+ *  a page's origin is what the ability says, and the Curator at the table still
+ *  overrules it the way they overrule the shape and the size. */
+export type AoeMode = "self" | "selected" | "center" | "click" | "origin";
 export type AoeKind = "circle" | "cone" | "zone" | "line" | "ring" | "cross";
 
 export interface AoePlacement {
@@ -16,6 +21,10 @@ interface Props {
   ability: VttAbility;
   casterName: string | null;
   hasSelectedToken: boolean;
+  /** Where the page says this ability fires from, resolved against the scene.
+   *  Null for the abilities that never said — which is every Genus ability with
+   *  no `Origin:` bullet, and they prompt exactly as they always have. */
+  origin?: OriginPlan | null;
   onPlace: (p: AoePlacement) => void;
   onCancel: () => void;
 }
@@ -23,9 +32,26 @@ interface Props {
 // Prompt shown after an ability with an area is used: the template is auto-
 // suggested from the ability text, but every field is editable before you place,
 // and the placed hitbox stays selected so you can drag/resize it on the fly.
-export function VttAoePrompt({ ability, casterName, hasSelectedToken, onPlace, onCancel }: Props) {
+export function VttAoePrompt({ ability, casterName, hasSelectedToken, origin, onPlace, onCancel }: Props) {
   const suggested = suggestedTemplate(ability.meta);
-  const [mode, setMode] = useState<AoeMode>(ability.meta.attach === "self" ? "self" : hasSelectedToken ? "selected" : "center");
+  // A declared origin the map can find is the default: the page said where this
+  // fires from, and making the Curator re-pick it every cast would make the
+  // declaration decorative. An origin the map CANNOT find defaults to click —
+  // the Curator is being asked to place it, and arming the cursor is what that
+  // request looks like — but the note below says which thing they are placing,
+  // because "click somewhere" with no explanation is not a question anyone can
+  // answer correctly.
+  const [mode, setMode] = useState<AoeMode>(
+    origin?.at
+      ? "origin"
+      : origin?.needsPlacement
+        ? "click"
+        : ability.meta.attach === "self"
+          ? "self"
+          : hasSelectedToken
+            ? "selected"
+            : "center"
+  );
   const [kind, setKind] = useState<AoeKind>(suggested.kind);
   const [cells, setCells] = useState<number>(suggested.cells);
   const [rounds, setRounds] = useState<number>(ability.meta.duration ?? 0);
@@ -38,6 +64,15 @@ export function VttAoePrompt({ ability, casterName, hasSelectedToken, onPlace, o
 
         <div className="vtt2-aoe-label">Target</div>
         <div className="vtt2-aoe-modes">
+          {origin?.at && (
+            <button
+              className={"chip" + (mode === "origin" ? " active" : "")}
+              onClick={() => setMode("origin")}
+              title={origin.note ?? "Anchor where this ability declares it fires from"}
+            >
+              From {origin.text}
+            </button>
+          )}
           <button className={"chip" + (mode === "self" ? " active" : "")} onClick={() => setMode("self")}>
             On {casterName || "me"}
           </button>
@@ -83,6 +118,11 @@ export function VttAoePrompt({ ability, casterName, hasSelectedToken, onPlace, o
           <button className="ghost-btn" onClick={onCancel}>Cancel</button>
           <button className="ghost-btn strong" onClick={() => onPlace({ mode, kind, cells, rounds })}>Place</button>
         </div>
+        {/* Said whether or not the origin resolved. A page that names a
+            Component the app has no object for is not broken and is not going
+            to be given an invented body with stats — the Curator places it, and
+            this is where they are told so. */}
+        {origin?.note && <div className="vtt2-aoe-hint">{origin.note}</div>}
         <div className="vtt2-aoe-hint">Placed hitboxes stay selected — drag to aim, resize in the inspector.</div>
       </div>
     </div>

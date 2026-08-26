@@ -19,8 +19,33 @@ Undo is a correction to state, not a way to edit the past everyone shared.
 | --- | --- | --- |
 | Adjudicated HP (resolution card damage/heal) | Re-write of the previous HP through `adjudicateTokenVitals` | Yes — `token.update` |
 | Adjudicated statuses / conditions | Re-write of the previous status list, plus the condition's countdown | Pip yes; clock is host-only, as always |
+| A counter track moving (`Counter: Blight +1`) | The opposite move back through `applyTokenCounter` | Pip yes; the track record is host-only |
 | Encounter-tracker HP edits | Same authorised write | Yes — `token.update` |
 | The resolution card's "applied" mark | Re-armed with the write it rode in on | Ledger is host-local; nothing to send |
+| A confirmed `Tamper:` — a negated field, a cleansed condition, a wiped track, a reflect, a delay | The whole cascade replayed backwards: the effect re-added, the pips re-written, the countdowns and track records put back | Effect and pip yes — `effect.add` / `token.update`; clocks and tracks are host-only, as always |
+
+Tamper is the one verb that takes state AWAY, and it takes four kinds at once: a
+template, the status pips that template granted, the countdowns watching those
+pips, and — for the cleanse path — a counter track's record. All four ride ONE
+entry (`src/vtt/undo/tamperUndo.ts`), because a Curator who mis-clicked a negate
+means to take back the act, not three quarters of it.
+
+Two things it does that the vitals half never had to:
+
+- **A partial write is rolled back rather than left standing.** One tamper can
+  write pips to a dozen bodies and `adjudicateTokenVitals` refuses a player-owned
+  token. Stopping halfway would leave the field gone and half the corridor still
+  Burning, so the pips are written first and the first refusal puts back the ones
+  already written before anything touches an effect.
+- **The staleness check is deep, not by id.** The writes it inverts change an
+  effect's position and delete keys from its data, so an entry that only asked
+  "is `fx-3` still here?" would happily undo a reflect the Curator had since
+  moved by hand.
+
+What a tamper provably could NOT reach is reported on the proposal and repeated
+in the toast — see `docs/tamper-cascade.md`. That is not an undo boundary; it is
+state the cascade has no link to, and it stays exactly where it is in both
+directions.
 
 A condition landing on a body that already carries the tag is undoable too, and
 this is the case worth stating: every stacking rule but `stack` keeps ONE pip, so
@@ -85,15 +110,48 @@ one write stays off the trail.
 ## Not yet undoable (a gap, not a boundary)
 
 Placement and removal of **zones, auras and effects**, and **summoned tokens**,
-register no inverse. These are ordinary Curator edits that *should* be undoable
-by the rule above; they are simply not built yet.
+register no inverse *when they come from the ordinary placement paths*. These are
+ordinary Curator edits that *should* be undoable by the rule above; they are
+simply not built yet. Removal **through the `Tamper:` verb** is the exception and
+is covered above — `PixiVttApp.putEffects` / `removeEffects` are the authorised
+pair an inverse needs, so the remaining work for the placement paths is to route
+through them rather than to invent anything.
 
-So are **counter tracks** — `PixiVttApp.applyTokenCounter` and
-`clearTokenCounter`. They commit through the same authorised writer as damage,
-they are as private a Curator act as any other, and a mis-clicked `Counter:
-Blight +1` currently cannot be taken back. They are listed here rather than above
-because nothing about them is a boundary: they need an inverse that swaps the
-scene's track record back alongside the pip, in the shape
-`applyUndoableCondition` already uses for condition clocks.
+So is **clearing** a counter track — `PixiVttApp.clearTokenCounter`, the
+Curator's eraser. Nothing about it is a boundary either; it simply has no caller
+that registers an inverse yet.
 
-Until those land, the VTT stack covers vitals and conditions only.
+Until those land, the VTT stack covers vitals, conditions and counter moves.
+
+## Counter tracks: why the inverse is a MOVE
+
+`applyTokenCounter` writes two things that have to agree — the pip on the token,
+through `adjudicateTokenVitals`, and the scene's authoritative track record,
+through `commitTokenCounter`. An inverse that restored the recorded `statuses`
+the way `adjudicateUndoableVitals` does would fix the pip and leave the record
+reading the new number: the next `Counter: Blight +1` would resume from the value
+undo had just erased and stamp a pip nobody could explain.
+
+So `src/vtt/undo/counterUndo.ts` re-enters through `applyTokenCounter` with the
+opposite delta. That moves both halves through the writer that already keeps them
+in step, and inherits its ownership adjudication and its `onOp` broadcast.
+
+Three consequences worth stating:
+
+- **The recorded move is the CLAMPED one.** A `+5` into a cap of 8 from 6 lands
+  on 8, having moved 2. An inverse built from the delta the page wrote would
+  drive the track to 3 and take off five points that were never applied.
+- **A move the ceiling refused entirely registers nothing.** `+1` on a track
+  already at its cap leaves the pip byte-identical; an entry there would spend
+  the Curator's next press on an act that changed nothing while the real mistake
+  sat one press deeper.
+- **The inverse carries no thresholds.** Downward, `crossedThresholds` reports
+  none anyway. Upward — a redo — it would report the same arrival a second time,
+  and the Resolution Card that arrival produced is the one the caller's `restore`
+  hands back; re-deriving it would put two cards on screen for one arrival at 8.
+
+That card is the part undo must not forget. Putting Blight back to 7 while
+"Blight reached 8" still stood would leave the Curator holding a 1d100 armed by
+an arrival that no longer happened, so `VttScreen` dismisses the crossing card on
+undo and re-pushes the recorded one on redo — recorded, not rebuilt, so a redo
+cannot restamp its timestamp or its TTL.

@@ -222,6 +222,19 @@ export interface VttEffectData {
   sourceAbilityId?: string;
   sourceAbilityName?: string;
   casterCharacterId?: string;
+  /** TAMPER — the encounter round this effect wakes on. Below it the effect is
+   *  SUSPENDED: it grants no status, proposes no per-round lines, and does not
+   *  age. See engine/systems/effectSuspension.ts for what each of those means
+   *  and why suspension is a stored round rather than a boolean.
+   *
+   *  Absent on every effect nobody has tampered with, so a scene that never uses
+   *  the verb saves and syncs exactly the bytes it did before — the same rule
+   *  `conditionClocks` and `counterTracks` follow. */
+  suspendedUntil?: number;
+  /** TAMPER — the round suspension began. The gap between the two is handed
+   *  back to `bornRound` on waking, so a field slept through does not expire the
+   *  instant it returns. */
+  suspendedAt?: number;
 }
 export interface VttEffect {
   id: string;

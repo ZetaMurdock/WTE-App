@@ -13,7 +13,8 @@ import {
   resolveStatToken,
 } from "../game/wte";
 import type { AbilityAction } from "../game/abilityActions";
-import { abilityUnderstanding } from "../game/abilityUnderstanding";
+import { officialAbilityCatalog } from "../game/abilityCatalog";
+import { abilityUnderstanding, invocationChips } from "../game/abilityUnderstanding";
 import type { EffectStep } from "../game/abilityEffects";
 import {
   characterActionSet,
@@ -26,6 +27,7 @@ import { hasAoe, suggestedTemplate } from "./data/effectMeta";
 import { rollAxisChoices, rollAxisPaths, type RollAxis, type RollAxisStats, type RollDirection, type RollAxisPath } from "../game/rollAxis";
 import { affinityLabel } from "../game/paradigmAffinity";
 import { abilitySaveDv, saveChipDv, saveDvBreakdown, savePlainLabel } from "../game/saveDv";
+import { snrChip } from "../game/snr";
 import type { NetRollAxisRequest } from "../net/protocol";
 import { parseUsageLimit } from "../game/abilityLimits";
 import {
@@ -167,6 +169,11 @@ export function VttAbilitiesPanel({
   // character object — and a memo keyed on the character alone kept serving the
   // pre-override mechanics until something unrelated forced a re-render.
   const { tick } = useCodex();
+  // What an `Invoke:` resolves against, rebuilt on the same signal for the same
+  // reason: a campaign that forked WEAPONIZE onto its own page must be the
+  // Weaponize that S4 — THE LAST WAR runs, and a catalog captured at mount
+  // would go on running the official rule.
+  const catalog = useMemo(() => officialAbilityCatalog(), [tick]);
   const set = useMemo(
     () => (character ? characterActionSet(character, layers) : { actions: [], genus: [], cipher: [], racial: [] }),
     [character, tick, layers]
@@ -253,12 +260,18 @@ export function VttAbilitiesPanel({
     // the page's `## Actions` block where one is declared, from the effect prose
     // where it is not — one renderer either way, so a declared ability arms the
     // same tray and the same keyed DV as a parsed one.
-    const read = a.source === "action" ? null : abilityUnderstanding(a.effect, a.actions);
+    const read = a.source === "action" ? null : abilityUnderstanding(a.effect, a.actions, catalog);
     // The authored `| Limit |`, and what is left of it. Shown whether or not
     // the app can count it: an ability limited "Once per SNR window" must still
     // say so on the card, because a limit the table cannot see is a limit the
     // table forgets.
     const usageOf = limitOf(a);
+    // Where the ability sits in resolution order, from its DOMAIN page — never
+    // from the activation prose that also says it. Shown here because this is
+    // the moment the Curator is deciding what goes first; the app enforces no
+    // turn priority, so this is the Curator's call and the chip is the whole of
+    // the app's contribution to it. See src/game/snr.ts.
+    const snr = snrChip(a.abilityId ?? a.id) ?? snrChip(a.name);
     const actions = read?.actions ?? [];
     const selfRolls = actions.filter((x) => x.kind === "self");
     const dmgRolls = actions.filter((x) => x.kind === "damage");
@@ -270,6 +283,14 @@ export function VttAbilitiesPanel({
             {a.name}
             {a.source === "action" && a.hit != null && <span className="vtt2-abil-hit">{signedMod(a.hit)}</span>}
             {a.ss > 0 && <span className="vtt2-abil-ss">{a.ss} SS</span>}
+            {snr && (
+              <span
+                className={"vtt2-abil-snr" + (snr.posture === "anti" ? " anti" : "")}
+                title={`${snr.domain} — ${snr.note}`}
+              >
+                {snr.label}
+              </span>
+            )}
           </div>
           {(a.effect || a.range || a.damage) && (
             <div className="vtt2-abil-effect">{a.effect || [a.range, a.damage].filter(Boolean).join(" · ")}</div>
@@ -343,6 +364,35 @@ export function VttAbilitiesPanel({
               ))}
             </div>
           )}
+          {/* Every ability this one calls by name, and what became of the call.
+              A resolved invocation's steps are already in the chips and buttons
+              above; this row exists so the table can see WHERE they came from —
+              and so a reference that did not resolve says so on the card rather
+              than contributing nothing and looking complete. */}
+          {read && read.invocations.length > 0 && (
+            <div className="vtt2-abil-steps">
+              {invocationChips(read.invocations).map((chip) => (
+                <span
+                  className={chip.fault ? "vtt2-abil-stepchip bad" : "vtt2-abil-stepchip"}
+                  key={chip.key}
+                  title={chip.title}
+                >
+                  {chip.label}
+                </span>
+              ))}
+            </div>
+          )}
+          {/* An invoked ability that declares nothing executable. Its own words
+              are quoted, because the three-states rule says an undeclared page
+              is not a broken one: the Curator runs it by hand, and the only way
+              they can is if the card puts the text in front of them. */}
+          {read?.invocations
+            .filter((one) => one.outcome === "prose" && one.prose)
+            .map((one, i) => (
+              <div className="vtt2-abil-effect" key={"iq" + i} title={`Quoted from ${one.name} — this ability declares no steps`}>
+                {one.name}: {one.prose}
+              </div>
+            ))}
           {usageOf && (
             <div className="vtt2-abil-limit" title={usageTitle(usageOf.limit, usageOf.status)}>
               {usageOf.status.tracked ? (

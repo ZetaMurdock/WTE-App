@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { rollToHit, rollGeneric, rollDiceExpr, signedMod, type UsableAbility, type RollResult } from "../../game/wte";
 import { averageDamage, summarizeDamage } from "../../game/abilityDamage";
+import { officialAbilityCatalog } from "../../game/abilityCatalog";
 import { abilityUnderstanding } from "../../game/abilityUnderstanding";
 import { abilityCostPlan } from "../../game/abilityCost";
 import { rollAxisChoices, rollAxisPaths, rollAxisRoll, type RollAxisStats } from "../../game/rollAxis";
@@ -117,7 +118,12 @@ export function ActionsTable({ weapons, genus, ciphers, atk, phyMod, dexMod, par
     // page's `## Actions` block when it declares one and from the effect prose
     // when it does not. Resolved only for the open row: the prose route runs
     // regexes over free text.
-    const read = expanded ? abilityUnderstanding(a.effect, a.actions) : null;
+    // The catalog resolves any `Invoke:` the block writes, so a composed
+    // ability arms the sheet with the steps of the abilities it names rather
+    // than a chip that only says their names. Fetched at the open row for the
+    // same reason the read is: it is memoised behind the call, but there is no
+    // reason to ask for it on a row nobody expanded.
+    const read = expanded ? abilityUnderstanding(a.effect, a.actions, officialAbilityCatalog()) : null;
     const actions = read?.actions ?? [];
     const selfAxis = rollAxisStats ? actions.filter((x) => x.kind === "self" && x.rollAxis) : [];
     // Plain stat checks ("make an Endurance Check") still get a labelled d20 —

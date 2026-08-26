@@ -7,7 +7,8 @@
 // somebody rolls it.
 import { describe, expect, it } from "vitest";
 import { parseAbilityActions } from "./abilityActions";
-import { abilityUnderstanding } from "./abilityUnderstanding";
+import { abilityUnderstanding, invocationChips } from "./abilityUnderstanding";
+import { buildAbilityCatalog } from "./abilityCatalog";
 
 const PROSE =
   "The Inquisitor freezes the air solid. The target makes a Physical Save — Recovery (DV 15) " +
@@ -132,5 +133,70 @@ describe("a declared block supersedes the prose parse", () => {
     // Power is a check and has no save: the route does not exist, so no button
     // is offered for it — but the page says so out loud.
     expect(read.errors).toHaveLength(1);
+  });
+});
+
+describe("an ability that composes another by name", () => {
+  const WEAPONIZE = {
+    kind: "cipher" as const,
+    id: "wte.cipher.weaponize",
+    name: "WEAPONIZE",
+    effect: "The weaponized object deals damage as a Tier-appropriate weapon.",
+    actions: "- Cost: 25 SS\n- Damage: 2d8 Blunt\n- Condition: Bleeding, 2 rounds",
+  };
+  const HOLLOW = {
+    kind: "cipher" as const,
+    id: "wte.cipher.hollow-shell",
+    name: "HOLLOW SHELL",
+    effect: "An object becomes completely hollow.",
+  };
+  const catalog = buildAbilityCatalog([WEAPONIZE, HOLLOW]);
+
+  it("arms the invoked ability's buttons, not a button that only says its name", () => {
+    // The whole point of resolving the reference: The Last War's tray has to
+    // offer what Weaponize offers, or `Invoke:` is decoration.
+    const read = abilityUnderstanding("", "- Invoke: WEAPONIZE", catalog);
+    expect(read.actions.map((action) => action.expr)).toEqual(["2d8"]);
+    expect(read.chips.map((chip) => chip.label)).toEqual(["Bleeding · 2 rounds"]);
+  });
+
+  it("does not charge the invoker the invoked ability's price", () => {
+    // A Use button reads `costs`, so an invoked Cost spliced in would spend SS
+    // no page asked the invoker for.
+    const read = abilityUnderstanding("", "- Cost: 110 SS\n- Invoke: WEAPONIZE", catalog);
+    expect(read.costs.map((cost) => cost.amount)).toEqual([110]);
+  });
+
+  it("carries the invocation record so a surface can say what resolved", () => {
+    const read = abilityUnderstanding("", "- Invoke: HOLLOW SHELL\n- Invoke: NOTHING HERE", catalog);
+    expect(read.invocations.map((one) => one.outcome)).toEqual(["prose", "unresolved"]);
+    expect(invocationChips(read.invocations).map((chip) => chip.fault)).toEqual([false, true]);
+  });
+
+  it("leaves the invoke step standing when the caller has no catalog", () => {
+    // Every surface behaved this way before invocation existed, and a reader
+    // with no campaign loaded must not start claiming a reference is unknown.
+    const read = abilityUnderstanding("", "- Invoke: WEAPONIZE");
+    expect(read.invocations).toEqual([]);
+    expect(read.chips.map((chip) => chip.label)).toEqual(["Invoke WEAPONIZE"]);
+  });
+});
+
+describe("a threshold consequence is shown, never armed", () => {
+  const BLIGHT = "- Counter: Blight +1, cap 8\n- At 8: Damage: 1d100";
+
+  it("keeps the `At 8` payload out of the tray", () => {
+    // The button was pressable on the first point of Blight, landing the 1d100
+    // seven points early. A crossing arms it, and only a crossing can.
+    const read = abilityUnderstanding("", BLIGHT);
+    expect(read.actions).toEqual([]);
+  });
+
+  it("still shows it, and says what arms it", () => {
+    // Trading a wrong button for silence would be a different bug: the page
+    // declares a threshold consequence and the panel has to say so.
+    const read = abilityUnderstanding("", BLIGHT);
+    expect(read.chips.map((chip) => chip.label)).toEqual(["Blight +1 / 8", "At 8 · 1d100"]);
+    expect(read.chips[1].title).toContain("when Blight reaches 8");
   });
 });

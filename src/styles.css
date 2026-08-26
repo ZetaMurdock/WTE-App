@@ -7141,6 +7141,22 @@ body.wte-dot-cursor * {
   border-radius: 4px;
   padding: 0 5px;
 }
+/* SNR posture, from the domain page. Information a Curator reads before calling
+   the order — nothing in the app enforces it; see src/game/snr.ts. */
+.vtt2-abil-snr {
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #b79ad8;
+  border: 1px solid rgba(183, 154, 216, 0.4);
+  border-radius: 4px;
+  padding: 0 4px;
+  cursor: help;
+}
+.vtt2-abil-snr.anti {
+  color: #7ecfca;
+  border-color: rgba(126, 207, 202, 0.4);
+}
 .vtt2-abil-racial {
   border: 1px solid var(--panel-line);
   border-radius: 8px;
@@ -7851,6 +7867,21 @@ body.wte-dot-cursor * {
   flex-direction: column;
   gap: 4px;
   align-items: stretch;
+  /* Paradigm Affinity turned a roll chip's label from "Strength" into
+     "Strength +2d5 +2d10". This column takes its intrinsic width from the
+     longest label, and the text beside it is the only shrinkable thing in the
+     row, so the ability's own NAME collapsed to "Rev Rea" to make room for a
+     button. The column yields first now, and a label too long for it is
+     clipped rather than paid for by the name. */
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 44%;
+}
+.vtt2-abil-btns .chip {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 /* Ability-understanding: target saves parsed from effect text. When a selected
    token has a player owner these chips issue a targeted roll request. */

@@ -101,6 +101,26 @@ describe("declared steps as the actions the UI already renders", () => {
     const { steps } = parseAbilityEffects("- Damage (self): 1d4 Psychic");
     expect(effectStepsToActions(steps)[0]).toMatchObject({ self: true });
   });
+
+  it("keeps a threshold's payload out of the tray until the track reaches it", () => {
+    // The button was pressable on the first point of Blight, which landed the
+    // 1d100 seven points early. A crossing arms it, and only `crossedThresholds`
+    // can say a crossing happened.
+    const { steps } = parseAbilityEffects(
+      ["- Counter: Blight +1, cap 8", "- At 8: Damage: 1d100", "- At 8: Save: Physical Save — Recovery, DV 18"].join("\n")
+    );
+    expect(steps).toHaveLength(3);
+    expect(effectStepsToActions(steps)).toEqual([]);
+  });
+
+  it("still arms the ability's own rolls on a page that also declares a threshold", () => {
+    // The fix must not swallow the whole page: everything above `At N` is an
+    // ordinary step and still owes the Curator its chip.
+    const { steps } = parseAbilityEffects(
+      ["- Save: Physical Save — Recovery, DV 18", "- Counter: Blight +1, cap 8", "- At 8: Damage: 1d100"].join("\n")
+    );
+    expect(effectStepsToActions(steps).map((a) => a.kind)).toEqual(["save"]);
+  });
 });
 
 describe("tracks and bodies", () => {

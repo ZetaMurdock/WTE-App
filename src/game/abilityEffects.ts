@@ -708,10 +708,20 @@ export function effectStepLabel(step: EffectStep): string {
  * one DV keying path, no second code path to keep in step. Steps with no rollable
  * or damaging face (costs, conditions, rulings) contribute nothing here; they are
  * shown from the steps themselves.
+ *
+ * `At N` steps are NOT actions. A threshold's payload is armed by a track
+ * reaching a number, and `crossedThresholds` is the only thing entitled to say
+ * that it did; putting `At 8: Damage: 1d100` in the tray offered a button the
+ * Curator could press on the first point of Blight — the 1d100 landing seven
+ * points early, under a label that gave no hint it was conditional. The same
+ * rule already holds in `consequencesFromSteps` and `pageSummons`, both of which
+ * skip `at-threshold` at the top level; this was the one reader that did not,
+ * and the tray is the one place where the mistake is a single click away.
  */
 export function effectStepsToActions(steps: readonly EffectStep[]): AbilityAction[] {
   const out: AbilityAction[] = [];
   for (const step of steps) {
+    if (step.cadence === "at-threshold") continue;
     if (step.verb === "roll" || step.verb === "save") {
       const action: AbilityAction = {
         kind: step.verb === "roll" ? "self" : "save",

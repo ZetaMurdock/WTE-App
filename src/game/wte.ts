@@ -959,12 +959,6 @@ export function domainOfGenus(ref: string): string | undefined {
     (ownRecordValue(GENUS_DATA, d) ?? []).some((a) => a.id === ref || a.name.toLowerCase() === n)
   );
 }
-/** SNR posture for one ability, via its domain. */
-export function snrOfGenus(name: string): SnrPosture {
-  const d = domainOfGenus(name);
-  return d ? ownRecordValue(GENUS_DOMAINS, d)?.snr ?? "none" : "none";
-}
-
 /** Merge baked abilities with pulled-page ones (page entries override by name). */
 function mergeAbilities<T extends { name: string }>(base: T[], page: T[]): T[] {
   if (!page.length) return base;

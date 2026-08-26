@@ -18,7 +18,9 @@
 // glance at and dismiss. Comparison only — nothing here rewrites a page, because
 // which half is right is a Curator's judgement, not a parser's.
 import { parseAbilityActions, type AbilityAction } from "./abilityActions";
+import type { AbilityCatalog } from "./abilityCatalog";
 import { hasDeclaredEffects, parseAbilityEffects, type EffectStep } from "./abilityEffects";
+import { expandInvocations, hasInvocations, invocationNote, isInvokeFault } from "./abilityInvoke";
 import { counterGaps } from "./counterTracks";
 import { rollRefLabel, type InceptRollRef } from "./inceptGrants";
 
@@ -30,8 +32,9 @@ export type LintSeverity = "warning" | "info";
 /** What the finding is about, so a surface can group or filter without reading
  *  the sentence. `unreadable` is a step the block itself could not parse.
  *  `track` is a custom currency whose runtime cannot keep everything the page
- *  might mean by it — see `counterGaps`. */
-export type LintCategory = "unreadable" | "dice" | "dv" | "route" | "track";
+ *  might mean by it — see `counterGaps`. `invoke` is a reference to another
+ *  ability and what became of it. */
+export type LintCategory = "unreadable" | "dice" | "dv" | "route" | "track" | "invoke";
 
 export interface LintFinding {
   severity: LintSeverity;
@@ -225,10 +228,17 @@ function routeFindings(prose: readonly AbilityAction[], steps: readonly EffectSt
  *
  * Returns nothing at all for a page with no block: a prose-only ability is not
  * a half-finished declared one, and the three states stay first-class.
+ *
+ * `catalog` is what an `Invoke:` is checked against. Without one the reference
+ * is not reported at all — silence is right there, because "no catalog" means
+ * this caller cannot know whether the name resolves, and a finding that said
+ * "unknown ability" on a page whose reference is perfectly good would send a
+ * Curator chasing a fault that does not exist.
  */
 export function lintDeclaredAgainstProse(
   effectProse: string | null | undefined,
-  actionsSection: string | null | undefined
+  actionsSection: string | null | undefined,
+  catalog?: AbilityCatalog | null
 ): LintFinding[] {
   const declared = parseAbilityEffects(actionsSection);
   if (!hasDeclaredEffects(declared) && declared.errors.length === 0) return [];
@@ -253,6 +263,21 @@ export function lintDeclaredAgainstProse(
   // on those at the table instead of discovering mid-fight that nobody did.
   for (const gap of counterGaps(declared.steps)) {
     findings.push({ severity: "info", category: "track", message: gap });
+  }
+  // A reference that did not resolve is a WARNING for the same reason an
+  // unreadable bullet is: the page claims a step it will never take, and
+  // nothing at the table would ever notice — the invocation simply contributes
+  // nothing and the card looks complete. Everything that DID resolve is info,
+  // including the ability that turned out to declare no block: quoting its
+  // prose is a correct outcome, not a shortfall.
+  if (catalog && hasInvocations(declared.steps)) {
+    for (const one of expandInvocations(declared.steps, catalog).invocations) {
+      findings.push({
+        severity: isInvokeFault(one) ? "warning" : "info",
+        category: "invoke",
+        message: invocationNote(one),
+      });
+    }
   }
   return findings;
 }

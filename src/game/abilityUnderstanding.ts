@@ -14,6 +14,7 @@
 // block is understood exactly as it always was, which is every ability shipped
 // today.
 import { parseAbilityActions, type AbilityAction } from "./abilityActions";
+import type { AbilityCatalog } from "./abilityCatalog";
 import { declaredCosts, type AbilityCost } from "./abilityCost";
 import {
   effectStepLabel,
@@ -22,6 +23,7 @@ import {
   parseAbilityEffects,
   type EffectStep,
 } from "./abilityEffects";
+import { expandInvocations, hasInvocations, invocationNote, isInvokeFault, type Invocation } from "./abilityInvoke";
 
 /** A declared step with no rollable face. Costs, conditions, advantage grants
  *  and Curator rulings are half of what an ability does, and a renderer that
@@ -56,6 +58,11 @@ export interface AbilityUnderstanding {
    *  same reason `actions` is — a caller that re-parsed the block to recover
    *  them would be the second reader this module exists to prevent. */
   steps: EffectStep[];
+  /** Every `Invoke:` this ability wrote and what became of it — resolved and
+   *  spliced into `steps`, resolved to a page that declares nothing (so its
+   *  prose is quoted instead), or a fault. Empty unless a catalog was supplied
+   *  AND the block invokes something, which is the entire shipped corpus. */
+  invocations: Invocation[];
   /** Lines the block could not read. Surfaced rather than swallowed: an ability
    *  that quietly does less than its page claims is worse than one that says it
    *  cannot read a line. */
@@ -80,6 +87,11 @@ const BRANCH_WORD: Readonly<Record<EffectStep["branch"], string>> = {
 /** The sentence behind a chip. Declared steps are terse by design, and a chip
  *  reading "Slowed · 2 rounds" does not say who is slowed or when. */
 function chipTitle(step: EffectStep): string {
+  // A threshold's payload explains itself before its verb does: what a reader
+  // needs from "1d100" is that nothing happens until the track arrives.
+  if (step.cadence === "at-threshold") {
+    return `Fires when ${step.counter} reaches ${step.threshold} — not before, and not when this ability resolves`;
+  }
   switch (step.verb) {
     case "cost":
       return `Costs ${step.expr} ${(step.resource ?? "ss").toUpperCase()}${step.perRound ? " every round it is sustained" : ""}`;
@@ -97,7 +109,22 @@ function chipTitle(step: EffectStep): string {
 /** Does this step already appear as a button? Rolls, saves, damage and heals
  *  become `AbilityAction`s; everything else has to be drawn from the step. */
 function isRollable(step: EffectStep): boolean {
+  // An `At N` step is no longer a button — `effectStepsToActions` stopped arming
+  // thresholds unconditionally, because a threshold consequence is armed by a
+  // track reaching a number and not by the ability that moves the track. Without
+  // this line that fix would have made the page's declared threshold vanish from
+  // the panel entirely: not a button, and filtered out of the chips as "already
+  // shown as one". Trading a wrong button for silence is not a fix.
+  if (step.cadence === "at-threshold") return false;
   return step.verb === "roll" || step.verb === "save" || step.verb === "damage" || step.verb === "heal";
+}
+
+/** How a chip reads. The `At N` prefix is the whole point of the chip for a
+ *  threshold step — `effectStepLabel` writes the payload ("1d100"), and a chip
+ *  that showed only that would look exactly like damage the ability deals now. */
+function chipLabel(step: EffectStep): string {
+  const label = effectStepLabel(step);
+  return step.cadence === "at-threshold" ? `At ${step.threshold} · ${label}` : label;
 }
 
 /**
@@ -106,27 +133,64 @@ function isRollable(step: EffectStep): boolean {
  * `actions` is the RAW `## Actions` section as the page carries it — parsing
  * happens here so that a caller can never be tempted to parse it a second,
  * slightly different way.
+ *
+ * `catalog` is what an `Invoke:` resolves against. Optional because resolution
+ * needs the campaign's live ability set and a pure reader of one page's text
+ * cannot have one; a caller with no catalog gets the invoke step left standing
+ * as its own chip, which is what every surface did before invocation existed.
+ * A caller WITH one gets the invoked ability's declared steps spliced in — so
+ * the tray a composed ability arms is the tray the abilities it names would
+ * have armed, rather than a button that says "Invoke Weaponize" and does
+ * nothing.
  */
 export function abilityUnderstanding(
   effect: string | null | undefined,
-  actions?: string | null
+  actions?: string | null,
+  catalog?: AbilityCatalog | null
 ): AbilityUnderstanding {
   const effects = parseAbilityEffects(actions);
   if (!hasDeclaredEffects(effects)) {
     // Includes the case of a block that was written but read as nothing: its
     // errors still travel, because the author needs to see them, but the
     // ability keeps behaving exactly as its prose always made it behave.
-    return { declared: false, actions: parseAbilityActions(effect), chips: [], costs: [], steps: [], errors: effects.errors };
+    return { declared: false, actions: parseAbilityActions(effect), chips: [], costs: [], steps: [], invocations: [], errors: effects.errors };
   }
+  // Expansion is skipped outright for a block that invokes nothing, so the
+  // declared corpus that composes nothing keeps the exact step array it always
+  // had — identity included, which `useMemo` consumers downstream compare on.
+  const expanded =
+    catalog && hasInvocations(effects.steps)
+      ? expandInvocations(effects.steps, catalog)
+      : { steps: effects.steps, invocations: [] as Invocation[] };
   return {
     declared: true,
-    actions: effectStepsToActions(effects.steps),
-    costs: declaredCosts(effects.steps),
-    chips: effects.steps
+    actions: effectStepsToActions(expanded.steps),
+    costs: declaredCosts(expanded.steps),
+    chips: expanded.steps
       .map((step, i) => ({ step, i }))
       .filter(({ step }) => !isRollable(step))
-      .map(({ step, i }) => ({ key: `${step.verb}${i}`, label: effectStepLabel(step), title: chipTitle(step) })),
-    steps: effects.steps,
+      .map(({ step, i }) => ({ key: `${step.verb}${i}`, label: chipLabel(step), title: chipTitle(step) })),
+    steps: expanded.steps,
+    invocations: expanded.invocations,
     errors: effects.errors,
   };
+}
+
+/** A chip per invocation, for the surfaces that draw chips. Separate from
+ *  `chips` because an invocation is not a step the ability takes — it is a
+ *  reference, and whether it RESOLVED is the thing a reader needs to see. */
+export function invocationChips(invocations: readonly Invocation[]): (AbilityChip & { fault: boolean })[] {
+  return invocations.map((one, i) => ({
+    key: `invoke${i}`,
+    label:
+      one.outcome === "expanded"
+        ? `Invoke ${one.name}`
+        : one.outcome === "prose"
+          ? `Invoke ${one.name} · prose`
+          : one.outcome === "unresolved"
+            ? `Invoke "${one.ref}" · unknown`
+            : `Invoke ${one.name} · ${one.outcome}`,
+    title: invocationNote(one),
+    fault: isInvokeFault(one),
+  }));
 }

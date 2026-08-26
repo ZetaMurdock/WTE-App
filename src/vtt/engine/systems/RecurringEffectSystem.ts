@@ -38,6 +38,7 @@
 // is how a token ends up Burning without taking the burn.
 import type { VttGrid, VttEffectTick, VttSceneData, VttToken } from "../../types/scene";
 import { tokenInEffect } from "./effectOccupants";
+import { effectSuspended } from "./effectSuspension";
 
 /** One round of one effect landing on one token, for the Curator to rule on. */
 export interface RecurringProposal {
@@ -110,6 +111,9 @@ export class RecurringEffectSystem {
       // already been paid for.
       if (round <= (effect.data.bornRound ?? 0)) continue;
       if (effect.data.tickedRound === round) continue;
+      // BEFORE the stamp below, deliberately: a suspended field that marked the
+      // rounds it slept through as paid would skip its first round back.
+      if (effectSuspended(effect, round)) continue;
       effect.data.tickedRound = round;
       const gate = ticks.find((tick) => tick.kind === "save") ?? null;
       for (const token of data.tokens) {

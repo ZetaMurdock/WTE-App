@@ -12,9 +12,29 @@ import {
   type OutcomeTarget,
   type PendingOutcome,
 } from "./data/outcomeLedger";
+import { snrChip } from "../game/snr";
 
 export interface VttResolutionCardProps {
   outcomes: PendingOutcome[];
+  /**
+   * REQUIRED, and required on purpose: this card is the Curator's adjudication
+   * surface and must never render on a player's screen.
+   *
+   * The gate used to live in `VttScreen` as `!asPlayer &&` on the JSX, where
+   * nothing tested it — mutation testing found that deleting it broke no test,
+   * because `VttScreen` has no test file at all. Moving it here puts it in front
+   * of the auto-apply effect as well as the markup, and makes it a value the
+   * type checker forces every call site to supply rather than a condition
+   * someone can quietly drop.
+   *
+   * A player-view client's engine refuses these writes anyway
+   * (`adjudicateTokenVitals`), so this is not the only thing standing between a
+   * player and another body's HP. What it prevents is the surface: a player
+   * handed Apply buttons that silently do nothing, and — with `autoApplyDeclared`
+   * on — a second client firing the whole card's writes against a refusing
+   * engine on every render.
+   */
+  viewer: "curator" | "player";
   /** The table opted into committing DECLARED damage and conditions without a
    *  click. Everything the engine had to guess, and every Curator ruling, still
    *  waits for one — see `autoApplicable`. */
@@ -419,7 +439,9 @@ function TargetBlock({
   );
 }
 
-interface CardProps extends Omit<VttResolutionCardProps, "outcomes" | "onRoll" | "autoApplyDeclared"> {
+// `viewer` is answered once, by the exported component, before any card exists:
+// a per-card copy would be a second place the gate could be got wrong.
+interface CardProps extends Omit<VttResolutionCardProps, "outcomes" | "onRoll" | "autoApplyDeclared" | "viewer"> {
   outcome: PendingOutcome;
   rolled: RolledTotals;
   committed: CommittedTotals;
@@ -454,10 +476,24 @@ function OutcomeCard({
     ? `${outcome.sourceAbilityName} → ${outcome.targets.length} targets`
     : `${outcome.sourceAbilityName} → ${outcome.targets[0]?.name ?? "no target"}`;
 
+  // The ability's SNR posture, from its DOMAIN page — the other moment order
+  // matters. Nothing in the app schedules a turn, so this says what the corpus
+  // says and stops: a Null card announces that it resolves before Reactions can
+  // be declared, and the Curator makes the call. See src/game/snr.ts.
+  const snr = snrChip(outcome.sourceAbilityId) ?? snrChip(outcome.sourceAbilityName);
+
   return (
     <div className="vtt2-res-card">
       <div className="vtt2-insp-head">
         <span className="vtt2-res-title">{title}</span>
+        {snr && (
+          <span
+            className={"vtt2-abil-snr" + (snr.posture === "anti" ? " anti" : "")}
+            title={`${snr.domain} — ${snr.note}`}
+          >
+            {snr.label}
+          </span>
+        )}
         {/* "×" is not a name a screen reader can act on, and `title` alone is
             the weakest source of one. Say whose card is being discarded. */}
         <button
@@ -586,6 +622,7 @@ function OutcomeCard({
 // writes to a token, and nothing fires without a click.
 export function VttResolutionCard({
   outcomes,
+  viewer,
   autoApplyDeclared = false,
   onRoll,
   onApplyDamage,
@@ -614,6 +651,11 @@ export function VttResolutionCard({
   // value worth listing. The guard above — not the dependency array — is what
   // makes a consequence fire exactly once.
   useEffect(() => {
+    // Before the markup gate, not after it. Auto-apply runs in an effect, so a
+    // player-view client that mounted this component would fire every declared
+    // consequence at the engine on render — refused, but attempted — while the
+    // early return below meant nothing was ever on screen to explain it.
+    if (viewer !== "curator") return;
     // One memo for the whole pass, for the same reason `applyBatch` carries one:
     // this loop can reach 23 targets of a shared-damage card before React has
     // landed a single `setRolled`, and without it each of them rolls its own
@@ -648,7 +690,7 @@ export function VttResolutionCard({
     }
   });
 
-  if (outcomes.length === 0) return null;
+  if (viewer !== "curator" || outcomes.length === 0) return null;
 
   // Sorted here rather than trusted from the caller: the ledger keeps newest
   // first, but this card is also rendered from filtered slices, and an outcome

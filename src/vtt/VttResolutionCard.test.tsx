@@ -145,6 +145,7 @@ let root: Root;
 async function mount(outcomes: PendingOutcome[], overrides: Partial<VttResolutionCardProps> = {}) {
   const props: VttResolutionCardProps = {
     outcomes,
+    viewer: "curator",
     onRoll: vi.fn(() => 27),
     onApplyDamage: vi.fn(),
     onApplyCondition: vi.fn(),
@@ -784,5 +785,62 @@ describe("a custom currency", () => {
       expect(host.textContent).not.toContain("Waiting on the roll");
       expect(button("Roll At 8 · 1d100")).toBeTruthy();
     });
+  });
+});
+
+describe("the Curator-only gate", () => {
+  // This card is the adjudication surface. The gate used to be `!asPlayer &&`
+  // on a line of VttScreen JSX that no test could reach — mutation testing
+  // found that deleting it broke nothing. It lives on the component now, so
+  // these are the tests that were impossible before.
+  it("renders nothing at all on a player view", async () => {
+    await mount([settleOne(outcome(HAIL_RAIN), 3)], { viewer: "player" });
+    expect(host.textContent).toBe("");
+    expect(host.querySelector(".vtt2-res-card")).toBeNull();
+  });
+
+  it("does not auto-apply on a player view, even with the table opted in", async () => {
+    // The dangerous half: auto-apply runs in an effect, so a mounted card fires
+    // its writes before anything is on screen to explain them. A markup-only
+    // gate would have let a second client attack the engine on every render.
+    const declared = settleOne(declaredOutcome(HAIL_RAIN), 3);
+    const props = await mount([declared], { viewer: "player", autoApplyDeclared: true });
+    expect(props.onApplyDamage).not.toHaveBeenCalled();
+    expect(props.onApplyCondition).not.toHaveBeenCalled();
+    expect(props.onRoll).not.toHaveBeenCalled();
+  });
+
+  it("still does all of that for the Curator", async () => {
+    const declared = settleOne(declaredOutcome(HAIL_RAIN), 3);
+    const props = await mount([declared], { viewer: "curator", autoApplyDeclared: true });
+    expect(host.querySelector(".vtt2-res-card")).not.toBeNull();
+    expect(props.onApplyDamage).toHaveBeenCalled();
+  });
+});
+
+describe("SNR on the card", () => {
+  // Where resolution order matters. The posture comes from the ability's DOMAIN
+  // page, never from the activation prose that also encodes it, and the app
+  // enforces no turn priority — the chip is information for the Curator making
+  // the call. See src/game/snr.ts.
+  it("says a Null ability resolves before Reactions can be declared", async () => {
+    const negate = genusAbility("Null", "Composite Nullification");
+    await mount([settleOne(outcome(negate), 3)]);
+    const chip = host.querySelector(".vtt2-abil-snr");
+    expect(chip?.textContent).toBe("SNR");
+    // The words are the domain page's, not the card's.
+    expect(chip?.getAttribute("title")).toContain("resolve before Reactions can be declared");
+  });
+
+  it("marks Photonic as anti-SNR", async () => {
+    await mount([settleOne(outcome(LOCK_MOVE), 3)]);
+    expect(host.querySelector(".vtt2-abil-snr")?.textContent).toBe("anti-SNR");
+  });
+
+  it("says nothing for a domain the corpus gives no ruling", async () => {
+    // Elemental. A chip meaning "normal" on every card is how a surface teaches
+    // a table to stop reading its chips.
+    await mount([settleOne(outcome(HAIL_RAIN), 3)]);
+    expect(host.querySelector(".vtt2-abil-snr")).toBeNull();
   });
 });

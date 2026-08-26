@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { RANK_MAX, SPEC_MAX, rankMult, snrOfGenus, type RollResult, type UsableAbility } from "../../game/wte";
+import { RANK_MAX, SPEC_MAX, rankMult, type RollResult, type UsableAbility } from "../../game/wte";
+import { snrReading } from "../../game/snr";
 import { GENUS_FOCUS_MAX, effectiveFocus, focusContest, type ContestSide } from "../../game/synapticFocus";
 
 function clamp(v: string, lo: number, hi: number): number {
@@ -61,7 +62,11 @@ export function GenusContestPanel({ ability, control, rank, canBorrow, onRoll, o
   };
   const theirs: ContestSide = { label: oppName.trim() || "their ability", focus: oppFocus, control: oppControl, rank: oppRank };
   const myEffective = effectiveFocus(mine);
-  const snr = snrOfGenus(ability.name);
+  // One module answers "where does this ability sit in resolution order", and
+  // it reads the DOMAIN page rather than the activation prose that also encodes
+  // it. This panel used to spell the two labels out by hand, which meant a
+  // second place the vocabulary could drift from the VTT's.
+  const snr = snrReading(ability.id ?? ability.name) ?? snrReading(ability.name);
 
   function resolve() {
     const r = focusContest(mine, theirs);
@@ -104,7 +109,7 @@ export function GenusContestPanel({ ability, control, rank, canBorrow, onRoll, o
             <div className="contest-side-name">{ability.name}</div>
             <div className="contest-side-meta">
               {ability.domain ?? "—"}
-              {snr === "applies" ? " · SNR" : snr === "anti" ? " · anti-SNR" : ""}
+              {snr && snr.posture !== "none" ? <span title={snr.note}> · {snr.label}</span> : ""}
             </div>
             <div className="contest-focus">
               Focus <b>{myEffective}</b>

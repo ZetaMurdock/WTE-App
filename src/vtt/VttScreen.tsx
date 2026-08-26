@@ -63,11 +63,14 @@ import { outcomesFromProposals } from "./data/recurringOutcome";
 import { crossingLine, outcomeFromCrossing } from "./data/counterOutcome";
 import type { RecurringProposal } from "./engine/systems/RecurringEffectSystem";
 import { declaredAuraOwner, declaredPlacement } from "./data/effectTicks";
+import { declaredOrigin } from "../game/abilityOrigin";
+import { planOrigin, type OriginPlan } from "./data/originAnchor";
 import { SfxPlayer } from "./audio/sfxPlayer";
 import { getMasterVolume, subscribeMasterVolume } from "../lib/audioPrefs";
 import { reportSaveFailure, pushToast } from "../lib/appToast";
 import { setUndoScope } from "../lib/undoRedo";
 import { adjudicateUndoableVitals, applyUndoableCondition } from "./undo/vitalsUndo";
+import { applyUndoableCounter } from "./undo/counterUndo";
 import { VttCinePanel, type CineConfig } from "./VttCinePanel";
 import { VttSceneBrowser } from "./VttSceneBrowser";
 import { VttActorsPanel } from "./VttActorsPanel";
@@ -81,6 +84,10 @@ import { VttAbilitiesPanel, type VttTargetRollIntent } from "./VttAbilitiesPanel
 import { VttRollToast } from "./VttRollToast";
 import { VttAoePrompt, type AoePlacement, type AoeKind } from "./VttAoePrompt";
 import { VttSummonPrompt, type SummonMode, type SummonRow } from "./VttSummonPrompt";
+import { VttTamperPrompt } from "./VttTamperPrompt";
+import { pageTampers, planTamper, tamperRulingCard, type DeclaredTamper } from "./data/tamperPlan";
+import { findTamperTarget, listTamperTargets, type TamperTarget } from "./data/tamperTargets";
+import { commitUndoableTamper } from "./undo/tamperUndo";
 import { hasAoe } from "./data/effectMeta";
 import {
   MAX_SUMMON_BATCH,
@@ -215,6 +222,12 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
   // this is set, and a snapshot taken at that moment would tell the Curator a
   // creature with a perfectly good Codex page has no statline.
   const [pendingSummon, setPendingSummon] = useState<VttAbility | null>(null);
+  // The ability whose declared `Tamper:` steps are waiting on the Curator. Like
+  // the summon above it holds the ABILITY and not a snapshot of what it will act
+  // on: the scene keeps moving while the dialog is open — a field expires, a
+  // body walks out of a zone — and a list captured at open time would offer to
+  // negate something that is already over.
+  const [pendingTamper, setPendingTamper] = useState<VttAbility | null>(null);
   // A soundboard clip armed for click-to-place as a spatial emitter.
   const [armedSound, setArmedSound] = useState<{ name: string; src: string } | null>(null);
   const [armedAoe, setArmedAoe] = useState<{ kind: AoeKind; cells: number; rounds: number; declared: PlaceAoeOptions } | null>(null);
@@ -2306,6 +2319,11 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
    * The card is pushed only AFTER the engine reports the move landed. A refused
    * write (a player-owned token, a body that left the scene) must not leave a
    * threshold card standing for a track that never moved.
+   *
+   * Undo has to take the crossing's CARD back too, not only the number. Putting
+   * Blight back to 7 while "Blight reached 8" still sat on screen would leave
+   * the Curator holding a 1d100 armed by an arrival that no longer happened —
+   * so the card is captured here and swapped by the same inverse.
    */
   const applyOutcomeCounter = useCallback(
     (outcome: PendingOutcome, target: OutcomeTarget, consequence: OutcomeConsequence) => {
@@ -2316,13 +2334,35 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
         pushToast(`${target.name} is no longer on this scene.`, "error");
         return;
       }
-      const plan = engine.applyTokenCounter({
-        tokenId: token.id,
-        name,
-        delta: consequence.delta,
-        cap: consequence.cap,
-        thresholds: (consequence.thresholds ?? []).map((threshold) => threshold.at),
-      });
+      const scope = rollScope;
+      // Filled below, read only when an inverse runs — by then the crossing has
+      // either produced a card or it has not.
+      let crossingCard: PendingOutcome | null = null;
+      const plan = applyUndoableCounter(
+        engine,
+        {
+          tokenId: token.id,
+          name,
+          delta: consequence.delta,
+          cap: consequence.cap,
+          thresholds: (consequence.thresholds ?? []).map((threshold) => threshold.at),
+        },
+        {
+          label: `${name} ${consequence.delta > 0 ? "+" : ""}${consequence.delta} on ${token.name}`,
+          subject: token.name,
+          onRefused: (reason) => pushToast(reason, "error"),
+          restore: scope
+            ? (phase) => {
+                (phase === "undo" ? unmarkOutcomeApplied : markOutcomeApplied)(
+                  scope, outcome.id, target.id, consequence.id
+                );
+                if (!crossingCard) return;
+                if (phase === "undo") dismissOutcome(scope, crossingCard.id);
+                else pushOutcome(scope, crossingCard);
+              }
+            : undefined,
+        }
+      );
       if (!plan) {
         pushToast(`${name} was not changed — ${token.name} could not be written to.`, "error");
         return;
@@ -2341,7 +2381,11 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
         value: plan.to,
         now: Date.now(),
       });
-      if (card) pushOutcome(rollScope, card);
+      if (!card) return;
+      // Recorded, not re-derived on redo: the card carries the crossing the
+      // table watched, and rebuilding it would restamp its timestamp and TTL.
+      crossingCard = card;
+      pushOutcome(rollScope, card);
     },
     [outcomeToken, rollScope]
   );
@@ -2496,6 +2540,21 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
   // by exactly one thing, the card a round's ticks open, so writing it onto
   // every hand-placed area would put a field in the scene and on the wire that
   // no reader ever looks at, for the whole undeclared corpus.
+  /**
+   * Where this ability fires FROM, resolved against the scene on screen.
+   *
+   * Read from BOTH halves of the page — an `Origin:` bullet where the block
+   * declares one, and the `Component:` header otherwise, which is how all 148
+   * shipped Ciphers already say it. Recomputed at each use rather than memoised
+   * because it depends on where bodies are STANDING: an origin that resolved to
+   * a token two rounds ago is a stale square now.
+   */
+  const abilityOriginPlan = (ability: VttAbility): OriginPlan => {
+    const data = engineRef.current?.scene?.data ?? null;
+    const caster = abilityChar ? data?.tokens.find((t) => t.characterId === abilityChar.id) ?? null : null;
+    return planOrigin(declaredOrigin(ability.effect, ability.actions), data, caster?.id ?? null);
+  };
+
   const declaredAoeOptions = (ability: VttAbility): PlaceAoeOptions => {
     const placement = declaredPlacement(ability.actions);
     const tokens = engineRef.current?.scene?.data.tokens ?? [];
@@ -2507,7 +2566,15 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
       const missed = [...placement.extraStatuses, ...placement.extraSaves.map((tick) => tick.label)];
       pushToast(`${ability.name}: this template carries one in-zone tag and one recurring save — ${missed.join(", ")} needs its own.`, "info");
     }
-    const auraOwner = declaredAuraOwner(placement, casterToken?.id ?? null);
+    // `attach self` names the body the field rides, and an ability with a
+    // declared ORIGIN does not fire from the caster's body — a Cipher mounted
+    // on a Component is standing wherever the Component is. So the origin's
+    // token, when the map found one, is the body the aura rides; the caster is
+    // the fallback for the abilities that never declared an origin, which is
+    // every one of them today. Same binding either way: `auraTokenId`, the
+    // reconcile pass P3 already wired into every path that moves a body.
+    const originToken = abilityOriginPlan(ability).tokenId;
+    const auraOwner = declaredAuraOwner(placement, originToken ?? casterToken?.id ?? null);
     return {
       ...(placement.status ? { status: placement.status } : {}),
       ...(placement.ticks.length
@@ -2662,10 +2729,121 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
     };
   };
 
-  const placeAoe = (p: AoePlacement, declared: PlaceAoeOptions) => {
+  // ── Tamper: one ability acting on another ability's effect ───────────────
+  //
+  // Everything here reads the LIVE scene rather than a captured list, and the
+  // preview is recomputed on every render for the same reason the summon prompt
+  // asks `roomFor` live: a Curator with the dialog open is looking at a map that
+  // is still moving.
+
+  const tamperSteps: DeclaredTamper[] = useMemo(
+    () => (pendingTamper ? pageTampers(pendingTamper.actions) : []),
+    [pendingTamper]
+  );
+
+  const tamperTargets: TamperTarget[] = useMemo(
+    () => (pendingTamper && live ? listTamperTargets(live.data) : []),
+    [pendingTamper, live]
+  );
+
+  /** The body of whoever raised an effect. `reflect` needs a TOKEN and the
+   *  effect records a CHARACTER, so the join happens here — the only layer that
+   *  holds both — and an absent answer is passed through as absent rather than
+   *  substituted for. */
+  const tamperSource = (casterCharacterId: string | undefined) => {
+    if (!casterCharacterId || !live) return { sourceTokenId: undefined, sourceName: undefined };
+    const token = live.data.tokens.find((candidate) => candidate.characterId === casterCharacterId);
+    const record = characters.find((candidate) => candidate.id === casterCharacterId);
+    return { sourceTokenId: token?.id, sourceName: record?.name ?? token?.name };
+  };
+
+  const previewTamper = (step: DeclaredTamper, targetId: string) => {
+    const data = engineRef.current?.scene?.data ?? live?.data;
+    if (!data) return null;
+    const target = findTamperTarget(data, targetId);
+    if (!target) return null;
+    return planTamper({
+      data,
+      target,
+      mode: step.mode,
+      rounds: step.rounds,
+      ...tamperSource(target.casterCharacterId),
+    });
+  };
+
+  /**
+   * Commit one tamper.
+   *
+   * Re-planned against the live scene at the moment of the click rather than
+   * committing the proposal the prompt rendered: between the render and the
+   * press the round can advance, expiring the very field this is about to
+   * remove, and a write built from the stale plan would strip pips for a zone
+   * that had already gone.
+   */
+  const confirmTamper = (step: DeclaredTamper, targetId: string) => {
+    const eng = engineRef.current;
+    const ability = pendingTamper;
+    if (!eng?.scene || !ability) return;
+    const proposal = previewTamper(step, targetId);
+    if (!proposal) {
+      pushToast("That effect is no longer on this scene.", "error");
+      setPendingTamper(null);
+      return;
+    }
+    if (proposal.verdict === "refused") {
+      pushToast(proposal.refusal ?? "That tamper could not resolve.", "error", 0);
+      return;
+    }
+    if (proposal.verdict === "ruling") {
+      // Redirect and copy have no mechanic the engine can honestly execute, so
+      // they become a card that states the question — the same unrolled shape a
+      // counter crossing opens, and the same rule applies: a ruling is never
+      // auto-applied, whatever the table opted into.
+      const card = rollScope
+        ? tamperRulingCard({
+            proposal,
+            sourceAbilityId: ability.abilityId ?? ability.id,
+            sourceAbilityName: ability.name,
+            casterCharacterId: abilityChar?.id,
+            now: Date.now(),
+          })
+        : null;
+      if (card && rollScope) pushOutcome(rollScope, card);
+      else pushToast(proposal.ruling ?? "That one is yours to rule.", "info", 0);
+      setPendingTamper(null);
+      return;
+    }
+    if (!proposal.write) return;
+    if (
+      !commitUndoableTamper(eng, proposal.write, {
+        label: proposal.label,
+        onRefused: (reason) => pushToast(reason, "error", 0),
+      })
+    ) {
+      return;
+    }
+    // The caveats are repeated in the toast, not left in the dialog that is
+    // about to close. What a cascade could NOT reach is the thing a Curator has
+    // to act on afterwards, and it must not vanish with the prompt.
+    pushToast(
+      [proposal.label, ...proposal.caveats].join(" — "),
+      "info",
+      proposal.caveats.length ? 0 : undefined
+    );
+    setPendingTamper(null);
+  };
+
+  const placeAoe = (p: AoePlacement, declared: PlaceAoeOptions, originAt?: { x: number; y: number } | null) => {
     const eng = engineRef.current;
     if (!eng) return;
     const tokens = eng.scene?.data.tokens ?? [];
+    // The declared origin's square, when the Curator kept that mode. Taken
+    // ahead of the token search below because an origin may be a placed marker
+    // rather than a body — there is nothing in `tokens` to find.
+    if (p.mode === "origin" && originAt) {
+      eng.placeAoeAt(p.kind, originAt.x, originAt.y, { cells: p.cells, rounds: p.rounds, ...declared });
+      return;
+    }
     // Where the template LANDS, which is not the same question as whose body an
     // aura rides — see `declaredAuraOwner`. Placing on a selected token used to
     // answer both at once, which bound a caster's own field to whatever was
@@ -2970,6 +3148,11 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
             // prompt rather than inside it: an ability may place a field AND
             // call bodies into it, and folding the two into one dialog would
             // make the Curator aim a template to confirm a creature.
+            // A declared tamper is its own proposal too, and rides beside both:
+            // Catalyst places a field AND negates one, and folding the two into
+            // one dialog would make the Curator aim a template to answer a
+            // question about somebody else's effect.
+            if (!asPlayer && pageTampers(ability.actions).length > 0) setPendingTamper(ability);
             if (!asPlayer && pageSummons(ability.actions).length > 0) {
               setPendingSummon(ability);
               // The roster is only loaded when the Actors panel opens, and a
@@ -2981,9 +3164,15 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
           onClose={() => setLeftPanel(null)}
         />
       )}
-      {!asPlayer && outcomes.length > 0 && (
+      {/* ONE gate, and it is inside the card — `viewer` is a required prop the
+          component honours in front of its auto-apply effect as well as its
+          markup. This used to read `!asPlayer && …` here, where no test could
+          reach it. A second copy of the rule on this line would be the half that
+          rots. */}
+      {outcomes.length > 0 && (
         <VttResolutionCard
           outcomes={outcomes}
+          viewer={asPlayer ? "player" : "curator"}
           autoApplyDeclared={autoApplyDeclared}
           onRoll={rollConsequence}
           onApplyDamage={applyOutcomeDamage}
@@ -2999,15 +3188,26 @@ export function VttScreen({ campaign: localCampaign, active = true }: { campaign
           ability={pendingAoe}
           casterName={abilityChar?.name ?? null}
           hasSelectedToken={sel?.kind === "token"}
+          origin={abilityOriginPlan(pendingAoe)}
           onCancel={() => setPendingAoe(null)}
           onPlace={(p) => {
             // Read ONCE, here, and carried into the armed state: the click mode
             // lands its template on a pointer event with no ability in scope.
             const declared = declaredAoeOptions(pendingAoe);
             if (p.mode === "click") setArmedAoe({ kind: p.kind, cells: p.cells, rounds: p.rounds, declared });
-            else placeAoe(p, declared);
+            else placeAoe(p, declared, abilityOriginPlan(pendingAoe).at);
             setPendingAoe(null);
           }}
+        />
+      )}
+      {pendingTamper && tamperSteps.length > 0 && (
+        <VttTamperPrompt
+          abilityName={pendingTamper.name}
+          steps={tamperSteps}
+          targets={tamperTargets}
+          preview={previewTamper}
+          onConfirm={confirmTamper}
+          onCancel={() => setPendingTamper(null)}
         />
       )}
       {pendingSummon && summonRows.length > 0 && (

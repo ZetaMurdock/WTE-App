@@ -91,6 +91,20 @@ vi.mock("./data/characterAbilities", () => ({
         ss: 6,
         meta: { targets: 1, range: null, area: null, pattern: null, duration: null, attach: "target", values: [] },
       },
+      {
+        // A page that composes another ability BY NAME, the way S4 — THE LAST
+        // WAR does. WEAPONIZE is a real shipped cipher with no `## Actions`
+        // block, so this row exercises both halves at once against the live
+        // catalog: a reference that resolves to prose, and one that resolves to
+        // nothing at all.
+        id: "cipher-invoke",
+        name: "Composed Strike",
+        source: "cipher",
+        effect: "All environmental objects within 60 ft are simultaneously Weaponized.",
+        actions: ["- Cost: 110 SS", "- Invoke: WEAPONIZE", "- Invoke: NOT AN ABILITY"].join("\n"),
+        ss: 110,
+        meta: { targets: 1, range: null, area: null, pattern: null, duration: null, attach: "target", values: [] },
+      },
     ],
     racial: [
       {
@@ -472,5 +486,35 @@ describe("usage limits", () => {
     const chip = rowChip("Photonic Swing")!;
     expect(chip.textContent).toContain("Unlimited; once per action");
     expect(chip.textContent).not.toContain("used");
+  });
+});
+
+describe("an ability that invokes another by name", () => {
+  const composed = () =>
+    [...host.querySelectorAll<HTMLLIElement>(".vtt2-abil-row")].find((li) =>
+      li.querySelector(".vtt2-abil-name")?.textContent?.includes("Composed Strike")
+    )!;
+
+  it("resolves the reference against the live catalog and says what became of it", async () => {
+    await mount();
+    const chips = [...composed().querySelectorAll(".vtt2-abil-stepchip")].map((el) => el.textContent);
+    // WEAPONIZE is a real shipped cipher that declares no block, so the page
+    // resolved and its prose is the answer; the second name resolves to
+    // nothing, and the row says so rather than quietly contributing less than
+    // the page claims.
+    expect(chips).toContain("Invoke WEAPONIZE · prose");
+    expect(chips).toContain('Invoke "NOT AN ABILITY" · unknown');
+  });
+
+  it("marks only the reference that failed", async () => {
+    await mount();
+    const bad = [...composed().querySelectorAll(".vtt2-abil-stepchip.bad")].map((el) => el.textContent);
+    expect(bad).toEqual(['Invoke "NOT AN ABILITY" · unknown']);
+  });
+
+  it("quotes the invoked page's own words for the Curator to run by hand", async () => {
+    await mount();
+    const quoted = [...composed().querySelectorAll(".vtt2-abil-effect")].map((el) => el.textContent ?? "");
+    expect(quoted.some((line) => line.startsWith("WEAPONIZE:") && line.includes("ACTIVE MODIFICATION"))).toBe(true);
   });
 });

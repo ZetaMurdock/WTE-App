@@ -11,6 +11,7 @@
 // branch is the same rectangle test, point for point (proved in the test file).
 import type { VttEffect, VttGrid, VttSceneData } from "../../types/scene";
 import { tokenInEffect } from "./effectOccupants";
+import { effectSuspended } from "./effectSuspension";
 import type { ConditionVitalsWriter } from "./ConditionClockSystem";
 
 /** A status-bearing effect owns its tag: standing in it grants, leaving revokes. */
@@ -40,11 +41,18 @@ export class SimulationSystem {
     // The caller's gridSize wins over the scene's own, which is the contract the
     // signature already had; footprint maths needs the rest of the grid record.
     const grid: VttGrid = { ...data.grid, size: gridSize };
+    // A suspended zone stays in `zones` — and therefore keeps OWNING its status
+    // — while containing nobody, so the pip comes off whoever was standing in it
+    // and goes back on when it wakes. Dropping it from the list instead would
+    // take the status out of `zoneStatuses`, and the filter below would then
+    // read the pip as a Curator's manual tag and keep it forever. See
+    // effectSuspension.ts.
+    const round = data.timeline?.round ?? 0;
     let changed = false;
     for (const t of data.tokens) {
       const inside = new Set<string>();
       for (const z of zones) {
-        if (tokenInEffect(z, grid, t)) inside.add(statusOf(z) as string);
+        if (!effectSuspended(z, round) && tokenInEffect(z, grid, t)) inside.add(statusOf(z) as string);
       }
       const cur = t.statuses ?? [];
       // keep manual statuses + zone statuses the token is currently inside

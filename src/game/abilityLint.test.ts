@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CIPHER_DATA_BY_ID, GENUS_DATA_BY_ID } from "./wte";
 import { hasLintWarnings, lintDeclaredAgainstProse, type LintFinding } from "./abilityLint";
+import { buildAbilityCatalog } from "./abilityCatalog";
 
 // Real shipped prose, not fixtures: the oracle's whole job is to be quiet about
 // the corpus as it actually reads, and a hand-written sentence would prove
@@ -131,5 +132,50 @@ describe("a custom currency", () => {
 
   it("says nothing about a track that watches no mark", () => {
     expect(lintDeclaredAgainstProse(null, "- Counter: Wryde charges +1")).toEqual([]);
+  });
+});
+
+describe("an Invoke on the page being authored", () => {
+  const catalog = buildAbilityCatalog([
+    { kind: "cipher", id: "wte.cipher.weaponize", name: "WEAPONIZE", actions: "- Damage: 2d8 Blunt" },
+    { kind: "cipher", id: "wte.cipher.hollow-shell", name: "HOLLOW SHELL", effect: "An object becomes completely hollow." },
+  ]);
+
+  it("warns about a name this campaign has no page for", () => {
+    // The failure mode the warning exists for: the invocation contributes
+    // nothing, the card still looks complete, and nobody at the table finds out.
+    const findings = lintDeclaredAgainstProse(null, "- Invoke: TRIXT LINK", catalog);
+    const invoke = findings.filter((finding) => finding.category === "invoke");
+    expect(invoke).toHaveLength(1);
+    expect(invoke[0].severity).toBe("warning");
+    expect(hasLintWarnings(findings)).toBe(true);
+  });
+
+  it("warns about a loop rather than letting the editor hang on it", () => {
+    const loop = buildAbilityCatalog([{ kind: "cipher", id: "wte.cipher.a", name: "A", actions: "- Invoke: A" }]);
+    const findings = lintDeclaredAgainstProse(null, "- Invoke: A", loop);
+    expect(findings.some((finding) => finding.category === "invoke" && finding.severity === "warning")).toBe(true);
+  });
+
+  it("is quiet in tone about a reference that resolved", () => {
+    const findings = lintDeclaredAgainstProse(null, "- Invoke: WEAPONIZE", catalog);
+    expect(findings.filter((finding) => finding.category === "invoke")[0].severity).toBe("info");
+    expect(hasLintWarnings(findings)).toBe(false);
+  });
+
+  it("does not call an invoked prose-only ability a fault", () => {
+    // The three-states rule: an undeclared page is not a broken one, and a
+    // warning here would push a Curator into converting a corpus nobody asked
+    // them to convert.
+    const findings = lintDeclaredAgainstProse(null, "- Invoke: HOLLOW SHELL", catalog);
+    expect(hasLintWarnings(findings)).toBe(false);
+    expect(findings.some((finding) => finding.message.includes("run by hand"))).toBe(true);
+  });
+
+  it("says nothing at all when the caller has no catalog to check against", () => {
+    // "No catalog" means this caller cannot know whether the name resolves.
+    // Reporting "unknown ability" would send a Curator chasing a fault that
+    // does not exist.
+    expect(lintDeclaredAgainstProse(null, "- Invoke: TRIXT LINK")).toEqual([]);
   });
 });

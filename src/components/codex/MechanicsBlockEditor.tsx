@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { parseAbilityActions } from "../../game/abilityActions";
 import { DAMAGE_TYPE_WORDS } from "../../game/abilityActions";
 import { effectStepLabel, parseAbilityEffects } from "../../game/abilityEffects";
+import { officialAbilityCatalog } from "../../game/abilityCatalog";
 import { hasLintWarnings, lintDeclaredAgainstProse } from "../../game/abilityLint";
 import {
   DETAIL_SEGMENTS,
@@ -86,7 +87,13 @@ export function MechanicsBlockEditor({ value, onChange, kind }: Props) {
   // leaves the block, overwrites the mechanic above it, and the page stops
   // scanning faithfully and drops to the Code editor with nothing said.
   const stepHazards = useMemo(() => hazardousEffectLines(model.actions), [model.actions]);
-  const findings = useMemo(() => lintDeclaredAgainstProse(model.effect, model.actions), [model.effect, model.actions]);
+  // The live catalog rides along so an `Invoke:` is checked while it is being
+  // typed. It is memoised on the Codex revision behind that call, so asking for
+  // it on every keystroke costs a map read rather than a rebuild.
+  const findings = useMemo(
+    () => lintDeclaredAgainstProse(model.effect, model.actions, officialAbilityCatalog()),
+    [model.effect, model.actions]
+  );
 
   // Phrase-builder state.
   const [saveStat, setSaveStat] = useState<string>("Endurance");

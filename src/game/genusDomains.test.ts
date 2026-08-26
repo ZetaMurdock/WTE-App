@@ -5,9 +5,9 @@ import {
   domainOfGenus,
   genusForParadigm,
   getGenusDomain,
-  snrOfGenus,
   usableGenus,
 } from "./wte";
+import { snrReading } from "./snr";
 
 describe("the rebuilt Genus domains", () => {
   it("holds the five domains — Kinetic reworked into Photonic", () => {
@@ -36,9 +36,9 @@ describe("the rebuilt Genus domains", () => {
     expect(getGenusDomain("Photonic")!.snr).toBe("anti");
     for (const d of ["Eldritch", "Elemental", "Neutral"]) expect(getGenusDomain(d)!.snr).toBe("none");
     // Resolved per ability, which is how a contest reads it.
-    expect(snrOfGenus("Reflect")).toBe("applies");
-    expect(snrOfGenus("Lock Move")).toBe("anti");
-    expect(snrOfGenus("Lark")).toBe("none");
+    expect(snrReading("Reflect")?.posture).toBe("applies");
+    expect(snrReading("Lock Move")?.posture).toBe("anti");
+    expect(snrReading("Lark")?.posture).toBe("none");
   });
 
   it("every ability is well-formed and carries its LIMIT", () => {
