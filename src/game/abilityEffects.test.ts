@@ -102,3 +102,36 @@ describe("declared steps as the actions the UI already renders", () => {
     expect(effectStepsToActions(steps)[0]).toMatchObject({ self: true });
   });
 });
+
+describe("tracks and bodies", () => {
+  it("reads a custom currency and the threshold that watches it", () => {
+    // Blight, Fear Points, Overload Charges — one mechanism, many names, so a
+    // table inventing its own currency needs no parser change.
+    const steps = roundTrips(
+      ["- Counter: Blight +1, cap 8", "- At 8: Damage: 1d100", "- At 8: Condition: Incapacitated"].join("\n")
+    );
+    expect(steps[0]).toMatchObject({ verb: "counter", counter: "Blight", delta: 1, cap: 8 });
+    // The threshold resolves to the track above it AT PARSE TIME, so no consumer
+    // has to re-derive meaning from bullet order.
+    expect(steps[1]).toMatchObject({ cadence: "at-threshold", threshold: 8, counter: "Blight" });
+    expect(steps[2].counter).toBe("Blight");
+  });
+
+  it("refuses a threshold with no track declared above it", () => {
+    const { steps, errors } = parseAbilityEffects("- At 8: Damage: 1d100");
+    expect(steps).toEqual([]);
+    expect(errors[0]).toContain("At 8");
+  });
+
+  it("reads a summon with and without a count", () => {
+    const steps = roundTrips(["- Summon: 100 Lesser Stygian", "- Summon: Kirkndomou"].join("\n"));
+    expect(steps[0]).toMatchObject({ count: 100, summon: "Lesser Stygian" });
+    expect(steps[1]).toMatchObject({ count: 1, summon: "Kirkndomou" });
+  });
+
+  it("refuses a counter with no direction", () => {
+    const { steps, errors } = parseAbilityEffects("- Counter: Blight");
+    expect(steps).toEqual([]);
+    expect(errors).toHaveLength(1);
+  });
+});

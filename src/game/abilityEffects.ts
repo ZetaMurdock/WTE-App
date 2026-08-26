@@ -29,7 +29,8 @@ import type { AbilityAction } from "./abilityActions";
 
 /** The verbs a page may write. Closed on purpose: an unknown verb is an
  *  authoring error the page reports, never a step quietly dropped. */
-export type EffectVerb = "cost" | "roll" | "save" | "damage" | "heal" | "condition" | "modify" | "ruling" | "zone";
+export type EffectVerb =
+  | "cost" | "roll" | "save" | "damage" | "heal" | "condition" | "modify" | "ruling" | "zone" | "counter" | "summon";
 
 /** The shapes the VTT can actually place. Named for the table, mapped to the
  *  engine's own kinds by the caller — a page says "circle", not "VttEffectKind". */
@@ -38,7 +39,7 @@ export type EffectShape = "circle" | "cone" | "line" | "ring" | "cross" | "squar
 /** WHEN a step happens, which is orthogonal to which BRANCH arms it. A step can
  *  be both ("Each round: Fail: Damage: 3d10") — the zone ticks every round, and
  *  the damage still only lands on a failure. */
-export type EffectCadence = "once" | "each-round" | "in-zone";
+export type EffectCadence = "once" | "each-round" | "in-zone" | "at-threshold";
 
 /** Who a step lands on. Defaults per verb — a Check is made by the acting
  *  character, a Save by the target — mirroring the inference the prose parser
@@ -100,6 +101,21 @@ export interface EffectStep {
   /** zone — what the template is anchored to. `self` is an aura that travels
    *  with its caster; `point` is placed and stays put. */
   attach?: "self" | "target" | "point";
+  /** counter — the track's name, as the page writes it. Open text like a
+   *  condition: Blight, Fear, Overload Charges are one mechanism with many
+   *  names, and a table inventing its own currency must not need a parser change. */
+  counter?: string;
+  /** counter — how far the track moves, signed. */
+  delta?: number;
+  /** counter — the value the track stops at, when the page gives one. */
+  cap?: number;
+  /** at-threshold — the value that fires this step. The counter it watches is
+   *  resolved at parse time from the nearest one declared above it, so a
+   *  consumer never has to reason about bullet order. */
+  threshold?: number;
+  /** summon — how many bodies arrive, and what they are called. */
+  count?: number;
+  summon?: string;
 }
 
 export interface AbilityEffects {
@@ -122,6 +138,9 @@ const VERBS: Readonly<Record<string, EffectVerb>> = {
   ruling: "ruling",
   zone: "zone",
   area: "zone",
+  counter: "counter",
+  track: "counter",
+  summon: "summon",
 };
 
 const SHAPES: Readonly<Record<string, EffectShape>> = {
@@ -172,6 +191,8 @@ const DEFAULT_SELECTOR: Readonly<Record<EffectVerb, EffectSelector>> = {
   modify: "self",
   ruling: "target",
   zone: "target",
+  counter: "target",
+  summon: "self",
 };
 
 /** Dice or a flat amount, matching the Grants validator. Anything else is an
@@ -246,6 +267,7 @@ function parseStep(body: string, errors: string[], line: string): EffectStep | n
   // `Each round:` and `In zone:` say WHEN, not on which branch, so they are
   // stripped first and a branch prefix may still follow them.
   let cadence: EffectCadence = "once";
+  let threshold: number | undefined;
   const cadencePrefix = /^([A-Za-z]+\s+[A-Za-z]+)\s*:\s*(.+)$/.exec(rest);
   if (cadencePrefix) {
     const found = own(CADENCES, cadencePrefix[1]);
@@ -253,6 +275,14 @@ function parseStep(body: string, errors: string[], line: string): EffectStep | n
       cadence = found;
       rest = cadencePrefix[2];
     }
+  }
+  // `At 8:` — a track reaching a value is a third way of saying when, alongside
+  // a round passing and a body standing somewhere.
+  const atPrefix = /^At\s+(\d{1,4})\s*:\s*(.+)$/i.exec(rest);
+  if (atPrefix) {
+    cadence = "at-threshold";
+    threshold = parseInt(atPrefix[1], 10);
+    rest = atPrefix[2];
   }
   const prefix = /^([A-Za-z]+)\s*:\s*(.+)$/.exec(rest);
   if (prefix) {
@@ -284,6 +314,41 @@ function parseStep(body: string, errors: string[], line: string): EffectStep | n
   }
   const value = head[3].trim();
   const step: EffectStep = { verb, branch, who, cadence };
+  if (threshold !== undefined) step.threshold = threshold;
+
+  if (verb === "counter") {
+    const parts = value.split(",");
+    const m = /^(.+?)\s*([+-]\d{1,4})$/.exec(parts[0].trim());
+    if (!m) {
+      errors.push(`Counter needs a name and a signed amount: ${line.trim()}`);
+      return null;
+    }
+    step.counter = m[1].trim();
+    step.delta = parseInt(m[2], 10);
+    for (const raw of parts.slice(1)) {
+      const tail = raw.trim();
+      if (!tail) continue;
+      const cap = /^cap\s+(\d{1,4})$/i.exec(tail);
+      if (!cap) {
+        errors.push(`Unreadable counter detail "${tail}": ${line.trim()}`);
+        return null;
+      }
+      step.cap = parseInt(cap[1], 10);
+    }
+    return step;
+  }
+
+  if (verb === "summon") {
+    const m = /^(?:(\d{1,4})\s*(?:x\s*)?)?(.+)$/i.exec(value);
+    const name = m?.[2]?.trim();
+    if (!name) {
+      errors.push(`Summon needs something to summon: ${line.trim()}`);
+      return null;
+    }
+    step.summon = name;
+    step.count = m?.[1] ? parseInt(m[1], 10) : 1;
+    return step;
+  }
 
   if (verb === "zone") {
     const parts = value.split(",");
@@ -446,7 +511,19 @@ export function parseAbilityEffects(section: string | null | undefined): Ability
     const bullet = BULLET_RE.exec(line);
     if (!bullet) continue;
     const step = parseStep(bullet[1], errors, line);
-    if (step) steps.push(step);
+    if (!step) continue;
+    // A threshold watches the nearest track declared above it. Resolving the
+    // name here keeps the IR self-contained: no consumer has to re-derive
+    // meaning from bullet order, which is exactly where such rules rot.
+    if (step.cadence === "at-threshold" && !step.counter) {
+      const track = [...steps].reverse().find((prior) => prior.verb === "counter" && prior.counter);
+      if (!track) {
+        errors.push(`"At ${step.threshold}" names no track declared above it: ${line.trim()}`);
+        continue;
+      }
+      step.counter = track.counter;
+    }
+    steps.push(step);
   }
   return { steps, errors };
 }
@@ -458,7 +535,14 @@ export function effectLine(step: EffectStep): string {
   const branch = step.branch === "always" ? "" : `${step.branch[0].toUpperCase()}${step.branch.slice(1)}: `;
   const verbWord = step.verb[0].toUpperCase() + step.verb.slice(1);
   const selector = step.who === DEFAULT_SELECTOR[step.verb] ? "" : ` (${step.who})`;
-  const cadence = step.cadence === "each-round" ? "Each round: " : step.cadence === "in-zone" ? "In zone: " : "";
+  const cadence =
+    step.cadence === "each-round"
+      ? "Each round: "
+      : step.cadence === "in-zone"
+        ? "In zone: "
+        : step.cadence === "at-threshold"
+          ? `At ${step.threshold}: `
+          : "";
   const head = `- ${cadence}${branch}${verbWord}${selector}: `;
   switch (step.verb) {
     case "ruling":
@@ -485,6 +569,10 @@ export function effectLine(step: EffectStep): string {
         (step.attach ? `, attach ${step.attach}` : "") +
         (step.duration ? `, ${durationText(step.duration)}` : "")
       );
+    case "counter":
+      return head + `${step.counter} ${step.delta! > 0 ? "+" : ""}${step.delta}` + (step.cap != null ? `, cap ${step.cap}` : "");
+    case "summon":
+      return head + `${step.count && step.count > 1 ? `${step.count} ` : ""}${step.summon}`;
   }
 }
 
@@ -510,6 +598,10 @@ export function effectStepLabel(step: EffectStep): string {
     case "heal": return `${branch}Heal ${step.expr}${who}`;
     case "zone":
       return `${step.attach === "self" ? "Aura" : "Zone"} · ${step.shape} ${step.sizeFt} ft${step.duration ? ` · ${durationText(step.duration)}` : ""}`;
+    case "counter":
+      return `${branch}${step.counter} ${step.delta! > 0 ? "+" : ""}${step.delta}${step.cap != null ? ` / ${step.cap}` : ""}${who}`;
+    case "summon":
+      return `${branch}Summon ${step.count && step.count > 1 ? `${step.count} ` : ""}${step.summon}`;
   }
 }
 
