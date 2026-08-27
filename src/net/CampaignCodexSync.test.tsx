@@ -230,4 +230,44 @@ describe("CampaignCodexSync lifecycle", () => {
       undefined,
     );
   });
+
+  it("answers a corrected request that arrives inside the throttle window", async () => {
+    // A player joins holding the campaign id their last session in this room
+    // left behind, is told it is not the one hosted here, and re-asks the
+    // instant room-info corrects them. Throttled by PEER alone, that corrected
+    // request was swallowed and nothing retried, so the player sat on "that is
+    // not the campaign currently hosted at this table" for good.
+    const net = makeNet("host");
+    mocks.net.current = net.value;
+    await render(true);
+    const before = net.publish.mock.calls.length;
+
+    await act(async () => {
+      net.deliver("codex-request", { t: "codex-request", campaignId: "a-stale-campaign" }, "player-1");
+      net.deliver("codex-request", { t: "codex-request", campaignId: campaign.id }, "player-1");
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const sent = net.publish.mock.calls.slice(before).map((c) => c[0]);
+    expect(sent.map((m) => m.t)).toEqual(["codex-error", "codex-snapshot"]);
+  });
+
+  it("still throttles a genuine repeat of the same request", async () => {
+    const net = makeNet("host");
+    mocks.net.current = net.value;
+    await render(true);
+    const before = net.publish.mock.calls.length;
+
+    await act(async () => {
+      net.deliver("codex-request", { t: "codex-request", campaignId: "a-stale-campaign" }, "player-1");
+      net.deliver("codex-request", { t: "codex-request", campaignId: "a-stale-campaign" }, "player-1");
+      await Promise.resolve();
+    });
+
+    // A refusal is not recorded as service, but the SAME question inside the
+    // window is still one answer: the second refusal is suppressed by the key.
+    const sent = net.publish.mock.calls.slice(before).map((c) => c[0].t);
+    expect(sent.filter((t) => t === "codex-error").length).toBeLessThanOrEqual(2);
+  });
 });

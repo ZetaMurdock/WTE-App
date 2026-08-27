@@ -18,6 +18,9 @@ import { useNet } from "./NetContext";
  * publishes the campaign Codex; players install only host-authored snapshots in
  * memory and ask the normal game-data loader to rebuild every shared catalog.
  */
+const MAX_CODEX_RETRIES = 3;
+const CODEX_RETRY_MS = 2_000;
+
 export function CampaignCodexSync({ campaign, curator }: { campaign: Campaign | null; curator: boolean }) {
   const { status, role, room, peers, table, publish, subscribe } = useNet();
   const campaignId = campaign?.id ?? "";
@@ -46,6 +49,13 @@ export function CampaignCodexSync({ campaign, curator }: { campaign: Campaign | 
   const lastPublished = useRef<{ scope: string; revision: string }>({ scope: "", revision: "" });
   const lastTargetRequest = useRef(new Map<string, number>());
   const requestInFlight = useRef("");
+  // Bounded on purpose: a client that re-asked forever would turn one bad answer
+  // into a request storm against the Curator's machine.
+  const retries = useRef(0);
+  // Read at RETRY time, not when the failure arrived — the id that failed is the
+  // stale one `room-info` is in the middle of correcting.
+  const tableCampaignRef = useRef("");
+  tableCampaignRef.current = tableCampaignId;
   const previousPlayerScope = useRef("");
 
   const getSnapshot = useCallback((scope: string, generation: number) => {
@@ -94,11 +104,17 @@ export function CampaignCodexSync({ campaign, curator }: { campaign: Campaign | 
     // One reliable data channel does not need a burst of identical recovery
     // replies. Besides the network cost, rebuilding the full official corpus for
     // each packet lets one peer monopolize the Curator's UI thread.
-    const requestKey = `${hostScope}\u001f${from}`;
+    // Keyed by the campaign ASKED FOR, not by the asker alone, and recorded only
+    // when the host actually SERVES one. A player arrives holding the campaign id
+    // their last session in this room left behind, is told it is not the one
+    // hosted here, and re-asks the instant `room-info` corrects them — inside the
+    // window. Keyed by peer, that corrected request was silently swallowed, and
+    // with nothing retrying on either side the player sat on "that is not the
+    // campaign currently hosted at this table" until they gave up.
+    const requestKey = `${hostScope}\u001f${from}\u001f${request.campaignId}`;
     const now = Date.now();
     const last = lastTargetRequest.current.get(requestKey) ?? 0;
     if (now - last < 2_000) return;
-    lastTargetRequest.current.set(requestKey, now);
     if (!campaignId || request.campaignId !== campaignId) {
       publish({
         t: "codex-error",
@@ -108,6 +124,10 @@ export function CampaignCodexSync({ campaign, curator }: { campaign: Campaign | 
       }, from);
       return;
     }
+    // Recorded here and not above: a refusal is not a service, and spending the
+    // window on a question this host was never going to answer is what made the
+    // corrected request unanswerable.
+    lastTargetRequest.current.set(requestKey, now);
     void publishSnapshot(from, snapshotGeneration.current);
   }), [campaignId, curator, hostScope, publish, publishSnapshot, role, subscribe]);
 
@@ -147,6 +167,21 @@ export function CampaignCodexSync({ campaign, curator }: { campaign: Campaign | 
     if (clearRoomCodex()) window.dispatchEvent(new Event("wte-pages-changed"));
   }, [playerScope]);
 
+  /** Ask again, a few times, then stop. One unreadable answer used to end the
+   *  session: nothing re-requested and the gate stayed up until the app was
+   *  restarted. */
+  const retryCodex = useCallback((forCampaign: string) => {
+    if (retries.current >= MAX_CODEX_RETRIES) return;
+    retries.current += 1;
+    const attempt = retries.current;
+    window.setTimeout(() => {
+      const want = tableCampaignRef.current || forCampaign;
+      if (requestInFlight.current || !hostId || !want) return;
+      markRoomCodexSyncing(want);
+      publish({ t: "codex-request", campaignId: want, haveRevision: activeRoomCodex()?.revision }, hostId);
+    }, attempt * CODEX_RETRY_MS);
+  }, [hostId, publish]);
+
   // Player: request the authority document after room-info names the campaign.
   useEffect(() => {
     if (!playerScope || !tableCampaignId || !hostId) return;
@@ -166,11 +201,22 @@ export function CampaignCodexSync({ campaign, curator }: { campaign: Campaign | 
     const message = raw as Extract<NetMessage, { t: "codex-snapshot" }>;
     const expected = tableCampaignId || message.snapshot?.campaignId;
     requestInFlight.current = "";
-    const snapshot = parseCampaignCodexSnapshot(message.snapshot, expected);
+    // The reason is the point of asking. "Did not pass validation" is thirty
+    // possibilities wearing one sentence, and a table stuck on a join had
+    // nothing to act on.
+    let why = "";
+    const snapshot = parseCampaignCodexSnapshot(message.snapshot, expected, (reason) => {
+      why = reason;
+    });
     if (!snapshot) {
-      markRoomCodexError(expected || "", "The Curator's Codex snapshot did not pass validation.");
+      markRoomCodexError(
+        expected || "",
+        `The Curator's Codex snapshot did not pass validation — ${why || "no reason was recorded"}.`
+      );
+      retryCodex(expected || "");
       return;
     }
+    retries.current = 0;
     const changed = installRoomCodex(snapshot);
     if (changed) {
       window.dispatchEvent(new Event("wte-pages-changed"));
@@ -184,6 +230,7 @@ export function CampaignCodexSync({ campaign, curator }: { campaign: Campaign | 
     if (tableCampaignId && message.campaignId !== tableCampaignId) return;
     requestInFlight.current = "";
     markRoomCodexError(message.campaignId, message.message || "The Curator could not provide this campaign's Codex.");
+    retryCodex(message.campaignId);
   }), [hostId, role, subscribe, tableCampaignId]);
 
   // Unmounting the bridge must not leave a room's rules installed in singleton
