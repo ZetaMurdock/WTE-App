@@ -2,7 +2,7 @@ import { useState } from "react";
 import { rollToHit, rollGeneric, rollDiceExpr, signedMod, type UsableAbility, type RollResult } from "../../game/wte";
 import { averageDamage, summarizeDamage } from "../../game/abilityDamage";
 import { officialAbilityCatalog } from "../../game/abilityCatalog";
-import { abilityUnderstanding } from "../../game/abilityUnderstanding";
+import { abilityUnderstanding, declaresNoRoll } from "../../game/abilityUnderstanding";
 import { abilityCostPlan } from "../../game/abilityCost";
 import { rollAxisChoices, rollAxisPaths, rollAxisRoll, type RollAxisStats } from "../../game/rollAxis";
 import { abilitySaveDv, saveDvBreakdown, savePlainLabel } from "../../game/saveDv";
@@ -11,15 +11,29 @@ import { isRangedWeapon, weaponDomainsMet } from "../../lib/codex";
 import type { Weapon } from "../../models/codex";
 import { RollButton } from "./RollButton";
 
-type Cat = "attack" | "genus" | "cipher";
+type Cat = "attack" | "genus" | "cipher" | "innate";
+/** The categories that are an ability rather than a weapon. */
+type AbilityCat = Exclude<Cat, "attack">;
 type Row =
   | { kind: "weapon"; cat: "attack"; key: string; w: Weapon }
-  | { kind: "ability"; cat: "genus" | "cipher"; key: string; a: UsableAbility };
+  | { kind: "ability"; cat: AbilityCat; key: string; a: UsableAbility };
+
+/** What a row calls itself under its name. "Innate" covers the species innates
+ *  AND the variant abilities `usableRacial` returns beside them, because that is
+ *  what the sheet has always called the whole list on the Bio tab; splitting the
+ *  word here would name the same six rows two ways on one sheet. */
+const CAT_WORD: Readonly<Record<AbilityCat, string>> = { genus: "Genus", cipher: "Cipher", innate: "Innate" };
 
 interface Props {
   weapons: Weapon[];
   genus: UsableAbility[];
   ciphers: UsableAbility[];
+  /** Species innates plus the character's variant abilities — exactly what
+   *  `usableRacial` returns, which is exactly what the VTT's `racial` group
+   *  reads. One call, one understanding, so the two surfaces cannot disagree
+   *  about what a Salaris' Iudicius asks for. Optional because a sheet with no
+   *  species has none, not because it is decoration. */
+  innate?: UsableAbility[];
   atk: number;
   phyMod: number;
   dexMod: number;
@@ -44,10 +58,12 @@ const FILTERS: { id: "all" | Cat; label: string }[] = [
   { id: "attack", label: "Attack" },
   { id: "genus", label: "Genus" },
   { id: "cipher", label: "Cipher" },
+  { id: "innate", label: "Innate" },
 ];
 
-// The unified combat surface: equipped weapons + genus + ciphers as one filterable table.
-export function ActionsTable({ weapons, genus, ciphers, atk, phyMod, dexMod, paradigmId, onRoll, onSpend, ssLeft, onManage, onContest, rollAxisStats }: Props) {
+// The unified combat surface: equipped weapons + genus + ciphers + the
+// character's species innates, as one filterable table.
+export function ActionsTable({ weapons, genus, ciphers, innate = [], atk, phyMod, dexMod, paradigmId, onRoll, onSpend, ssLeft, onManage, onContest, rollAxisStats }: Props) {
   const [filter, setFilter] = useState<"all" | Cat>("all");
   const [open, setOpen] = useState<string | null>(null);
   const [ocOpen, setOcOpen] = useState(false);
@@ -56,6 +72,7 @@ export function ActionsTable({ weapons, genus, ciphers, atk, phyMod, dexMod, par
     ...weapons.map((w) => ({ kind: "weapon" as const, cat: "attack" as const, key: "w:" + w.name, w })),
     ...genus.map((a) => ({ kind: "ability" as const, cat: "genus" as const, key: "g:" + a.name, a })),
     ...ciphers.map((a) => ({ kind: "ability" as const, cat: "cipher" as const, key: "c:" + a.name, a })),
+    ...innate.map((a) => ({ kind: "ability" as const, cat: "innate" as const, key: "i:" + a.name, a })),
   ];
   const shown = rows.filter((r) => filter === "all" || r.cat === filter);
 
@@ -108,7 +125,7 @@ export function ActionsTable({ weapons, genus, ciphers, atk, phyMod, dexMod, par
     );
   }
 
-  function abilityRow(a: UsableAbility, cat: Cat, key: string) {
+  function abilityRow(a: UsableAbility, cat: AbilityCat, key: string) {
     const expanded = open === key;
     // The Damage column shows what the ability DEALS, read out of its effect
     // text — it used to show the SS cost, which reads as "Lark deals 5 damage".
@@ -123,8 +140,29 @@ export function ActionsTable({ weapons, genus, ciphers, atk, phyMod, dexMod, par
     // than a chip that only says their names. Fetched at the open row for the
     // same reason the read is: it is memoised behind the call, but there is no
     // reason to ask for it on a row nobody expanded.
-    const read = expanded ? abilityUnderstanding(a.effect, a.actions, officialAbilityCatalog()) : null;
+    //
+    // An INNATE row is read whether or not it is open, because the collapsed row
+    // has to say "Passive" — 61 of the 111 rows `usableRacial` can return are
+    // "Always / Automatic / Passive", and a species feature that looks
+    // identical to a rollable one until you click it is the whole reason the
+    // flat Bio list was not enough. Cheap: `parseAbilityActions` memoises per
+    // effect string, and a character carries 4–6 of these, not the corpus.
+    const read = expanded || cat === "innate" ? abilityUnderstanding(a.effect, a.actions, officialAbilityCatalog()) : null;
     const actions = read?.actions ?? [];
+    // An innate the reader found no roll in gets no roll: the generic "Roll d20"
+    // fallback at the bottom of this row is for a genus whose prose the parser
+    // could not read, not for Radioactive Anatomy, which resolves "Always ·
+    // Automatic" and asks nobody for a die.
+    const unrolled = cat === "innate" && actions.length === 0;
+    // But WHY there is no roll decides what the row may say about it, and the
+    // parser finding nothing is not evidence that the page asked for nothing.
+    // Radiant Cascade parses to nothing and reads "Resolution: END Check or
+    // Disadvantage on next roll · … all targets in range make an END Check";
+    // captioning it "states no roll" would put a rule on the sheet that the
+    // Oriyu page contradicts. So the caption needs the PAGE to have said it —
+    // `declaresNoRoll` — and every other unrolled innate says only what is
+    // true of this app, that it found nothing to arm.
+    const passive = unrolled && declaresNoRoll(a.effect);
     const selfAxis = rollAxisStats ? actions.filter((x) => x.kind === "self" && x.rollAxis) : [];
     // Plain stat checks ("make an Endurance Check") still get a labelled d20 —
     // dropping them left abilities whose check could not be rolled at all.
@@ -141,7 +179,8 @@ export function ActionsTable({ weapons, genus, ciphers, atk, phyMod, dexMod, par
           <span className="act-name">
             <span className="act-title">{a.name}</span>
             <span className="act-sub">
-              {cat === "genus" ? "Genus" : "Cipher"}
+              {CAT_WORD[cat]}
+              {passive ? " · Passive" : ""}
               {a.domain ? " · " + a.domain : ""}
               {a.focus ? " · Focus " + a.focus : ""}
             </span>
@@ -151,6 +190,10 @@ export function ActionsTable({ weapons, genus, ciphers, atk, phyMod, dexMod, par
           <span className={"act-dmg" + (dmg.none ? " kindly" : "")} title={dmg.none ? "Deals no damage" : `Average ${averageDamage(dmg)}`}>
             {dmg.label}
           </span>
+          {/* No price where the page names none. An innate carries `ss: 0`, and
+              printing "0 SS" for it would state a rule the species pages do not
+              have — free is the absence of a price, not a price of nothing. A
+              declared `- Cost:` still reaches the Use button below. */}
           <span className="act-cost">{a.ssNote || (a.ss ? a.ss + " SS" : "—")}</span>
           <span className="act-notes">{a.effect || "—"}</span>
         </button>
@@ -274,8 +317,22 @@ export function ActionsTable({ weapons, genus, ciphers, atk, phyMod, dexMod, par
                   {act.label}
                 </RollButton>
               ))}
-              {selfAxis.length === 0 && selfPlain.length === 0 && dmgActs.length === 0 && (
+              {/* The catch-all d20 is for an ability the parser could not read —
+                  a genus that certainly resolves on SOMETHING. An innate that
+                  parsed to nothing has usually said outright that it resolves
+                  automatically, so the same button there would invent a roll the
+                  species page refuses to ask for. */}
+              {cat !== "innate" && selfAxis.length === 0 && selfPlain.length === 0 && dmgActs.length === 0 && (
                 <RollButton className="roll-btn" make={(mode) => rollGeneric(a.name, mode)} onLocal={onRoll}>Roll d20</RollButton>
+              )}
+              {passive && <span className="act-passive">Passive — this feature states no roll.</span>}
+              {/* The other reason a row is bare: the page DOES name a
+                  resolution and this app could not read it. Said as a fact
+                  about the sheet, because that is the only thing known — the
+                  effect text is printed directly above, and it is the authority
+                  the player should be reading here. */}
+              {unrolled && !passive && (
+                <span className="act-passive">No roll this sheet can arm — this feature's resolution is in its text above.</span>
               )}
             </div>
           </div>

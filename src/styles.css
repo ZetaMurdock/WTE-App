@@ -4028,6 +4028,14 @@ body.wte-dot-cursor * {
   border-color: #d05a44;
   color: #d05a44;
 }
+/* Said where the roll buttons would have been, on a species feature that
+   resolves automatically. An empty control strip reads as "not implemented
+   yet"; this reads as the rule it is. */
+.act-passive {
+  color: var(--muted);
+  font-size: 11px;
+  font-style: italic;
+}
 .stats-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

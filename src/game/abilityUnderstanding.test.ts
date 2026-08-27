@@ -7,7 +7,7 @@
 // somebody rolls it.
 import { describe, expect, it } from "vitest";
 import { parseAbilityActions } from "./abilityActions";
-import { abilityUnderstanding, invocationChips } from "./abilityUnderstanding";
+import { abilityUnderstanding, declaresNoRoll, invocationChips } from "./abilityUnderstanding";
 import { buildAbilityCatalog } from "./abilityCatalog";
 
 const PROSE =
@@ -198,5 +198,51 @@ describe("a threshold consequence is shown, never armed", () => {
     const read = abilityUnderstanding("", BLIGHT);
     expect(read.chips.map((chip) => chip.label)).toEqual(["Blight +1 / 8", "At 8 · 1d100"]);
     expect(read.chips[1].title).toContain("when Blight reaches 8");
+  });
+});
+
+describe("whether a page SAYS it takes no roll", () => {
+  it("believes a header that declares its resolution automatic", () => {
+    // SubDermin · Radioactive Anatomy. No surface should offer a die here.
+    expect(declaresNoRoll("Target/Area: nearby · Vector: Ambient · Always · Automatic. Internal biology emits low-level radiation.")).toBe(true);
+  });
+
+  it("refuses a header that names a check, however little the parser found in it", () => {
+    // Oriyu · Radiant · Radiant Cascade, which `parseAbilityActions` reads
+    // nothing out of. "Found no roll" and "asks for no roll" are different
+    // facts, and only the second one may be printed beside a species feature.
+    const cascade =
+      "Target: Multi · Vector: Burst · Instant · Area: Radius 30 ft · Resolution: END Check or Disadvantage on next roll · " +
+      "Limit: twice per encounter. As a Standard Action, emit a blinding burst of energy: all targets in range make an END Check or suffer Disadvantage on their next roll.";
+    expect(parseAbilityActions(cascade)).toEqual([]);
+    expect(declaresNoRoll(cascade)).toBe(false);
+  });
+
+  it("is not fooled by a passive that merely MODIFIES other rolls", () => {
+    // Voaulton · Robotic Integration is automatic AND says "one gear-based roll
+    // gains +2" in its body. The body describes rolls the character was already
+    // making; only the header states this feature's own resolution, so the body
+    // must not be allowed to veto a header that plainly says Automatic.
+    expect(
+      declaresNoRoll(
+        "Passive (Self) · Always · Automatic. Natural affinity for machine-bonding: powered gear you wear counts as part of your body. Once per round, one gear-based roll gains +2."
+      )
+    ).toBe(true);
+  });
+
+  it("says no when a page declares nothing either way", () => {
+    // Silence is not a declaration. A caller that gets false says nothing.
+    expect(declaresNoRoll("Target: 1 Creature · Vector: Contact · Duration: Instant.")).toBe(false);
+    expect(declaresNoRoll("")).toBe(false);
+  });
+
+  it("errs shy where a header says both", () => {
+    // Seraph · Oris · Voth Avarin — "Type: Passive … creates no additional
+    // roll" is as clear a passive as the corpus has, and this still answers
+    // false. Deliberate: the cost of shyness is a row that says nothing, and
+    // the cost of confidence is a rule this app made up.
+    expect(
+      declaresNoRoll("Type: Passive · Duration: Instant · Resolution: modifies the Tone's existing Roll Axis resolution; creates no additional roll.")
+    ).toBe(false);
   });
 });

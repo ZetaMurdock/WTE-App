@@ -818,6 +818,10 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                 weapons={equippedWeapons}
                 genus={usableGenusResolved(knownGenusNames, codexCtx(campaignId, characterId, role), spend.genus, ruleLayers)}
                 ciphers={usableCiphers(sheet.paradigmId, cipherLoadout)}
+                // The same `racial` the Bio tab reads and the same list the
+                // VTT's racial group is built from — one call, so a Salaris'
+                // Iudicius asks for the same rolls on both surfaces.
+                innate={racial}
                 atk={derived.atk}
                 phyMod={rollMod(eff.phy)}
                 dexMod={rollMod(eff.dex)}
@@ -957,6 +961,15 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                         {species ? " · " + species.name : ""}
                       </span>
                     </div>
+                    {/* Bio keeps the prose and gives up the mechanics.
+                        The same six features now also sit in the Actions table,
+                        and printing their rolls twice on one sheet would be two
+                        places to disagree about one ability. So the division is
+                        by JOB: this is where a player reads what their species
+                        is — full authored text, beside their Incepts — and the
+                        Actions tab is the only place anything is rolled. The
+                        pointer exists so the split is discoverable rather than
+                        something a player has to find. */}
                     <ul className="variant-abilities">
                       {racial.map((a, i) => (
                         <li key={i}>
@@ -965,6 +978,10 @@ export function CharacterSheet({ characterId, campaignId, curator, onBack, onCha
                         </li>
                       ))}
                     </ul>
+                    <p className="inv-sub">
+                      Rolls, damage and target DVs for these live on the{" "}
+                      <button className="link-btn" onClick={() => setTab("actions")}>Actions</button> tab.
+                    </p>
                   </>
                 )}
 

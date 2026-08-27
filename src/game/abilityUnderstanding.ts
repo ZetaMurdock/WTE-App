@@ -194,3 +194,42 @@ export function invocationChips(invocations: readonly Invocation[]): (AbilityChi
     fault: isInvokeFault(one),
   }));
 }
+
+/** The `·`-separated declarations a page writes BEFORE its body prose — Type,
+ *  Target, Duration, Resolution, Limit. Cut at the first sentence break because
+ *  that is where every authored ability in the corpus stops declaring and starts
+ *  describing, and the body is where a passive names the rolls it MODIFIES
+ *  ("+2 on checks to read terrain") rather than any roll of its own. */
+function abilityHeader(effect: string): string {
+  const stop = effect.search(/\.\s/);
+  return stop === -1 ? effect : effect.slice(0, stop);
+}
+/** The words a page uses to say its resolution takes no roll. */
+const DECLARES_AUTOMATIC = /\b(automatic|automatically|passive|always)\b/i;
+/** Anything that would make "no roll" a lie. */
+const NAMES_A_ROLL = /\b(check|checks|save|saves|roll|rolls|rolled|contest|contests|contested|clash|dc|dv)\b/i;
+
+/** Does the ability's OWN page say it resolves without a roll?
+ *
+ *  Asked because a surface that wants to print "Passive — this feature states
+ *  no roll" must have READ that, not merely have failed to parse anything. The
+ *  two are not the same: `parseAbilityActions` finds nothing in Radiant
+ *  Cascade, whose header says outright "Resolution: END Check or Disadvantage
+ *  on next roll", and captioning that ability "states no roll" contradicts the
+ *  species page — which is this app inventing a rule, in the one direction
+ *  nobody notices.
+ *
+ *  So the answer requires POSITIVE evidence: the header declares Automatic /
+ *  Passive / Always AND names no check, save, roll or contest anywhere in the
+ *  same header. It never adds or removes an action — `abilityUnderstanding`
+ *  remains the only reader of what an ability DOES — and it is deliberately shy:
+ *  a header that says both (Voth Avarin's "Passive … creates no additional
+ *  roll") answers false, and a surface that gets false simply says nothing
+ *  rather than saying something wrong. */
+export function declaresNoRoll(effect: string | null | undefined): boolean {
+  // A feature with no text has declared nothing, least of all that it is free
+  // of rolls.
+  if (!effect) return false;
+  const header = abilityHeader(effect);
+  return DECLARES_AUTOMATIC.test(header) && !NAMES_A_ROLL.test(header);
+}
