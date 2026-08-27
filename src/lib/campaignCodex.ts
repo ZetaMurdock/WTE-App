@@ -165,6 +165,23 @@ function cleanStem(value: unknown): string {
   return String(value ?? "").trim().replace(/\\/g, "/").split("/").pop()!.replace(/\.(md|markdown)$/i, "");
 }
 
+/** Did the page NAME itself, or was its title inferred from its filename? An
+ *  authored heading is the stronger claim to an identity when two pages want the
+ *  same one. */
+function titleIsDeclared(content: string): boolean {
+  return /^#{1,4}\s+.+$/m.test(content);
+}
+
+/**
+ * Which of two files that want ONE id should keep it.
+ *
+ * Exported for its test: the builder reads AppData through Tauri, but the rule
+ * it applies is arithmetic and deserves to be pinned on its own.
+ */
+export function duplicateKeepsIncoming(heldContent: string, incomingContent: string): boolean {
+  return titleIsDeclared(incomingContent) && !titleIsDeclared(heldContent);
+}
+
 function pageTitle(content: string, stem: string): string {
   const heading = content.match(/^#{1,4}\s+(.+)$/m)?.[1];
   return (heading || stem).replace(/[*_`]/g, "").trim() || stem;
@@ -385,6 +402,22 @@ export async function buildCampaignCodexSnapshot(
       // AppData is global to the installation and may still contain a file that
       // belongs to another campaign. It must not leak into this one.
       if (page.source === "campaign" && page.ownerId !== slugify(owner)) continue;
+      // TWO FILES CAN WANT ONE IDENTITY. A page's id comes from its TITLE, and a
+      // title falls back to the filename when the content declares no heading —
+      // so "The 16 Sectors.md" (an old HTML export, untitled) and
+      // "The_16_Sectors.md" (the authored page) both claimed
+      // `wte.page.the-16-sectors`. The snapshot carried both, every player's
+      // validator refused the duplicate, and one stale file in AppData took a
+      // whole table offline with a message about a page nobody had touched.
+      //
+      // The page that NAMES itself wins; otherwise the first one seen keeps the
+      // id. Dropping the loser is right rather than throwing: a Curator with a
+      // leftover file should still be able to run their game.
+      const clash = pages.findIndex((held) => held.id === page.id);
+      if (clash >= 0) {
+        if (duplicateKeepsIncoming(pages[clash].content, content)) pages[clash] = page;
+        continue;
+      }
       pages.push(page);
     }
   }

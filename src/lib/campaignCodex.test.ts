@@ -26,6 +26,7 @@ import {
   roomCodexState,
   type CampaignCodexPage,
   type CampaignCodexSnapshot,
+  duplicateKeepsIncoming,
 } from "./campaignCodex";
 import { DEFAULT_RULES, loadRules, type CampaignRules } from "./campaignRules";
 import { loadCodexGameData } from "./gameData";
@@ -577,5 +578,32 @@ describe("room snapshot game-data compilation", () => {
     // a rules change nobody asked for.
     expect(ciphersForParadigm("science").find((c) => c.name === "SPECTRCO")!.actions).toBe(official.actions);
     expect(usableCiphers("science", ["SPECTRCO"])[0].actions).toBe(official.actions);
+  });
+});
+
+describe("two files that want one id", () => {
+  // A page's id comes from its TITLE, and a title falls back to the FILENAME
+  // when the content declares no heading. So an old HTML export saved as
+  // "The 16 Sectors.md" and the authored "The_16_Sectors.md" both claimed
+  // wte.page.the-16-sectors. The snapshot carried both, every player's
+  // validator refused the duplicate, and a live table could not join --
+  // reported as: page "The 16 Sectors" repeats an id already in the document.
+  const htmlExport = '<div style="background:#0d0d0d">Sectors &amp; Spirals</div>';
+  const authored = "# The 16 Sectors\n\n*The Cosmological Atlas*";
+
+  it("gives the id to the page that names itself", () => {
+    expect(duplicateKeepsIncoming(htmlExport, authored)).toBe(true);
+  });
+
+  it("does not let an unnamed page take an id from a named one", () => {
+    expect(duplicateKeepsIncoming(authored, htmlExport)).toBe(false);
+  });
+
+  it("keeps the first when neither names itself, rather than flapping", () => {
+    expect(duplicateKeepsIncoming(htmlExport, "<div>another export</div>")).toBe(false);
+  });
+
+  it("keeps the first when both name themselves — one answer, deterministically", () => {
+    expect(duplicateKeepsIncoming(authored, "# The 16 Sectors\n\nanother copy")).toBe(false);
   });
 });
