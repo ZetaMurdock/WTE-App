@@ -8,7 +8,7 @@
 //   • damage — a damage dice expression the ability deals
 //   • save   — a resolution the TARGET makes, with its DC (shown, not armed)
 
-import { isRestorativeAt } from "./abilityDamage";
+import { isDamageAt, isRestorativeAt, namesOtherPoolAt } from "./abilityDamage";
 import { scanLegacyHybrids, translateLegacyStat } from "./legacyVocabulary";
 
 export type AbilityActionKind = "self" | "damage" | "save";
@@ -248,6 +248,16 @@ function parseAbilityActionsUncached(text: string): AbilityAction[] {
     // clause-bounded: a heal verb carries across the semicolons separating its
     // SS tiers, where "you take" does not carry across a sentence.
     const restorative = isRestorativeAt(text, dm.index);
+    // The Damage column's own filter, which this parser never asked. Dice that
+    // are a threshold ("declare a d20 threshold value"), a distance ("roll
+    // (1d10) for feet"), a roll bonus ("+1d10 to a Check") or a stated cap are
+    // not an ability's output. Harmless while a chip was only a button; a
+    // damage chip now APPLIES hit points, so a phantom one takes them off a
+    // real body. A restorative reading is kept -- it is a real movement of a
+    // pool, just the other way.
+    if (!restorative && !isDamageAt(text, dm.index, dm[0].length)) continue;
+    // A heal of a DIFFERENT pool is not this ability's HP movement either.
+    if (namesOtherPoolAt(text, dm.index, dm[0].length)) continue;
     push({
       kind: "damage",
       label: type ? `${expr} ${type}` : expr,

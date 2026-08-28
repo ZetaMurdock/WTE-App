@@ -411,3 +411,54 @@ describe("the legacy dialect the Incepts are written in", () => {
     ]);
   });
 });
+
+describe("dice that are not this ability's damage", () => {
+  // The Damage column has always rejected these; the action parser armed them
+  // anyway. One prose, two readers, opposite answers -- harmless while a chip
+  // was only a button, wrong once a damage chip applies hit points.
+  const dmg = (t: string) => parseAbilityActions(t).filter((a) => a.kind === "damage");
+
+  it("ignores a distance the dice measure", () => {
+    // Salaris Rudam, on an ability whose own text says it deals no damage.
+    expect(dmg("extend the projection by up to 100 ft, roll (1d10) for feet")).toEqual([]);
+  });
+
+  it("ignores a threshold the table watches for", () => {
+    expect(dmg("Declare a d20 threshold value (e.g., 15) before the shadow attaches.")).toEqual([]);
+  });
+
+  it("ignores a stated ceiling", () => {
+    expect(dmg("Detonate the stored charge (its own listed yield, never more than 3d10).")).toEqual([]);
+  });
+
+  it("ignores a resolution formula the targets roll", () => {
+    expect(dmg("Resolution: d20 + Size Modifier")).toEqual([]);
+  });
+
+  it("ignores a bonus added to somebody's roll", () => {
+    expect(dmg("The Qerran may add +1d10 to a Check or Save made this round.")).toEqual([]);
+  });
+
+  it("still reads a bonus that IS damage", () => {
+    // "add +1d10 radiance damage" (Photonic Swing) differs from Riven only in
+    // what follows the dice, which is why the rule keys on that and not on "add".
+    expect(dmg("If the attack already has advantage: also add +1d10 radiance damage.")).toHaveLength(1);
+  });
+
+  it("reads a heal whose verb comes AFTER the dice", () => {
+    // Trevant Vhisper. Read backwards only, this was damage -- and the VTT would
+    // have subtracted it from a token.
+    const [d] = dmg("roll 1d40 and store the result as Returned Vitality. The Trevant can restore a Health Pool that is not full.");
+    expect(d).toMatchObject({ restorative: true });
+  });
+
+  it("ignores a restore of a pool that is not hit points", () => {
+    // Qerran Interitus restores Synaptic Space; applied as a heal that number
+    // would land on somebody's body.
+    expect(dmg("previously detonated Scalbs fully dissipate, restoring 1d50 Synaptic Space to the current host")).toEqual([]);
+  });
+
+  it("still reads ordinary damage", () => {
+    expect(dmg("The target takes 3d10 Cold damage on a failed save.")).toHaveLength(1);
+  });
+});

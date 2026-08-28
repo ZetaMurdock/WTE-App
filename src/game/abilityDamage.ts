@@ -57,7 +57,8 @@ const RESTORATIVE_BEFORE = [
   /\bhealing\b[^.]*$/i,
   /\bregenerat\w*\b[^.]*$/i,        // "regenerate 1d20 HP per turn", "regeneration"
   /\brestores?\b[^.]*$/i,
-  /\brecovers?\b[^.]*$/i,           // "Target recovers 3d8 HP"
+  /\brecover(?:s|ing)?\b[^.]*$/i,   // "Target recovers 3d8 HP", "recovering 2d6"
+  /\brestoring\b[^.]*$/i,           // the gerund the corpus actually writes
   /\btemp(?:orary)?\s+hp\b[^.]*$/i,
 ];
 
@@ -66,16 +67,38 @@ const NOT_DAMAGE_BEFORE = [
   /\bdc\s*(?:of|=)?\s*$/i,          // "DC 12", "a dc of d40"
   ...RESTORATIVE_BEFORE,            // a heal is not damage either
   /\bhp equal to\b[^.]*$/i,         // a construct's own HP
-  /\broll\s*(?:a\s*)?$/i,           // "roll a d6 — on a 1" (a table roll)
+  /\broll\s*(?:a\s*)?\(?$/i,        // "roll a d6 — on a 1"; "roll (1d10) for feet"
+  // A CEILING is not an output: Voaulton/Cyborg Circuit Transfiguration reads
+  // "its own listed yield, never more than 3d10".
+  /\b(?:never\s+more\s+than|no\s+more\s+than|at\s+most|up\s+to|maximum\s+of)\s*$/i,
+  // A resolution formula the TARGETS roll — Insectoid/Archnida Unnerving
+  // Presence, "Resolution: d20 + Size Modifier".
+  /\bresolution\s*[:\u2014-]\s*$/i,
 ];
 const NOT_DAMAGE_AFTER = [
   /^\s*(?:hp|dhp)\b/i,              // "1d20 + END modifier HP"
   /^\s*(?:perception|control|wisdom|endurance|dexterity|strength|intelligence)\b/i,
-  /^\s*(?:rounds?|minutes?|turns?|feet|ft)\b/i,
+  // A distance or a duration, with the bracket Rudam closes its dice in:
+  // "extend the projection by up to 100 ft, roll (1d10) for feet".
+  /^\s*\)?\s*(?:for\s+)?(?:rounds?|minutes?|turns?|feet|ft)\b/i,
+  // A THRESHOLD the table watches for, not a hit: Stygians Parasitic Shadow,
+  // "declare a d20 threshold value (e.g., 15)".
+  /^\s*\)?\s*threshold\b/i,
+  // Synaptic Space is a different pool. Oriyu/Qerran Interitus restores 1d50 of
+  // it; applied as damage that number comes off somebody's hit points.
+  /^\s*(?:synaptic\s+space|ss\b)/i,
+  // The dice are the size of a bonus, not of a wound.
+  /^\s*to\s+(?:a|an|any|the)?\s*(?:check|save|roll)\b/i,
 ];
 
 /** How far back a dice match reads for the prose that qualifies it. */
 const BEFORE_WINDOW = 60;
+/** How far FORWARD, for a verb that qualifies dice it follows. Bounded to two
+ *  sentences: far enough for "store the result … restore a Health Pool", short
+ *  enough that a paragraph's later healing cannot claim an earlier attack. */
+const AFTER_WINDOW = 160;
+const RESTORATIVE_AFTER =
+  /\b(?:store[sd]?|stored|stores?)\b[^.]{0,80}\.[^.]{0,80}\b(?:restore|restores|restoring|heal|heals|healing|recover|recovers)\b/i;
 
 /**
  * Do the dice at `idx` restore rather than harm?
@@ -87,11 +110,45 @@ const BEFORE_WINDOW = 60;
  */
 export function isRestorativeAt(text: string, idx: number): boolean {
   const before = text.slice(Math.max(0, idx - BEFORE_WINDOW), idx);
-  return RESTORATIVE_BEFORE.some((re) => re.test(before));
+  if (RESTORATIVE_BEFORE.some((re) => re.test(before))) return true;
+  // The verb can also come AFTER the dice, in the next breath: the Trevant
+  // ability Vhisper reads "roll 1d40 and store the result as Returned
+  // Vitality. The Trevant can restore a Health Pool ... add the stored value".
+  // Reading backwards only, that 1d40 was damage — and on the VTT it would have
+  // been subtracted from a token. The window stops at the sentence that names
+  // the pool, so a later unrelated "restores" cannot reach back and heal
+  // somebody's damage roll.
+  const after = text.slice(idx, idx + AFTER_WINDOW);
+  return RESTORATIVE_AFTER.test(after);
 }
 
-/** Is the dice match at `idx` this ability's damage, or something else? */
-function isDamageAt(text: string, idx: number, matchLen: number): boolean {
+/**
+ * Is the dice match at `idx` this ability's damage, or something else?
+ *
+ * Exported for the same reason `isRestorativeAt` is. The Damage column and the
+ * ACTION parser read one prose, and they used to answer differently: this
+ * function rejected nine dice across the corpus that `parseAbilityActions`
+ * armed as damage buttons — a threshold value ("declare a d20 threshold"), a
+ * distance ("roll (1d10) for feet", on an ability whose own text says it "does
+ * not deal damage directly"), a roll bonus ("+1d10 to a Check"), a restored
+ * pool, a stated cap. Harmless while a chip was only a button; since a damage
+ * chip applies HP through the resolution card, a phantom one takes hit points
+ * off a real body. One list, one answer.
+ */
+const OTHER_POOL_AFTER = /^\s*(?:synaptic\s+space|ss\b|focus\b)/i;
+
+/**
+ * Do the dice name a pool that is NOT hit points?
+ *
+ * Asked separately because a restorative reading deliberately bypasses the
+ * damage filter, and Oriyu/Qerran Interitus reads "restoring 1d50 Synaptic
+ * Space" — a heal of the wrong pool, which a consumer would add to a body.
+ */
+export function namesOtherPoolAt(text: string, idx: number, matchLen: number): boolean {
+  return OTHER_POOL_AFTER.test(text.slice(idx + matchLen, idx + matchLen + 24));
+}
+
+export function isDamageAt(text: string, idx: number, matchLen: number): boolean {
   const before = text.slice(Math.max(0, idx - BEFORE_WINDOW), idx);
   const after = text.slice(idx + matchLen, idx + matchLen + 24);
   if (NOT_DAMAGE_BEFORE.some((re) => re.test(before))) return false;
