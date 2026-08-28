@@ -135,8 +135,21 @@ export function collectAbilityRecords(): CatalogAbility[] {
     // Lineage variants carry abilities that exist nowhere else — a Remnant
     // echo's own rules live on a variant, and a page that names one must not be
     // told the campaign has no such ability.
+    // A variant's creation-time OPTIONS carry abilities too — the Annunaki head
+    // shapes are the shipped case — and they were reached by nothing here, so
+    // `Invoke: Precognition` was told the campaign had no such ability while a
+    // Stygian on the next chair was using it.
+    //
+    // Adding them put a SECOND `Telepathy` in the catalog: the Greys' ability
+    // and the Annunaki "Humanoid Head" option. `claim` is first-wins, so the
+    // bare name still resolves to the Greys' — but only because Greys precedes
+    // Annunaki in variants.json, NOT because options trail abilities here (no
+    // variant ships one name both ways, so that inner order decides nothing).
+    // Reordering the variants array is what would silently repoint the bare
+    // name, which is why a test pins the resolution rather than the order. The
+    // id is how a page says which one it means regardless.
     for (const variant of species.variants ?? []) {
-      for (const ability of variant.abilities ?? []) {
+      for (const ability of [...(variant.abilities ?? []), ...(variant.options ?? []).map((o) => o.ability)]) {
         add({ id: ability.id, name: ability.name, aliases: ability.aliases, effect: ability.effect, actions: ability.actions, kind: "innate" });
       }
     }

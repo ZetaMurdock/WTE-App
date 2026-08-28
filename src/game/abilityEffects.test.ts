@@ -102,6 +102,27 @@ describe("declared steps as the actions the UI already renders", () => {
     expect(effectStepsToActions(steps)[0]).toMatchObject({ self: true });
   });
 
+  it("puts a Save the ACTOR makes on the actor's side of the tray", () => {
+    // Primed Instinct's page hands the Venarian its own Mental Save — Perception.
+    // Keying the side off the verb made that unsayable: the only way to stop the
+    // "vs" chip was to declare no step, which deleted the roll instead of moving
+    // it. The selector the parser already read now decides.
+    const { steps } = parseAbilityEffects("- Save (self): Mental Save — Perception");
+    expect(effectStepsToActions(steps)[0]).toMatchObject({
+      kind: "self",
+      rollAxis: { axis: "mental", direction: "save", path: "perception" },
+    });
+  });
+
+  it("leaves the defaults and the other selectors on the target's side", () => {
+    // The corpus ships `Save (enemies)` (Remnant · Phase Echoes) and plain
+    // `Save`. Neither may move: this change is only about `(self)`.
+    const { steps } = parseAbilityEffects(
+      ["- Save: Physical Save — Recovery", "- Save (enemies): Mental Save — Perception, DV 13", "- Roll: Mental Check — Capacity"].join("\n")
+    );
+    expect(effectStepsToActions(steps).map((a) => a.kind)).toEqual(["save", "save", "self"]);
+  });
+
   it("keeps a threshold's payload out of the tray until the track reaches it", () => {
     // The button was pressable on the first point of Blight, which landed the
     // 1d100 seven points early. A crossing arms it, and only `crossedThresholds`

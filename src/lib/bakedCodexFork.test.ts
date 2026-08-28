@@ -40,6 +40,14 @@ function install(md: string): void {
   registerCodexGameData({ species: [parsed!] });
 }
 
+/** The same record with its permanent id removed — what a Species page emits,
+ *  and therefore what a fork of that page parses back. */
+function unstamped<T extends { id?: string }>(value: T): T {
+  const copy = { ...value };
+  delete copy.id;
+  return copy;
+}
+
 describe("forking a built-in species", () => {
   afterEach(() => registerCodexGameData({}));
 
@@ -174,9 +182,18 @@ describe("the variants that had no page", () => {
 
     install(fork("stygians"));
     const after = getSpecies("stygians")!.variants.find((v) => v.name === "Annunaki")!;
-    expect(after.abilities).toEqual(annunaki.abilities);
-    expect(after.options).toEqual(annunaki.options);
+    // The permanent id does not survive the fork, and this says so rather than
+    // pretending otherwise: a Species page emits name, effect and steps, so a
+    // forked variant ability comes back stamp-less — exactly what a forked
+    // INNATE already does, since `innateAbilities` round-trips as
+    // {name, effect, actions} too. What the Curator forked is what they get.
+    expect(after.abilities).toEqual(annunaki.abilities.map(unstamped));
+    expect(after.options).toEqual(
+      annunaki.options!.map((o) => ({ ...o, ability: unstamped(o.ability) }))
+    );
     expect(after.note).toBe(annunaki.note);
+    // The rules the fork carries are the same rules — only the id is gone.
+    expect(after.abilities.map((a) => a.effect)).toEqual(annunaki.abilities.map((a) => a.effect));
   });
 
   it("adds a variant that was never in the compiled data", () => {

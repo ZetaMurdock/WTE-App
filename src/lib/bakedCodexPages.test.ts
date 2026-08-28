@@ -19,8 +19,17 @@ import {
   bakedSpeciesSize,
   GENUS_DOMAIN_NAMES,
   getGenusDomain,
+  type Species,
 } from "../game/wte";
 import { slugify } from "../game/codexId";
+
+/** The same record with its permanent id removed — what a page emits, and what
+ *  a fork of that page therefore parses back. */
+function unstamped<T extends { id?: string }>(value: T): T {
+  const copy = { ...value };
+  delete copy.id;
+  return copy;
+}
 
 // A built-in page exists so a Curator can fork it. If the generator and the
 // parser disagree by even one field, "Customize" hands them a page that quietly
@@ -55,10 +64,19 @@ describe("built-in pages round-trip through the page parser", () => {
       expect(parsed.variants.map((v) => v.name)).toEqual(species.variants.map((v) => v.name));
       for (const [i, variant] of species.variants.entries()) {
         const back = parsed.variants[i];
-        expect(back.abilities).toEqual(variant.abilities);
+        // Compared against the STAMP-STRIPPED record, because the page does not
+        // carry a permanent id and never has: `abilityBullets` emits name,
+        // effect and steps, so what a Curator forks is what the parser reads
+        // back. That is the innate rule too — `innateAbilities` below round-trips
+        // as {name, effect, actions} with the id left behind. Asserting it here
+        // is what keeps the emission honest: the day a stamp starts leaking onto
+        // a Species page, this fails instead of silently rewriting nine pages.
+        expect(back.abilities).toEqual(variant.abilities.map(unstamped));
         // Creation-time choices used to be dropped by the parser entirely and
         // reappear glued onto the end of the variant's note.
-        expect(back.options ?? []).toEqual(variant.options ?? []);
+        expect(back.options ?? []).toEqual(
+          (variant.options ?? []).map((o) => ({ ...o, ability: unstamped(o.ability) }))
+        );
         if (variant.note) expect(back.note).toBe(variant.note);
       }
     });
@@ -166,12 +184,6 @@ describe("built-in ability pages round-trip through parseCodexEntry", () => {
 // changed nothing. Generating each page from a stripped copy is the direct
 // statement of that invariant.
 describe("stamped ids leave the built-in pages exactly as they were", () => {
-  function unstamped<T extends { id?: string }>(value: T): T {
-    const copy = { ...value };
-    delete copy.id;
-    return copy;
-  }
-
   it("emits the same cipher page with and without the stamp", () => {
     for (const [paradigmId, ciphers] of Object.entries(bakedCiphers())) {
       for (const cipher of ciphers) {
@@ -206,6 +218,42 @@ describe("stamped ids leave the built-in pages exactly as they were", () => {
       expect(md, species.name).not.toContain("wte.innate.");
       for (const innate of bakedSpeciesInnate(species.id)) {
         expect(innate.id, `${species.id}/${innate.name}`).toBeTruthy();
+      }
+    }
+  });
+
+  // The same guarantee for the 75 ids now stamped into variants.json. A Species
+  // page carries every variant ability and every creation-time option inline, so
+  // a stamp leaking into `abilityBullets` or the `- Option:` line would rewrite
+  // all nine Species pages and move the campaign revision hash for every table
+  // that changed nothing. Generating each page from a copy with the stamps
+  // stripped is the direct statement of it: identical bytes, or this fails.
+  it("emits the same Species page with and without the variant stamp", () => {
+    for (const species of bakedSpecies()) {
+      const stripped: Species = {
+        ...species,
+        variants: species.variants.map((v) => ({
+          ...v,
+          abilities: v.abilities.map(unstamped),
+          ...(v.options ? { options: v.options.map((o) => ({ ...o, ability: unstamped(o.ability) })) } : {}),
+        })),
+      };
+      expect(bakedSpeciesPageContent(species), species.name).toBe(bakedSpeciesPageContent(stripped));
+    }
+  });
+
+  it("stamps every variant ability and option, and puts none of them on the page", () => {
+    for (const species of bakedSpecies()) {
+      const md = bakedSpeciesPageContent(species);
+      for (const variant of species.variants) {
+        for (const ability of variant.abilities) {
+          expect(ability.id, `${species.id}/${variant.name}/${ability.name}`).toBeTruthy();
+          expect(md, ability.id).not.toContain(ability.id!);
+        }
+        for (const option of variant.options ?? []) {
+          expect(option.ability.id, `${species.id}/${variant.name}/${option.label}`).toBeTruthy();
+          expect(md, option.ability.id).not.toContain(option.ability.id!);
+        }
       }
     }
   });

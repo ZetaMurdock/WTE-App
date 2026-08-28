@@ -13,7 +13,8 @@
     {
       "name": "Indomitable Will",
       "id": "wte.innate.hyomen-indomitable-will",
-      "effect": "Passive (Self) · Always · Automatic. You gain Advantage on Wisdom and Mental Fortitude checks made against a creature. The potency of this advantage scales directly with your Rank Multiplier."
+      "effect": "Passive (Self) · Always · Automatic. You gain Advantage on Wisdom and Mental Fortitude checks made against a creature. The potency of this advantage scales directly with your Rank Multiplier.",
+      "actions": "- Modify: Advantage on Mental Check — Capacity\n- Ruling: the Advantage covers Wisdom and Mental Fortitude checks made against a creature; its potency scales directly with your Rank Multiplier"
     },
     {
       "name": "Peak Evolution",
@@ -85,7 +86,8 @@
     {
       "name": "Dyn Formn",
       "id": "wte.innate.oriyu-dyn-formn",
-      "effect": "Active · Range/Area: Single Target / Area · Vector: Burst · Duration: Instant · Damage: E = (ING × D × V) ÷ TG · Resolution: Endurance Save vs Prone (Pinched targets). Release your stored Ves-traktiu, causing space to violently and instantaneously snap back to flat equilibrium; the energy output (E) of the snap follows the listed high-velocity formula. Secondary Effect: the instant re-flattening is physically jarring — any targets currently Enanstnivou (Pinched) must succeed on an Endurance Save or be knocked prone as space collapses back."
+      "effect": "Active · Range/Area: Single Target / Area · Vector: Burst · Duration: Instant · Damage: E = (ING × D × V) ÷ TG · Resolution: Endurance Save vs Prone (Pinched targets). Release your stored Ves-traktiu, causing space to violently and instantaneously snap back to flat equilibrium; the energy output (E) of the snap follows the listed high-velocity formula. Secondary Effect: the instant re-flattening is physically jarring — any targets currently Enanstnivou (Pinched) must succeed on an Endurance Save or be knocked prone as space collapses back.",
+      "actions": "- Save: Physical Save — Recovery\n- Fail: Condition: Prone\n- Ruling: only targets currently Enanstnivou (Pinched) make this Endurance Save; the snap's energy output is E = (ING × D × V) ÷ TG"
     }
   ],
   "insectoid": [
@@ -114,7 +116,8 @@
     {
       "name": "Forsaken Touch",
       "id": "wte.innate.subdermin-forsaken-touch",
-      "effect": "Target: 1 Creature or Object · Vector: Contact · Duration: Instant · Damage: 1d10 Entropy (untrained); unattended objects take demolition · Resolution: Endurance save, half. Physical contact has a degrading or corrosive effect on matter. Precise control requires training — until a Curator-recognized discipline milestone, you cannot choose to suppress it against things you touch barehanded."
+      "effect": "Target: 1 Creature or Object · Vector: Contact · Duration: Instant · Damage: 1d10 Entropy (untrained); unattended objects take demolition · Resolution: Endurance save, half. Physical contact has a degrading or corrosive effect on matter. Precise control requires training — until a Curator-recognized discipline milestone, you cannot choose to suppress it against things you touch barehanded.",
+      "actions": "- Save: Physical Save — Recovery\n- Damage: 1d10 Entropy, half on success\n- Ruling: 1d10 Entropy (untrained); unattended objects take demolition\n- Ruling: precise control requires training — until a Curator-recognized discipline milestone, you cannot choose to suppress it against things you touch barehanded"
     },
     {
       "name": "Radioactive Anatomy",
@@ -193,7 +196,8 @@
     {
       "name": "Parasitic Shadow",
       "id": "wte.innate.stygians-parasitic-shadow",
-      "effect": "Active (Standard Action) · Target: 1 Creature · Vector: Contact (shadow-touch; both in shadow) · Duration: Scene · Resolution: threshold trigger · Limit: one Parasitic Shadow active at a time; a threshold below 11 collapses at its first backfire. While standing in shadow, extend dark, entropic tendrils to touch the shadow of a target within melee range and declare a d20 threshold value (e.g., 15). Whenever that target makes a check or save where the natural d20 meets or exceeds your threshold, the action backfires: the roll fails, and you can redirect the full force, damage, or effect of that action onto any Stinous creature within your Influence Range."
+      "effect": "Active (Standard Action) · Target: 1 Creature · Vector: Contact (shadow-touch; both in shadow) · Duration: Scene · Resolution: threshold trigger · Limit: one Parasitic Shadow active at a time; a threshold below 11 collapses at its first backfire. While standing in shadow, extend dark, entropic tendrils to touch the shadow of a target within melee range and declare a d20 threshold value (e.g., 15). Whenever that target makes a check or save where the natural d20 meets or exceeds your threshold, the action backfires: the roll fails, and you can redirect the full force, damage, or effect of that action onto any Stinous creature within your Influence Range.",
+      "actions": "- Ruling: declare a d20 threshold value (e.g., 15) when you touch the target's shadow; whenever that target makes a check or save where the natural d20 meets or exceeds your threshold, the action backfires — the roll fails, and you can redirect the full force, damage, or effect of that action onto any Stinous creature within your Influence Range\n- Ruling: one Parasitic Shadow active at a time; a threshold below 11 collapses at its first backfire"
     },
     {
       "name": "Locked in Time",

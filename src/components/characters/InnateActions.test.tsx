@@ -113,18 +113,44 @@ describe("an innate whose page names a check the character makes", () => {
 describe("an innate that deals damage", () => {
   it("offers the dice and the save its target answers with", async () => {
     // SubDermin · Forsaken Touch — "Damage: 1d10 Entropy … Resolution: Endurance save, half".
+    // Its page now DECLARES that resolution, so the chip reads the Roll Axis
+    // route the block names rather than the words the prose parser lifted; the
+    // "half" the prose promised rides the declared step, which is the half the
+    // sentence used to lose entirely.
     await openInnate([one("subdermin", undefined, "Forsaken Touch")], "Forsaken Touch");
     expect(texts(".roll-btn.dmg")).toEqual(["1d10 Entropy"]);
-    expect(texts(".act-save-chip")).toEqual(["vs Endurance save"]);
+    expect(texts(".act-save-chip")).toEqual(["vs Physical Save — Recovery"]);
   });
 });
 
 describe("an innate whose only resolution is the target's", () => {
   it("shows the save and arms nothing — the sheet has no target to ask", async () => {
-    // Insectoid · Venarian · Primed Instinct — a Mental Save — Perception.
-    await openInnate([one("insectoid", "Venarian", "Primed Instinct")], "Primed Instinct");
-    expect(texts(".act-save-chip")).toEqual(["vs Mental Save — Perception"]);
+    // Oriyu · Qerran · Interitus — "unwilling creatures make a Physical Save —
+    // Recovery". The exemplar used to be Primed Instinct, which is the opposite
+    // case and was the bug: that page gives the VENARIAN the Mental Save —
+    // Perception, and the parser handed it to the target. Primed Instinct now
+    // declares `Save (self)` and so belongs under the heading below, not here.
+    await openInnate([one("oriyu", "Qerran", "Interitus")], "Interitus");
+    expect(texts(".act-save-chip")).toEqual(["vs Physical Save — Recovery"]);
     expect(texts(".roll-btn")).toEqual([]);
+  });
+});
+
+describe("an innate whose resolution the CHARACTER makes", () => {
+  it.each([
+    ["insectoid", "Venarian", "Primed Instinct", "Mental Save — Perception (self)"],
+    ["hyomen", "Spatians", "Space Modulation", "Physical Check — Density"],
+    ["inderi", "AI'N", "Dilation", "Physical Check — Density"],
+  ])("%s/%s — %s arms the roll rather than a chip aimed at nobody", async (species, variant, name, label) => {
+    // The wrong-side class. Each of these pages gives the roll to the character
+    // — "they may make a Mental Save — Perception", "on an AP Check failure" —
+    // and the prose parser handed it to the target as a "vs" chip. A block whose
+    // only line was a Ruling did not fix that: a Ruling arms nothing, so the
+    // roll left the sheet entirely instead of changing sides. These assert the
+    // button is BACK, and on the character.
+    await openInnate([one(species, variant, name)], name);
+    expect(texts(".roll-btn")).toEqual([label]);
+    expect(texts(".act-save-chip")).toEqual([]);
   });
 });
 

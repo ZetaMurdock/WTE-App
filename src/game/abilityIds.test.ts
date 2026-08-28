@@ -6,7 +6,8 @@
 // a player respectively do all the time. Genus solved it with a stamped id and
 // aliases; these assertions hold ciphers and innates to the same standard.
 import { afterEach, describe, expect, it } from "vitest";
-import { parseId, slugify } from "./codexId";
+import { ID_KINDS, parseId, slugify } from "./codexId";
+import { buildAbilityCatalog, collectAbilityRecords } from "./abilityCatalog";
 import {
   bakedCiphers,
   bakedSpeciesInnate,
@@ -175,5 +176,141 @@ describe("a former name keeps resolving", () => {
     const active = usableRacial("hyomen", undefined, undefined, ["wte.innate.hyomen-omen"]);
     expect(active.map((a) => a.name)).toEqual(["Omen"]);
     expect(inceptSeeds("hyomen", ["wte.innate.hyomen-omen"]).map((a) => a.name)).not.toContain("Omen");
+  });
+});
+
+// A species innate has had a permanent id since identity landed; the abilities a
+// lineage VARIANT grants had none at all — every one reported ID=(none). So an
+// outcome applied by a Spatian's Evolved Body could not be correlated back
+// across a rename, `Invoke: Telepathy` could not say which Telepathy it meant,
+// and a page had no way to address one of these abilities at all.
+describe("every variant ability carries a permanent id", () => {
+  // Every row usableRacial can hand back that came off a variant: the ability
+  // list AND the creation-time options, because an option's ability is a third
+  // kind of row and is reached by a different choice.
+  const ROWS = bakedSpecies().flatMap((species) =>
+    species.variants.flatMap((variant) => [
+      ...variant.abilities.map((ability) => ({ species, variant, ability, option: undefined as string | undefined })),
+      ...(variant.options ?? []).map((o) => ({ species, variant, ability: o.ability, option: o.label })),
+    ])
+  );
+
+  it("stamps one on all 75", () => {
+    expect(ROWS).toHaveLength(75);
+    expect(ROWS.filter((r) => r.ability.id)).toHaveLength(ROWS.length);
+  });
+
+  // speciesInnate.json's scheme with the qualifiers a variant needs, not a
+  // second scheme: species, then variant, then — for an option — the label.
+  it("stamps species + variant (+ option label) + name, the way an innate id is built", () => {
+    for (const { species, variant, ability, option } of ROWS) {
+      const parts = [species.id, variant.name, ...(option ? [option] : []), ability.name].map(slugify);
+      expect(ability.id, `${species.id}/${variant.name}/${ability.name}`).toBe(`wte.innate.${parts.join("-")}`);
+    }
+  });
+
+  it("parses as a well-formed wte-scoped Codex id", () => {
+    for (const { ability } of ROWS) {
+      expect(parseId(ability.id!), ability.name).toMatchObject({ scope: "wte", kind: "innate" });
+    }
+  });
+
+  // `innate` is an ID_KIND every shipped build already validates. A NEW kind
+  // would make an older peer's parseId return null for any page pinned to one,
+  // and that peer would then reject the whole Codex snapshot — the table splits
+  // for a reason nobody can see. The scheme therefore adds no kind.
+  it("uses a kind older builds already accept", () => {
+    expect(ID_KINDS).toContain("innate");
+  });
+
+  // Stygians ships Telepathy twice — the Greys' and the Annunaki "Humanoid Head"
+  // option's — and they are reached by different creation choices. A
+  // species+name key, the exact shape innate ids use, collides on this pair.
+  it("keeps the two Stygian Telepathies apart", () => {
+    const ids = ROWS.filter((r) => r.ability.name === "Telepathy").map((r) => r.ability.id);
+    expect(ids).toEqual([
+      "wte.innate.stygians-greys-telepathy",
+      "wte.innate.stygians-annunaki-humanoid-head-telepathy",
+    ]);
+  });
+
+  it("is unique across every lineage, variant and option", () => {
+    const ids = ROWS.map((r) => r.ability.id!);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  // Putting the Annunaki options in the catalog gave `Telepathy` two records.
+  // `claim` is first-wins, so the bare name keeps meaning the Greys' ability —
+  // but that rests on Greys preceding Annunaki in variants.json, which nothing
+  // else states. Reordering that array silently repoints every existing
+  // `Invoke: Telepathy` at the Annunaki's rules under an unchanged label, so
+  // the RESOLUTION is pinned here rather than the array order.
+  it("keeps the bare name Telepathy pointing at the Greys' ability", () => {
+    const catalog = buildAbilityCatalog(collectAbilityRecords());
+    expect(catalog.lookup("Telepathy")?.id).toBe("wte.innate.stygians-greys-telepathy");
+    // And each id still reaches its own, which is the point of stamping them.
+    expect(catalog.lookup("wte.innate.stygians-greys-telepathy")?.name).toBe("Telepathy");
+    expect(catalog.lookup("wte.innate.stygians-annunaki-humanoid-head-telepathy")?.name).toBe("Telepathy");
+  });
+
+  // Innates and variant abilities share the `wte.innate.` prefix, so they share
+  // ONE id space: a variant id equal to an innate id would silently make two
+  // different abilities the same concept.
+  it("never collides with a species innate id", () => {
+    const innate = new Set(bakedSpecies().flatMap((s) => bakedSpeciesInnate(s.id).map((a) => a.id!)));
+    for (const { ability } of ROWS) expect(innate.has(ability.id!), ability.id).toBe(false);
+  });
+
+  // Asserted against the CATALOG, not a map built for the occasion: the catalog
+  // is what `Invoke:` and every page reference actually call, so this proves the
+  // ids are reachable by the path production uses rather than by a second index
+  // nothing else reads.
+  it("resolves through the ability catalog every reference goes through", () => {
+    const catalog = buildAbilityCatalog(collectAbilityRecords());
+    for (const { ability } of ROWS) {
+      expect(catalog.lookup(ability.id!)?.name, ability.id).toBe(ability.name);
+    }
+    // A species innate stays out of the variant space and vice versa: "is this
+    // id a Spatian's Evolved Body?" must not come back yes for a 2-of-4 innate.
+    expect(INNATE_DATA_BY_ID.has("wte.innate.hyomen-spatians-evolved-body")).toBe(false);
+    expect(catalog.lookup("wte.innate.hyomen-spatians-evolved-body")?.name).toBe("Evolved Body");
+  });
+});
+
+describe("a variant ability id reaches the rows play uses", () => {
+  it("rides along on usableRacial, for a variant ability and for an option", () => {
+    const rows = usableRacial("stygians", "Annunaki", "Humanoid Head");
+    const byName = new Map(rows.map((r) => [r.name, r.id]));
+    expect(byName.get("Melam Manifestation")).toBe("wte.innate.stygians-annunaki-melam-manifestation");
+    expect(byName.get("Telepathy")).toBe("wte.innate.stygians-annunaki-humanoid-head-telepathy");
+    // Every row, not only the two named — an unstamped row is one an applied
+    // outcome can be filed under nothing but a display name.
+    for (const row of rows) expect(row.id, row.name).toBeTruthy();
+  });
+
+  // The point of an id on a duplicated name: `Invoke: Telepathy` can only ever
+  // mean one of the two, and until now nothing could say which.
+  it("lets an invocation name the Telepathy it means", () => {
+    const catalog = buildAbilityCatalog(collectAbilityRecords());
+    const greys = catalog.lookup("wte.innate.stygians-greys-telepathy");
+    const annunaki = catalog.lookup("wte.innate.stygians-annunaki-humanoid-head-telepathy");
+    expect(greys?.name).toBe("Telepathy");
+    expect(annunaki?.name).toBe("Telepathy");
+    expect(greys).not.toBe(annunaki);
+    // The bare name still resolves exactly as it did — ids are additive, and a
+    // page that writes `Telepathy` must not start failing to resolve.
+    expect(catalog.lookup("Telepathy")).toBe(greys);
+  });
+
+  // Aliases are honoured where genus honours them — the flat catalog, current
+  // names claimed before any former one. The id survives a rename; the alias
+  // keeps the old word resolving. Nothing shipped has been renamed yet, so this
+  // drives the path rather than leaving the first real rename to try it.
+  it("resolves a renamed variant ability by its former name, and by its id", () => {
+    const catalog = buildAbilityCatalog([
+      { id: "wte.innate.hyomen-spatians-evolved-body", name: "Adaptive Body", aliases: ["Evolved Body"], kind: "innate" },
+    ]);
+    expect(catalog.lookup("Evolved Body")?.name).toBe("Adaptive Body");
+    expect(catalog.lookup("wte.innate.hyomen-spatians-evolved-body")?.name).toBe("Adaptive Body");
   });
 });

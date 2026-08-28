@@ -282,9 +282,22 @@ describe("an ability that declares nothing is untouched", () => {
         if (speciesInnate(species.id).find((a) => a.name === ability.name)?.actions) continue;
         expect(ability.actions, ability.name).toBeUndefined();
       }
+      // Variant abilities need the same skip the innate loop above has. This
+      // loop was written when NO variant ability declared a block, so it read
+      // as "no variant ability may carry nested bullets"; the moment Spatians'
+      // Space Modulation declared one, a correctly round-tripped block failed
+      // here. What is being asserted is that an ability declaring NOTHING gains
+      // nothing — not that variants may never declare.
       for (const variant of back.variants) {
-        for (const ability of variant.abilities) expect(ability.actions, ability.name).toBeUndefined();
-        for (const option of variant.options ?? []) expect(option.ability.actions, option.label).toBeUndefined();
+        const source = species.variants.find((v) => v.name === variant.name);
+        for (const ability of variant.abilities) {
+          if (source?.abilities.find((a) => a.name === ability.name)?.actions) continue;
+          expect(ability.actions, ability.name).toBeUndefined();
+        }
+        for (const option of variant.options ?? []) {
+          if (source?.options?.find((o) => o.label === option.label)?.ability.actions) continue;
+          expect(option.ability.actions, option.label).toBeUndefined();
+        }
       }
     }
   });

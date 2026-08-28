@@ -724,7 +724,17 @@ export function effectStepsToActions(steps: readonly EffectStep[]): AbilityActio
     if (step.cadence === "at-threshold") continue;
     if (step.verb === "roll" || step.verb === "save") {
       const action: AbilityAction = {
-        kind: step.verb === "roll" ? "self" : "save",
+        // The SELECTOR decides the side, not the verb. Keying off the verb
+        // alone made `Save (self)` unsayable: Primed Instinct's page gives the
+        // VENARIAN the Mental Save — Perception, and a block that said so still
+        // armed a "vs" chip aimed at a target the sheet does not have. The
+        // parser has always read the selector and `effectStepLabel` has always
+        // printed it — this reader was the one that threw it away, so the only
+        // remaining way to stop a wrong-sided save was to declare no step at
+        // all, which deletes the roll instead of moving it. Defaults are
+        // unchanged (`roll`→self, `save`→target), so every shipped block arms
+        // exactly what it armed before.
+        kind: step.who === "self" ? "self" : "save",
         label: effectStepLabel(step),
         rollAxis: { axis: step.ref!.axis, direction: step.ref!.direction, path: step.ref!.path },
       };

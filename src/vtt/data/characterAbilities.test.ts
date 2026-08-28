@@ -84,6 +84,30 @@ describe("VTT ability rows carry the permanent Codex id", () => {
     expect(set.cipher[0].id).toBe(`cipher:${cipherName}:0`);
     expect(set.racial[0].id).toBe("racial:Omen:0");
   });
+
+  // The racial group is not only the chosen innates: usableRacial appends the
+  // lineage variant's abilities and, when one is picked, the creation-time
+  // option's. Those rows carried NO abilityId at all, so an Annunaki's Telepathy
+  // reached the VTT indistinguishable from the Greys' — same name, same nothing.
+  it("populates it for variant abilities and for a chosen option", () => {
+    const stygian = {
+      ...rec,
+      sheet: {
+        ...rec.sheet,
+        speciesId: "stygians",
+        variantName: "Annunaki",
+        variantOption: "Humanoid Head",
+        innateChoice: [],
+      },
+    } as CharacterRecord;
+    const set = characterActionSet(stygian);
+    const byName = new Map(set.racial.map((a) => [a.name, a.abilityId]));
+    expect(byName.get("Melam Manifestation")).toBe("wte.innate.stygians-annunaki-melam-manifestation");
+    expect(byName.get("Telepathy")).toBe("wte.innate.stygians-annunaki-humanoid-head-telepathy");
+    for (const row of set.racial) expect(row.abilityId, row.name).toBeTruthy();
+    // The positional id is untouched, so nothing the UI keys off has moved.
+    expect(set.racial.every((a) => a.id.startsWith("racial:"))).toBe(true);
+  });
 });
 
 // The panel asks abilityUnderstanding(effect, actions), so a row that arrives

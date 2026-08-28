@@ -155,9 +155,11 @@ export const SPEC_KEYS: SpecKey[] = SPECIALTIES.map((s) => s.key);
 export type SpeciesFamily = "Humanity" | "Omenity" | "Asternem";
 export interface SpeciesVariantAbility {
   name: string;
-  /** Permanent Codex id, stamped into speciesInnate.json. Optional because a
-   *  variant ability, a page-sourced innate or a homebrew one need not carry
-   *  one; every official innate does. */
+  /** Permanent Codex id, stamped into speciesInnate.json (innates) and
+   *  variants.json (variant abilities and creation-time options). Optional
+   *  because a page-sourced or homebrew ability need not carry one — a forked
+   *  Species page emits name, effect and steps and no id, so what a Curator
+   *  edits comes back stamp-less. Every official one carries it. */
   id?: string;
   /** Former names. A stored innate choice or an Incept seed holds a NAME, so a
    *  rename would otherwise leave the character with neither the ability nor
@@ -1020,6 +1022,19 @@ export const INNATE_DATA_BY_ID: Map<string, SpeciesVariantAbility> = new Map(
     list.filter((a) => a.id).map((a) => [a.id as string, a] as const)
   )
 );
+
+// Variant-granted abilities get NO `*_BY_ID` map of their own. One was written
+// and had exactly zero callers outside its own test: `officialAbilityCatalog()`
+// already resolves every one of these ids — it reads `speciesInnate` and the
+// variant rows through the same accessors the loadout pickers use, so it also
+// honours a campaign's page overlay, which a baked-only map does not. A second
+// index would have been a slower, staler answer to a question already answered.
+//
+// Ids qualify by species AND variant AND — for a creation-time option — the
+// option label, because Stygians ships `Telepathy` twice: once on Greys and once
+// on the Annunaki "Humanoid Head" option. A species+name key, the shape the
+// innate ids use, would collide on exactly that pair and hand an invocation the
+// wrong lineage's rules under the right label.
 
 // ── Baked catalog readers, for the "Built-in" pages in Campaign Settings ──
 // These deliberately read the BASE arrays, never the overlaid live ones. A
